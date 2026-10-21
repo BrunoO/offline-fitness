@@ -50,13 +50,19 @@ export function davUrl(baseUrl: string, ...segments: string[]): string {
 /**
  * Runs a WebDAV request with timeout and basic auth, throwing
  * WebDavTransportError (carrying the HTTP status) on non-2xx/207.
+ *
+ * Statuses the caller treats as control flow (`expectedStatuses`) are still
+ * thrown — the caller branches on them — but not logged as errors: an
+ * "already exists" MKCOL or an "already gone" DELETE on every sync is not a
+ * failure, and logging it red buries the genuine ones in the LogScreen.
  */
 async function davRequest(
   config: WebDavConfig,
   url: string,
   method: string,
   body?: string | Uint8Array,
-  extraHeaders: Record<string, string> = {}
+  extraHeaders: Record<string, string> = {},
+  expectedStatuses: readonly number[] = []
 ): Promise<{ status: number; text: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -80,12 +86,14 @@ async function davRequest(
     const text = await response.text();
     // 207 Multi-Status is the success code for PROPFIND.
     if (!response.ok && response.status !== 207) {
-      simpleLogger.error('WebDAV request failed', {
-        method,
-        url,
-        status: response.status,
-        body: text.slice(0, 500)
-      });
+      if (!expectedStatuses.includes(response.status)) {
+        simpleLogger.error('WebDAV request failed', {
+          method,
+          url,
+          status: response.status,
+          body: text.slice(0, 500)
+        });
+      }
       throw new WebDavTransportError(
         `WebDAV request failed: ${response.status} ${response.statusText}`,
         response.status
@@ -119,7 +127,7 @@ export async function ensureDavFolder(config: WebDavConfig, ...segments: string[
   for (const segment of segments) {
     current = davUrl(current, segment);
     try {
-      await davRequest(config, current + '/', 'MKCOL');
+      await davRequest(config, current + '/', 'MKCOL', undefined, {}, [405, 301]);
       simpleLogger.log('Created WebDAV folder', { path: current });
     } catch (error) {
       if (error instanceof WebDavTransportError && (error.status === 405 || error.status === 301)) {
@@ -204,7 +212,7 @@ export async function getDavFileBytes(
  */
 export async function deleteDavFile(config: WebDavConfig, ...segments: string[]): Promise<void> {
   try {
-    await davRequest(config, davUrl(config.baseUrl, ...segments), 'DELETE');
+    await davRequest(config, davUrl(config.baseUrl, ...segments), 'DELETE', undefined, {}, [404]);
   } catch (error) {
     if (error instanceof WebDavTransportError && error.status === 404) return;
     throw error;

@@ -8,6 +8,13 @@ import {
   putDavFile,
   testDavConnection
 } from '@/features/backup/services/webdavTransport';
+import { simpleLogger } from '@/shared/services/SimpleLogger';
+
+jest.mock('@/shared/services/SimpleLogger', () => ({
+  simpleLogger: { log: jest.fn(), warn: jest.fn(), error: jest.fn() }
+}));
+
+const mockedLoggerError = simpleLogger.error as jest.Mock;
 
 const CONFIG = {
   baseUrl: 'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser',
@@ -81,6 +88,17 @@ describe('webdavTransport', () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(405));
 
     await expect(ensureDavFolder(CONFIG, 'streams')).resolves.toBeUndefined();
+  });
+
+  it('does not log an error for the routine MKCOL 405', async () => {
+    mockedLoggerError.mockClear();
+    (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(405));
+
+    await ensureDavFolder(CONFIG, 'streams');
+
+    // Every sync hits this for folders that already exist; logging it red
+    // buries genuine failures in the LogScreen.
+    expect(mockedLoggerError).not.toHaveBeenCalled();
   });
 
   it('rethrows other MKCOL failures', async () => {
@@ -165,6 +183,26 @@ describe('webdavTransport', () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(404));
 
     await expect(deleteDavFile(CONFIG, 'activities', '1.json')).resolves.toBeUndefined();
+  });
+
+  it('does not log an error for the routine DELETE 404', async () => {
+    mockedLoggerError.mockClear();
+    (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(404));
+
+    await deleteDavFile(CONFIG, 'activities', '1.json');
+
+    expect(mockedLoggerError).not.toHaveBeenCalled();
+  });
+
+  it('still logs genuine failures at error level', async () => {
+    mockedLoggerError.mockClear();
+    (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(500, 'boom'));
+
+    await expect(deleteDavFile(CONFIG, 'activities', '1.json')).rejects.toThrow(
+      WebDavTransportError
+    );
+    expect(mockedLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockedLoggerError.mock.calls[0][1]).toMatchObject({ method: 'DELETE', status: 500 });
   });
 
   it('rethrows other DELETE failures', async () => {
