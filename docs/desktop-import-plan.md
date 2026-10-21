@@ -130,12 +130,14 @@ restore still costs ~4,148 requests + 2,026 file writes. Shipped in `backupSync.
    that measurement honest. If restore is still slow now, the remaining bottleneck is the phone's
    raw per-file write cost, and the pack becomes the next candidate.
 
-### Phase 3 — integrity verification (~0.5 day) — ON HOLD
+### Phase 3 — integrity verification (partial: hash-on-restore for streams ✅ done)
 `strava-import verify` re-hashes local inputs against remote `sync-state.json`, and — the important
 direction — the **phone's restore should hash what it downloaded** and report mismatches instead of
-silently writing corrupt files. Today a login-portal HTML page served with status 200 would be written
-as a stream and only fail later at read time; the marker check already blocks that case for *foreign*
-folders, but hash-on-restore closes it for truncated downloads too.
+silently writing corrupt files. The second half shipped early, forced by a live ping-pong: a stale
+stream cache copy survived wipe → restore skipped it (exists) → push re-uploaded it over the
+server's good copy, forever. Pull now hashes existing local streams against the index and
+re-downloads on mismatch (tombstones still win; activities keep local-wins — backfilled boxes are
+legitimate local state). Still parked: the `verify` command and any activity-side checking.
 
 ### Phase 4 — travel timezones: GPS-derived per-activity zone ✅ done
 Added after the first real seed + restore surfaced the question: the archive stores one UTC instant

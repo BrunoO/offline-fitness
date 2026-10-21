@@ -415,12 +415,16 @@ export interface RestoreSummary {
 
 /**
  * Downloads activities and streams present in the remote sync state but
- * missing locally. Conflict policy is "local wins": an activity or stream
- * file that exists locally is never overwritten, even when its content
- * differs from the remote copy — pull only fills gaps. Remote deletion
- * tombstones are honored (a tombstoned activity is never restored), but a
- * locally existing copy is never removed — a re-fetched activity beats an
- * old tombstone, and the next push then drops the tombstone for good.
+ * missing locally. Conflict policy is "local wins" for activities: a record
+ * that exists locally is never overwritten, even when its content differs
+ * from the remote copy — pull only fills gaps. Streams are the exception:
+ * nothing on the phone ever edits a stream file (backfills only touch
+ * activity records), so a local stream whose bytes differ from the index is
+ * stale or corrupt rather than a local edit worth preserving, and it is
+ * re-downloaded. Remote deletion tombstones are honored (a tombstoned
+ * activity is never restored), but a locally existing copy is never removed —
+ * a re-fetched activity beats an old tombstone, and the next push then drops
+ * the tombstone for good.
  */
 async function pullBackup(
   config: WebDavConfig,
@@ -538,7 +542,27 @@ async function pullBackup(
         return;
       }
       const file = new File(streamsFolder, name);
-      if (file.exists) {
+      let download = !file.exists;
+      if (!download) {
+        // The file is there, but is it the file the index describes? A wipe
+        // keeps the stream cache while deleting the records, and until now a
+        // kept file was never re-checked — so a stale copy survived every
+        // restore and the next push re-uploaded it over the server's good
+        // copy, forever. Streams carry no legitimate local-only state (see
+        // the policy above), so a hash mismatch means refresh, not preserve.
+        // A failed local read only records an error and keeps the file.
+        const advertised = remoteState.streamMd5?.[name];
+        if (advertised !== undefined) {
+          const hasBytes = typeof (file as { bytes?: unknown }).bytes === 'function';
+          const localContent = hasBytes ? await file.bytes() : await file.text();
+          const localMd5 =
+            typeof localContent === 'string'
+              ? await md5(localContent)
+              : await md5Bytes(localContent);
+          download = advertised !== localMd5;
+        }
+      }
+      if (!download) {
         summary.skippedStreams += 1;
       } else {
         const bytes =
