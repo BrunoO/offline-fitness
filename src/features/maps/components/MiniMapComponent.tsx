@@ -12,7 +12,7 @@ export type MiniMapComponentProps = {
  * @param props The component props.
  * @returns A React component.
  */
-export default function MiniMapComponent(_props: MiniMapComponentProps) {
+export default function MiniMapComponent(_props: Readonly<MiniMapComponentProps>) {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <Text>No maps (default)</Text>

@@ -16,7 +16,7 @@ export function ChipMultiSelect({
   onChange,
   includeAll = true,
   containerStyle
-}: ChipMultiSelectProps): React.JSX.Element {
+}: Readonly<ChipMultiSelectProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

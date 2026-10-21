@@ -46,14 +46,14 @@ function HorizontalBarChart({
   accessFunction,
   labelFunction,
   invertedAxis
-}: {
+}: Readonly<{
   title: string;
   data: MonthSummary[];
   barColor: string;
   accessFunction: (arg: MonthSummary) => number;
   labelFunction: ({ datum }: { datum: MonthSummary }) => string;
   invertedAxis: boolean;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);

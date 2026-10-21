@@ -343,10 +343,10 @@ const createStyles = (theme: ResolvedTheme) =>
 function BarChart({
   chartData,
   activityName
-}: {
+}: Readonly<{
   chartData: { x: string; y: number }[];
   activityName: string;
-}) {
+}>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
@@ -438,11 +438,11 @@ function DataTable({
   headers,
   widths,
   data
-}: {
+}: Readonly<{
   headers: string[];
   widths: number[];
   data: string[][];
-}) {
+}>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const maxPositions = findMaxValuePositions(data, headers);

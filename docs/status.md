@@ -725,3 +725,9 @@ A comprehensive code review was performed, covering technical debt, architecture
   - `ValidationBadge`/`SettingToggle` props not `Readonly` (S6759 x2): marked.
   - `deleteStreamFiles` `Promise.all` over sync `File.delete()` results (S4123 CRITICAL): now a plain sync loop; the misleading `runWithCleanup`/`Promise.all` scaffolding around it removed (function made non-async, `DetailsScreen` call wrapped in try/catch, same rethrow semantics, cleanup guard preserved).
 - Also fixed the last open BUG: `stats.ts` `allActivities.map(...)` used for side effects -> `forEach` (S2201).
+
+## Readonly Props Batch - 2026-10-21
+
+- Closed the largest MINOR cluster: all 30 Sonar S6759 "mark component props as read-only" issues wrapped in `Readonly<>` across 20 files (ActivityAnalysisView's 8 subcomponents + main view, ActivityListItem, LastActivitySummary, DetailsScreen, ActivityCalendarPeriod, ButtonList, HomeScreen, MiniMapComponent x3, MapsScreen x2, ProgressOverlay, RecentMonths/Years screens, StatsTab, ChipMultiSelect, SettingsModal, PalettePicker, ThemeProvider).
+- Applied via a dry-run-reviewed codemod driven by the issue list itself (shape-specific wraps: inline literal, named Props type, `props:` parameter, `Partial<>`); type-only change, no runtime impact — tsc and 389 tests green.
+- Suggested follow-up: consider ESLint `react/prefer-read-only-props` to keep this closed.

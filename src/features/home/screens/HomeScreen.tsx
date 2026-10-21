@@ -49,7 +49,7 @@ const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
  * @param navigation The navigation object.
  * @returns A React component.
  */
-export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
+export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();

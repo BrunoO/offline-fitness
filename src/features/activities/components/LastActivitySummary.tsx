@@ -21,7 +21,7 @@ export function LastActivitySummary({
   stats,
   allActivities = [],
   onActivityChange
-}: LastActivitySummaryProps): React.JSX.Element {
+}: Readonly<LastActivitySummaryProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

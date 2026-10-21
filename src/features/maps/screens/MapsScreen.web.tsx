@@ -77,7 +77,7 @@ export default function MapsScreen(): JSX.Element {
  * @param item The enriched activity to display.
  * @returns A React component.
  */
-function MapItem({ item }: { item: ActivityWithStream }): JSX.Element {
+function MapItem({ item }: Readonly<{ item: ActivityWithStream }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   const [mapWidth, setMapWidth] = useState<number>(0);

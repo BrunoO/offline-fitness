@@ -72,7 +72,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
  * @param route The route object.
  * @returns A React component.
  */
-export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.Element {
+export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);

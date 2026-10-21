@@ -23,7 +23,7 @@ export interface PalettePickerProps {
  * @param props The component props.
  * @returns A React component.
  */
-export function PalettePicker({ onChange }: PalettePickerProps): React.JSX.Element {
+export function PalettePicker({ onChange }: Readonly<PalettePickerProps>): React.JSX.Element {
   const theme = useTheme();
   const { paletteId, setPaletteId } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);

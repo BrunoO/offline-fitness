@@ -21,7 +21,7 @@ export function ProgressOverlay({
   progress,
   onCancel,
   showCancel = true
-}: ProgressOverlayProps): React.JSX.Element {
+}: Readonly<ProgressOverlayProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

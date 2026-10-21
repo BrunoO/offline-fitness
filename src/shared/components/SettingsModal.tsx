@@ -22,7 +22,10 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-export function SettingsModal({ visible, onClose }: SettingsModalProps): React.JSX.Element {
+export function SettingsModal({
+  visible,
+  onClose
+}: Readonly<SettingsModalProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

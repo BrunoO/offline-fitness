@@ -124,7 +124,7 @@ function SimilarActivitiesHeader({
   setIsIoUModalVisible,
   setIsTrackModalVisible,
   onExport
-}: {
+}: Readonly<{
   similarActivities: Activity[];
   trackSimilarCount: number;
   iouThreshold: number;
@@ -132,7 +132,7 @@ function SimilarActivitiesHeader({
   setIsIoUModalVisible: (visible: boolean) => void;
   setIsTrackModalVisible: (visible: boolean) => void;
   onExport: () => void;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
@@ -200,12 +200,12 @@ function SimilarActivitiesList({
   similarActivitiesByTrack,
   trackSimilarityThreshold,
   onActivityPress
-}: {
+}: Readonly<{
   similarActivities: Activity[];
   similarActivitiesByTrack: { activity: Activity; similarity: number }[];
   trackSimilarityThreshold: number;
   onActivityPress: (activity: Activity | null) => void;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
@@ -262,7 +262,7 @@ function SpeedTrendChart({
   trendLineData,
   trackTrendLineData,
   mapWidth
-}: {
+}: Readonly<{
   item: Activity;
   similarActivities: Activity[];
   similarActivitiesByTrack: { activity: Activity; similarity: number }[];
@@ -270,7 +270,7 @@ function SpeedTrendChart({
   trendLineData: { x: Date; y: number }[];
   trackTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (similarActivities.length === 0) return <></>;
@@ -348,10 +348,10 @@ function SpeedTrendChart({
 function AltitudeChart({
   altitudeDataXY,
   mapWidth
-}: {
+}: Readonly<{
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!altitudeDataXY) {
@@ -390,10 +390,10 @@ function AltitudeChart({
 function ElevationGainChart({
   elevationGain,
   mapWidth
-}: {
+}: Readonly<{
   elevationGain: { x: number; y: number }[] | undefined;
   mapWidth: number;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!elevationGain) {
@@ -429,7 +429,7 @@ function ElevationGainChart({
 /**
  * Component for displaying activity details
  */
-function ActivityDetails({ item }: { item: Activity }): JSX.Element {
+function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
   const theme = useTheme();
   return (
     <View style={{ padding: 10 }}>
@@ -468,12 +468,12 @@ function IoUThresholdModal({
   iouThreshold,
   onClose,
   onSlidingComplete
-}: {
+}: Readonly<{
   isVisible: boolean;
   iouThreshold: number;
   onClose: () => void;
   onSlidingComplete: (value: number) => void;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [displayValue, setDisplayValue] = useState(iouThreshold);
@@ -520,12 +520,12 @@ function TrackSimilarityModal({
   trackSimilarityThreshold,
   onClose,
   onValueChange
-}: {
+}: Readonly<{
   isVisible: boolean;
   trackSimilarityThreshold: number;
   onClose: () => void;
   onValueChange: (value: number) => void;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
@@ -565,10 +565,10 @@ function TrackSimilarityModal({
 export function ActivityAnalysisView({
   item,
   allActivities
-}: {
+}: Readonly<{
   item: Activity;
   allActivities: Activity[];
-}): JSX.Element {
+}>): JSX.Element {
   const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.15);
   const [iouThreshold, setIouThreshold] = useState<number>(0.8);
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);

@@ -76,11 +76,11 @@ function RightAction({
   activity,
   deleteActivity,
   progress
-}: {
+}: Readonly<{
   activity: Activity;
   deleteActivity: (activity: Activity) => void;
   progress: SharedValue<number>;
-}) {
+}>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -121,12 +121,12 @@ export function ActivityListItem({
   onPress,
   selectedActivityId,
   deleteActivity
-}: {
+}: Readonly<{
   activity: Activity;
   onPress: (id: string) => void;
   selectedActivityId: string | null;
   deleteActivity: (activity: Activity) => void;
-}) {
+}>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

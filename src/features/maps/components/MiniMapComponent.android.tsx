@@ -91,7 +91,7 @@ const renderDirectionArrows = (
   return markers;
 };
 
-export default function MiniMapComponent(props: MiniMapComponentProps) {
+export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
   const mapRef = React.useRef<MapView>(null);
   const coordinates: LatLng[] | undefined = props.stream?.coordinates;
 

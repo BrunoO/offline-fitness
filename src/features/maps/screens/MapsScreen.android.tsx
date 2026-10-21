@@ -62,7 +62,7 @@ function sampleCoordinates<T>(coords: T[], maxPoints: number): T[] {
  * @param navigation The navigation object.
  * @returns A React component.
  */
-export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element {
+export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { globalActivities: allActivities, myActivitiesDiscovered: activityTypes } =

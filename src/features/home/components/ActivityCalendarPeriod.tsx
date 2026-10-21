@@ -46,7 +46,7 @@ export function ActivityCalendarPeriod({
   onDayPress,
   selectedDate,
   navigation
-}: ActivityCalendarPeriodProps): React.JSX.Element {
+}: Readonly<ActivityCalendarPeriodProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { weeklyGoal } = useSettings();

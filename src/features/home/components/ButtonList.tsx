@@ -20,12 +20,12 @@ function ButtonList({
   selectedItems,
   handleOnPress,
   opacity
-}: {
+}: Readonly<{
   items: string[];
   selectedItems: string[];
   handleOnPress: (item: string) => void;
   opacity?: number;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (

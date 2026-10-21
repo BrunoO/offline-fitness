@@ -35,7 +35,7 @@ export const ThemeContext = createContext<ThemeContextValue | undefined>(undefin
  * @param children The children to render.
  * @returns A React component.
  */
-export function ThemeProvider({ children }: PropsWithChildren): React.JSX.Element {
+export function ThemeProvider({ children }: Readonly<PropsWithChildren>): React.JSX.Element {
   const colorScheme = useColorScheme();
   const scheme: ColorScheme = colorScheme === 'dark' ? 'dark' : 'light';
   const [paletteId, setPaletteIdState] = useState<string>(DEFAULT_PALETTE_ID);

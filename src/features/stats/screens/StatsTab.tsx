@@ -527,7 +527,7 @@ const SettingsModal = ({
   );
 };
 
-export function StatsTab({ navigation }: Partial<StatsTabScreenProps>): JSX.Element {
+export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>): JSX.Element {
   useActivitiesContext();
   const [isSettingsVisible, setIsSettingsVisible] = React.useState(false);
 
