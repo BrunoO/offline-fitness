@@ -7,6 +7,7 @@ import Papa from 'papaparse';
 import { Activity } from '../types/types';
 import { simpleLogger } from './SimpleLogger';
 import { getAllActivitiesKeys, loadAllActivities } from './storage';
+import { readStreamFile } from './streamCodec';
 
 // Function to convert activities to CSV
 const activitiesToCSV = (activities: Activity[]): string => {
@@ -91,7 +92,7 @@ export const exportData = async (
 
           if (file.exists) {
             try {
-              const stream: StreamSet = JSON.parse(await file.text());
+              const stream = await readStreamFile<StreamSet>(file);
               const gpxData = streamToGPX(activity, stream);
               zip.file(`activity_${activity.id}.gpx`, gpxData);
             } catch (streamError) {

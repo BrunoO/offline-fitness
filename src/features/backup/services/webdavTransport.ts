@@ -55,20 +55,26 @@ async function davRequest(
   config: WebDavConfig,
   url: string,
   method: string,
-  body?: string,
+  body?: string | Uint8Array,
   extraHeaders: Record<string, string> = {}
 ): Promise<{ status: number; text: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const contentType =
+    body === undefined
+      ? undefined
+      : typeof body === 'string'
+        ? 'application/json; charset=utf-8'
+        : 'application/octet-stream';
   try {
     const response = await fetch(url, {
       method,
       headers: {
         Authorization: basicAuth(config.username, config.password),
-        ...(body !== undefined ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
+        ...(contentType !== undefined ? { 'Content-Type': contentType } : {}),
         ...extraHeaders
       },
-      body,
+      body: body as BodyInit | undefined,
       signal: controller.signal
     });
     const text = await response.text();
@@ -130,10 +136,10 @@ export async function ensureDavFolder(config: WebDavConfig, ...segments: string[
  */
 export async function putDavFile(
   config: WebDavConfig,
-  ...pathSegmentsAndContent: [...string[], string]
+  ...pathSegmentsAndContent: [...string[], string | Uint8Array]
 ): Promise<void> {
   const content = pathSegmentsAndContent[pathSegmentsAndContent.length - 1];
-  const segments = pathSegmentsAndContent.slice(0, -1);
+  const segments = pathSegmentsAndContent.slice(0, -1) as string[];
   await davRequest(config, davUrl(config.baseUrl, ...segments), 'PUT', content);
 }
 
@@ -144,6 +150,52 @@ export async function putDavFile(
 export async function getDavFile(config: WebDavConfig, ...segments: string[]): Promise<string> {
   const { text } = await davRequest(config, davUrl(config.baseUrl, ...segments), 'GET');
   return text;
+}
+
+/**
+ * Downloads a file's binary content as a `Uint8Array`. Throws
+ * WebDavTransportError with status 404 when the file does not exist.
+ */
+export async function getDavFileBytes(
+  config: WebDavConfig,
+  ...segments: string[]
+): Promise<Uint8Array> {
+  const url = davUrl(config.baseUrl, ...segments);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: basicAuth(config.username, config.password)
+      },
+      signal: controller.signal
+    });
+    if (!response.ok && response.status !== 207) {
+      const text = await response.text();
+      simpleLogger.error('WebDAV request failed', {
+        method: 'GET',
+        url,
+        status: response.status,
+        body: text.slice(0, 500)
+      });
+      throw new WebDavTransportError(
+        `WebDAV request failed: ${response.status} ${response.statusText}`,
+        response.status
+      );
+    }
+    if (typeof response.arrayBuffer === 'function') {
+      return new Uint8Array(await response.arrayBuffer());
+    }
+    const text = await response.text();
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i++) {
+      bytes[i] = text.charCodeAt(i) & 0xff;
+    }
+    return bytes;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**

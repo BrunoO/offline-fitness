@@ -14,7 +14,16 @@ jest.mock('expo-file-system', () => {
 
     async text() {
       if (this.exists) {
-        return mockFiles[this.uri];
+        const val = mockFiles[this.uri];
+        return val instanceof Uint8Array ? new TextDecoder().decode(val) : val;
+      }
+      throw new Error(`File not found: ${this.uri}`);
+    }
+
+    async bytes() {
+      if (this.exists) {
+        const val = mockFiles[this.uri];
+        return val instanceof Uint8Array ? val : new TextEncoder().encode(String(val));
       }
       throw new Error(`File not found: ${this.uri}`);
     }

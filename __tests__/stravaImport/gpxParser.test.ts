@@ -74,6 +74,29 @@ describe('parseGpx', () => {
     expect(parsed.points[0].lat).toBeCloseTo(1.1);
   });
 
+  it('drops self-closing <trkpt/> points without swallowing the next point', () => {
+    const gpx = `<gpx><trk><trkseg>
+      <trkpt lat="45.1" lon="6.1"/>
+      <trkpt lat="45.2" lon="6.2"><ele>210.0</ele><time>2023-10-15T05:50:05Z</time></trkpt>
+      <trkpt lat="45.3" lon="6.3"><ele>211.0</ele><time>2023-10-15T05:50:06Z</time></trkpt>
+    </trkseg></trk></gpx>`;
+    const parsed = parseGpx(gpx);
+    expect(parsed.points).toEqual([
+      {
+        lat: 45.2,
+        lon: 6.2,
+        ele: 210,
+        timeMs: Date.UTC(2023, 9, 15, 5, 50, 5)
+      },
+      {
+        lat: 45.3,
+        lon: 6.3,
+        ele: 211,
+        timeMs: Date.UTC(2023, 9, 15, 5, 50, 6)
+      }
+    ]);
+  });
+
   it('keeps timestamps monotonic when segments overlap', () => {
     const gpx = `<gpx><trk>
       <trkseg>

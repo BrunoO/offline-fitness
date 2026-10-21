@@ -6,6 +6,7 @@ import {
   loadRawStreamForActivity
 } from '../src/features/activities/services/fetchAndStoreStreams';
 import { StreamSet } from '../src/features/activities/types/stravaActivityStream.model';
+import { encodeStreamSet } from '../src/shared';
 import { Activity } from '../src/shared/types/types';
 
 describe('fetchAndStoreStreams', () => {
@@ -72,7 +73,7 @@ describe('fetchAndStoreStreams', () => {
       APP_CONFIG.STREAMS_FOLDER
     );
 
-    it('should return the raw stream stored for an activity', async () => {
+    it('should return the raw stream stored for an activity (legacy JSON)', async () => {
       const mockStream: StreamSet = {
         latlng: { data: [[1, 1]], original_size: 1, resolution: 'low', series_type: 'distance' }
       } as StreamSet;
@@ -81,6 +82,34 @@ describe('fetchAndStoreStreams', () => {
       file.write(JSON.stringify(mockStream), { encoding: 'utf8' });
 
       const result = await loadRawStreamForActivity({ id: '7' } as Activity);
+
+      expect(result).toEqual(mockStream);
+    });
+
+    it('should return the raw stream stored in binary format', async () => {
+      const mockStream: StreamSet = {
+        latlng: {
+          data: [
+            [44.905428, 5.789806],
+            [44.905402, 5.789781]
+          ],
+          original_size: 2,
+          resolution: 'high',
+          series_type: 'distance'
+        },
+        altitude: {
+          data: [864, 867.3],
+          original_size: 2,
+          resolution: 'high',
+          series_type: 'distance'
+        },
+        time: { data: [0, 4], original_size: 2, resolution: 'high', series_type: 'distance' }
+      };
+
+      const file = new FileSystem.File(streamsFolder, '8.json');
+      file.write(encodeStreamSet(mockStream));
+
+      const result = await loadRawStreamForActivity({ id: '8' } as Activity);
 
       expect(result).toEqual(mockStream);
     });

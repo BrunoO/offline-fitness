@@ -11,6 +11,18 @@ export { LogScreen } from './components/LogScreen';
 export { exportData } from './services/exportData';
 export { simpleLogger } from './services/SimpleLogger';
 export * from './services/storage';
+export {
+  decodeStreamBytes,
+  encodeStreamSet,
+  isBinaryStream,
+  parseStreamBytes,
+  readStreamFile
+} from './services/streamCodec';
+export type {
+  EncodableStreamSeries,
+  EncodableStreamSet,
+  ReadableStreamFile
+} from './services/streamCodec';
 // trackComparison is excluded from barrel export to avoid circular dependencies
 
 // Utils

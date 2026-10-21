@@ -2,8 +2,10 @@ import { APP_CONFIG } from '@/constants';
 import {
   Activity,
   compareActivitiesByUtcDesc,
+  encodeStreamSet,
   getAllActivitiesKeys,
   loadAllActivities,
+  readStreamFile,
   simpleLogger,
   storeActivity,
   storeMultiActivities
@@ -325,7 +327,7 @@ function trackBoundingBox(
 async function backfillTrackFields(activity: Activity, file: File): Promise<boolean> {
   if (!file.exists) return false;
   try {
-    const stored = JSON.parse(await file.text()) as ActivityStreamLike;
+    const stored = await readStreamFile<ActivityStreamLike>(file);
     const coordinates = stored?.latlng?.data ?? [];
     if (coordinates.length === 0) return false;
     activity.start_latlng = coordinates[0];
@@ -577,7 +579,7 @@ export async function importStravaExport(
           continue;
         }
 
-        const payload = JSON.stringify(converted.stream);
+        const payload = encodeStreamSet(converted.stream);
         parseMs = Date.now() - parseStartedAt;
         timings.parseTracks += parseMs;
 

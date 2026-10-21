@@ -1,7 +1,7 @@
 import { APP_CONFIG, STORAGE_KEYS } from '@/constants';
 import { Activity, simpleLogger } from '@/shared';
 import * as Storage from '@/shared/services/storage';
-import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
+import { CryptoDigestAlgorithm, digest, digestStringAsync } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import {
   WebDavConfig,
@@ -9,6 +9,7 @@ import {
   deleteDavFile,
   ensureDavFolder,
   getDavFile,
+  getDavFileBytes,
   putDavFile
 } from './webdavTransport';
 import { loadWebDavConfig } from './webdavAuth';
@@ -123,6 +124,25 @@ async function loadRemoteSyncState(config: WebDavConfig): Promise<RemoteSyncStat
 
 async function md5(content: string): Promise<string> {
   return digestStringAsync(CryptoDigestAlgorithm.MD5, content);
+}
+
+async function md5Bytes(bytes: Uint8Array): Promise<string> {
+  if (typeof digest === 'function') {
+    const buffer = await digest(CryptoDigestAlgorithm.MD5, bytes as BufferSource);
+    const view = new Uint8Array(buffer);
+    let hex = '';
+    for (let i = 0; i < view.length; i++) {
+      hex += view[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+  }
+  const CHUNK = 8192;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+    parts.push(String.fromCharCode.apply(null, Array.from(slice) as unknown as number[]));
+  }
+  return digestStringAsync(CryptoDigestAlgorithm.MD5, parts.join(''));
 }
 
 async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) => void) {
@@ -251,8 +271,9 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
   let streamDone = 0;
   for (const file of jsonStreamFiles) {
     try {
-      const content = await file.text();
-      const contentMd5 = await md5(content);
+      const hasBytes = typeof (file as { bytes?: unknown }).bytes === 'function';
+      const content = hasBytes ? await file.bytes() : await file.text();
+      const contentMd5 = typeof content === 'string' ? await md5(content) : await md5Bytes(content);
       if (remoteState.streamMd5?.[file.name] === contentMd5) {
         summary.skippedStreams += 1;
       } else {
@@ -426,7 +447,14 @@ async function pullBackup(
       if (file.exists) {
         summary.skippedStreams += 1;
       } else {
-        const content = await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
+        const bytes =
+          typeof getDavFileBytes === 'function'
+            ? await getDavFileBytes(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name)
+            : undefined;
+        const content =
+          bytes !== undefined
+            ? bytes
+            : await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
         file.write(content);
         summary.restoredStreams += 1;
       }

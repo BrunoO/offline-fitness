@@ -7,6 +7,7 @@ import {
   calculateBoundingBox,
   getAllActivitiesKeys,
   loadAllActivities,
+  readStreamFile,
   runWithCleanup,
   simpleLogger,
   storeActivity
@@ -161,7 +162,7 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
   });
 
   try {
-    const stream: StreamSet = JSON.parse(await (mostRecentFile as File).text());
+    const stream = await readStreamFile<StreamSet>(mostRecentFile as File);
     return compressStreamSet(stream);
   } catch (error) {
     simpleLogger.error('Failed to parse most recent stream file — file may be corrupt:', error);
@@ -182,7 +183,7 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
 
     if (file.exists) {
       try {
-        const stream: StreamSet = JSON.parse(await file.text());
+        const stream = await readStreamFile<StreamSet>(file);
         const compressedStream = compressStreamSet(stream);
         if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
           activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
@@ -213,7 +214,7 @@ export const loadStreamForActivity = async (activity: Activity): Promise<Activit
   }
 
   try {
-    const stream: StreamSet = JSON.parse(await file.text());
+    const stream = await readStreamFile<StreamSet>(file);
     return compressStreamSet(stream);
   } catch (error) {
     simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
@@ -235,7 +236,7 @@ export const loadRawStreamForActivity = async (activity: Activity): Promise<Stre
   }
 
   try {
-    return JSON.parse(await file.text()) as StreamSet;
+    return await readStreamFile<StreamSet>(file);
   } catch (error) {
     simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
     return null;
@@ -303,7 +304,7 @@ export const calculateAndStoreMissingBoundingBoxes = async () => {
 
       if (file.exists) {
         try {
-          const stream: StreamSet = JSON.parse(await file.text());
+          const stream = await readStreamFile<StreamSet>(file);
           const compressedStream = compressStreamSet(stream);
 
           if (compressedStream.coordinates.length > 0) {

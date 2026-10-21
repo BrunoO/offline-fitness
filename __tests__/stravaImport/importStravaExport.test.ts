@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 import JSZip from 'jszip';
+import { decodeStreamBytes, isBinaryStream } from '@/shared';
 import { importStravaExport } from '@/features/strava-import/services/importStravaExport';
 
 /**
@@ -86,15 +87,25 @@ jest.mock('expo-file-system', () => {
       mockVirtualFiles.delete(this.uri);
     }
 
-    write(content: string) {
+    write(content: string | Uint8Array) {
       mockStepLog.push(mockLiveState.state?.step ?? 'none');
-      mockVirtualFiles.set(this.uri, { bytes: new TextEncoder().encode(String(content)) });
+      const bytes =
+        content instanceof Uint8Array
+          ? content.slice()
+          : new TextEncoder().encode(String(content));
+      mockVirtualFiles.set(this.uri, { bytes });
     }
 
     async text() {
       const entry = mockVirtualFiles.get(this.uri);
       if (!entry) throw new Error(`File not found: ${this.uri}`);
       return new TextDecoder().decode(entry.bytes);
+    }
+
+    async bytes() {
+      const entry = mockVirtualFiles.get(this.uri);
+      if (!entry) throw new Error(`File not found: ${this.uri}`);
+      return entry.bytes.slice();
     }
 
     open() {
@@ -216,15 +227,16 @@ describe('importStravaExport', () => {
     expect(yoga).toMatchObject({ id: '200', type: 'Yoga', start_latlng: [] });
   });
 
-  it('writes an API-shaped stream for the GPX activity', async () => {
+  it('writes a binary-encoded stream for the GPX activity', async () => {
     const streamFile = mockVirtualFiles.get('file:///documents/streams/100.json');
     expect(streamFile).toBeDefined();
+    expect(isBinaryStream(streamFile!.bytes)).toBe(true);
 
-    const stream = JSON.parse(new TextDecoder().decode(streamFile!.bytes));
-    expect(stream.latlng.data).toHaveLength(3);
-    expect(stream.altitude.data).toEqual([864, 864.1, 864.2]);
-    expect(stream.time.data).toEqual([0, 1, 2]);
-    expect(stream.latlng.original_size).toBe(3);
+    const stream = decodeStreamBytes(streamFile!.bytes);
+    expect(stream.latlng?.data).toHaveLength(3);
+    expect(stream.altitude?.data).toEqual([864, 864.1, 864.2]);
+    expect(stream.time?.data).toEqual([0, 1, 2]);
+    expect(stream.latlng?.original_size).toBe(3);
   });
 
   it('flags activities without a track so they are never retried', () => {

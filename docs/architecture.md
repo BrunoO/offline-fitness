@@ -28,7 +28,7 @@ same folder:
     <profile>/                athlete label, chosen by the user (required)
       collection.json         app id + profile that own this folder
       activities/<id>.json    activity JSON
-      streams/<id>.json       stream JSON
+      streams/<id>.json       stream file (binary 'OF' v1 payload or legacy JSON)
       sync-state.json         md5 index + deletion tombstones
 ```
 
@@ -158,7 +158,7 @@ graph TB
    - `services/csvParser.ts` — locale-tolerant `activities.csv` parser. Header names follow the account language, so columns resolve by alias (English/French/major European abbreviations) with the known column layout as a verified fallback. `Distance` and `Elapsed Time` appear twice; the later (metres/seconds) occurrence wins. Activity dates are UTC.
    - `services/gpxParser.ts` — regex GPX reader producing `latlng`/`altitude`/`time` streams in the exact API shape, so maps, charts, bounding boxes and export work unchanged.
    - `services/activityMapper.ts` — UTC → athlete-local conversion (`local_date`/`local_time`, `start_week`, `utc_offset`) using the device timezone, since the archive has no timezone column.
-   - `services/importStravaExport.ts` — two passes: persist activities in batches (usable immediately), then convert tracks one at a time, skipping stream files that already exist (idempotent, resumable). `.fit`/`.tcx` files are counted as unsupported; activities without GPS get a `nostreamflag`.
+   - `services/importStravaExport.ts` — two passes: persist activities in batches (usable immediately), then convert tracks one at a time, skipping stream files that already exist (idempotent, resumable). `.fit`/`.tcx` files are counted as unsupported; activities without GPS get a `nostreamflag`. Stream files (`streams/<id>.json`) are encoded with `encodeStreamSet` (`src/shared/services/streamCodec.ts`) into a compact 16 B/point binary format (`'OF'` magic header + little-endian `int32` arrays) and written via `File.write(Uint8Array)`; `readStreamFile` transparently reads both binary and legacy JSON stream files.
    - Direct import exception: the pipeline imports `compressStreamSet` from `@/features/activities/services/fetchAndStoreStreams` rather than the barrel, because the barrel pulls in React Native screens and list components.
 
 7. **Import Structure & Best Practices**

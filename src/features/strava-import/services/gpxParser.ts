@@ -29,7 +29,7 @@ export interface ParsedGpx {
   points: GpxPoint[];
 }
 
-const TRACK_POINT_PATTERN = /<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>/g;
+const TRACK_POINT_PATTERN = /<trkpt\b([^>]*?)(?:\/>|>([\s\S]*?)<\/trkpt>)/g;
 const LAT_PATTERN = /\blat\s*=\s*["']([^"']+)["']/;
 const LON_PATTERN = /\blon\s*=\s*["']([^"']+)["']/;
 const ELE_PATTERN = /<ele>\s*([^<]+?)\s*<\/ele>/;
@@ -64,6 +64,7 @@ export function parseGpx(xml: string): ParsedGpx {
   while ((match = TRACK_POINT_PATTERN.exec(xml)) !== null) {
     const attributes = match[1];
     const body = match[2];
+    if (!body) continue;
 
     const latMatch = attributes.match(LAT_PATTERN);
     const lonMatch = attributes.match(LON_PATTERN);

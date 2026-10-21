@@ -4,6 +4,7 @@ import {
   deleteDavFile,
   ensureDavFolder,
   getDavFile,
+  getDavFileBytes,
   putDavFile,
   testDavConnection
 } from '@/features/backup/services/webdavTransport';
@@ -102,6 +103,37 @@ describe('webdavTransport', () => {
     );
     expect(init.method).toBe('PUT');
     expect(init.body).toBe('{"id":9}');
+    expect(init.headers['Content-Type']).toBe('application/json; charset=utf-8');
+  });
+
+  it('uploads binary bytes with PUT and octet-stream content type', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(davResponse(201));
+    const payload = new Uint8Array([0x4f, 0x46, 1, 0]);
+
+    await putDavFile(CONFIG, 'streams', '9.json', payload);
+
+    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(String(url)).toBe(
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/streams/9.json'
+    );
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(payload);
+    expect(init.headers['Content-Type']).toBe('application/octet-stream');
+  });
+
+  it('downloads raw bytes with GET via arrayBuffer', async () => {
+    const raw = new Uint8Array([0x4f, 0x46, 1, 7, 10, 20]);
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      arrayBuffer: async () => raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength),
+      text: async () => ''
+    });
+
+    const bytes = await getDavFileBytes(CONFIG, 'streams', '9.json');
+
+    expect(Array.from(bytes)).toEqual(Array.from(raw));
   });
 
   it('downloads raw text with GET', async () => {
