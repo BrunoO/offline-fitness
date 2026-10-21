@@ -7,34 +7,40 @@
  * matters because activity names and the CSV headers carry accents.
  */
 
+/**
+ * Fallback decoder, used only when the platform has no `TextDecoder`.
+ *
+ * Two things matter for speed here, because a track file is ~250 KB–2 MB:
+ * ASCII is decoded in runs of up to 8 KB (one `fromCharCode` per run, not per
+ * byte), the run scan **resumes after a multi-byte sequence** instead of
+ * falling into the per-byte path for the rest of the file, and the pieces are
+ * joined once at the end so no long chain of string concatenations is built.
+ * The previous version dropped to one character per concatenation after the
+ * first accented activity name and was measured at 4× the cost on a file with a
+ * single accent, growing worse with size.
+ */
 function decodeUtf8Manually(bytes: Uint8Array): string {
-  let result = '';
-  let index = 0;
+  const pieces: string[] = [];
   const length = bytes.length;
-
-  // ASCII fast path in chunks: the bulk of a GPX file is plain ASCII.
-  const CHUNK = 8192;
-  while (index < length && bytes[index] < 0x80) {
-    const end = Math.min(index + CHUNK, length);
-    let asciiEnd = index;
-    while (asciiEnd < end && bytes[asciiEnd] < 0x80) asciiEnd++;
-    result += String.fromCharCode.apply(
-      null,
-      Array.from(bytes.subarray(index, asciiEnd)) as unknown as number[]
-    );
-    index = asciiEnd;
-    if (asciiEnd < end) break;
-  }
+  const ASCII_RUN = 8192;
+  let index = 0;
 
   while (index < length) {
-    const byte = bytes[index];
-
-    if (byte < 0x80) {
-      result += String.fromCharCode(byte);
-      index += 1;
-      continue;
+    const runStart = index;
+    const runEnd = Math.min(index + ASCII_RUN, length);
+    while (index < runEnd && bytes[index] < 0x80) index++;
+    if (index > runStart) {
+      pieces.push(
+        String.fromCharCode.apply(
+          null,
+          Array.from(bytes.subarray(runStart, index)) as unknown as number[]
+        )
+      );
     }
+    if (index >= length) break;
+    if (bytes[index] < 0x80) continue; // the run stopped at the 8 KB cap
 
+    const byte = bytes[index];
     let codePoint = 0;
     let extraBytes = 0;
 
@@ -48,13 +54,13 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
       codePoint = byte & 0x07;
       extraBytes = 3;
     } else {
-      result += '\uFFFD';
+      pieces.push('\uFFFD');
       index += 1;
       continue;
     }
 
     if (index + extraBytes >= length) {
-      result += '\uFFFD';
+      pieces.push('\uFFFD');
       break;
     }
 
@@ -69,16 +75,16 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
     }
 
     if (!valid) {
-      result += '\uFFFD';
+      pieces.push('\uFFFD');
       index += 1;
       continue;
     }
 
-    result += String.fromCodePoint(codePoint);
+    pieces.push(String.fromCodePoint(codePoint));
     index += extraBytes + 1;
   }
 
-  return result;
+  return pieces.join('');
 }
 
 /** Decodes UTF-8 bytes to a string, preferring the platform decoder. */

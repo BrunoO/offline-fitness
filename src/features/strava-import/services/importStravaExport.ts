@@ -1,10 +1,6 @@
 import { APP_CONFIG } from '@/constants';
-// Direct import: the activities barrel also pulls in React Native screens and
-// list components, which the import pipeline (and its tests) must not need.
-import { compressStreamSet } from '@/features/activities/services/fetchAndStoreStreams';
 import {
   Activity,
-  calculateBoundingBox,
   compareActivitiesByUtcDesc,
   getAllActivitiesKeys,
   loadAllActivities,
@@ -261,6 +257,36 @@ function lacksTrackFields(activity: Activity): boolean {
 }
 
 /**
+ * Min/max of a raw `latlng` stream.
+ *
+ * The bounding box used to come from `compressStreamSet(...).coordinates`, i.e.
+ * the whole track was run through Ramer-Douglas-Peucker (and turned into an
+ * array of `{latitude, longitude}` objects) purely to find four numbers. A
+ * track's extremes are the same before and after simplification, so scanning
+ * the pairs directly is both cheaper and more accurate.
+ */
+function trackBoundingBox(
+  latlng: [number, number][]
+): [[number, number], [number, number]] | undefined {
+  if (latlng.length === 0) return undefined;
+  let minLat = latlng[0][0];
+  let maxLat = minLat;
+  let minLng = latlng[0][1];
+  let maxLng = minLng;
+  for (let index = 1; index < latlng.length; index++) {
+    const [lat, lng] = latlng[index];
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+  return [
+    [minLat, minLng],
+    [maxLat, maxLng]
+  ];
+}
+
+/**
  * Fills `start_latlng`, `end_latlng` and `bounding_box` from a stream file that
  * is already stored locally. Used when an activity record was written without
  * them (an older import, or a re-import that overwrote them) while its track
@@ -276,7 +302,7 @@ async function backfillTrackFields(activity: Activity, file: File): Promise<bool
     if (coordinates.length === 0) return false;
     activity.start_latlng = coordinates[0];
     activity.end_latlng = coordinates[coordinates.length - 1];
-    const boundingBox = calculateBoundingBox(compressStreamSet(stored).coordinates);
+    const boundingBox = trackBoundingBox(coordinates);
     if (boundingBox) activity.bounding_box = boundingBox;
     await storeActivity(activity);
     return true;
@@ -436,6 +462,13 @@ export async function importStravaExport(
       const activity = ordered[index];
       const row = rowsById.get(activity.id);
       const trackStartedAt = Date.now();
+      // Per-track split, reported when a track is slow: the whole-track number
+      // alone cannot tell a slow disk from slow parsing, and those need
+      // opposite fixes.
+      let readMs = 0;
+      let parseMs = 0;
+      let writeMs = 0;
+      let flushMs = 0;
       onProgress?.({
         phase: 'streams',
         processed: index,
@@ -492,7 +525,8 @@ export async function importStravaExport(
         mark(live, 'reading-track', { entryBytes: entry.uncompressedSize });
         const readStartedAt = Date.now();
         const raw = await readZipEntry(byteSource, entry);
-        timings.readTracks += Date.now() - readStartedAt;
+        readMs = Date.now() - readStartedAt;
+        timings.readTracks += readMs;
         consecutiveReadFailures = 0;
 
         mark(live, 'parsing-track');
@@ -508,19 +542,22 @@ export async function importStravaExport(
 
         const converted = toStreamSet(gpx.points);
         if (!converted) {
-          timings.parseTracks += Date.now() - parseStartedAt;
+          parseMs = Date.now() - parseStartedAt;
+          timings.parseTracks += parseMs;
           summary.streamsWithoutTrack++;
           writeNoStreamFlag(activity.id, flagged);
           continue;
         }
 
         const payload = JSON.stringify(converted.stream);
-        timings.parseTracks += Date.now() - parseStartedAt;
+        parseMs = Date.now() - parseStartedAt;
+        timings.parseTracks += parseMs;
 
         mark(live, 'writing-stream');
         const streamStartedAt = Date.now();
         new File(streamsFolder, streamName).write(payload);
-        timings.writeStreams += Date.now() - streamStartedAt;
+        writeMs = Date.now() - streamStartedAt;
+        timings.writeStreams += writeMs;
 
         // The track is stored now, so any earlier "no stream" marker is stale.
         clearNoStreamFlag(activity.id, flagged);
@@ -528,12 +565,14 @@ export async function importStravaExport(
 
         activity.start_latlng = converted.startLatLng;
         activity.end_latlng = converted.endLatLng;
-        const boundingBox = calculateBoundingBox(compressStreamSet(converted.stream).coordinates);
+        const boundingBox = trackBoundingBox(converted.stream.latlng?.data ?? []);
         if (boundingBox) activity.bounding_box = boundingBox;
         pendingActivityWrites.push(activity);
         if (pendingActivityWrites.length >= ACTIVITY_BATCH_SIZE) {
           mark(live, 'saving-activity');
+          const flushStartedAt = Date.now();
           await flushActivityWrites();
+          flushMs += Date.now() - flushStartedAt;
         }
 
         summary.streamsImported++;
@@ -553,10 +592,17 @@ export async function importStravaExport(
       }
 
       // A track that takes seconds is the thing worth knowing about, and its id
-      // and size make it findable in the archive afterwards.
+      // and size make it findable in the archive afterwards. The split says
+      // which call was slow: `read`/`write` are the disk, `parse` is JS, and a
+      // large `flush` is AsyncStorage landing on the batch this track completed.
       const trackMs = Date.now() - trackStartedAt;
       if (trackMs >= SLOW_TRACK_MS) {
-        const report = `track ${activity.id}: ${trackMs} ms for ${Math.round(entry.uncompressedSize / 1024)} KB`;
+        const split = `read ${readMs} / parse ${parseMs} / write ${writeMs}${
+          flushMs > 0 ? ` / flush ${flushMs}` : ''
+        }`;
+        const report = `track ${activity.id}: ${trackMs} ms for ${Math.round(
+          entry.uncompressedSize / 1024
+        )} KB (${split})`;
         slowTracks.push(report);
         simpleLogger.warn(`Slow ${report}`);
         if (!live?.slowest || trackMs > live.slowest.ms) {
