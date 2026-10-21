@@ -232,6 +232,64 @@ const createStyles = (theme: ResolvedTheme) =>
  * @param navigation The navigation object.
  * @returns A React component.
  */
+/** Valid/invalid badge shown after an explicit validation of the goal. */
+function ValidationBadge({ status }: { status: 'valid' | 'invalid' | null }): JSX.Element | null {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  if (status === null) return null;
+  const isValid = status === 'valid';
+  return (
+    <View
+      style={[
+        styles.validationBadge,
+        isValid ? styles.validationBadgeValid : styles.validationBadgeInvalid
+      ]}
+    >
+      <Ionicons
+        name={isValid ? 'checkmark-circle' : 'alert-circle'}
+        size={16}
+        color={isValid ? theme.success : theme.danger}
+      />
+      <Text
+        style={[
+          styles.validationText,
+          isValid ? styles.validationTextValid : styles.validationTextInvalid
+        ]}
+      >
+        {isValid ? 'Valid' : 'Invalid'}
+      </Text>
+    </View>
+  );
+}
+
+/** Label, status text and Switch for one staged boolean setting. */
+function SettingToggle({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return (
+    <View style={styles.settingSection}>
+      <View style={styles.toggleContainer}>
+        <Text style={styles.toggleLabel}>{label}</Text>
+        <Text style={styles.toggleStatus}>{value ? 'Enabled' : 'Disabled'}</Text>
+        <Switch
+          value={value}
+          onValueChange={onChange}
+          trackColor={{ false: theme.border, true: theme.primary }}
+          thumbColor={value ? theme.onPrimary : theme.surfaceSunken}
+        />
+      </View>
+    </View>
+  );
+}
+
 const SettingsModal = ({
   isSettingsVisible,
   setIsSettingsVisible
@@ -394,42 +452,18 @@ const SettingsModal = ({
             </View>
 
             {/* Use Elapsed Time Toggle */}
-            <View style={styles.settingSection}>
-              <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>Use Elapsed Time</Text>
-                <Text style={styles.toggleStatus}>
-                  {tempUseElapsedTime ? 'Enabled' : 'Disabled'}
-                </Text>
-                <Switch
-                  value={tempUseElapsedTime}
-                  onValueChange={(value: boolean) => setTempUseElapsedTime(value)}
-                  trackColor={{
-                    false: theme.border,
-                    true: theme.primary
-                  }}
-                  thumbColor={tempUseElapsedTime ? theme.onPrimary : theme.surfaceSunken}
-                />
-              </View>
-            </View>
+            <SettingToggle
+              label="Use Elapsed Time"
+              value={tempUseElapsedTime}
+              onChange={setTempUseElapsedTime}
+            />
 
             {/* Merge Similar Activities Toggle */}
-            <View style={styles.settingSection}>
-              <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>Merge Similar Activities</Text>
-                <Text style={styles.toggleStatus}>
-                  {tempMergeSimilarActivities ? 'Enabled' : 'Disabled'}
-                </Text>
-                <Switch
-                  value={tempMergeSimilarActivities}
-                  onValueChange={(value: boolean) => setTempMergeSimilarActivities(value)}
-                  trackColor={{
-                    false: theme.border,
-                    true: theme.primary
-                  }}
-                  thumbColor={tempMergeSimilarActivities ? theme.onPrimary : theme.surfaceSunken}
-                />
-              </View>
-            </View>
+            <SettingToggle
+              label="Merge Similar Activities"
+              value={tempMergeSimilarActivities}
+              onChange={setTempMergeSimilarActivities}
+            />
 
             {/* Appearance moved to the app's Settings (drawer → Settings): the
                 palette is app-wide, and it applied straight away inside this
@@ -461,32 +495,7 @@ const SettingsModal = ({
                   </View>
                 </View>
                 <View style={styles.validationContainer}>
-                  {validationStatus ? (
-                    <View
-                      style={[
-                        styles.validationBadge,
-                        validationStatus === 'valid'
-                          ? styles.validationBadgeValid
-                          : styles.validationBadgeInvalid
-                      ]}
-                    >
-                      <Ionicons
-                        name={validationStatus === 'valid' ? 'checkmark-circle' : 'alert-circle'}
-                        size={16}
-                        color={validationStatus === 'valid' ? theme.success : theme.danger}
-                      />
-                      <Text
-                        style={[
-                          styles.validationText,
-                          validationStatus === 'valid'
-                            ? styles.validationTextValid
-                            : styles.validationTextInvalid
-                        ]}
-                      >
-                        {validationStatus === 'valid' ? 'Valid' : 'Invalid'}
-                      </Text>
-                    </View>
-                  ) : null}
+                  <ValidationBadge status={validationStatus} />
                   <TouchableOpacity style={styles.validateButton} onPress={onValidate}>
                     <Ionicons name="checkmark-circle-outline" size={16} color={theme.onPrimary} />
                     <Text style={styles.validateButtonText}>Validate</Text>

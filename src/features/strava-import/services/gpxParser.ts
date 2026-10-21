@@ -47,6 +47,27 @@ function decodeXmlEntities(value: string): string {
     .replace(/&amp;/g, '&');
 }
 
+/** Raw values of one `<trkpt>` match, or null when the point is unusable. */
+function readTrackPoint(
+  attributes: string,
+  body: string
+): { lat: number; lon: number; ele: number | null; timeMs: number } | null {
+  const latMatch = attributes.match(LAT_PATTERN);
+  const lonMatch = attributes.match(LON_PATTERN);
+  const timeMatch = body.match(TIME_PATTERN);
+  if (!latMatch || !lonMatch || !timeMatch) return null;
+
+  const lat = Number(latMatch[1]);
+  const lon = Number(lonMatch[1]);
+  const timeMs = Date.parse(timeMatch[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Number.isNaN(timeMs)) return null;
+
+  const eleMatch = body.match(ELE_PATTERN);
+  const ele = eleMatch ? Number(eleMatch[1]) : null;
+
+  return { lat, lon, ele: ele !== null && Number.isFinite(ele) ? ele : null, timeMs };
+}
+
 /**
  * Parses GPX text into points. Points without a usable `<time>` are dropped so
  * the three streams stay index-aligned; multi-segment tracks are concatenated
@@ -62,34 +83,15 @@ export function parseGpx(xml: string): ParsedGpx {
   TRACK_POINT_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = TRACK_POINT_PATTERN.exec(xml)) !== null) {
-    const attributes = match[1];
-    const body = match[2];
-    if (!body) continue;
-
-    const latMatch = attributes.match(LAT_PATTERN);
-    const lonMatch = attributes.match(LON_PATTERN);
-    const timeMatch = body.match(TIME_PATTERN);
-    if (!latMatch || !lonMatch || !timeMatch) continue;
-
-    const lat = Number(latMatch[1]);
-    const lon = Number(lonMatch[1]);
-    const timeMs = Date.parse(timeMatch[1]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Number.isNaN(timeMs)) continue;
-
-    const eleMatch = body.match(ELE_PATTERN);
-    const ele = eleMatch ? Number(eleMatch[1]) : null;
+    const point = match[2] ? readTrackPoint(match[1], match[2]) : null;
+    if (point === null) continue;
 
     // Keep timestamps monotonic: a few exports concatenate segments that
     // overlap, which would otherwise produce negative offsets in the stream.
-    const monotonicTime = timeMs < previousTime ? previousTime : timeMs;
+    const monotonicTime = point.timeMs < previousTime ? previousTime : point.timeMs;
     previousTime = monotonicTime;
 
-    points.push({
-      lat,
-      lon,
-      ele: ele !== null && Number.isFinite(ele) ? ele : null,
-      timeMs: monotonicTime
-    });
+    points.push({ ...point, timeMs: monotonicTime });
   }
 
   return {

@@ -70,6 +70,88 @@ function removeStaleExportChunks(): void {
   }
 }
 
+/**
+ * Adds the activity's cached stream as GPX to the chunk's zip. A failure on a
+ * single activity must never abort the export.
+ */
+async function addStreamToZip(zip: JSZip, activity: Activity): Promise<void> {
+  if (!activity.start_latlng) return;
+  const file = new File(streamsFolder, `${activity.id}.json`);
+  if (!file.exists) return;
+
+  try {
+    const stream = await readStreamFile<StreamSet>(file);
+    zip.file(`activity_${activity.id}.gpx`, streamToGPX(activity, stream));
+  } catch (streamError) {
+    simpleLogger.log(`Failed to process stream for activity ${activity.id}: ${streamError}`);
+  }
+}
+
+/** Chunk file name; multi-part only when the export spans several chunks. */
+function chunkFileName(chunkIndex: number, numChunks: number): string {
+  return numChunks > 1
+    ? `strava_export_part_${chunkIndex + 1}_of_${numChunks}.zip`
+    : 'strava_export.zip';
+}
+
+/** Builds one export chunk (CSV + stream GPX) and writes it to the documents folder. */
+async function buildChunkFile(
+  chunkActivities: Activity[],
+  chunkIndex: number,
+  numChunks: number,
+  setProgress: (progress: number) => void
+): Promise<File> {
+  const zip = new JSZip();
+  const csvData = activitiesToCSV(chunkActivities);
+  zip.file('activities.csv', csvData);
+
+  for (let i = 0; i < chunkActivities.length; i++) {
+    await addStreamToZip(zip, chunkActivities[i]);
+
+    // Update progress for this chunk
+    const overallProgress = (chunkIndex + (i + 1) / chunkActivities.length) / numChunks;
+    setProgress(overallProgress);
+  }
+
+  const fileName = chunkFileName(chunkIndex, numChunks);
+  simpleLogger.log(`Chunk ${chunkIndex + 1}: Creating file ${fileName}`);
+
+  const zipFile = new File(Paths.document, fileName);
+  const content = await zip.generateAsync({
+    type: 'uint8array',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  });
+  zipFile.write(content);
+
+  simpleLogger.log(`Created file: ${fileName} at ${zipFile.uri}`);
+  return zipFile;
+}
+
+/** Shares each file sequentially so users can save all of them. */
+async function shareExportFiles(exportedFiles: File[]): Promise<void> {
+  for (let i = 0; i < exportedFiles.length; i++) {
+    const file = exportedFiles[i];
+    simpleLogger.log(`Sharing file ${i + 1}/${exportedFiles.length}: ${file.uri}`);
+    await Sharing.shareAsync(file.uri);
+
+    // Once the share sheet returns, the recipient has its own copy. Without
+    // this the chunks pile up in app storage — a full export is close to a
+    // gigabyte — and Android's backup agent copies them around. A failed
+    // delete must never fail the export.
+    try {
+      file.delete();
+    } catch (deleteError) {
+      simpleLogger.log(`Could not delete ${file.name} after sharing: ${deleteError}`);
+    }
+
+    // Add a small delay between shares to prevent overwhelming the system
+    if (i < exportedFiles.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
+
 // Main export function
 export const exportData = async (
   setProgress: (progress: number) => void,
@@ -108,79 +190,13 @@ export const exportData = async (
         `Processing chunk ${chunkIndex + 1}/${numChunks}: activities ${startIndex + 1}-${endIndex} (${chunkActivities.length} activities)`
       );
 
-      const zip = new JSZip();
-      const csvData = activitiesToCSV(chunkActivities);
-      zip.file('activities.csv', csvData);
-
-      for (let i = 0; i < chunkActivities.length; i++) {
-        const activity = chunkActivities[i];
-        if (activity.start_latlng) {
-          const file = new File(streamsFolder, `${activity.id}.json`);
-
-          if (file.exists) {
-            try {
-              const stream = await readStreamFile<StreamSet>(file);
-              const gpxData = streamToGPX(activity, stream);
-              zip.file(`activity_${activity.id}.gpx`, gpxData);
-            } catch (streamError) {
-              simpleLogger.log(
-                `Failed to process stream for activity ${activity.id}: ${streamError}`
-              );
-            }
-          }
-        }
-
-        // Update progress for this chunk
-        const chunkProgress = (i + 1) / chunkActivities.length;
-        const overallProgress = (chunkIndex + chunkProgress) / numChunks;
-        setProgress(overallProgress);
-      }
-
-      const chunkFileName =
-        numChunks > 1
-          ? `strava_export_part_${chunkIndex + 1}_of_${numChunks}.zip`
-          : 'strava_export.zip';
-
-      simpleLogger.log(`Chunk ${chunkIndex + 1}: Creating file ${chunkFileName}`);
-
-      const zipFile = new File(Paths.document, chunkFileName);
-
-      const content = await zip.generateAsync({
-        type: 'uint8array',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
-
-      zipFile.write(content);
-
-      exportedFiles.push(zipFile);
-      simpleLogger.log(`Created file: ${chunkFileName} at ${zipFile.uri}`);
+      exportedFiles.push(await buildChunkFile(chunkActivities, chunkIndex, numChunks, setProgress));
     }
 
     simpleLogger.log(`Total files created: ${exportedFiles.length}`);
     simpleLogger.log(`Files: ${exportedFiles.map(f => f.uri).join(', ')}`);
 
-    // Share each file sequentially so users can save all of them
-    for (let i = 0; i < exportedFiles.length; i++) {
-      const file = exportedFiles[i];
-      simpleLogger.log(`Sharing file ${i + 1}/${exportedFiles.length}: ${file.uri}`);
-      await Sharing.shareAsync(file.uri);
-
-      // Once the share sheet returns, the recipient has its own copy. Without
-      // this the chunks pile up in app storage — a full export is close to a
-      // gigabyte — and Android's backup agent copies them around. A failed
-      // delete must never fail the export.
-      try {
-        file.delete();
-      } catch (deleteError) {
-        simpleLogger.log(`Could not delete ${file.name} after sharing: ${deleteError}`);
-      }
-
-      // Add a small delay between shares to prevent overwhelming the system
-      if (i < exportedFiles.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
+    await shareExportFiles(exportedFiles);
 
     setProgress(1);
   } catch (error) {

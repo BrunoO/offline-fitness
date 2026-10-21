@@ -8,6 +8,31 @@
  */
 
 /**
+ * Continuation bytes for a UTF-8 lead byte, or -1 when the byte is not a valid
+ * lead (stray continuation or out-of-range).
+ */
+function continuationCount(leadByte: number): number {
+  if ((leadByte & 0xe0) === 0xc0) return 1;
+  if ((leadByte & 0xf0) === 0xe0) return 2;
+  if ((leadByte & 0xf8) === 0xf0) return 3;
+  return -1;
+}
+
+/**
+ * Decodes the multi-byte sequence starting at `index`, or -1 when the
+ * continuation bytes are malformed (caller advances one byte and emits U+FFFD).
+ */
+function decodeSequence(bytes: Uint8Array, index: number, extraBytes: number): number {
+  let codePoint = bytes[index] & (0xff >> (extraBytes + 2));
+  for (let offset = 1; offset <= extraBytes; offset++) {
+    const continuation = bytes[index + offset];
+    if ((continuation & 0xc0) !== 0x80) return -1;
+    codePoint = (codePoint << 6) | (continuation & 0x3f);
+  }
+  return codePoint;
+}
+
+/**
  * Fallback decoder, used only when the platform has no `TextDecoder`.
  *
  * Two things matter for speed here, because a track file is ~250 KB–2 MB:
@@ -40,20 +65,8 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
     if (index >= length) break;
     if (bytes[index] < 0x80) continue; // the run stopped at the 8 KB cap
 
-    const byte = bytes[index];
-    let codePoint = 0;
-    let extraBytes = 0;
-
-    if ((byte & 0xe0) === 0xc0) {
-      codePoint = byte & 0x1f;
-      extraBytes = 1;
-    } else if ((byte & 0xf0) === 0xe0) {
-      codePoint = byte & 0x0f;
-      extraBytes = 2;
-    } else if ((byte & 0xf8) === 0xf0) {
-      codePoint = byte & 0x07;
-      extraBytes = 3;
-    } else {
+    const extraBytes = continuationCount(bytes[index]);
+    if (extraBytes < 0) {
       pieces.push('\uFFFD');
       index += 1;
       continue;
@@ -64,17 +77,8 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
       break;
     }
 
-    let valid = true;
-    for (let offset = 1; offset <= extraBytes; offset++) {
-      const continuation = bytes[index + offset];
-      if ((continuation & 0xc0) !== 0x80) {
-        valid = false;
-        break;
-      }
-      codePoint = (codePoint << 6) | (continuation & 0x3f);
-    }
-
-    if (!valid) {
+    const codePoint = decodeSequence(bytes, index, extraBytes);
+    if (codePoint < 0) {
       pieces.push('\uFFFD');
       index += 1;
       continue;

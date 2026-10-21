@@ -226,23 +226,17 @@ async function md5Bytes(bytes: Uint8Array): Promise<string> {
   return digestStringAsync(CryptoDigestAlgorithm.MD5, parts.join(''));
 }
 
-async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) => void) {
-  const summary: SyncSummary = {
-    uploadedActivities: 0,
-    skippedActivities: 0,
-    uploadedStreams: 0,
-    skippedStreams: 0,
-    deletedRemote: 0,
-    errors: [],
-    syncedAt: new Date().toISOString(),
-    uploadedActivityIds: [],
-    uploadedStreamNames: [],
-    deletedRemoteIds: []
-  };
+/** One-line description of a failure for the summary error log. */
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  // The collection is <root>/<appId>/<profile>/. Recreate the chain in case
-  // it was removed on the server, then check the collection is ours before
-  // writing anything into it.
+/**
+ * Recreate the collection chain (`<root>/<appId>/<profile>/`) in case it was
+ * removed on the server, then check the collection is ours — or claim a fresh
+ * one by recording its owner — before writing anything into it.
+ */
+async function ensureOwnedCollection(config: WebDavConfig): Promise<void> {
   await ensureDavFolder(
     { ...config, baseUrl: config.rootUrl },
     APP_CONFIG.BACKUP_APP_ID,
@@ -262,21 +256,21 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
     };
     await putDavFile(config, APP_CONFIG.BACKUP_COLLECTION_FILE, JSON.stringify(fresh));
   }
-  await ensureDavFolder(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER);
-  await ensureDavFolder(config, APP_CONFIG.BACKUP_STREAMS_FOLDER);
-  const remoteState = await loadRemoteSyncState(config);
-  const pushedActivityMd5: Record<string, string> = {};
-  const pushedStreamMd5: Record<string, string> = {};
+}
 
-  const keys = await Storage.getAllActivitiesKeys();
-  const activities: Activity[] = await Storage.loadAllActivities(keys);
-  const localActivityIds = new Set(activities.map(activity => String(activity.id)));
-
-  // Propagate local deletions to the server. Local wins: a tombstone whose
-  // activity exists again locally is dropped (the delete is undone); an
-  // expired one is pruned. Surviving unexpired tombstones are recorded in
-  // the remote state so a restore elsewhere knows the files were deleted
-  // deliberately. Failed deletions stay in the local log for retry.
+/**
+ * Propagate local deletions to the server. Local wins: a tombstone whose
+ * activity exists again locally is dropped (the delete is undone); an expired
+ * one is pruned. Surviving unexpired tombstones are returned as the remote
+ * deletion log so a restore elsewhere knows the files were deleted
+ * deliberately. Failed deletions stay in the local log for retry.
+ */
+async function propagateLocalTombstones(
+  config: WebDavConfig,
+  summary: SyncSummary,
+  onProgress: ((p: SyncProgress) => void) | undefined,
+  localActivityIds: Set<string>
+): Promise<Record<string, string>> {
   const tombstones = await Storage.retrieveActivityTombstones();
   const remoteDeletedAt: Record<string, string> = {};
   const now = Date.now();
@@ -304,18 +298,26 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
         summary.deletedRemoteIds.push(id);
       }
     } catch (error) {
-      summary.errors.push(
-        `delete ${id}: ${error instanceof Error ? error.message : String(error)}`
-      );
+      summary.errors.push(`delete ${id}: ${describeError(error)}`);
     }
     tombstoneDone += 1;
     onProgress?.({ phase: 'tombstones', done: tombstoneDone, total: tombstoneEntries.length });
   }
   await Storage.storeActivityTombstones(tombstones);
+  return remoteDeletedAt;
+}
 
-  // Keep unexpired remote tombstones this device never saw (e.g. an earlier
-  // push from another source), but never against an activity that exists
-  // locally — resurrection must survive a round trip.
+/**
+ * Keep unexpired remote tombstones this device never saw (e.g. an earlier
+ * push from another source), but never against an activity that exists
+ * locally — resurrection must survive a round trip. Mutates `remoteDeletedAt`.
+ */
+function mergeRemoteTombstones(
+  remoteState: RemoteSyncState,
+  remoteDeletedAt: Record<string, string>,
+  localActivityIds: Set<string>,
+  now: number
+): void {
   for (const [id, deletedAt] of Object.entries(remoteState.deletedAt ?? {})) {
     if (
       !remoteDeletedAt[id] &&
@@ -325,6 +327,40 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
       remoteDeletedAt[id] = deletedAt;
     }
   }
+}
+
+async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) => void) {
+  const summary: SyncSummary = {
+    uploadedActivities: 0,
+    skippedActivities: 0,
+    uploadedStreams: 0,
+    skippedStreams: 0,
+    deletedRemote: 0,
+    errors: [],
+    syncedAt: new Date().toISOString(),
+    uploadedActivityIds: [],
+    uploadedStreamNames: [],
+    deletedRemoteIds: []
+  };
+
+  await ensureOwnedCollection(config);
+  await ensureDavFolder(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER);
+  await ensureDavFolder(config, APP_CONFIG.BACKUP_STREAMS_FOLDER);
+  const remoteState = await loadRemoteSyncState(config);
+  const pushedActivityMd5: Record<string, string> = {};
+  const pushedStreamMd5: Record<string, string> = {};
+
+  const keys = await Storage.getAllActivitiesKeys();
+  const activities: Activity[] = await Storage.loadAllActivities(keys);
+  const localActivityIds = new Set(activities.map(activity => String(activity.id)));
+
+  const remoteDeletedAt = await propagateLocalTombstones(
+    config,
+    summary,
+    onProgress,
+    localActivityIds
+  );
+  mergeRemoteTombstones(remoteState, remoteDeletedAt, localActivityIds, Date.now());
 
   onProgress?.({ phase: 'activities', done: 0, total: activities.length });
   let activityDone = 0;
@@ -342,9 +378,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
       }
       pushedActivityMd5[name] = contentMd5;
     } catch (error) {
-      summary.errors.push(
-        `activity ${activity.id}: ${error instanceof Error ? error.message : String(error)}`
-      );
+      summary.errors.push(`activity ${activity.id}: ${describeError(error)}`);
     }
     activityDone += 1;
     onProgress?.({ phase: 'activities', done: activityDone, total: activities.length });
@@ -371,9 +405,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
       }
       pushedStreamMd5[file.name] = contentMd5;
     } catch (error) {
-      summary.errors.push(
-        `stream ${file.name}: ${error instanceof Error ? error.message : String(error)}`
-      );
+      summary.errors.push(`stream ${file.name}: ${describeError(error)}`);
     }
     streamDone += 1;
     onProgress?.({ phase: 'streams', done: streamDone, total: jsonStreamFiles.length });
@@ -455,6 +487,74 @@ export interface RestoreSummary {
  * a re-fetched activity beats an old tombstone, and the next push then drops
  * the tombstone for good.
  */
+/**
+ * Delete stream files of activities that were deliberately removed upstream
+ * (tombstoned) and are not present locally. Local wins: an activity that came
+ * back after the deletion keeps its streams.
+ */
+async function cleanOrphanedStreamFiles(
+  summary: RestoreSummary,
+  onProgress: ((p: SyncProgress) => void) | undefined,
+  tombstonedIds: Set<string>,
+  localActivityIds: Set<string>
+): Promise<void> {
+  const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+  onProgress?.({ phase: 'tombstones', done: 0, total: tombstonedIds.size });
+  let tombstoneDone = 0;
+  for (const id of tombstonedIds) {
+    try {
+      // Only clean up when the activity is really gone locally: a copy that
+      // came back after the deletion keeps its streams (local wins).
+      if (!localActivityIds.has(id)) {
+        const streamFile = new File(streamsFolder, `${id}.json`);
+        if (streamFile.exists) streamFile.delete();
+        const flagFile = new File(streamsFolder, `${id}.nostreamflag`);
+        if (flagFile.exists) flagFile.delete();
+      }
+    } catch (error) {
+      summary.errors.push(`delete stream ${id}: ${describeError(error)}`);
+    }
+    tombstoneDone += 1;
+    onProgress?.({ phase: 'tombstones', done: tombstoneDone, total: tombstonedIds.size });
+  }
+}
+
+/**
+ * Is the existing local stream file the file the index describes? A wipe
+ * keeps the stream cache while deleting the records, and until now a kept
+ * file was never re-checked — so a stale copy survived every restore and the
+ * next push re-uploaded it over the server's good copy, forever. Streams
+ * carry no legitimate local-only state (see the policy above), so a hash
+ * mismatch means refresh, not preserve. An unadvertised file has nothing to
+ * compare against and counts as matching. A failed local read throws into
+ * the caller's error path and keeps the file.
+ */
+async function localStreamMatchesIndex(
+  file: File,
+  advertised: string | undefined
+): Promise<boolean> {
+  if (advertised === undefined) return true;
+  const hasBytes = typeof (file as { bytes?: unknown }).bytes === 'function';
+  const localContent = hasBytes ? await file.bytes() : await file.text();
+  const localMd5 =
+    typeof localContent === 'string' ? await md5(localContent) : await md5Bytes(localContent);
+  return advertised === localMd5;
+}
+
+/** Fetch a stream's content, preferring the binary transport when available. */
+async function fetchStreamContent(
+  config: WebDavConfig,
+  name: string
+): Promise<Uint8Array | string> {
+  const bytes =
+    typeof getDavFileBytes === 'function'
+      ? await getDavFileBytes(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name)
+      : undefined;
+  return bytes !== undefined
+    ? bytes
+    : await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
+}
+
 async function pullBackup(
   config: WebDavConfig,
   onProgress?: (p: SyncProgress) => void
@@ -492,27 +592,7 @@ async function pullBackup(
   // the next push drops its tombstone for good. What pull does clean up is
   // orphaned stream files of tombstoned activities.
   const tombstonedIds = new Set(Object.keys(remoteState.deletedAt ?? {}));
-  const streamsFolderForTombstones = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
-  onProgress?.({ phase: 'tombstones', done: 0, total: tombstonedIds.size });
-  let tombstoneDone = 0;
-  for (const id of tombstonedIds) {
-    try {
-      // Only clean up when the activity is really gone locally: a copy that
-      // came back after the deletion keeps its streams (local wins).
-      if (!localActivityIds.has(id)) {
-        const streamFile = new File(streamsFolderForTombstones, `${id}.json`);
-        if (streamFile.exists) streamFile.delete();
-        const flagFile = new File(streamsFolderForTombstones, `${id}.nostreamflag`);
-        if (flagFile.exists) flagFile.delete();
-      }
-    } catch (error) {
-      summary.errors.push(
-        `delete stream ${id}: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-    tombstoneDone += 1;
-    onProgress?.({ phase: 'tombstones', done: tombstoneDone, total: tombstonedIds.size });
-  }
+  await cleanOrphanedStreamFiles(summary, onProgress, tombstonedIds, localActivityIds);
 
   onProgress?.({ phase: 'activities', done: 0, total: remoteActivities.length });
   let activityDone = 0;
@@ -555,9 +635,7 @@ async function pullBackup(
         await flushWrites(false);
       }
     } catch (error) {
-      summary.errors.push(
-        `activity ${name}: ${error instanceof Error ? error.message : String(error)}`
-      );
+      summary.errors.push(`activity ${name}: ${describeError(error)}`);
     }
     activityDone += 1;
     onProgress?.({ phase: 'activities', done: activityDone, total: remoteActivities.length });
@@ -576,46 +654,16 @@ async function pullBackup(
       }
       const file = new File(streamsFolder, name);
       const existed = file.exists;
-      let download = !existed;
-      if (!download) {
-        // The file is there, but is it the file the index describes? A wipe
-        // keeps the stream cache while deleting the records, and until now a
-        // kept file was never re-checked — so a stale copy survived every
-        // restore and the next push re-uploaded it over the server's good
-        // copy, forever. Streams carry no legitimate local-only state (see
-        // the policy above), so a hash mismatch means refresh, not preserve.
-        // A failed local read only records an error and keeps the file.
-        const advertised = remoteState.streamMd5?.[name];
-        if (advertised !== undefined) {
-          const hasBytes = typeof (file as { bytes?: unknown }).bytes === 'function';
-          const localContent = hasBytes ? await file.bytes() : await file.text();
-          const localMd5 =
-            typeof localContent === 'string'
-              ? await md5(localContent)
-              : await md5Bytes(localContent);
-          download = advertised !== localMd5;
-        }
-      }
-      if (!download) {
+      if (existed && (await localStreamMatchesIndex(file, remoteState.streamMd5?.[name]))) {
         summary.skippedStreams += 1;
       } else {
-        const bytes =
-          typeof getDavFileBytes === 'function'
-            ? await getDavFileBytes(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name)
-            : undefined;
-        const content =
-          bytes !== undefined
-            ? bytes
-            : await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
-        file.write(content);
+        file.write(await fetchStreamContent(config, name));
         summary.restoredStreams += 1;
         summary.restoredStreamNames.push(name);
         if (existed) summary.refreshedStreamNames.push(name);
       }
     } catch (error) {
-      summary.errors.push(
-        `stream ${name}: ${error instanceof Error ? error.message : String(error)}`
-      );
+      summary.errors.push(`stream ${name}: ${describeError(error)}`);
     }
     streamDone += 1;
     onProgress?.({ phase: 'streams', done: streamDone, total: remoteStreams.length });

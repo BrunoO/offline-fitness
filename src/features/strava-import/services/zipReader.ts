@@ -137,6 +137,53 @@ async function findEndOfCentralDirectory(source: ByteSource): Promise<EndOfCentr
   return { entryCount, directorySize, directoryOffset };
 }
 
+/** Raw fields of one central-directory record (46 fixed bytes + name/extra/comment). */
+interface CentralEntryFields {
+  method: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  nameLength: number;
+  extraLength: number;
+  commentLength: number;
+  localHeaderOffset: number;
+}
+
+/**
+ * ZIP64 extended information: fields appear in this fixed order, but only for
+ * the ones that overflowed to 0xffffffff, so walk the extra field and patch
+ * them in sequence.
+ */
+function applyZip64Extra(
+  directory: Uint8Array,
+  extraStart: number,
+  extraLength: number,
+  entry: CentralEntryFields
+): void {
+  let extraCursor = extraStart;
+  const extraEnd = extraStart + extraLength;
+  while (extraCursor + 4 <= extraEnd) {
+    const fieldId = readU16(directory, extraCursor);
+    const fieldSize = readU16(directory, extraCursor + 2);
+    const fieldStart = extraCursor + 4;
+    if (fieldId === ZIP64_EXTRA_FIELD_ID) {
+      let fieldCursor = fieldStart;
+      if (entry.uncompressedSize === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
+        entry.uncompressedSize = readU64(directory, fieldCursor);
+        fieldCursor += 8;
+      }
+      if (entry.compressedSize === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
+        entry.compressedSize = readU64(directory, fieldCursor);
+        fieldCursor += 8;
+      }
+      if (entry.localHeaderOffset === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
+        entry.localHeaderOffset = readU64(directory, fieldCursor);
+      }
+      return;
+    }
+    extraCursor = fieldStart + fieldSize;
+  }
+}
+
 /**
  * Reads the central directory and returns every entry in the archive.
  */
@@ -154,50 +201,33 @@ export async function readZipEntries(source: ByteSource): Promise<ZipEntryInfo[]
   while (cursor + 46 <= directory.length) {
     if (readU32(directory, cursor) !== CENTRAL_DIRECTORY_SIGNATURE) break;
 
-    const method = readU16(directory, cursor + 10);
-    let compressedSize = readU32(directory, cursor + 20);
-    let uncompressedSize = readU32(directory, cursor + 24);
-    const nameLength = readU16(directory, cursor + 28);
-    const extraLength = readU16(directory, cursor + 30);
-    const commentLength = readU16(directory, cursor + 32);
-    let localHeaderOffset = readU32(directory, cursor + 42);
+    const fields: CentralEntryFields = {
+      method: readU16(directory, cursor + 10),
+      compressedSize: readU32(directory, cursor + 20),
+      uncompressedSize: readU32(directory, cursor + 24),
+      nameLength: readU16(directory, cursor + 28),
+      extraLength: readU16(directory, cursor + 30),
+      commentLength: readU16(directory, cursor + 32),
+      localHeaderOffset: readU32(directory, cursor + 42)
+    };
+    const name = decodeName(directory.subarray(cursor + 46, cursor + 46 + fields.nameLength));
 
-    const name = decodeName(directory.subarray(cursor + 46, cursor + 46 + nameLength));
-
-    // ZIP64 extended information: fields appear in this fixed order, but only
-    // for the ones that overflowed, so walk them in sequence.
     if (
-      uncompressedSize === 0xffffffff ||
-      compressedSize === 0xffffffff ||
-      localHeaderOffset === 0xffffffff
+      fields.uncompressedSize === 0xffffffff ||
+      fields.compressedSize === 0xffffffff ||
+      fields.localHeaderOffset === 0xffffffff
     ) {
-      let extraCursor = cursor + 46 + nameLength;
-      const extraEnd = extraCursor + extraLength;
-      while (extraCursor + 4 <= extraEnd) {
-        const fieldId = readU16(directory, extraCursor);
-        const fieldSize = readU16(directory, extraCursor + 2);
-        const fieldStart = extraCursor + 4;
-        if (fieldId === ZIP64_EXTRA_FIELD_ID) {
-          let fieldCursor = fieldStart;
-          if (uncompressedSize === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
-            uncompressedSize = readU64(directory, fieldCursor);
-            fieldCursor += 8;
-          }
-          if (compressedSize === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
-            compressedSize = readU64(directory, fieldCursor);
-            fieldCursor += 8;
-          }
-          if (localHeaderOffset === 0xffffffff && fieldCursor + 8 <= fieldStart + fieldSize) {
-            localHeaderOffset = readU64(directory, fieldCursor);
-          }
-          break;
-        }
-        extraCursor = fieldStart + fieldSize;
-      }
+      applyZip64Extra(directory, cursor + 46 + fields.nameLength, fields.extraLength, fields);
     }
 
-    entries.push({ name, method, compressedSize, uncompressedSize, localHeaderOffset });
-    cursor += 46 + nameLength + extraLength + commentLength;
+    entries.push({
+      name,
+      method: fields.method,
+      compressedSize: fields.compressedSize,
+      uncompressedSize: fields.uncompressedSize,
+      localHeaderOffset: fields.localHeaderOffset
+    });
+    cursor += 46 + fields.nameLength + fields.extraLength + fields.commentLength;
   }
 
   // Directory entries carry no data; callers only care about files.

@@ -284,6 +284,36 @@ export const countStreamsStatus = async (
 };
 
 /**
+ * Computes and stores the bounding box for one activity from its cached
+ * stream. Returns whether a record was written.
+ */
+async function backfillBoundingBox(activity: Activity): Promise<boolean> {
+  processingActivities.add(activity.id);
+  const file = new File(streamsFolder, `${activity.id}.json`);
+  try {
+    if (!file.exists) {
+      return false;
+    }
+    const stream = await readStreamFile<StreamSet>(file);
+    const compressedStream = compressStreamSet(stream);
+    if (compressedStream.coordinates.length === 0) {
+      return false;
+    }
+    activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
+    if (!activity.bounding_box) {
+      return false;
+    }
+    await storeActivity(activity);
+    return true;
+  } catch (error) {
+    simpleLogger.error(`Error processing stream for activity ${activity.id}:`, error);
+    return false;
+  } finally {
+    processingActivities.delete(activity.id);
+  }
+}
+
+/**
  * Calculates and stores the bounding boxes for all activities that are missing them.
  */
 export const calculateAndStoreMissingBoundingBoxes = async () => {
@@ -299,26 +329,9 @@ export const calculateAndStoreMissingBoundingBoxes = async () => {
       continue;
     }
     if (!activity.bounding_box) {
-      processingActivities.add(activity.id);
-      const file = new File(streamsFolder, `${activity.id}.json`);
-
-      if (file.exists) {
-        try {
-          const stream = await readStreamFile<StreamSet>(file);
-          const compressedStream = compressStreamSet(stream);
-
-          if (compressedStream.coordinates.length > 0) {
-            activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
-            if (activity.bounding_box) {
-              await storeActivity(activity);
-              updatedCount++;
-            }
-          }
-        } catch (error) {
-          simpleLogger.error(`Error processing stream for activity ${activity.id}:`, error);
-        }
+      if (await backfillBoundingBox(activity)) {
+        updatedCount++;
       }
-      processingActivities.delete(activity.id);
     }
   }
 

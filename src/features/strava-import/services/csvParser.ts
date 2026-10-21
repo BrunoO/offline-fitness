@@ -470,6 +470,104 @@ export function mapActivityType(raw: string | undefined, gpxType?: string): stri
   return undefined;
 }
 
+type CellGetter = (row: string[], key: FieldKey) => string;
+
+/** Resolves the header into column positions, reporting anything odd and rejecting non-Strava files. */
+function resolveHeader(header: string[], warnings: string[]): Partial<Record<FieldKey, number>> {
+  const { columns, unresolved, usedFallback } = resolveColumns(header);
+
+  if (unresolved.length > 0) {
+    warnings.push(`Unrecognized CSV columns: ${unresolved.join(', ')}`);
+  }
+  if (usedFallback) {
+    warnings.push('Some CSV columns were resolved by position (unexpected header language)');
+  }
+  if (columns.id === undefined || columns.date === undefined) {
+    throw new Error('activities.csv does not look like a Strava export (id/date columns missing)');
+  }
+
+  return columns;
+}
+
+/** Cell reader bound to a resolved column layout. */
+function makeCell(columns: Partial<Record<FieldKey, number>>): CellGetter {
+  return (row, key) => {
+    const index = columns[key];
+    if (index === undefined) return '';
+    return String(row[index] ?? '').trim();
+  };
+}
+
+/** What a single CSV row turned out to be. */
+type RowOutcome =
+  | { kind: 'row'; row: ExportedActivityRow }
+  | { kind: 'empty' }
+  | { kind: 'no-id' }
+  | { kind: 'bad-date'; id: string; date: string };
+
+/** Converts one parsed CSV row into an export row, or reports why it was skipped. */
+function readExportedRow(row: string[] | undefined, cell: CellGetter): RowOutcome {
+  if (!row || row.length === 0) return { kind: 'empty' };
+
+  const id = cell(row, 'id');
+  if (!id) return { kind: 'no-id' };
+
+  const date = cell(row, 'date');
+  const startUtcMs = parseStartTimeColumn(cell(row, 'startTime')) ?? parseActivityDateUtcMs(date);
+  if (startUtcMs === undefined) return { kind: 'bad-date', id, date };
+
+  const rawType = cell(row, 'type');
+
+  return {
+    kind: 'row',
+    row: {
+      id,
+      startUtcMs,
+      name: cell(row, 'name'),
+      // Resolved against the GPX `<type>` later when the CSV value is unknown.
+      type: mapActivityType(rawType) ?? '',
+      distance: parseExportNumber(cell(row, 'distance')),
+      movingTime: parseExportNumber(cell(row, 'movingTime')),
+      elapsedTime: parseExportNumber(cell(row, 'elapsedTime')),
+      elevationGain: parseExportNumber(cell(row, 'elevationGain')),
+      elevHigh: parseExportNumber(cell(row, 'elevHigh')),
+      elevLow: parseExportNumber(cell(row, 'elevLow')),
+      averageSpeed: parseExportNumber(cell(row, 'averageSpeed')),
+      fileName: cell(row, 'filename')
+    }
+  };
+}
+
+/** Converts every data row, counting unusable ones and warning on the first five bad dates. */
+function collectRows(
+  data: string[][],
+  cell: CellGetter,
+  warnings: string[]
+): ExportedActivityRow[] {
+  const rows: ExportedActivityRow[] = [];
+  let skipped = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const outcome = readExportedRow(data[i], cell);
+    if (outcome.kind === 'row') {
+      rows.push(outcome.row);
+      continue;
+    }
+    if (outcome.kind === 'empty') continue;
+
+    skipped++;
+    if (outcome.kind === 'bad-date' && skipped <= 5) {
+      warnings.push(`Skipped activity ${outcome.id}: unreadable date "${outcome.date}"`);
+    }
+  }
+
+  if (skipped > 0) {
+    warnings.push(`Skipped ${skipped} activit${skipped === 1 ? 'y' : 'ies'} with unreadable rows`);
+  }
+
+  return rows;
+}
+
 /**
  * Parses the whole CSV into rows. Rows without an id or a readable date are
  * skipped and reported as warnings.
@@ -492,71 +590,11 @@ export function parseActivitiesCsv(csvText: string): ParsedExport {
     throw new Error('activities.csv is empty or has no data rows');
   }
 
-  const header = (data[0] as string[]).map(cell => String(cell ?? ''));
-  const { columns, unresolved, usedFallback } = resolveColumns(header);
+  const header = (data[0] as string[]).map(value => String(value ?? ''));
+  const columns = resolveHeader(header, warnings);
+  const cell = makeCell(columns);
 
-  if (unresolved.length > 0) {
-    warnings.push(`Unrecognized CSV columns: ${unresolved.join(', ')}`);
-  }
-  if (usedFallback) {
-    warnings.push('Some CSV columns were resolved by position (unexpected header language)');
-  }
-
-  if (columns.id === undefined || columns.date === undefined) {
-    throw new Error('activities.csv does not look like a Strava export (id/date columns missing)');
-  }
-
-  const cell = (row: string[], key: FieldKey): string => {
-    const index = columns[key];
-    if (index === undefined) return '';
-    return String(row[index] ?? '').trim();
-  };
-
-  const rows: ExportedActivityRow[] = [];
-  let skipped = 0;
-
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i] as string[];
-    if (!row || row.length === 0) continue;
-
-    const id = cell(row, 'id');
-    if (!id) {
-      skipped++;
-      continue;
-    }
-
-    const startUtcMs =
-      parseStartTimeColumn(cell(row, 'startTime')) ?? parseActivityDateUtcMs(cell(row, 'date'));
-    if (startUtcMs === undefined) {
-      skipped++;
-      if (skipped <= 5)
-        warnings.push(`Skipped activity ${id}: unreadable date "${cell(row, 'date')}"`);
-      continue;
-    }
-
-    const rawType = cell(row, 'type');
-    const fileName = cell(row, 'filename');
-
-    rows.push({
-      id,
-      startUtcMs,
-      name: cell(row, 'name'),
-      // Resolved against the GPX `<type>` later when the CSV value is unknown.
-      type: mapActivityType(rawType) ?? '',
-      distance: parseExportNumber(cell(row, 'distance')),
-      movingTime: parseExportNumber(cell(row, 'movingTime')),
-      elapsedTime: parseExportNumber(cell(row, 'elapsedTime')),
-      elevationGain: parseExportNumber(cell(row, 'elevationGain')),
-      elevHigh: parseExportNumber(cell(row, 'elevHigh')),
-      elevLow: parseExportNumber(cell(row, 'elevLow')),
-      averageSpeed: parseExportNumber(cell(row, 'averageSpeed')),
-      fileName
-    });
-  }
-
-  if (skipped > 0) {
-    warnings.push(`Skipped ${skipped} activit${skipped === 1 ? 'y' : 'ies'} with unreadable rows`);
-  }
+  const rows = collectRows(data as string[][], cell, warnings);
   if (rows.length === 0) {
     throw new Error('activities.csv contained no usable activities');
   }
