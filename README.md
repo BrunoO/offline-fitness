@@ -98,6 +98,38 @@ activity **and** the type list together — the type list drives the table colum
 that drops the source type without renaming it leaves the stats tables keying a column that
 was never initialised.
 
+## Fine print
+
+Behaviours of the app (or the OS around it) that can surprise you:
+
+- **Android can back the app up without the app doing anything.** The build allows the OS
+  backup agent (`allowBackup="true"`), so Google One's "Back up to Google Drive" — and
+  device-to-device migration — can copy the app's private storage, activities and tracks
+  included, off the device. The app itself never uploads anything. If you want the local
+  store to be *strictly* local, exclude the app in your phone's backup settings; building
+  from source, `allowBackup="false"` is the harder guarantee.
+- **Export leaves its zip chunks behind.** An export writes `strava_export*.zip` into the
+  app's own document storage and opens the share sheet per chunk; the files stay there
+  (and are part of the storage the point above backs up) until cleared or overwritten by a
+  later export.
+- **Map tiles reveal where you ride.** While a map is visible, the tile provider sees your
+  IP address and roughly the region you are browsing. This is the only data the app ever
+  sends anywhere unless *you* trigger it.
+- **WebDAV sync is gap-fill on pull and delete-propagating on push.** A pull never
+  overwrites or removes local data — it only adds what is missing ("local wins"). A push
+  propagates deletions: an activity deleted locally is also removed from the server, via
+  time-limited tombstones. A backup folder owned by another profile or app id is refused
+  rather than silently mixed.
+- **Plain HTTP to the WebDAV server is allowed, on purpose.** `usesCleartextTraffic` is
+  enabled so self-hosted servers on a LAN without certificates work. Prefer HTTPS or a
+  VPN where you can, and use a scoped app password.
+- **`ACCESS_BACKGROUND_LOCATION` is declared but never requested.** It sits in the
+  manifest for the roadmap's track recorder; today the app asks for foreground location
+  only, and only for the map's blue dot. Users reading the permission list should know it
+  is currently dead weight.
+- **The screen stays awake during an archive import.** A long import deliberately holds the
+  wake lock so Android does not suspend the work mid-archive.
+
 ## Requirements
 
 - Node 20+, npm
