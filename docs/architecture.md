@@ -26,9 +26,9 @@ same folder:
 <account root>/               e.g. https://host/remote.php/dav/files/<user>/
   offline-fitness/            app id, fixed in code (APP_CONFIG.BACKUP_APP_ID)
     <profile>/                athlete label, chosen by the user (required)
-      collection.json         app id + profile that own this folder
+      collection.json         app id + profile + layout version that own this folder
       activities/<id>.json    activity JSON
-      streams/<id>.json       stream file (binary 'OF' v1 payload or legacy JSON)
+      streams/<id>.json       stream file (layout 2: binary 'OF' v1 payload)
       sync-state.json         md5 index + deletion tombstones
 ```
 
@@ -44,6 +44,20 @@ same folder:
   rather than mixed — this is what stops two athletes who picked the same
   default label from sharing one index (the index lists every activity id, so a
   shared one would restore the wrong activities).
+- The marker also carries **`schemaVersion`**, the layout contract of everything
+  below it (`APP_CONFIG.BACKUP_SCHEMA_VERSION`, currently `2` = binary stream
+  payloads; `1` was JSON). A folder written in a layout this build does not
+  understand is refused on both push and restore rather than half-restored: the
+  remote index lists files whose payload the reading app cannot interpret. Bump
+  the constant whenever the payload encoding, folder layout, file naming or
+  sync-state shape changes incompatibly. It is distinct from the per-file codec
+  version byte inside a stream file — that describes one payload, this describes
+  the whole folder. A marker predating versioning is read as layout 1; an
+  *absent* marker is deliberately not a version refusal (a fresh folder has
+  none: pushing claims it, restoring from it has nothing to fetch). **Any writer
+  other than the app — e.g. a desktop import tool that fills a collection
+  directly — must write this marker with the current `schemaVersion`, or the
+  phone refuses to sync with it.**
 - The app id must stay stable across releases: renaming it would orphan every
   backup written under the old name.
 

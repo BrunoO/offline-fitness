@@ -1,3 +1,4 @@
+import { APP_CONFIG } from '@/constants';
 import * as Storage from '@/shared/services/storage';
 import { pullBackupNow, pushBackupNow } from '@/features/backup/services/backupSync';
 import * as webdavAuth from '@/features/backup/services/webdavAuth';
@@ -112,12 +113,17 @@ describe('collection marker', () => {
     const marker = JSON.parse(String(markerCall?.[2]));
     expect(marker.appId).toBe('offline-fitness');
     expect(marker.profile).toBe('bruno');
+    expect(marker.schemaVersion).toBe(APP_CONFIG.BACKUP_SCHEMA_VERSION);
   });
 
   it('refuses to push into a collection owned by another profile', async () => {
     mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
       if (segments[segments.length - 1] === MARKER_FILE) {
-        return JSON.stringify({ appId: 'offline-fitness', profile: 'someone-else' });
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'someone-else',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION
+        });
       }
       return '{}';
     });
@@ -136,10 +142,62 @@ describe('collection marker', () => {
     await expect(pushBackupNow()).rejects.toThrow('some-other-app');
   });
 
+  it('refuses to push into a collection written in an older layout', async () => {
+    // The v1 layout stores streams as JSON; pushing v2 payloads into the same
+    // folder would leave the remote index listing both encodings.
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      if (segments[segments.length - 1] === MARKER_FILE) {
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'bruno',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION - 1
+        });
+      }
+      return '{}';
+    });
+
+    await expect(pushBackupNow()).rejects.toThrow(/layout version/);
+    // Refused before anything was written.
+    expect(mockTransport.putDavFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses to push into a collection written in a newer layout', async () => {
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      if (segments[segments.length - 1] === MARKER_FILE) {
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'bruno',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION + 1
+        });
+      }
+      return '{}';
+    });
+
+    await expect(pushBackupNow()).rejects.toThrow(/layout version/);
+  });
+
+  it('reads a marker without a version as the legacy layout', async () => {
+    // Markers written before versioning existed carry app id and profile only.
+    // They must be reported as the version they are (1), not skipped as an
+    // absent marker, or the version gate would be bypassable.
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      if (segments[segments.length - 1] === MARKER_FILE) {
+        return JSON.stringify({ appId: 'offline-fitness', profile: 'bruno', createdAt: 'x' });
+      }
+      return '{}';
+    });
+
+    await expect(pushBackupNow()).rejects.toThrow(/layout version 1/);
+  });
+
   it('keeps pushing when the marker matches', async () => {
     mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
       if (segments[segments.length - 1] === MARKER_FILE) {
-        return JSON.stringify({ appId: 'offline-fitness', profile: 'bruno' });
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'bruno',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION
+        });
       }
       return '{}';
     });
@@ -155,12 +213,35 @@ describe('collection marker', () => {
   it('refuses to restore from a collection owned by another profile', async () => {
     mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
       if (segments[segments.length - 1] === MARKER_FILE) {
-        return JSON.stringify({ appId: 'offline-fitness', profile: 'someone-else' });
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'someone-else',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION
+        });
       }
       return '{}';
     });
 
     await expect(pullBackupNow()).rejects.toThrow('someone-else');
+    expect(mockStorage.storeActivity).not.toHaveBeenCalled();
+  });
+
+  it('refuses to restore from a collection written in an older layout', async () => {
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      if (segments[segments.length - 1] === MARKER_FILE) {
+        return JSON.stringify({
+          appId: 'offline-fitness',
+          profile: 'bruno',
+          schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION - 1
+        });
+      }
+      if (segments[segments.length - 1] === 'sync-state.json') {
+        return JSON.stringify({ activityMd5: { '1.json': 'x' }, streamMd5: {} });
+      }
+      return JSON.stringify({ id: '1' });
+    });
+
+    await expect(pullBackupNow()).rejects.toThrow(/layout version/);
     expect(mockStorage.storeActivity).not.toHaveBeenCalled();
   });
 

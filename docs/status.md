@@ -130,6 +130,14 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Backup collections now carry a layout version (`schemaVersion: 2`)** — the stream format moved from JSON to the binary `'OF'` payload (`streamCodec.ts`), and a collection gave no signal of which layout its files are in: a v2 build would happily restore a v1 collection, and would do the same for the next incompatible change. `collection.json` gains a `schemaVersion` field (`APP_CONFIG.BACKUP_SCHEMA_VERSION`), checked on **both** push and restore:
+  - **Written when the collection is claimed** (`pushBackup`'s fresh-marker path), so the folder records its layout on the first sync.
+  - **Refused on mismatch** (`assertCollectionOwnership`), with an actionable message ("delete the folder on the server, or pick a new profile name, and sync again") — pushing v2 payloads into a v1 folder would leave the remote index listing both encodings, and restoring from it would write stream files the app then fails to read.
+  - **A marker predating versioning is read as layout 1**, so collections written by the current app before this change are reported as a version mismatch rather than silently skipped as "unknown owner". An *absent* marker stays tolerated: on push a fresh folder is claimed, and on pull an empty folder has nothing to restore anyway — refusing there would turn the drawer's Restore on a brand-new account into an error instead of a no-op.
+  - **Two distinct version axes, documented**: the collection's `schemaVersion` (folder contract) vs the per-file codec version byte inside a stream file (`STREAM_FORMAT_VERSION`, still 1 — first binary encoding). Bump the former for incompatible layout changes; the latter for payload changes.
+  - This is also the **contract a desktop import tool must satisfy**: a collection written outside the app has to carry `schemaVersion: 2` in `collection.json` or the phone refuses to sync with it (see `docs/desktop-import-plan.md`).
+  - Tests: `__tests__/backupCollection.spec.ts` +4 (older layout refused on push and on restore; newer layout refused; an unversioned marker reported as layout 1) and 3 extended (claim records the version, "marker matches" and the profile-mismatch cases now carry one). Suite 282/282; tsc/lint/check:imports clean.
+
 - **Dropped the unused `ACCESS_BACKGROUND_LOCATION` declaration** — the README privacy audit
   flagged it: the permission sat in `app.json`'s Android list while nothing ever asked for
   it. `useLocationPermission` requests foreground location only, and only when the map

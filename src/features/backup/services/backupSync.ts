@@ -52,23 +52,42 @@ interface RemoteSyncState {
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * Marker file recording which app id and profile own a collection. It is
- * written on the first sync and verified on every later one: if a folder
- * belongs to a different profile, syncing is refused instead of mixing
- * two athletes' data into one index.
+ * Marker file recording which app id, profile and layout version own a
+ * collection. It is written on the first sync and verified on every later one:
+ * if a folder belongs to a different profile, syncing is refused instead of
+ * mixing two athletes' data into one index, and if it was written in a layout
+ * this app does not understand, syncing is refused instead of half-restoring
+ * files it cannot interpret.
  */
 interface CollectionMarker {
   appId: string;
   profile: string;
+  /** Layout version of the collection; see `APP_CONFIG.BACKUP_SCHEMA_VERSION`. */
+  schemaVersion: number;
   createdAt: string;
 }
+
+/**
+ * Layout version of a marker written before versioning existed, which is the
+ * JSON-stream layout. `loadCollectionMarker` reports it for a marker that
+ * carries no `schemaVersion`, so the version check has a value to compare
+ * rather than a second "unknown" case to special-case.
+ */
+const UNVERSIONED_SCHEMA_VERSION = 1;
 
 /**
  * Reads the collection marker. Returns null when the collection has none
  * yet (a fresh folder, or a legacy collection written before the marker
  * existed). A body that is not JSON is treated the same way: the marker
  * is written by this app alone, so an unreadable one only means "unknown
- * owner" and must not block a restore.
+ * owner" and must not block a restore. A marker that *is* readable always
+ * gets a version, so a version mismatch is reported as a mismatch rather
+ * than silently accepted as an absent marker.
+ *
+ * An absent marker is deliberately not a version refusal: on push a fresh
+ * folder is claimed (the marker is written with this layout), and on pull an
+ * empty folder has nothing to restore anyway. Refusing there would turn the
+ * drawer's "Restore" on a brand-new account into an error instead of a no-op.
  */
 async function loadCollectionMarker(config: WebDavConfig): Promise<CollectionMarker | null> {
   let text: string;
@@ -79,11 +98,17 @@ async function loadCollectionMarker(config: WebDavConfig): Promise<CollectionMar
     throw error;
   }
   try {
-    const marker = JSON.parse(text) as CollectionMarker;
+    const marker = JSON.parse(text) as Partial<CollectionMarker>;
     if (!marker || typeof marker.appId !== 'string' || typeof marker.profile !== 'string') {
       return null;
     }
-    return marker;
+    return {
+      appId: marker.appId,
+      profile: marker.profile,
+      createdAt: typeof marker.createdAt === 'string' ? marker.createdAt : '',
+      schemaVersion:
+        typeof marker.schemaVersion === 'number' ? marker.schemaVersion : UNVERSIONED_SCHEMA_VERSION
+    };
   } catch {
     simpleLogger.warn('WebDAV collection marker is not readable, ignoring it');
     return null;
@@ -91,9 +116,12 @@ async function loadCollectionMarker(config: WebDavConfig): Promise<CollectionMar
 }
 
 /**
- * Verifies the collection belongs to this app id and profile. A mismatch is
- * a hard error: it means two athletes are pointed at the same folder and
- * their indexes would be mixed.
+ * Verifies the collection belongs to this app id and profile, and was written
+ * in the layout this app reads. Both mismatches are hard errors: the first
+ * means two athletes are pointed at the same folder and their indexes would be
+ * mixed; the second means the remote index lists files whose payload encoding
+ * this build cannot interpret, so restoring them would write stream files the
+ * app then fails to read.
  */
 function assertCollectionOwnership(marker: CollectionMarker, config: WebDavConfig): void {
   if (marker.appId !== APP_CONFIG.BACKUP_APP_ID) {
@@ -106,6 +134,13 @@ function assertCollectionOwnership(marker: CollectionMarker, config: WebDavConfi
     throw new Error(
       `This backup folder belongs to profile "${marker.profile}", not "${config.profile}". ` +
         'Use a different profile name, or pick the folder of the right profile.'
+    );
+  }
+  if (marker.schemaVersion !== APP_CONFIG.BACKUP_SCHEMA_VERSION) {
+    throw new Error(
+      `This backup folder uses layout version ${marker.schemaVersion}, but this app writes version ` +
+        `${APP_CONFIG.BACKUP_SCHEMA_VERSION}. Delete the folder on the server (or pick a new profile ` +
+        'name) and sync again: the previous layout is not supported.'
     );
   }
 }
@@ -168,10 +203,12 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
   if (marker) {
     assertCollectionOwnership(marker, config);
   } else {
-    // Fresh collection: claim it by recording who owns it.
+    // Fresh collection: claim it by recording who owns it and which layout
+    // it is written in.
     const fresh: CollectionMarker = {
       appId: APP_CONFIG.BACKUP_APP_ID,
       profile: config.profile,
+      schemaVersion: APP_CONFIG.BACKUP_SCHEMA_VERSION,
       createdAt: new Date().toISOString()
     };
     await putDavFile(config, APP_CONFIG.BACKUP_COLLECTION_FILE, JSON.stringify(fresh));

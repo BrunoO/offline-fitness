@@ -16,9 +16,9 @@ import { WebDavConfig, ensureDavFolder, testDavConnection } from './webdavTransp
  * the collection:
  *
  *   <root>/offline-fitness/<profile>/
- *     collection.json   ← app id + profile that own this folder
+ *     collection.json   ← app id + profile + layout version that own this folder
  *     activities/       ← <activityId>.json
- *     streams/          ← <activityId>.json
+ *     streams/          ← <activityId>.json (layout version 2: binary 'OF' payload)
  *     sync-state.json   ← md5 index + tombstones
  *
  * The app id keeps this app's data apart from any other app on the same
