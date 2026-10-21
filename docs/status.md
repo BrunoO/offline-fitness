@@ -701,3 +701,16 @@ A comprehensive code review was performed, covering technical debt, architecture
 - Chose `localeCompare` deliberately: a plain `<`/`>` comparator would satisfy ESLint but NOT Sonar, whose string-array variant of S2871 specifically requires locale-aware comparison. For the values actually sorted here (ASCII ISO date/week keys and PascalCase Strava type ids) localeCompare yields the same order as the previous default sort, so behavior is unchanged — verified by the existing streaks/stats test suites (389 pass).
 - The comparator also removes the silent trap: if these arrays ever hold non-string values, TypeScript rejects the call instead of alphabetising numbers unnoticed.
 - Remaining bare `.sort()` calls are test-only (sorting expected-value string literals) and stay.
+
+## Cognitive-Complexity Backlog Cleared - 2026-10-21
+
+- Refactored all 10 Sonar S3776 CRITICAL functions by extracting cohesive helpers; control flow, allocation profile and hot loops are unchanged so there is no perf penalty:
+  - `zipReader.readZipEntries`: central-directory record fields moved to a `CentralEntryFields` object + `applyZip64Extra` helper (only runs for ZIP64-overflow entries).
+  - `gpxParser.parseGpx`: per-`<trkpt>` extraction moved to pure `readTrackPoint`; regex exec count unchanged.
+  - `textDecode.decodeUtf8Manually`: `continuationCount` + `decodeSequence` helpers; the 8 KB ASCII fast path stays fully inline and untouched.
+  - `csvParser.parseActivitiesCsv`: split into `resolveHeader` / `makeCell` / `readExportedRow` / `collectRows`; identical warnings (incl. the first-five-bad-dates cap) and skip semantics.
+  - `exportData`: chunk building, GPX attach, file naming and the share loop moved to `buildChunkFile` / `addStreamToZip` / `chunkFileName` / `shareExportFiles`; the export never still rejects and progress math is unchanged.
+  - `fetchAndStoreStreams.calculateAndStoreMissingBoundingBoxes`: per-activity work in `backfillBoundingBox` (service function, not a compiled component, so `finally` is safe); `processingActivities` add/delete pairing preserved on every path.
+  - `backupSync`: shared `describeError`, plus `ensureOwnedCollection`, `propagateLocalTombstones`, `mergeRemoteTombstones` (push) and `cleanOrphanedStreamFiles`, `localStreamMatchesIndex`, `fetchStreamContent` (pull); tombstone/stream decisions and error strings identical.
+  - `StatsTab` modal: `ValidationBadge` and `SettingToggle` extracted as module-level theme-aware components (createStyles + useMemo, no hardcoded colours), removing six inline ternaries from the modal body.
+- 389 tests, tsc, check:imports and eslint all green after the refactor.
