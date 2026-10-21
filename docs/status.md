@@ -130,6 +130,36 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **"Last years" crashed the app: the palette theme starved the legend of its font size** —
+  opening the Stats → *Last years* tab killed the app on Android with a native
+  `IllegalArgumentException: Invalid number formating character 'N' (… s=M NaN, NaN …)` from
+  `com.horcrux.svg.PathParser`. It is a **native** crash, so jest could not see the crash
+  itself; the only reproduction was `adb` + `logcat`.
+  - **Root cause, in the theming refactor.** A Victory theme is not only colours: the legend
+    symbol size is derived from the label font size (`victory-legend` computes
+    `size = fontSize / 2.5`). `createChartTheme` **replaced** `VictoryTheme.material`'s
+    `legend.style.labels` with `{ fill }` instead of merging onto it, so `fontSize`
+    disappeared, the symbol geometry became `undefined / 2.5 = NaN`, and the legend circle
+    path `M NaN, NaN / m NaN, 0 / a NaN, NaN …` reached the native SVG parser. Rebuilding
+    the pre-fix theme in a test produces the **byte-identical** path from the crash log.
+    Only *Last years* hit it because it is the only screen whose `VictoryLegend` has data
+    items (`RecentWeeksScreen`'s legend is a title-only `data={[]}`).
+  - **Fix: `src/theme/chartTheme.ts` now merges the palette onto Material** instead of
+    swapping style objects, so every non-colour property (`fontSize`, ticks' `size`,
+    `strokeLinecap`, `textAnchor`, the legend symbol `type`) survives. This also repairs
+    collateral damage from the same bug: axis labels had lost `textAnchor: middle` and
+    `padding`, and axis ticks had lost their `size`.
+  - Material ships no `dependentAxis` block, so the theme now seeds one from `axis` before
+    applying the palette; the dependent axis keeps the same typography as the independent one.
+  - Tests: `__tests__/theme/theme.spec.ts` pins the surviving Material geometry, runs
+    Victory's own legend layout and asserts finite symbol geometry for every palette and
+    scheme, and proves the assertion fails on a theme that replaces the labels.
+    `__tests__/stats/recentYears.spec.tsx` renders `RecentYearsScreen` and asserts no
+    rendered SVG path contains `NaN` or `Infinity`.
+  - **Not the cause:** the yearly data pipeline (`yearlyData` / `formatYearlyTable`) is
+    byte-identical before and after the theming commit, and the crash path is a legend
+    symbol, not a bar.
+
 - **Compact binary stream cache (`streamCodec.ts`), `write(Uint8Array)`, and GPX self-closing `<trkpt/>` fix** —
   - **Self-closing `<trkpt/>` fix in `gpxParser.ts`**: `<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>` did not match a self-closing `<trkpt lat="…" lon="…"/>`, so the lazy body match ran past it and attached the *next* point's `<ele>` and `<time>` to the self-closing point while dropping the middle point silently. `TRACK_POINT_PATTERN` now accepts `(?:\/>|>([\s\S]*?)<\/trkpt>)` and drops body-less points cleanly. Covered in `__tests__/stravaImport/gpxParser.test.ts`.
   - **16 B/point binary stream format (`src/shared/services/streamCodec.ts`)**: stream files under `streams/<id>.json` now store a 16-byte `'OF'` v1 header plus planar little-endian `int32` arrays (`lat × 1e6`, `lon × 1e6`, `altitude × 10` decimetres, `time` seconds). Round-trip error is **0** against the rounded GPX values, file size drops from ~92 KB to ~47 KB on a 3,000-point track (~191 MB → ~98 MB across a 2,135-track export), and `File.write(Uint8Array)` writes the direct buffer without the JSI UTF-16 → UTF-8 → Kotlin `String` → `toByteArray()` copies.
