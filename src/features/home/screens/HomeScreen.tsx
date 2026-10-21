@@ -431,8 +431,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
   React.useLayoutEffect(() => {
     navigation?.setOptions({
+      // NOSONAR - React Navigation render prop must close over backupFreshness
       headerRight: () => (
-        // NOSONAR - React Navigation render prop; must close over backupFreshness
         <View style={{ marginRight: 10 }}>
           {/* The label itself carries the age ("Synced 3 weeks ago"); colour
               only lifts it out of the muted tier. theme.warning is not used
