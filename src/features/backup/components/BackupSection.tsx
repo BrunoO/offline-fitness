@@ -97,14 +97,27 @@ export function BackupSection() {
   };
 
   const handleDisconnect = async () => {
-    try {
-      await disconnect();
-      setStatus('Disconnected. Stored credentials removed.');
-    } catch (error) {
-      simpleLogger.error('WebDAV disconnect failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
+    Alert.alert(
+      'Disconnect backup?',
+      'This removes the stored server URL, username and password from this phone. The backup on the server is left untouched.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await disconnect();
+              setStatus('Disconnected. Stored credentials removed.');
+            } catch (error) {
+              simpleLogger.error('WebDAV disconnect failed', {
+                error: error instanceof Error ? error.message : String(error)
+              });
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleSyncNow = async () => {
@@ -313,9 +326,9 @@ export function BackupSection() {
       <TouchableOpacity
         onPress={handleDisconnect}
         disabled={isSyncing || isRestoring}
-        style={{ paddingVertical: 4 }}
+        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
       >
-        <Text style={{ color: mutedColor }}>Disconnect</Text>
+        <Text style={{ color: textColor }}>Disconnect</Text>
       </TouchableOpacity>
       {status !== '' ? (
         <Text style={{ color: mutedColor, marginTop: 4 }} numberOfLines={3}>
