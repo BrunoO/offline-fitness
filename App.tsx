@@ -76,9 +76,8 @@ function AppContent() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer theme={navigationTheme}>
         <Drawer.Navigator
-          // NOSONAR - React Navigation render prop must close over openSettings
-          drawerContent={props => (
-            // NOSONAR - flagged element of the render prop above
+          // prettier-ignore
+          drawerContent={props => ( // NOSONAR - render prop must close over openSettings
             <CustomDrawerContent {...props} onOpenSettings={openSettings} />
           )}
         >
