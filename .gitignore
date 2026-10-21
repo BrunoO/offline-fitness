@@ -1,0 +1,38 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+.env
+tsconfig.tsbuildinfo
+
+android/
+ios/
+coverage/
+
+# macOS
+.DS_Store
+
+# Local tooling
+google-cloud-sdk/
+service_account_key.json
+.version-code
+.openchamber/
+
+# Editor / workspace
+*.code-workspace
+
+# Logs
+build.log
+*.log
+
+# Personal / local
+todo.txt
+.claude/
+path/

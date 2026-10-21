@@ -1,0 +1,25 @@
+// Shared - Public API
+// This file exports all shared utilities and components
+
+// Components
+export { ChipMultiSelect } from './components/chip-multi-select/ChipMultiSelect';
+export type { ChipMultiSelectProps } from './components/chip-multi-select/ChipMultiSelect';
+export { LogScreen } from './components/LogScreen';
+// CustomDrawer is excluded from barrel export to avoid circular dependencies
+
+// Services
+export { exportData } from './services/exportData';
+export { simpleLogger } from './services/SimpleLogger';
+export * from './services/storage';
+// trackComparison is excluded from barrel export to avoid circular dependencies
+
+// Utils
+export { IconButton } from './utils/IconsUtils';
+export * from './utils/activityCategories';
+export * from './utils/utils';
+export * from './utils/isoWeek';
+export * from './utils/activityDates';
+export { runWithCleanup } from './utils/runWithCleanup';
+
+// Types
+export * from './types/types';

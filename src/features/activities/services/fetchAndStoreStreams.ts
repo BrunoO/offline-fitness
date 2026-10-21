@@ -1,0 +1,375 @@
+import { APP_CONFIG } from '@/constants';
+import {
+  Activity,
+  ActivityWithStream,
+  LatLng,
+  ActivityStream,
+  calculateBoundingBox,
+  getAllActivitiesKeys,
+  loadAllActivities,
+  runWithCleanup,
+  simpleLogger,
+  storeActivity
+} from '@/shared';
+import { Directory, File, Paths } from 'expo-file-system';
+import simplify from 'simplify-js';
+import { StreamSet } from '../types/stravaActivityStream.model';
+
+const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+// Guards local file operations (delete vs. bounding-box backfill) against each other.
+const processingActivities = new Set<string>();
+
+/**
+ * Deletes all stream files for a given activity ID.
+ *
+ * @param {string} activityId - The ID of the activity to delete stream files for.
+ * @throws {Error} Throws an error if the deletion fails.
+ */
+export async function deleteStreamFiles(activityId: string) {
+  if (processingActivities.has(activityId)) {
+    simpleLogger.log(`Activity ${activityId} is being processed, skipping delete`);
+    return;
+  }
+  processingActivities.add(activityId);
+  try {
+    await runWithCleanup(
+      async () => {
+        if (!streamsFolder.exists) {
+          return;
+        }
+        const files = streamsFolder.list();
+        const filesToDelete = files.filter(file => file.name.startsWith(activityId + '.'));
+
+        await Promise.all(filesToDelete.map(file => file.delete())).catch(error => {
+          simpleLogger.error('Error deleting stream file:', error);
+        });
+
+        simpleLogger.log(`Deleted ${filesToDelete.length} stream files for activity ${activityId}`);
+      },
+      () => {
+        processingActivities.delete(activityId);
+      }
+    );
+  } catch (error) {
+    simpleLogger.error('Error deleting stream files:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reads the streams folder and returns the set of activity IDs that are flagged
+ * with a ".nostreamflag" file, indicating no stream is available for them.
+ */
+export const getNoStreamFlagIds = async (): Promise<Set<string>> => {
+  try {
+    if (!streamsFolder.exists) {
+      return new Set();
+    }
+    const files = streamsFolder.list();
+    const flaggedIds = files
+      .filter(file => file.name.endsWith('.nostreamflag'))
+      .map(file => file.name.split('.')[0]);
+    return new Set(flaggedIds);
+  } catch {
+    return new Set();
+  }
+};
+
+/**
+ * Compresses a given stream set using Ramer-Douglas-Peucker simplification.
+ *
+ * @param {StreamSet} streamSet - The stream set to be compressed.
+ * @returns {ActivityStream} - The compressed stream set with simplified coordinates.
+ */
+export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
+  let coordinatesResult: LatLng[] = [];
+  if (streamSet.latlng && streamSet.latlng.data) {
+    const coordinates = streamSet.latlng.data.map(latlng => ({
+      latitude: latlng[0],
+      longitude: latlng[1]
+    }));
+    coordinatesResult = simplifyTrack(coordinates);
+  }
+
+  let altitudeResult: number[] = [];
+  if (streamSet.altitude && streamSet.altitude.data) {
+    altitudeResult = streamSet.altitude.data;
+  }
+  let timeResult: number[] = [];
+  if (streamSet.time && streamSet.time.data) {
+    timeResult = streamSet.time.data;
+  }
+  return {
+    coordinates: coordinatesResult,
+    altitude: altitudeResult,
+    time: timeResult
+  };
+};
+/**
+ * Simplifies a track by reducing the number of points while preserving the essential shape.
+ *
+ * @param {LatLng[]} coordinates - Array of latitude/longitude coordinates representing the track
+ * @param {number} tolerance - Controls the level of simplification. Higher values result in more aggressive simplification. Default is 0.0001
+ * @returns {LatLng[]} Simplified array of coordinates
+ *
+ * @remarks
+ * Uses the Ramer-Douglas-Peucker algorithm via simplify-js to reduce the number of points in the track.
+ * The tolerance parameter determines how aggressively points are removed - higher values mean more simplification.
+ * Coordinates are converted to x/y format for the algorithm and back to lat/lng for the return value.
+ * Logs the percentage reduction in number of points achieved.
+ */
+
+function simplifyTrack(coordinates: LatLng[], tolerance: number = 0.0001): LatLng[] {
+  // Convert to format expected by simplify-js
+  const points = coordinates.map(coord => ({
+    x: coord.longitude,
+    y: coord.latitude
+  }));
+
+  // Apply simplification
+  const simplified = simplify(points, tolerance, true);
+  // simpleLogger.log(
+  //   `Simplified track from ${points.length} to ${simplified.length} points (${Math.round((1 - simplified.length / points.length) * 100)}% reduction)`
+  // );
+
+  // Convert back to LatLng format
+  return simplified.map(point => ({
+    latitude: point.y,
+    longitude: point.x
+  }));
+}
+
+/**
+ * Loads the most recent stream from the file system.
+ * @returns A promise that resolves to the most recent stream, or null if no streams are found.
+ */
+export const loadMostRecentStream = async (): Promise<ActivityStream | null> => {
+  if (!streamsFolder.exists) {
+    return null;
+  }
+  const files = streamsFolder.list();
+  const jsonFiles = files.filter(file => file.name.endsWith('.json'));
+
+  if (jsonFiles.length === 0) {
+    return null;
+  }
+
+  const mostRecentFile = jsonFiles.reduce((latest, file) => {
+    const latestTime = parseInt(latest.name.split('.')[0], 10);
+    const fileTime = parseInt(file.name.split('.')[0], 10);
+    return fileTime > latestTime ? file : latest;
+  });
+
+  try {
+    const stream: StreamSet = JSON.parse(await (mostRecentFile as File).text());
+    return compressStreamSet(stream);
+  } catch (error) {
+    simpleLogger.error('Failed to parse most recent stream file — file may be corrupt:', error);
+    return null;
+  }
+};
+
+/**
+ * Gets the streams for all activities.
+ * @param allActivities The activities to get the streams for.
+ * @returns A promise that resolves to an array of enriched activities.
+ */
+export const getActivityStreams = async (allActivities: Activity[]) => {
+  const activityStreams: ActivityWithStream[] = [];
+
+  for (const activity of allActivities) {
+    const file = new File(streamsFolder, `${activity.id}.json`);
+
+    if (file.exists) {
+      try {
+        const stream: StreamSet = JSON.parse(await file.text());
+        const compressedStream = compressStreamSet(stream);
+        if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
+          activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
+          if (activity.bounding_box) {
+            await storeActivity(activity);
+          }
+        }
+        activityStreams.push({ activity, streamSet: compressedStream });
+      } catch (error) {
+        simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
+      }
+    }
+  }
+
+  return activityStreams;
+};
+
+/**
+ * Loads the stream for a single activity from the file system.
+ * @param activity The activity to load the stream for.
+ * @returns A promise that resolves to the stream, or null if not found.
+ */
+export const loadStreamForActivity = async (activity: Activity): Promise<ActivityStream | null> => {
+  const file = new File(streamsFolder, `${activity.id}.json`);
+
+  if (!file.exists) {
+    return null;
+  }
+
+  try {
+    const stream: StreamSet = JSON.parse(await file.text());
+    return compressStreamSet(stream);
+  } catch (error) {
+    simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Loads the raw (unsimplified) stream for a single activity from the file system.
+ * Used by the web maps screen, which renders the original latlng/altitude/time series.
+ * @param activity The activity to load the stream for.
+ * @returns A promise that resolves to the raw stream set, or null if not found.
+ */
+export const loadRawStreamForActivity = async (activity: Activity): Promise<StreamSet | null> => {
+  const file = new File(streamsFolder, `${activity.id}.json`);
+
+  if (!file.exists) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(await file.text()) as StreamSet;
+  } catch (error) {
+    simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Counts the number of downloaded streams and missing data files.
+ *
+ * @returns {Promise<{downloadedStreams: number, missingStreams: number, totalFiles: number}>}
+ * Object containing counts of downloaded streams, missing streams, and total files
+ */
+export const countStreamsStatus = async (): Promise<{
+  downloadedStreams: number;
+  missingStreams: number;
+  totalFiles: number;
+}> => {
+  try {
+    if (!streamsFolder.exists) {
+      return {
+        downloadedStreams: 0,
+        missingStreams: 0,
+        totalFiles: 0
+      };
+    }
+
+    const files = streamsFolder.list();
+
+    const jsonFiles = files.filter(file => file.name.endsWith('.json'));
+    const noStreamFlagFiles = files.filter(file => file.name.endsWith('.nostreamflag'));
+
+    const downloadedStreams = jsonFiles.length;
+    const missingStreams = noStreamFlagFiles.length;
+    const totalFiles = files.length;
+
+    return {
+      downloadedStreams,
+      missingStreams,
+      totalFiles
+    };
+  } catch (error) {
+    simpleLogger.error('Error counting streams status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Calculates and stores the bounding boxes for all activities that are missing them.
+ */
+export const calculateAndStoreMissingBoundingBoxes = async () => {
+  simpleLogger.log('Checking for missing bounding boxes...');
+  const allKeys = await getAllActivitiesKeys();
+  const allActivities = await loadAllActivities(allKeys);
+
+  let updatedCount = 0;
+
+  for (const activity of allActivities) {
+    if (processingActivities.has(activity.id)) {
+      simpleLogger.log(`Activity ${activity.id} is being processed, skipping`);
+      continue;
+    }
+    if (!activity.bounding_box) {
+      processingActivities.add(activity.id);
+      const file = new File(streamsFolder, `${activity.id}.json`);
+
+      if (file.exists) {
+        try {
+          const stream: StreamSet = JSON.parse(await file.text());
+          const compressedStream = compressStreamSet(stream);
+
+          if (compressedStream.coordinates.length > 0) {
+            activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
+            if (activity.bounding_box) {
+              await storeActivity(activity);
+              updatedCount++;
+            }
+          }
+        } catch (error) {
+          simpleLogger.error(`Error processing stream for activity ${activity.id}:`, error);
+        }
+      }
+      processingActivities.delete(activity.id);
+    }
+  }
+
+  if (updatedCount > 0) {
+    simpleLogger.log(`Updated ${updatedCount} activities with bounding boxes.`);
+  } else {
+    simpleLogger.log('No activities needed bounding box updates.');
+  }
+};
+
+/**
+ * Corrects stored Swim activities by forcing total_elevation_gain to 0.
+ */
+export const correctSwimElevationGain = async () => {
+  simpleLogger.log('Checking Swim activities elevation gain...');
+  const allKeys = await getAllActivitiesKeys();
+  const allActivities = await loadAllActivities(allKeys);
+
+  let updatedCount = 0;
+
+  for (const activity of allActivities) {
+    if (activity.type === 'Swim' && activity.total_elevation_gain !== 0) {
+      activity.total_elevation_gain = 0;
+      await storeActivity(activity);
+      updatedCount++;
+    }
+  }
+
+  if (updatedCount > 0) {
+    simpleLogger.log(`Corrected elevation gain for ${updatedCount} Swim activities.`);
+  } else {
+    simpleLogger.log('No Swim activities needed elevation correction.');
+  }
+};
+
+/* const moveFilesToSubfolder = async () => {
+  const streamsFolderUri = FileSystem.documentDirectory + APP_CONFIG.STREAMS_FOLDER;
+  const folderInfo = await FileSystem.getInfoAsync(streamsFolderUri);
+
+  if (!folderInfo.exists) {
+    await FileSystem.makeDirectoryAsync(streamsFolderUri);
+  }
+
+  const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
+  const jsonFiles = files.filter((file) => file.endsWith(".json"));
+
+  for (const file of jsonFiles) {
+    const oldPath = FileSystem.documentDirectory + file;
+    const newPath = streamsFolderUri + file;
+    await FileSystem.moveAsync({
+      from: oldPath,
+      to: newPath,
+    });
+  }
+}; */

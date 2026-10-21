@@ -1,0 +1,81 @@
+{
+  "expo": {
+    "experiments": {
+      "reactCompiler": true
+    },
+    "name": "Offline Fitness",
+    "slug": "offline-fitness",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*",
+      "assets/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.offlinefitness"
+    },
+    "android": {
+      "versionCode": 639,
+      "config": {
+        "googleMaps": {
+          "apiKey": "SET_VIA_EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        }
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
+      "package": "com.example.offlinefitness"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "offlinefitness",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash.png",
+          "enableFullScreenImage_legacy": "false",
+          "backgroundColor": "#FFFFE0",
+          "imageWidth": 200
+        }
+      ],
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
+        }
+      ]
+    ]
+  }
+}

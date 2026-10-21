@@ -1,0 +1,284 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File } from 'expo-file-system';
+import JSZip from 'jszip';
+import { importStravaExport } from '@/features/strava-import/services/importStravaExport';
+
+/**
+ * End-to-end test of the archive import against a virtual file system.
+ *
+ * The virtual FS supports random-access reads, so the real ZIP reader, GPX
+ * parser, activity mapper and storage writers all run — only the platform
+ * primitives are replaced.
+ */
+
+interface VirtualFileEntry {
+  bytes: Uint8Array;
+}
+
+const mockVirtualFiles = new Map<string, VirtualFileEntry>();
+const mockVirtualDirectories = new Set<string>();
+
+jest.mock('expo-file-system', () => {
+  class VirtualDirectory {
+    uri: string;
+    name: string;
+
+    constructor(pathOrDir: { uri: string } | string, name = '') {
+      const base = typeof pathOrDir === 'string' ? pathOrDir : pathOrDir.uri;
+      this.name = name;
+      this.uri = name ? `${base}${name}` : base;
+    }
+
+    get exists() {
+      return mockVirtualDirectories.has(this.uri.replace(/\/$/, ''));
+    }
+
+    create() {
+      mockVirtualDirectories.add(this.uri.replace(/\/$/, ''));
+    }
+
+    list() {
+      const prefix = this.uri;
+      return [...mockVirtualFiles.keys()]
+        .filter(uri => uri.startsWith(prefix))
+        .map(uri => new VirtualFile(this, uri.substring(prefix.length)));
+    }
+  }
+
+  class VirtualFile {
+    uri: string;
+    name: string;
+
+    constructor(pathOrDir: { uri: string } | string, name = '') {
+      const base = typeof pathOrDir === 'string' ? pathOrDir : pathOrDir.uri;
+      this.name = name;
+      this.uri = name ? `${base}${name}` : base;
+    }
+
+    get exists() {
+      return mockVirtualFiles.has(this.uri);
+    }
+
+    get size() {
+      return mockVirtualFiles.get(this.uri)?.bytes.length ?? 0;
+    }
+
+    async copy(destination: VirtualFile) {
+      const source = mockVirtualFiles.get(this.uri);
+      if (!source) throw new Error(`File not found: ${this.uri}`);
+      mockVirtualFiles.set(destination.uri, { bytes: source.bytes.slice() });
+    }
+
+    delete() {
+      mockVirtualFiles.delete(this.uri);
+    }
+
+    write(content: string) {
+      mockVirtualFiles.set(this.uri, { bytes: new TextEncoder().encode(String(content)) });
+    }
+
+    async text() {
+      const entry = mockVirtualFiles.get(this.uri);
+      if (!entry) throw new Error(`File not found: ${this.uri}`);
+      return new TextDecoder().decode(entry.bytes);
+    }
+
+    open() {
+      const entry = mockVirtualFiles.get(this.uri);
+      if (!entry) throw new Error(`File not found: ${this.uri}`);
+      const state = { offset: 0 };
+      return {
+        get offset() {
+          return state.offset;
+        },
+        set offset(value: number) {
+          state.offset = value;
+        },
+        readBytes(length: number) {
+          return entry.bytes.slice(state.offset, state.offset + length);
+        },
+        close() {}
+      };
+    }
+  }
+
+  return {
+    File: VirtualFile,
+    Directory: VirtualDirectory,
+    Paths: { document: 'file:///documents/', cache: 'file:///cache/' },
+    FileMode: { ReadOnly: 'r', ReadWrite: 'rw' }
+  };
+});
+
+jest.mock('@react-native-async-storage/async-storage', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
+const GPX = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="StravaGPX" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+ <trk>
+  <name>Marche matinale</name>
+  <type>walking</type>
+  <trkseg>
+   <trkpt lat="44.9054280" lon="5.7898060"><ele>864.0</ele><time>2023-10-15T05:50:05Z</time></trkpt>
+   <trkpt lat="44.9054060" lon="5.7897890"><ele>864.1</ele><time>2023-10-15T05:50:06Z</time></trkpt>
+   <trkpt lat="44.9054020" lon="5.7897810"><ele>864.2</ele><time>2023-10-15T05:50:07Z</time></trkpt>
+  </trkseg>
+ </trk>
+</gpx>`;
+
+const CSV = `Activity ID,Activity Date,Activity Name,Activity Type,Activity Description,Elapsed Time,Distance,Max Heart Rate,Relative Effort,Commute,Activity Private Note,Activity Gear,Filename,Athlete Weight,Bike Weight,Elapsed Time,Moving Time,Distance,Max Speed,Average Speed,Elevation Gain,Elevation Loss,Elevation Low,Elevation High
+100,"Oct 15, 2023, 5:50:05 AM",Marche matinale,Walk,,3600,2.8,,,,,,activities/100.gpx,,,3600,3500,2825.4,2.93,1.202,9.4,9.4,203.7,210.4
+200,"Oct 16, 2023, 7:00:00 AM",Yoga du matin,Yoga,,1800,0,,,,,,,1800,1800,,,,,,,
+`;
+
+const ARCHIVE_PATH = 'file:///cache/strava-export-import.zip';
+const PICKED_PATH = 'file:///picked/export_6466806.zip';
+
+async function buildArchive(): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file('activities.csv', CSV);
+  zip.file('activities/100.gpx', GPX);
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+const pickedFile = (): File => new File('file:///picked/', 'export_6466806.zip');
+
+describe('importStravaExport', () => {
+  let summary: Awaited<ReturnType<typeof importStravaExport>>;
+
+  beforeAll(async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    mockVirtualDirectories.add('file:///documents');
+    mockVirtualFiles.set('file:///documents/streams/999.json', { bytes: new Uint8Array([1]) });
+    summary = await importStravaExport(pickedFile());
+  });
+
+  it('stores both activities with their canonical fields', async () => {
+    const keys = await AsyncStorage.getAllKeys();
+    expect(keys).toEqual(expect.arrayContaining(['a_100', 'a_200']));
+
+    const stored = new Map(await AsyncStorage.multiGet(['a_100', 'a_200']));
+    const walk = JSON.parse(String(stored.get('a_100')));
+    const yoga = JSON.parse(String(stored.get('a_200')));
+
+    expect(walk).toMatchObject({
+      id: '100',
+      type: 'Walk',
+      distance: 2825.4,
+      moving_time: 3500,
+      elapsed_time: 3600,
+      start_timestamp_utc: Date.UTC(2023, 9, 15, 5, 50, 5),
+      start_latlng: [44.905428, 5.789806]
+    });
+    expect(walk.start_date_local.endsWith('Z')).toBe(true);
+    expect(walk.local_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(walk.bounding_box).toBeDefined();
+
+    expect(yoga).toMatchObject({ id: '200', type: 'Yoga', start_latlng: [] });
+  });
+
+  it('writes an API-shaped stream for the GPX activity', async () => {
+    const streamFile = mockVirtualFiles.get('file:///documents/streams/100.json');
+    expect(streamFile).toBeDefined();
+
+    const stream = JSON.parse(new TextDecoder().decode(streamFile!.bytes));
+    expect(stream.latlng.data).toHaveLength(3);
+    expect(stream.altitude.data).toEqual([864, 864.1, 864.2]);
+    expect(stream.time.data).toEqual([0, 1, 2]);
+    expect(stream.latlng.original_size).toBe(3);
+  });
+
+  it('flags activities without a track so they are never retried', () => {
+    expect(mockVirtualFiles.has('file:///documents/streams/200.nostreamflag')).toBe(true);
+    expect(mockVirtualFiles.has('file:///documents/streams/100.nostreamflag')).toBe(false);
+  });
+
+  it('reports what it did', () => {
+    expect(summary).toMatchObject({
+      activitiesImported: 2,
+      streamsImported: 1,
+      streamsAlreadyPresent: 0,
+      streamsWithoutTrack: 0,
+      activitiesWithoutFile: 1,
+      unsupportedFiles: 0,
+      failedFiles: 0,
+      cancelled: false
+    });
+    expect(summary.timezone.length).toBeGreaterThan(0);
+  });
+
+  it('deletes the cached copy of the archive', () => {
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+  });
+
+  it('is idempotent: a second import keeps existing streams', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    const second = await importStravaExport(pickedFile());
+
+    expect(second.streamsImported).toBe(0);
+    expect(second.streamsAlreadyPresent).toBe(1);
+    expect(second.activitiesImported).toBe(2);
+  });
+
+  it('keeps the track fields of activities whose stream is already stored', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    await importStravaExport(pickedFile());
+
+    const stored = new Map(await AsyncStorage.multiGet(['a_100']));
+    const walk = JSON.parse(String(stored.get('a_100')));
+
+    // A CSV row carries no track data, so a naive re-import would blank these.
+    expect(walk.start_latlng).toEqual([44.905428, 5.789806]);
+    expect(walk.end_latlng).toEqual([44.905402, 5.789781]);
+    expect(walk.bounding_box).toBeDefined();
+  });
+
+  it('repairs a record that lost its track fields while the stream is on disk', async () => {
+    const stored = new Map(await AsyncStorage.multiGet(['a_100']));
+    const damaged = JSON.parse(String(stored.get('a_100')));
+    damaged.start_latlng = [];
+    damaged.end_latlng = [];
+    delete damaged.bounding_box;
+    await AsyncStorage.setItem('a_100', JSON.stringify(damaged));
+
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    const repair = await importStravaExport(pickedFile());
+    expect(repair.streamsAlreadyPresent).toBe(1);
+
+    const repaired = new Map(await AsyncStorage.multiGet(['a_100']));
+    const walk = JSON.parse(String(repaired.get('a_100')));
+    expect(walk.start_latlng).toEqual([44.905428, 5.789806]);
+    expect(walk.end_latlng).toEqual([44.905402, 5.789781]);
+    expect(walk.bounding_box).toBeDefined();
+  });
+
+  it('clears a stale no-stream marker once the track is stored', async () => {
+    mockVirtualFiles.set('file:///documents/streams/100.nostreamflag', { bytes: new Uint8Array() });
+    mockVirtualFiles.delete('file:///documents/streams/100.json');
+
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    const result = await importStravaExport(pickedFile());
+    expect(result.streamsImported).toBe(1);
+
+    expect(mockVirtualFiles.has('file:///documents/streams/100.json')).toBe(true);
+    expect(mockVirtualFiles.has('file:///documents/streams/100.nostreamflag')).toBe(false);
+  });
+
+  it('can be cancelled between phases', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    const cancelled = await importStravaExport(pickedFile(), { shouldCancel: () => true });
+
+    expect(cancelled.cancelled).toBe(true);
+  });
+
+  it('rejects a file that is not a ZIP archive', async () => {
+    mockVirtualFiles.set('file:///picked/notes.zip', {
+      bytes: new TextEncoder().encode('this is not a zip')
+    });
+    const notAZip = new File('file:///picked/', 'notes.zip');
+
+    await expect(importStravaExport(notAZip)).rejects.toThrow(/not a ZIP archive/);
+  });
+});

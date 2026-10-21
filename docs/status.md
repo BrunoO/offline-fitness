@@ -1,0 +1,391 @@
+# Offline Fitness Status
+
+## Project Overview
+
+A React Native/Expo app for personal Strava activity analytics, fully offline: activities and tracks
+are imported from a Strava data-export archive (no API subscription, no OAuth).
+
+## Features
+
+### Data Import
+
+- [x] Import activities and tracks from a Strava data-export archive (no API/OAuth)
+- [x] Idempotent, resumable import (upsert by id, existing streams never overwritten)
+- [x] UTC archive dates converted with the device timezone
+
+### Activity Management
+
+- [x] Local storage of activities
+- [x] Activity deletion with stream cleanup
+- [x] Automatic activity type detection
+- [x] Activity count display
+- [x] Sort activities by date (most recent first)
+
+### Navigation
+
+- [x] Drawer navigation
+- [x] Home screen with activity overview
+- [x] Activities list view
+- [x] Maps view with activity visualization
+- [x] Stats view with activity analysis
+- [x] Logs view for debugging
+
+### Data Visualization
+
+- [x] Mini map preview on home screen
+- [x] Activity streams visualization
+- [x] Activity route display on maps
+- [x] Statistical analysis in Stats view
+
+### UI/UX
+
+- [x] Strava-themed color scheme
+- [x] Loading states and progress indicators
+- [x] Responsive layout
+- [x] Safe area handling
+- [x] Gesture support for maps and lists
+
+## Technical Details
+
+### State Management
+
+- Global activities state in App.tsx
+- Local storage for persistence
+- Stream caching for performance
+
+### Data Flow
+
+- Strava API → Local Storage → App State → UI
+- Automatic updates on new activity fetch
+- Background stream loading
+
+### Performance Optimizations
+
+- Stream data compression
+- Lazy loading of map data
+- Efficient list rendering
+- Cache management for streams
+
+## Known Issues
+
+- Stream fetching may hit rate limits with large activity sets
+- Some activities may not have associated streams
+- Map loading can be slow with many activities
+- `expr-eval` has two open CVEs (prototype pollution, unrestricted function evaluation) — no upstream fix available; the library is used only for user-defined goal expressions evaluated on trusted local data, so impact is low
+
+## Future Improvements
+
+- [ ] Activity filtering by type
+- [ ] Advanced statistics and trends
+- [ ] Batch operations for activities
+- [ ] Offline support improvements
+- [ ] Enhanced map interactions
+- [ ] Activity search functionality
+
+### App.tsx Refactoring
+
+- [ ] Create dedicated Activity Service
+  - Move activity fetching logic (`fetch_activities`, `prepare_data`)
+  - Handle activity state management
+  - Implement activity transformations
+- [ ] Implement proper State Management
+  - Move from useState to Context or Redux
+  - Create separate stores for activities, auth, and UI state
+  - Implement proper state persistence strategy
+- [ ] Create Activity Types Module
+  - Move `ResponseActivityType` and other types to dedicated file
+  - Implement proper type validation and transformation
+- [ ] Implement Data Layer
+  - Create Repository pattern for activities
+  - Separate storage logic from App.tsx
+  - Implement proper caching strategy
+- [ ] Improve Error Handling
+  - Create centralized error handling
+  - Implement proper error reporting
+  - Add retry mechanisms for failed operations
+- [ ] Enhance Authentication Flow
+  - Move auth logic to dedicated service
+  - Implement proper token management
+  - Add session handling
+- [ ] Create UI Components Library
+  - Extract reusable components
+  - Implement consistent styling
+  - Create component documentation
+
+## Dependencies
+
+- React Native
+- Expo
+- React Navigation
+- Expo Location
+- React Native Maps
+- Victory Charts
+- Strava API v3
+
+## Build Information
+
+- Using Expo managed workflow
+- Targeting iOS and Android platforms
+- Current version tracked in app display
+
+## Recent Updates
+
+- **App identity split so the old and new apps can coexist on one phone** — The app was published to a new public repository as a single squashed commit (`offline-fitness`, MIT) and had to keep the same identity as the previous build for a while, so every identity field was moved to its own value:
+  - **Android package** and **iOS bundle id** now come from the environment (`ANDROID_PACKAGE` / `IOS_BUNDLE_ID` in `.env`) instead of being committed, with the neutral placeholders `com.example.offlinefitness` as the fallback for a fresh clone. The previous build keeps its own ids in its own (private) repository. Two apps can only be installed side by side with different application ids — with the same one, the new build replaces the old one.
+  - **URL scheme** and **Expo slug** were changed to neutral values (`offlinefitness` / `offline-fitness`) so neither the old project name nor a third-party trademark stays in the public source.
+  - **EAS**: the slug has to match the linked project's slug, so the app was moved to a separate EAS project. The previous project stays with the old app.
+  - **Icon and splash unchanged** — the artwork is a neutral bike-and-chart, no third-party marks, so the old icon is kept as requested.
+  - **Data stays separate**: each app has its own sandbox, so the new app starts with no activities and cannot touch the old app's local data. Two consequences to keep in mind: the new app needs its own archive import, and the two apps must not back up to the same WebDAV collection (same file names, `<id>.json`) — point the new app at a sub-collection such as `…/dav/files/<user>/offline-fitness/`.
+  - **Google Maps key**: the key is inlined into the bundle at build time, so it is restricted in the Cloud console — API scope limited to the Maps SDKs, and application restrictions listing the package name from `.env` plus its signing certificate SHA-1. A key restricted to a different package fails with an authorization error.
+  - `package.json`: the `android:dev:uninstall` script now reads the package from the environment; the lockfile follows the rename.
+
+- **Archive import: re-importing no longer wipes track data** — Two bugs found while reviewing what a re-import does to an existing local dataset (`importStravaExport.ts`):
+  - **Track-derived fields were lost on re-import.** Pass 1 rewrites every activity from `activities.csv`, and a CSV row carries no track data — so `start_latlng`, `end_latlng` and `bounding_box` were reset (the mapped record has empty coordinate arrays). Pass 2 then skipped those activities (their stream file already existed), so nothing restored them: the Android map markers disappeared, the GPX export lost the start/end point, and "similar activities" (`findSimilarActivities` needs `bounding_box`) came up empty. The bounding box was silently repaired at the next app start by `calculateAndStoreMissingBoundingBoxes()`, but `start_latlng`/`end_latlng` were not restored by anything. Fixed on two levels: the importer now reads the existing local activities before pass 1 and carries the track-derived fields over into the rewritten records, and when an activity still lacks them (an older import, or a record damaged before this fix) the fields are backfilled from the already-stored stream file — which makes the repair self-healing.
+  - **Stale `.nostreamflag` markers were never removed.** A track that failed to parse (or was unsupported) on an earlier import kept its "no stream" marker even after a later import stored the track, so the activity stayed hidden by the Details screen's "hide no-stream" switch and was still counted as missing by the stream status. The marker is now deleted when the track is written.
+  - **Tests**: 3 new cases in `__tests__/stravaImport/importStravaExport.test.ts` (fields survive a re-import, a damaged record is repaired from the stored stream, a stale marker is cleared). Verified they fail without the fix. Suite 193/193; tsc/lint/check:imports clean.
+
+- **Strava API path removed — the archive import is now the only ingestion path** — Strava's API is subscription-gated, so the OAuth/REST sync path was removed end to end (plan: `docs/deprecate-strava-api-path.md`):
+  - **Deleted**: `src/features/auth/` (`AuthContext`, `AuthService` with the OAuth flow and token refresh, `ButtonStravaConnect`), `src/features/activities/services/activities.api.ts` (`fetch_activities_from_strava`, `prepare_data`), `src/features/activities/services/fetchActivityStream.api.ts` (`fetchStravaActivityStream`), `src/features/activities/types/activities.types.ts` (`StravaActivity`), `src/features/activities/screens/UpdateDataScreen.tsx` (already unrouted), `src/shared/services/handleBackgroundTasks.tsx` (background sync task + its screen), `src/shared/services/apiHeaders.ts`. `fetchAndStoreStreams.ts` keeps only the local helpers (`compressStreamSet` is imported directly by the importer, so it stays exported).
+  - **Startup**: `App.tsx` no longer wraps the tree in `AuthProvider` and no longer registers a background task; it now loads activities from local storage unconditionally once the startup backfills finish. Before, the load was gated on a Strava token, so an archive-only install started empty. The `"Background Sync"` drawer screen is gone.
+  - **UI**: the drawer lost "Disconnect from Strava" and the connect button; `HomeScreen` lost the "Please connect" header, the "Strava Connection Status" card, the "New Activities" API counter and the stream-download button — "Streams" is now a read-only counter, and a new "Import" row opens `StravaImportModal` from the home screen. Pull-to-refresh reloads from local storage. `MapsScreen.web` reads the local stream cache (`loadRawStreamForActivity`) instead of the API.
+  - **Constants/storage**: `API_ENDPOINTS` and the Strava token/sync storage keys (`EPOCH_LAST_FETCHED`, `LAST_SYNC_TIMESTAMP`, `ACCESS_TOKEN`, `REFRESH_TOKEN`, `TOKEN_RESULT`, `TOKEN_EXPIRATION`, `USERINFO`) are gone, along with their `storage.ts` aliases and the `TokenResult` type.
+  - **Dependencies**: `expo-auth-session`, `expo-background-task` and `expo-web-browser` removed from `package.json`/lockfile and from the `app.json` plugin list; `ios.infoPlist.UIBackgroundModes` removed. `expo-secure-store` stays (WebDAV credentials).
+  - **Behaviour change**: there is no incremental sync — new activities appear only after importing a fresh archive. The import is idempotent (upsert by id, existing stream files are never overwritten), so re-importing a newer archive is safe.
+  - **Tests**: `useActivities.spec.ts` now covers the local load (including UTC-order sorting) and keeps the WebDAV tombstone assertion; `fetchAndStoreStreams.spec.ts` keeps the local-stream suites and gains `loadRawStreamForActivity`; the API-only suites (`useActivities.race.test.ts`, `prepareData.spec.ts`) were deleted. Suite 190/190; tsc/lint/check:imports clean.
+
+- **Made ESLint honest (`eslint.config.mjs`)** — Extended `eslint-config-expo/flat.js` (activating `eslint-plugin-expo`, `eslint-plugin-import`, `eslint-plugin-react`, and `eslint-plugin-react-hooks` v7.1.1 with React Compiler rules) alongside `eslint-plugin-react-compiler` and `eslint-plugin-prettier/recommended`. Enforced the rules promised in `AGENTS.md`: `@typescript-eslint/no-explicit-any: 'error'` (previously `'off'`), `no-restricted-syntax` banning `TSEnumDeclaration`, `react/jsx-no-leaked-render: ['error', { validStrategies: ['ternary'] }]` banning `&&` conditional rendering in JSX, `@typescript-eslint/no-unused-vars: 'error'`, and `eqeqeq: ['error', 'smart']`. Fixed all existing violations across `src/` and `__tests__/`: converted `LogLevel` in `SimpleLogger.ts` from an `enum` to a `as const` map + companion type, replaced all `any` types in `ButtonList.tsx`, `MiniMapComponent.android.tsx`, `YTDStatsComponent.tsx`, and 6 test suites, fixed use-before-declaration in `handleBackgroundTasks.tsx`, named the list item renderer in `RecentWeeksScreen.tsx`, and converted all JSX `&&` renders to `? ... : null` ternaries.
+
+- **Consolidated AI agent instructions into `AGENTS.md`** — Removed obsolete and duplicate instruction files (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/react-native-expo.mdc`, and `.claude/`), folded the feature directory map, state provider summary, inline circular-dependency direct-import exceptions, React Native ternary rendering rule, React Compiler (`try/finally` avoidance), Reanimated v4 worklets plugin ordering, and `expo-location` override rule into `AGENTS.md`, removed hardcoded patch version numbers so docs don't drift, and updated `scripts/call_jules.sh` and `docs/prompts/` references to point to `AGENTS.md`.
+
+- **WebDAV backup slice B: deletion tombstones** — deleting an activity now records a tombstone (`id → deletedAt`, `src/shared/services/storage.ts`) that the next sync push applies to the server: the remote activity JSON, stream JSON and `.nostreamflag` are deleted (404 = already gone, not an error), the id is dropped from the dedup md5 maps, and the tombstone is written to `sync-state.json`'s new `deletedAt` map so a restore elsewhere knows the files were deleted deliberately. Semantics (single device, "local wins"): a tombstone whose activity exists again locally is dropped and the file re-uploaded (a re-fetch undoes the delete); expired tombstones (>30 days) are pruned; failed remote deletions stay in the local log for retry. Restore honors `deletedAt` (a tombstoned activity is never downloaded, orphaned stream files are cleaned up) but never removes an existing local copy. `removeAllActivities` (drawer wipe) deliberately records no tombstones — wiping the device must not erase the backup. Fixed a Slice A bug found while writing this: the restore skip-check compared bare activity ids against `a_`-prefixed storage keys, so it never matched and every restore would have re-downloaded and overwritten local activities (violating local-wins). New tests `__tests__/backupTombstones.spec.ts` (6: remote delete + state write, resurrection, failed-delete retry, retention prune, restore skip + local-wins, orphan stream cleanup) and DELETE cases in `__tests__/webdavTransport.spec.ts` (3); backup suite now 27 tests, full suite 195/195.
+
+- **Strava archive import (replaces the API path)** — New `src/features/strava-import` module: pick the ZIP from Strava's "Download or delete your account" flow (no API subscription, no OAuth) and rebuild the app's local data from it. Verified against a real 2,135-activity export (1.0 GB uncompressed / ~60 MB zipped):
+  - **What is imported**: `activities.csv` (id, name, type, distance, moving/elapsed time, elevation gain/high/low, average speed, GPS filename) plus each `activities/<id>.gpx` converted to the three streams the app actually consumes (`latlng`, `altitude`, `time`) in the same JSON shape the API returns, so maps, charts, bounding boxes, `calculateSpeedKmh`, export and track comparison are unchanged.
+  - **Parity**: the app never fetched HR/power/cadence/temp streams (it requests `['altitude','latlng','time']` only), so their absence from the export costs nothing. Confirmed on the real export: 2,135 rows → 2,038 with a file, 1,745 with a usable track (293 files are metadata-only, 97 rows are manual entries), 4 `.fit`-only activities have no track, GPX polyline length vs CSV distance is +1.4 % median (GPS jitter; CSV distance is authoritative and is what gets stored).
+  - **Gotchas encoded in the parser**: header names and activity types follow the account language (`Marche`, `Vélo électrique`, `Randonnée`…) while GPX `<type>` is always English (used as fallback); `Distance`/`Elapsed Time` appear twice — the first are locale-formatted summary values (`4,23` km), the later metres/seconds columns win; `activities.csv` dates are **UTC** (verified byte-for-byte against GPX `Z` timestamps), so `local_date`/`local_time` are derived with the **device timezone** (the archive has no timezone column).
+  - **Memory**: the archive is never loaded whole — `services/zipReader.ts` reads the central directory, then seeks per entry with `FileHandle` + `pako` (supports stored/deflate, ZIP64, `*.gpx.gz`). Highest-cost file is one GPX at a time; streams are then ~207 MB on disk, the same as an API sync of the same activities.
+  - **Behavior**: two passes — activities stored in batches of 100 first (list usable immediately), then tracks; upsert by id, existing stream files never overwritten, `nostreamflag` for GPS-less/manual/unsupported ones → re-import is idempotent and resumable after a cancel. Drawer item "Import Strava Export" opens `StravaImportModal` (pick → progress → summary, cancel safe), then `reloadActivitiesFromLocalStorage()` (new in `useActivities`, exposed on the sync context) refreshes the UI without a network call.
+  - **Tests**: `__tests__/stravaImport/` — 36 tests: CSV quirks (fr/en/unknown-language positional fallback, duplicate columns, UTC dates, type mapping), GPX (segments, missing ele/time, gzip), ZIP reader (JSZip + Info-ZIP archives, stored/deflate, ZIP64, non-zip rejection), and a full `importStravaExport` run against a virtual file system (stream JSON shape, `nostreamflag`, summary counts, cache cleanup, idempotency, cancel). Suite 186/186; tsc/lint/check:imports clean.
+  - **Known limits**: `.fit`/`.tcx` tracks are skipped (4 activities in the sample) — **decided to ignore for now** (their metadata still imports, they show `unsupported` in the summary). Decoded for reference: 3 are walking tracks uploaded years ago by a third-party phone app (FIT dev fields report an OPPO CPH1931 on Android 10), GPS present but no HR/altitude field; the 4th (`.fit.gz`, 2026 indoor workout) has no GPS at all. Only a track-less map is lost, and one of the three (`4789804060`) is the raw pre-crop upload (7.35 km in the file vs the 3.20 km Strava stores), so a FIT parser would need to accept that mismatch. Other limits: local dates are only as correct as the device timezone at import time. The Strava API code (auth, `fetch_activities_from_strava`, stream sync) was removed afterwards — see the "Strava API path removed" entry above.
+
+- **WebDAV backup slice A: restore (pull)** — `pullBackupNow()` in `backupSync.ts` downloads activities/streams advertised in the remote `sync-state.json` that are missing locally; **conflict policy is local wins** (existing local files are never overwritten, pull only fills gaps; per-file errors collected without aborting). The remote state file's md5 index doubles as the file list — no PROPFIND XML parsing needed. Downloaded activity JSON is validated (parse + `id` present) before storing, so a proxy/login page can't corrupt local storage. Drawer UI: "Restore" button with confirmation dialog, progress in the status line, then activities are reloaded into app state (`useActivitiesDataContext` → `setGlobalActivities` sorted + `setTotalActivitiesStored`) so restored items appear without a restart. New tests `__tests__/backupPull.spec.ts` (8: skip/restore, local-wins overwrite protection, stream file handling, per-file error resilience, missing state = no-op, 401 hint, invalid JSON rejection). Backup suite 18/18. Note: `expo-file-system` is jest-mocked with an in-memory file map; `Paths.document` is a string parent and `APP_CONFIG.STREAMS_FOLDER` has a trailing slash — the mock's path-key builder must walk the parent chain and normalize the doubled separator. Still to come: deletion tombstones, auto-sync. (The `src/features/strava-import/` WIP noted here is now complete — see the entry above.)
+
+- **WebDAV backup verified end-to-end on device; cleartext fix via expo-build-properties** — First real sync succeeded: app → WebDAV → Nextcloud Docker container, 2,122 activities + 2,026 streams uploaded, remote `sync-state.json` md5 index written and matching. Two blockers found and fixed during on-device testing: (1) Android `CLEARTEXT communication ... denied` — the bare `android.usesCleartextTraffic: true` key in app.json is **silently ignored** by SDK 57 prebuild (manifest never got the attribute); the supported path is the `expo-build-properties` config plugin (`["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]`), now installed (~57.0.22) and verified written into `AndroidManifest.xml` (`android:usesCleartextTraffic="true"`). **Before any release**: (a) `usesCleartextTraffic` stays true only while the backup target is plain-HTTP LAN Docker — flip back to false once the server speaks HTTPS (Caddy/Tailscale on the future Ubuntu box); (b) a LAN DHCP change invalidates the hardcoded server URL and Nextcloud's `trusted_domains` (fix by adding the new host to `trusted_domains`); (c) the backup form must be filled in by the user — no pre-filled test credentials. Next up for the feature: auto-sync.
+
+- **Google Drive backup → WebDAV backup (full swap)** — The Google Drive slice-1 backup was replaced by a provider-neutral WebDAV implementation (`src/features/backup`, all previously Google-named files rewritten in place):
+  - New `services/webdavTransport.ts`: minimal RFC 4918 over fetch — `testDavConnection` (Depth-0 PROPFIND, 207 = success), `ensureDavFolder` (MKCOL, 405 = already exists), `putDavFile` (PUT overwrite), `getDavFile` (GET); `davUrl` joins/encodes path segments and tolerates trailing slashes; `WebDavTransportError` carries the HTTP status. Deliberately no Nextcloud-specific code — works against Nextcloud, rclone serve webdav, Apache mod_dav, or a NAS. The configured URL is the full collection root (Nextcloud: `/remote.php/dav/files/<user>/`).
+  - New `services/webdavAuth.ts` (`useWebDavBackup`): "connect" = validate credentials with a PROPFIND, then persist — no OAuth, tokens, or refresh flow. Server URL + username in AsyncStorage, **password in `expo-secure-store`** (keychain/keystore). Disconnect clears all three. Replaces `googleAuth.ts` (deleted).
+  - `services/backupSync.ts`: same orchestration (ensure folders → per-file push with md5 skip → write sync state → record last sync), but the dedup index now lives **in the remote `sync-state.json`** (`activityMd5`/`streamMd5` name→md5 maps) because WebDAV listings carry no content checksums (Drive gave `md5Checksum`). Missing/unreadable state file = push everything. 401/403 surfaces as a "check URL/username/password" error instead of the old Google reconnect prompt.
+  - `components/BackupSection.tsx`: unconfigured → form (server URL, username, password) with Connect (tests credentials first); configured → server/user summary, Sync now, Disconnect. Same sync progress/status wiring as before.
+  - Cleanup: deleted `googleAuth.ts` + `driveTransport.ts`; removed `expo-google-credential-auth` dep and its `app.json` plugin entry and `app.config.js` injection; removed `GOOGLE_*`/`DRIVE_*` API endpoints, `GOOGLE_DRIVE_APPDATA_SCOPE`, `google_connected`/`google_last_sync` storage keys (replaced by `webdav_connected`/`webdav_base_url`/`webdav_username`/`backup_last_sync`); dropped `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`/`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` from `.env`/docs. Kept `expo-crypto` (md5). No migration needed: the Drive feature never shipped in a release build.
+  - Tests: `driveTransport.spec.ts` (7 tests) replaced by `webdavTransport.spec.ts` (9 tests: URL joining/encoding, PROPFIND auth+Depth, MKCOL create/405/403, PUT, GET, 401, 207 acceptance). Suite: 142/142 pass; tsc/lint/check:imports clean.
+  - Local test server for development: Nextcloud in Docker on the Mac (`nextcloud:stable`, a named volume for the webroot, `--restart unless-stopped`), admin user + appdata verified via PROPFIND/PUT/DELETE. **Requires a fresh `npx expo prebuild` + reinstall** (config plugin removed from the native project). Follow-up work unchanged: auto-sync.
+
+- **Google Drive backup, slice 1: transport + connect + manual push** — New `features/backup` module (barrel `index.ts`): `services/driveTransport.ts` (pure REST against the appdata folder — `listDriveFiles` with pagination, `findDriveFile`, `create/update/upsertDriveFile` via multipart upload, `ensureDriveFolder`, `downloadDriveFile`; `DriveTransportError` carries the HTTP status), `services/googleAuth.ts` (`useGoogleDriveAuth` on **`expo-google-credential-auth`** (MIT, Credential Manager + GIS AuthorizationClient on Android) — replaces `@react-native-google-signin/google-signin`, whose free tier wraps the deprecated legacy GSI SDK and whose config doctor is paywalled; browser OAuth was already ruled out (Google blocks custom-scheme redirects on Android, auth.expo.io deprecated); `drive.appdata` scope only via `requestAuthorization`; connection flag persisted locally; a 401 surfaces as a reconnect prompt), `services/backupSync.ts` (`pushBackupNow`: ensures `activities/`+`streams/` folders, skips files whose remote md5 matches local md5 via `expo-crypto`, writes `sync-state.json`, stores last-sync locally; push-only — pull/restore and deletion tombstones are follow-up work), `components/BackupSection.tsx` (drawer section: not-configured notice, Connect, manual Sync now with progress, Disconnect, last-sync label; no auto-sync). Drawer renders `BackupSection` (same feature-barrel pattern as auth/activities). New constants: Drive endpoints, `BACKUP_*` config, `GOOGLE_LAST_SYNC` key. Added `expo-crypto@~57.0.3` (md5) and `expo-google-credential-auth@^0.2.0` with its config plugin in `app.json` (`iosClientId` injected from `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` via `app.config.js`; both flow into the next local prebuild, no EAS build needed). Cloud setup done (project, Drive API, consent screen + test user, iOS/Android/Web clients); `.env` needs `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Then `android:dev:prebuild` + reinstall to compile the native module. Note: on-device SHA-1 verified equal to the debug keystore (`5E:8F:…:F6:25`), package id and client-id format verified, client id recognized by Google (`redirect_uri_mismatch` on probe = exists) — remaining DEVELOPER_ERROR cause is almost certainly the Cloud Console side (client type / cross-project split). Tests: `__tests__/driveTransport.spec.ts` (7 tests, mocked fetch). 139/139 pass.
+- **Date-model review follow-ups (lean: no compat)** — (1) No migration/normalization code by design: upgraders must wipe via drawer `removeAllActivities` and re-download; stale cache is unsupported, not healed. (2) `start_date` dropped from goal fields: only affects saved custom goals explicitly referencing it (default goal uses `elapsed_time`/`type` only; `sum()` always scored the string field as 0 anyway). (3) Maps date-range filter is now day-granular inclusive on both ends (previously inconsistent midnight-vs-timestamp compare) — intended.
+- **Strava timezone fix (Option B: canonical date model)** — Confirmed the bug: Strava `start_date_local` is athlete-local wall time mislabeled with `Z`, so every `new Date(start_date_local).get*()` depended on the *device* timezone (midnight-crossing activities bucketed on the wrong day; US date-only display off by one; travel activities misordered). New model on `Activity`: `local_date`/`local_time` (athlete-local, for all bucketing/calendar/streaks/YTD/display), `start_timestamp_utc` (true instant, for all sorting/filtering/recency), `timezone` passthrough; removed the overloaded `start_date`. New lean `shared/utils/activityDates.ts` helpers with no legacy fallbacks (wipe via drawer `removeAllActivities`, then re-download). Fixed consumers: day/week streaks (DST-safe integer day math), YTD day-of-year (leap-aware, no `Date`), trendline x, all sorts, Home 3-month filter + calendar date, calendar streaks/day-press, Maps date-range filter (string compare), `getISOWeekNumber` (parts-based), `getDateOfISOWeek` (pure-UTC Monday; week label now via `formatUtcDateString`), goal field list. `prepare_data` exported for tests.
+- **Date regression tests + TZ gate** — Added `__tests__/helpers/testActivities.ts` (realistic Strava-triple factory), `activityDates.spec.ts`, `prepareData.spec.ts` (midnight-crossing, travel ordering, swim zeroing), `dates-timezone.spec.ts` (same-local-day UTC split, streak/YTD/sort stability). Prior coverage was insufficient: no TZ control, fixtures used identical UTC values for all date fields, `prepare_data`/display/sort paths untested. Full suite (133 tests) now passes under `TZ=America/New_York`, `Pacific/Auckland`, `Pacific/Kiritimati` and default; the TZ runs also exposed and fixed 3 pre-existing `getDateOfISOWeek` failures. Note: runtime `process.env.TZ` switches don't take effect inside jest — zone loops must run as separate processes. `__tests__/helpers/` excluded from jest test paths.
+
+- **SDK 57 patch alignment + TS6 tsconfig fix** — `npx expo install --check` failed with `EOVERRIDE: Override for expo-location@~57.0.17 conflicts with direct dependency` because `package.json` direct deps had been bumped while the npm `overrides` pin still held `expo-location@~57.0.13`. Fix: bumped the override to `~57.0.17` and aligned remaining stragglers (`eslint-config-expo@~57.0.2`, `expo-dev-client@~57.0.19`, `jest-expo@~57.0.5`). `expo install --check` now reports clean. Also fixed `npx tsc --noEmit` failing on TS 6 (`baseUrl is deprecated / will stop functioning in TS 7`): removed `baseUrl` and made all `paths` values `./`-relative so the config is TS 7-ready. Verified: `tsc` clean, `expo lint --fix` clean, `check:imports` clean, 116/116 tests pass. **Rule: on every Expo SDK bump, update the `expo-location` override in lockstep with the direct dep, or `EOVERRIDE` will fail the install.**
+
+- **Kept the `expo-location` npm override (verified still needed)** — Tested removal: without it npm installs a nested `expo-location@15.1.1` under `@teovilla/react-native-web-maps@0.9.5` (upstream dead at 0.9.5, still hard-pins `~15.1.1` with peer `*`). `expo-modules-autolinking resolve` for android+ios currently ignores the nested copy (single top-level `57.0.17` resolved), so native builds would survive today — but Metro/node resolution on web would silently downgrade web-maps' `useUserLocation` hook (`showsUserLocation` in web MiniMap) from expo-location 57 to 15 JS, and the stale native module stays in the tree waiting for a future tooling change to re-autolink it. Override stays; `npm ls expo-location` must show a single deduped `57.0.17`.
+
+- **SDK 57 follow-ups** — React Compiler now uses infer (components/hooks only) instead of `compilationMode: 'all'`. Incremental local builds pass `--no-clean` because SDK 57 `expo prebuild` wipes native dirs by default. Removed unused Camera/Microphone usage strings, the `react-native-permissions` plugin, and the package (web MiniMap only had a no-op location check). Dropped the direct `@expo/config-plugins` dependency; npm now hoists it from `expo`, so expo-doctor is 21/21.
+
+- **React Compiler try/finally** — Release Android bundle failed with `Handle TryStatement with a finalizer ('finally') clause` in `CustomDrawer`. React Compiler cannot lower `try/finally` yet; `panicThreshold: 'all_errors'` turned that into a Metro hard fail. Rewrote all `try/finally` in app code to try/catch + cleanup (or `runWithCleanup`), and set `panicThreshold: 'none'` so unimplemented compiler TODOs skip the function instead of aborting the store bundle.
+
+- **Upgraded to Expo SDK 57** (`expo@~57.0.16`, React Native 0.86.2, React 19.2.3, TypeScript ~6.0.3). Skipped SDK 56 per Expo guidance (Hermes V1 memory regression with Reanimated/Worklets, fixed in `expo@57.0.9+`). Replaced `react-native-edge-to-edge` with `expo-navigation-bar` (`enforceContrast: false`). Bumped `react-native-maps` from `1.26.14` to Expo's bundled `1.27.2` and removed `expo.install.exclude` (the old Android `loadingEnabled={true}` NPE was fixed in 1.26.7–1.26.13; we still leave `loadingEnabled={false}`). Added `@expo/config-plugins` so third-party plugins (`react-native-permissions`, datetimepicker) resolve; expo-doctor warns about the direct install but documents this as the workaround. Added `@react-native/jest-preset@0.86.2` for jest-expo 57. New development/release builds are required; do not reuse an SDK 55 `expo-dev-client`.
+
+- **Weekly goal streak diagnostics logging** — `computeWeeklyGoalStreaks` now emits a structured `Weekly goal streak diagnostics` log entry listing streak breaks (`recentBreaks` with `gapWeek`, `reason: no_activities | goal_not_met`, raw `elapsedTimeSeconds`, and `yogaElapsedSeconds` for failed weeks), plus `weekKeyMismatches` when cached `start_week` fields disagree with ISO timestamp bucketing. Helps explain why a week can look successful in UI but break the streak.
+
+- **Fixed weekly goal UI vs streak discrepancy** — Recent Weeks, calendar goal coloring, and streak calculation bucket activities using the `start_date_local` **calendar date prefix** (YYYY-MM-DD) via `parseActivityLocalDate()`. Using `Date.getDate()` on full timestamps could shift Sunday evening activities to the next ISO week when the device timezone differs from the athlete's. `prepare_data` now uses the same parser for stored date fields.
+
+- **Security: pinned `@tootallnate/once` to ≥3.0.1** (GHSA-vpq2-c234-7xj6) via npm `overrides`. The vulnerable package was a transitive dependency of `jest-expo → jest-environment-jsdom → jsdom → http-proxy-agent`. `npm audit fix --force` would have downgraded `jest-expo` (breaking change), so an override was used instead. The `expr-eval` CVEs remain open with no upstream fix.
+
+- **Fixed: similar activities never shown for newly fetched activities** — `silentFetchAndStoreStreams` was fire-and-forget before `loadFromLocal()` ran, so new activities entered `globalActivities` without `bounding_box`. `findSimilarActivities` returns `[]` when `bounding_box` is absent. Fix: `loadFromLocal()` is now also called inside `silentFetchAndStoreStreams.then()` so `globalActivities` is refreshed once streams (and bounding boxes) are written to storage.
+
+- **Fixed: stale closure in `deleteActivity`** — `mostRecentActivity` was separate `useState`, so the `.then()` callback in `deleteActivity` captured stale snapshots of both `mostRecentActivity` and `globalActivities`. A concurrent refresh + delete could set `mostRecentActivity` to the wrong activity. Fix: `mostRecentActivity` is now derived via `useMemo(() => globalActivities[0], [globalActivities])` — correct by construction after every `setGlobalActivities` call, no separate state needed.
+
+- **Fixed: startup race between backfill functions and `refreshActivities`** — `calculateAndStoreMissingBoundingBoxes` and `correctSwimElevationGain` were fire-and-forget, so `loadFromLocal()` inside `refreshActivities` could read AsyncStorage before the backfills finished writing, missing bounding-box and swim-elevation corrections on first run. Fix: both backfills are now awaited in `Promise.all` before a `backfillComplete` flag is set; `refreshActivities` is gated on that flag. The `retrieveToken` (auth-only) path is unaffected.
+
+- **expo-location for SDK 55**: Added direct dependency `expo-location@~55.1.4` (Expo bundled version) and npm `overrides` so `@teovilla/react-native-web-maps` no longer resolves its bundled `expo-location@~15.1.1` (incompatible with Gradle 9 Android builds).
+- **Upgraded to Expo SDK 55** (React Native 0.83.2, React 19.2): bumped all `expo-*` packages, renamed Babel plugin `react-native-reanimated/plugin` → `react-native-worklets/plugin`, removed deprecated `jsEngine`/`newArchEnabled`/`edgeToEdgeEnabled` fields from `app.json`. Zero new TypeScript errors introduced. `victory-native` 36.x retained as-is (pure JS, compatible with New Arch via `react-native-svg` Fabric support).
+- Bumped Expo SDK patch (`expo` ~54.0.33, `jest-expo` ~54.0.17) and lockfile; Android `versionCode` 581 in `app.json`.
+- Pull-to-refresh on Home, Activities list (Details), and stats screens (recent weeks/months/years) using `refreshActivities` / `fetchingData` from activities context.
+- Added root `CLAUDE.md` mirroring agent guidance (commands, architecture summary, import rules).
+
+- Added `README.md` detailing features, setup, environment configuration for Strava OAuth, run/build/test commands, and repository layout.
+- Implemented offline startup fallback: if token refresh/network fails, app loads cached activities and shows stats from local storage.
+- Updated ESLint configuration to enforce best practices for TypeScript, Prettier integration, and React Hooks rules.
+- Migrated ESLint configuration to the new flat config format (`eslint.config.js`).
+- Fixed `typescript-eslint` import error in `eslint.config.js`.
+- Fixed ESLint flat config error related to `pluginReact.configs.recommended` in `eslint.config.js`.
+- Fixed `TypeError: tseslint.configs.recommended is not iterable` in `eslint.config.js`.
+- Fixed `TypeError: tseslint.config is not a function` in `eslint.config.js`.
+- Fixed "extends" key not supported in flat config in `eslint.config.js` (using `eslint-flat-compat`).
+- Added debug logs to `fetchAndStoreStreams.ts` for 404 error handling.
+- Fixed 404 error handling in `fetchAndStoreStreams.ts` by correcting `FileSystem.writeAsStringAsync` path.
+- Added stricter TypeScript checks to `eslint.config.js`.
+- Fixed infinite loop when fetching activities by wrapping token functions in `useCallback` and updating `useEffect` dependencies.
+- Completed refactoring: Moved `ButtonStravaConnect` component out of `HomeScreen.tsx` and integrated it into `CustomDrawer.tsx`.
+- Fixed an issue in `VictoryScatter` where the selected activity point was not displayed in red.
+- Fixed an issue where moving_time for swimming activities was incorrect. It is now replaced by elapsed_time when loading activities.
+- Added a new section in the DetailsScreen to display all the fields of an activity.
+- Wrapped the HomeScreen in a ScrollView to ensure all content is visible on smaller screens.
+- Placed the Strava logo and version text on the same row to save space.
+- The most recent activity is now reset when the corresponding activity is deleted.
+- The total number of stored activities is now updated when an activity is deleted.
+- [x] The `EPOCH_LAST_FETCHED_KEY` is now recomputed whenever `globalActivities` changes.
+- Added search input in DetailsScreen to filter activities by name.
+- Improved MiniMap reliability on Android: added `onMapLoaded`, `onLayout`, and a guarded `useEffect` to ensure `fitToCoordinates` runs even when `onMapReady` does not fire under the new architecture.
+- Cleaned up MiniMap debug logs after verifying the fix.
+- Added pinch/drag zoom to SpeedTrendChart using VictoryZoomContainer.
+- Fixed MapsScreen fitToElements excessive zoom issue by adding fallback to fitToCoordinates when no activities are selected.
+- Improved MapsScreen refitting behavior to be less aggressive - only refits on date filter changes and first activity selection, with manual refit button.
+- Moved EXPORT DATA button from UpdateDataScreen to HomeScreen for better UI organization and coherence.
+- Fixed export data memory issue by using blob-based ZIP generation instead of large base64 strings to prevent "string length exceeds limit" errors.
+- Added export success notification with file location info and "Share Again" button to help users locate their exported files.
+- Implemented memory optimization for large datasets: limited export to 1000 activities max, smaller chunk processing, and better progress tracking to prevent RangeError with 1600+ streams.
+- Added "Show Location" button to export success notification that displays file location and step-by-step instructions for finding the exported file in the device's file manager.
+- Simplified export approach: files are saved to app documents directory with standard share dialog for user access and distribution.
+- Implemented chunked export for large datasets: activities are split into multiple ZIP files of 500 activities each to prevent memory issues while allowing full data export.
+- Fixed sharing issue: now shares each generated file sequentially so users can save all exported files, not just the first one.
+- Updated export logging: all export-related logs now use simpleLogger instead of console for better log management.
+- Added data correction on startup: `correctSwimElevationGain` sets `total_elevation_gain` to 0 for stored Swim activities to ensure consistent stats.
+- Fixed intermittent map track display issue on HomeScreen: implemented proper request cancellation with AbortController, immediate stream state clearing on activity changes, loading indicators during transitions, and comprehensive error handling to prevent race conditions when users quickly switch between activities.
+- Fixed HomeScreen loading indicator stuck state: ensured `isLoadingStream` is always cleared, even when the stream fetch is aborted or the effect unmounts mid-flight; added early return path to clear loading on abort, preventing "Loading map..." from persisting when a track is available.
+- Fixed MiniMap component navigation lifecycle issue: implemented useFocusEffect to handle screen focus events, added map key-based re-rendering to force map refresh when returning from navigation, added fallback mechanisms for map initialization, and improved state persistence across navigation transitions to prevent blank maps and missing GPS tracks.
+ - Prevented potential timer leak in MapsScreen: wrapped the 100ms refit `setTimeout` in a ref with proper cleanup on unmount and before re-scheduling, avoiding stray timers after navigation or rapid taps.
+ - Moved `jest-expo` to devDependencies
+ - Cleaned up memoization after audit: removed unused `useMemo` import from `MapsScreen.android.tsx`, removed unused `useCallback` import from `MiniMapComponent.web.tsx` and `AuthService.ts`, and simplified `MiniMapComponent.web` effect to avoid unnecessary re-renders by dropping a function dependency.
+ - Moved `jest-expo` to devDependencies
+
+- Added Streaks on Home: shows current and best streaks for consecutive active days and ISO weeks, computed from stored activities and displayed in a new Streaks section.
+
+## Todo 24/8/2025
+
+- fix linting issues in master
+- test export data
+- fix export data screen
+- test stats of last activity
+- fix HomeScreen/last activity & stream
+
+## Done 24/8/2025
+
+- [x] chore: formatted `src/fetchAndStoreStreams.ts`
+- [x] Fixed activity sorting issue: `globalActivities` now properly sorted by `start_date_local` in descending order (most recent first) in `useActivities.ts`, ensuring the stepper component displays correct numbering (1 of 1721 for most recent activity).
+- [x] Fixed linting issues: removed unused variables `mostRecentActivity` from `HomeScreen.tsx` and `MAX_ACTIVITIES_PER_BATCH` from `fetchAndStoreStreams.ts`.
+- [x] Fixed LogScreen layout: removed fixed width constraints and centering that caused logs to display in a narrow column, now logs use full screen width for better readability.
+- [x] Redesigned LogScreen with modern UI: adapted the design from logs.tsx to create a more graphical and user-friendly log display with proper theming, better layout, color-coded log levels, and improved functionality (Copy All, Export, Clear, Refresh buttons).
+- [x] Added individual log copy functionality: each log entry now has a copy button (copy icon) that allows users to copy individual log entries to clipboard with proper formatting.
+- [x] Commented out track simplification log: removed the verbose "Simplified track from X to Y points (Z% reduction)" log message from fetchAndStoreStreams.ts to reduce log noise.
+- [x] Redesigned HomeScreen layout: implemented improved usability with better information hierarchy, moved "My Strava Stats" title to bottom as footer, organized content into clear sections (Connection Status, Activity Data, Recent Activity, Activity Map), added visual grouping with cards and consistent styling, and improved overall user experience.
+- [x] Enhanced LastActivitySummary with activity-specific icons: replaced generic 🏃‍♂️ icon with activity-specific icons based on activity type (running, cycling, swimming, hiking, yoga, etc.), providing more relevant visual representation for different sports and activities.
+- [x] Added error handling to HomeScreen connection status: implemented error state tracking in useActivities hook to capture and display fetch errors, added visual error indicators with retry functionality, and improved user feedback when activity fetching fails.
+- [x] Modernized SettingsModal design: completely redesigned the settings modal with modern UI/UX including improved visual hierarchy, better spacing, dark mode support, enhanced form elements with proper styling, modern button design, and improved code editor integration with validation feedback.
+- [x] Fixed SettingsModal layout issues: added ScrollView to handle content overflow, optimized modal height and spacing, reduced code editor height, and fixed slider blinking issue by optimizing useEffect dependencies to prevent unnecessary re-renders.
+- [x] Added full year comparison toggle to YTDStatsComponent: implemented toggle switch to show either YTD comparison (current behavior) or full previous year data, updated chart legend and summary table to reflect the selected mode, and modified ytd-stats calculation to support both comparison modes.
+- [x] Enhanced YTDStatsComponent with quarter background visualization: added alternating quarter backgrounds using VictoryArea with 4-point rectangles, implemented toggle-aware quarter display that respects YTD vs full year mode, and fixed quarter background gaps by using proper VictoryArea data points for seamless rectangular areas.
+- [x] YTD stats respect "Use Elapsed Time" setting: threaded `useElapsedTime` through `YTDStatsComponent` into `calculateYTDStats` and `processYearData`, summing either `elapsed_time` or `moving_time` consistently; updated Summary label to display "Time (Elapsed)" or "Time (Moving)" accordingly. This fixes incoherent amounts between YTD Summary and other stats.
+- [x] YTD stats honor "Merge Similar Activities": YTD now preprocesses activities with the same merge mapping used in `useProcessedActivities` (EBikeRide→Ride, Hike→Walk) and filters types from the processed list, ensuring YTD chart/summary totals match RecentYears tables when merging is enabled.
+  - Consolidated merge logic into `features/activities/services/mergeActivities.ts` and refactored both `useProcessedActivities` and `YTDStatsComponent` to use the shared helper, avoiding code duplication.
+- [x] Added Activities metric to YTD chart: introduced cumulative activities series in YTD data and a new "Activities" metric in a compact segmented control; integer tick labels; respects merge and time settings (time setting does not affect counts).
+- [x] Weekly stats honor "Use Elapsed Time": threaded the setting into `weeklyData` and `RecentWeeksScreen` so weekly totals and bars use elapsed or moving time consistently with other stats screens.
+- [x] Implemented barrel exports across the codebase: created comprehensive barrel exports for features (activities, auth, home, maps, stats), shared components and services, and constants. Updated all imports to use these barrel exports instead of deep paths, reducing import path lengths and improving code maintainability. Asset imports remain unchanged as requested.
+- [x] Fixed circular dependency issues from barrel exports: removed CustomDrawer from shared barrel export, fixed auth module imports (AuthContext now imports directly from AuthService), fixed activities module imports (internal imports now use relative paths), fixed stats module imports (screens now import from sibling files), and fixed shared services imports (now use relative imports within the module). This resolves all "Require cycle" warnings and the "useStravaAuth is not a function" error.
+- [x] Fixed "useActivitiesContext is not a function" error: resolved circular dependencies between features by using direct component imports instead of barrel exports. Updated MapsScreen to import ButtonList directly, ActivityAnalysisView and HomeScreen to import MiniMapComponent directly, and MapsScreen.web.tsx to use relative import for MiniMapComponent. This breaks the circular dependency chain between home->maps->activities->home.
+- [x] Fixed remaining circular dependencies: removed `trackComparison` and `handleBackgroundTasks` services from shared barrel export as they import from `@/features/activities`, creating cycles. These services should be imported directly when needed. This eliminates all "Require cycle" warnings in the build.
+- [x] Documented import best practices in architecture.md: added comprehensive guidelines including circular dependency prevention rules, barrel export usage, known exceptions list, code examples of correct/incorrect patterns, and a quick decision guide for choosing the right import pattern. Also added key architectural principles at the top of the document.
+- [x] Investigated similarity display issue in ActivityAnalysisView: confirmed that the similarity calculation code is intact and unchanged. The only modifications were to import statements to avoid circular dependencies. Fixed imports for trackComparison service in both ActivityAnalysisView and trackComparison.ts. The similarity feature should now work correctly with values displayed when activities have similar GPS tracks.
+- [x] Investigated dark theme issue in LogScreen.tsx: compared with master branch and found no differences in the component. All theme colors are properly applied using `useColorScheme()` hook and `logColors[colorScheme]`. Added missing title "Logs" to the header and removed duplicate default export. The dark theme implementation is correct - any issues may require app refresh or rebuild to properly detect system theme changes.
+- [x] Added today indicator to calendar components: implemented visual today indicator with orange dot and background highlighting in both ActivityCalendar and ActivityCalendarPeriod components. The today indicator shows a dot below the date number and applies a subtle background color to make the current date easily identifiable on the calendar.
+- [x] Fixed today indicator visibility in ActivityCalendarPeriod: enhanced the today indicator to be more prominent when today has activities by ensuring the today marker is always visible alongside activity period markings, with improved background color and text styling for better visibility.
+- [x] Enhanced today indicator visibility with high opacity: increased today background opacity to 80% (from 40%) and simplified the approach to ensure the today indicator is clearly visible even when today has activity period markings, making it much more prominent and easier to identify.
+- [x] Fixed ActivityCalendarPeriod today indicator with simple bold text: implemented a simple and reliable today indicator in ActivityCalendarPeriod using bold text styling. Today's date now displays with bold font weight and slightly larger font size, making it easily identifiable while preserving existing activity period markings. This approach is much more reliable than complex custom styling.
+- [x] Cleaned up ActivityCalendarPeriod code: removed redundant today styling properties (todayTextColor, todayBackgroundColor) and conflicting theme properties (todayBackgroundColor) that could interfere with the custom bold text styling. The code is now cleaner and more focused on the simple bold text approach.
+- [x] Fixed ActivityCalendarPeriod today indicator using combined period and dot marking: implemented the correct approach using the newer react-native-calendars feature that allows combining period and dot markings. Today's date now shows with both period marking (if it has activities) and an orange dot indicator using `marked: true` and `dotColor: MyColors.deepOrange600`, following the official documentation example.
+- [x] Configured calendar to start week on Monday: added `firstDay={1}` prop to ActivityCalendarPeriod component to make Monday the first day of the week instead of Sunday, providing a more standard European calendar layout.
+- [x] Enabled extra days display in calendar: changed `hideExtraDays` from `true` to `false` to show previous and next month's days in the calendar grid, providing a more complete calendar view without blank spaces.
+- [x] Implemented gradient effect for activity intensity: replaced different colors for activity intensity with a gradient effect using the same base color (MyColors.deepOrange600) with different opacity levels: 30% for low intensity, 60% for medium intensity, and 90% for high intensity, creating a more elegant visual representation of activity levels.
+- [x] Fixed streak continuity logic for gradient approach: updated the streak detection logic to continue streaks regardless of activity intensity differences, using a consistent medium opacity (60%) for all streak periods. This ensures consecutive activity days are properly connected in the calendar, even when they have different intensity levels.
+- [x] Added weekly goal-based color coding to calendar: implemented weekly goal evaluation in ActivityCalendarPeriod to change streak colors based on whether the weekly goal is achieved. Streaks now display in green (MyColors.lightGreen500) when the weekly goal is achieved, and orange (baseColor + '60') when not achieved, matching the color scheme used in RecentWeeksStats.tsx.
+- [x] Fixed weekly goal week calculation to start on Monday: corrected the week calculation logic to properly handle Monday-starting weeks for weekly goal evaluation. The calendar now correctly calculates Monday-Sunday weeks instead of Sunday-Saturday weeks, ensuring accurate goal achievement assessment.
+- [x] Repositioned Streaks section in HomeScreen: moved the Streaks section to appear immediately after the Calendar section in the HomeScreen layout, providing better visual flow and making streak information more prominent and accessible to users.
+- [x] Added ISO week number display and navigation to calendar: implemented a space-efficient week number display integrated into the calendar's month header. The week number appears as a compact "WX" badge next to the month/year display, saving vertical space while maintaining easy access to weekly statistics. Clicking the week number navigates to the RecentWeeksScreen in the Stats tab.
+- [x] Optimized ActivityCalendarPeriod performance: fixed performance issues with ISO week number refresh by memoizing expensive calculations, pre-calculating week activities map to avoid repeated filtering, memoizing callback functions, and fixing useMemo dependencies. The calendar now responds much faster when selecting dates and updating the week number display.
+- [x] Cleaned up unused code for leaner codebase: removed unused ActivityCalendar.tsx component (replaced by ActivityCalendarPeriod), removed commented out code blocks in utils.ts (range function and modulo function), removed commented out imports across multiple files, removed unused useRenderingTrace utility and its export, and cleaned up various commented out code sections. This significantly reduces codebase size and improves maintainability.
+- [x] Applied consistent code formatting: ran Prettier across the entire codebase to ensure consistent formatting standards, fixed all formatting issues in 21 files, and verified that all files now follow the project's Prettier configuration (single quotes, 2-space tabs, 100 character line width, semicolons, no trailing commas). The codebase now has uniform formatting throughout.
+- [x] Verified TypeScript type safety: ran comprehensive TypeScript compilation checks with strict mode enabled, confirmed no type errors exist in the codebase, and validated that all type definitions are correct and consistent. The project maintains excellent type safety with strict TypeScript configuration.
+- [x] Improved logging system for better debugging and monitoring: removed low-value console.log statements and commented out debug logs, replaced them with structured simpleLogger calls that include context, timestamps, and performance metrics. Added valuable logging for user actions (activity selection, data export), authentication flows, API operations with timing, and error handling with proper context. The logging system now provides meaningful insights for debugging and monitoring application behavior.
+- [x] Build and Lint Verification: Fixed all TypeScript and linting errors. Refactored code to address Rules of Hooks violations, unused imports, and exhaustive dependency warnings. Corrected ESLint configuration to properly handle ES modules.
+
+## v1 - Comprehensive Review - 2026-01-06
+
+A comprehensive code review was performed, covering technical debt, architecture, security, and other areas. The full results of the review can be found in the [Comprehensive Code Review Summary](./review/2026-01-06-v1/COMPREHENSIVE_REVIEW_SUMMARY_2026-01-06.md).
+
+## Type Safety Hardening - 2026-01-06
+
+- Strengthened type safety in core services:
+  - `GoalService`: replaced `any` with `WeekData`, introduced whitelisted activity fields, and constrained expr-eval usage behind a typed facade while preserving the original boolean-returning behaviour expected by weekly goal evaluation.
+  - `storage`: added a `StorageSchema` map, strongly-typed helpers (`storeValue`, `retrieveValue`, etc.), and concrete activity types for activity storage helpers.
+  - `AuthService`: added explicit `AthleteInfo` and refined `StravaAuthHook` return types, including a typed `authPromptAsync`.
+- Improved types in shared utilities and UI:
+  - `utils.dropColumn`: converted to a generic `dropColumn<T>` working on `T[][]`.
+  - `StatsTab` and `CustomDrawer`: tightened icon types to `keyof typeof Ionicons.glyphMap` for safer icon usage.
+  - `SimpleLogger`: switched from `any` to `unknown`, normalised log values, and preserved console behaviour on web while keeping a typed in-memory log.
+- Verified the changes with `npx expo lint --fix`; there are currently no new linter errors in the updated files.
+
+## Home Screen Enhancements - 2026-01-06
+
+- Added a **This Week** summary card on Home:
+  - Reuses `weeklyData` to compute totals for the current ISO week.
+  - Displays total time, distance, and elevation for the week in a compact card near the top of the screen.
+- Added a **Recent Achievements** section on Home:
+  - Highlights the longest activity (distance) and biggest climb (total elevation gain), including activity names when available, limited to activities from the last 3 months.
+  - Computes the fastest recent week (km/h) based on distance and time, using the same weekly stats foundation as the Stats tab, also restricted to the same 3‑month window.
+  - Truncates long achievement lines in the card to a single line with ellipsis to keep the layout compact and readable even with verbose activity names.
+  - Displays the start date of the 3-month period in the section subtitle (e.g., "since Oct 6, 2025").
+
+## Dead Code Cleanup - 2026-01-06
+
+- Removed unused functions:
+  - `getDaysOfMonth` from `utils.ts` - never imported or used anywhere
+  - `retrieveEpochLastFetched` from `storage.ts` - never called (the `EPOCH_LAST_FETCHED_KEY` constant is still used)
+- Removed commented-out code:
+  - `retrieveActivity` function in `storage.ts` - entire function was commented out
+  - Old implementation comments in `RecentMonthsScreen.tsx`
+- All changes verified with TypeScript compilation and ESLint - no breaking changes introduced.
+
+## Activities Determinism - 2026-01-06
+
+- Made `mostRecentActivity` selection deterministic in `useActivities`:
+  - After fetching from Strava, activities are explicitly sorted by `start_date_local` in descending order before picking the most recent activity.
+  - This ensures `mostRecentActivity` always matches the first element of the sorted activities list, even if the API response order changes.
+  - When deleting the current most recent activity, the pointer now moves to the next most recent activity if available, or is cleared when no activities remain.
+
+## Streams Robustness - 2026-01-06
+
+- Hardened `ActivityAnalysisView` stream loading:
+  - `getActivityStreams` results are now checked for emptiness before accessing the first element, and `loadedStream` is explicitly cleared when no streams are found.
+  - Added error handling and an `isMounted` guard around the async load to avoid setting state after unmount and to log failures via `simpleLogger`.
+
+## Tooling & Repo Hygiene - 2026-01-06
+
+- Updated `.gitignore` to exclude the editor workspace file from version control, keeping local IDE configuration out of the repository.
+
+## Docs Maintenance - 2026-01-06
+
+- Moved Google Cloud CLI setup instructions out of `AGENTS.md` into a dedicated `docs/google-cloud-cli-setup.md` document to keep agent guidelines focused and centralize cloud tooling setup in docs.
+- Enhanced `AGENTS.md` with comprehensive guidelines for AI agents: added project overview and definition of done, operational constraints (build limits, code quality checks), architecture pointers and fragile areas, code style patterns, testing expectations, Strava API guardrails, branching/PR etiquette, common pitfalls, and quick reference commands. This provides essential context for AI agents to work effectively on the project.
+
+## Import Cleanup - 2026-01-XX
+
+- Cleaned up duplicate imports across the codebase:
+  - **RecentMonthsScreen.tsx**: Consolidated 3 separate imports from `@/shared` (simpleLogger, ChipMultiSelect, ActivityType/seconds_to_label) into a single combined import statement.
+  - **CustomDrawer.tsx**: Consolidated 2 separate imports from `@/features/auth` (ButtonStravaConnect, useAuthContext) into a single combined import statement.
+  - **App.tsx**: Consolidated 2 separate imports from `@/shared` (RootDrawerParamList, LogScreen/simpleLogger) into a single combined import statement.
+- Fixed scattered imports (imports from the same module spread across multiple locations):
+  - **App.tsx**: Consolidated scattered imports from `react-native-gesture-handler` (side-effect import on line 1, named import on line 14) and `@/features/activities` (imports on lines 4-7 and line 20) by grouping them together. Side-effect imports remain at the top as required, with named imports immediately following.
+- All duplicate and scattered imports have been resolved. The codebase now follows best practices with consolidated imports from the same module grouped together, improving code readability and maintainability.
+- Updated `AGENTS.md` with comprehensive import hygiene guidelines to prevent future occurrences of duplicate and scattered imports.
+- Created `scripts/check-imports.cjs` tool to automatically detect duplicate and scattered imports. Added `npm run check:imports` script for easy access. This tool should be run before committing significant changes to catch import hygiene issues early.

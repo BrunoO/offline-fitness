@@ -1,0 +1,248 @@
+import { APP_CONFIG } from '@/constants';
+import { LatLng, ActivityStream } from '@/shared';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+
+export type MiniMapComponentProps = {
+  stream: ActivityStream | undefined;
+  overlayStream?: ActivityStream | undefined;
+};
+
+// Adjust this constant to control how many direction arrows are displayed along the track
+// Recommended values are between 2 and 10
+const NUM_DIRECTION_ARROWS = APP_CONFIG.NUM_DIRECTION_ARROWS;
+
+// Track colors
+const TRACK_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.PRIMARY;
+const TRACK_OVERLAY_COLOR = APP_CONFIG.TRACK_COLORS.OVERLAY;
+const FILL_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.FILL_PRIMARY;
+// Arrow colors (semi-transparent to be lighter than polylines)
+const ARROW_PRIMARY_COLOR = 'rgba(255, 0, 0, 0.6)';
+const ARROW_OVERLAY_COLOR = 'rgba(0, 0, 255, 0.6)';
+
+/**
+ * A component for displaying a mini map of an activity on Android.
+ * @param props The component props.
+ * @returns A React component.
+ */
+const calculateBearing = (p1: LatLng, p2: LatLng) => {
+  const lat1 = p1.latitude * (Math.PI / 180);
+  const lon1 = p1.longitude * (Math.PI / 180);
+  const lat2 = p2.latitude * (Math.PI / 180);
+  const lon2 = p2.longitude * (Math.PI / 180);
+
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+  return (bearing + 360) % 360;
+};
+
+const calculateSmoothBearing = (track: LatLng[], index: number, windowSize: number = 3) => {
+  // Calculate the window size based on available points
+  const halfWindow = Math.floor(windowSize / 2);
+  const startIndex = Math.max(0, index - halfWindow);
+  const endIndex = Math.min(track.length - 1, index + halfWindow);
+
+  // If we don't have enough points for the window, use what we have
+  if (endIndex - startIndex < 2) {
+    return calculateBearing(track[startIndex], track[endIndex]);
+  }
+
+  // Calculate bearing from start to end of the window
+  return calculateBearing(track[startIndex], track[endIndex]);
+};
+
+const renderDirectionArrows = (
+  track: LatLng[] | undefined,
+  color: string,
+  numArrows: number = NUM_DIRECTION_ARROWS
+) => {
+  if (!track || track.length < 2 || numArrows <= 0) {
+    return null;
+  }
+
+  const clampedArrows = Math.max(1, Math.min(numArrows, 20));
+  const step = Math.max(1, Math.floor(track.length / (clampedArrows + 1)));
+
+  const markers: React.ReactElement[] = [];
+  for (let i = 1; i <= clampedArrows; i++) {
+    const index = Math.min(track.length - 1, i * step);
+    if (index <= 0 || index >= track.length) continue;
+
+    // Use smooth bearing calculation with a window of 5 points (2 before, 2 after)
+    const bearing = calculateSmoothBearing(track, index, 5);
+
+    markers.push(
+      <Marker
+        coordinate={track[index]}
+        anchor={{ x: 0.5, y: 0.5 }}
+        rotation={bearing}
+        key={`${color}-${i}-${index}`}
+      >
+        <MaterialCommunityIcons name="navigation" size={36} color={color} />
+      </Marker>
+    );
+  }
+
+  return markers;
+};
+
+export default function MiniMapComponent(props: MiniMapComponentProps) {
+  const mapRef = React.useRef<MapView>(null);
+  const coordinates: LatLng[] | undefined = props.stream?.coordinates;
+
+  const initialRegion = coordinates?.length
+    ? { ...coordinates[0], latitudeDelta: 0.1, longitudeDelta: 0.1 }
+    : undefined;
+
+  const [isMapReady, setIsMapReady] = React.useState(false);
+  const [mapKey, setMapKey] = React.useState(0); // Force re-render when needed
+
+  const fitToTrack = React.useCallback(() => {
+    if (!coordinates?.length) return;
+    if (!mapRef.current) return;
+    try {
+      mapRef.current.fitToCoordinates(coordinates, {
+        edgePadding: { top: 16, right: 16, bottom: 16, left: 16 },
+        animated: true
+      });
+    } catch {
+      // Swallow occasional race conditions from native side
+    }
+  }, [coordinates]);
+
+  const onMapReady = () => {
+    setIsMapReady(true);
+    // Sometimes calling immediately is fine
+    fitToTrack();
+  };
+
+  const onMapLoaded = () => {
+    setIsMapReady(true);
+    fitToTrack();
+  };
+
+  // Fallback mechanism for map initialization issues
+  React.useEffect(() => {
+    if (coordinates?.length && !isMapReady) {
+      const fallbackTimer = setTimeout(() => {
+        if (!isMapReady && mapRef.current) {
+          setIsMapReady(true);
+          fitToTrack();
+        }
+      }, 1000); // 1 second fallback
+
+      return () => clearTimeout(fallbackTimer);
+    }
+    return undefined; // Explicit return for all code paths
+  }, [coordinates, isMapReady, fitToTrack]);
+
+  // Fallback when layout completes (Fabric/new arch can delay readiness)
+  const onLayout = () => {
+    if (isMapReady) fitToTrack();
+  };
+
+  // Final guard: when coordinates change and map is ready, try again on next tick
+  React.useEffect(() => {
+    if (!isMapReady) return;
+    const id = setTimeout(() => {
+      fitToTrack();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [isMapReady, fitToTrack]);
+
+  // Handle navigation focus to re-initialize map
+  useFocusEffect(
+    React.useCallback(() => {
+      // Reset map state when screen comes into focus
+      setIsMapReady(false);
+      setMapKey(prev => prev + 1); // Force map re-render
+
+      // Small delay to ensure proper initialization
+      const timer = setTimeout(() => {
+        if (coordinates?.length) {
+          fitToTrack();
+        }
+      }, 100);
+
+      return () => {
+        clearTimeout(timer);
+      };
+    }, [coordinates, fitToTrack])
+  );
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      // Clear any pending timeouts
+      if (mapRef.current) {
+        // Reset map reference to help with garbage collection
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <MapView
+        key={mapKey} // Force re-render when mapKey changes
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        ref={mapRef}
+        showsMyLocationButton={false}
+        zoomControlEnabled={true}
+        showsCompass={true}
+        showsUserLocation={false}
+        showsScale={true}
+        loadingEnabled={false}
+        loadingIndicatorColor={'green'}
+        onMapReady={onMapReady}
+        onMapLoaded={onMapLoaded}
+        onLayout={onLayout}
+        initialRegion={initialRegion}
+        userInterfaceStyle="light" // Force light theme regardless of system theme
+      >
+        {coordinates?.length ? (
+          <Marker
+            coordinate={coordinates[0]}
+            title={'Start'}
+            description={'Start of the activity'}
+            pinColor="green"
+          />
+        ) : null}
+        {coordinates?.length ? (
+          <Polyline
+            coordinates={coordinates}
+            strokeWidth={5}
+            strokeColor={TRACK_PRIMARY_COLOR}
+            fillColor={FILL_PRIMARY_COLOR}
+          />
+        ) : null}
+        {props.overlayStream?.coordinates?.length ? (
+          <Polyline
+            coordinates={props.overlayStream.coordinates}
+            strokeWidth={3}
+            strokeColor={TRACK_OVERLAY_COLOR}
+          />
+        ) : null}
+        {renderDirectionArrows(coordinates, ARROW_PRIMARY_COLOR)}
+        {renderDirectionArrows(props.overlayStream?.coordinates, ARROW_OVERLAY_COLOR)}
+      </MapView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    aspectRatio: 4 / 3
+  },
+  map: {
+    flex: 1,
+    width: '100%'
+  }
+});
