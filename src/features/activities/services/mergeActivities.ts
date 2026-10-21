@@ -3,6 +3,17 @@ export interface MergeActivitiesResult<TActivity> {
   activitiesMerged: TActivity[];
 }
 
+/**
+ * Strava types folded into a sibling type when merging is enabled.
+ * The activity list *and* the type list have to follow this map: dropping the
+ * source type from the list without adding the target leaves the stats tables
+ * keying a column that was never initialised, which yields NaN totals.
+ */
+const MERGED_ACTIVITY_TYPES: Record<string, string> = {
+  EBikeRide: 'Ride',
+  Hike: 'Walk'
+};
+
 export function mergeActivities<TActivity extends { type: string }>(
   myActivities: string[],
   activities: TActivity[],
@@ -13,16 +24,15 @@ export function mergeActivities<TActivity extends { type: string }>(
   }
 
   const activitiesMerged = activities.map(a => {
-    if (a.type === 'EBikeRide') {
-      return { ...a, type: 'Ride' } as TActivity;
-    }
-    if (a.type === 'Hike') {
-      return { ...a, type: 'Walk' } as TActivity;
-    }
-    return a;
+    const mergedType = MERGED_ACTIVITY_TYPES[a.type];
+    return mergedType ? ({ ...a, type: mergedType } as TActivity) : a;
   });
 
-  const myActivitiesMerged = myActivities.filter(a => a !== 'EBikeRide' && a !== 'Hike');
+  // Rename in place and de-duplicate, so 'Ride' keeps the position 'EBikeRide'
+  // had and a list holding both collapses to one column.
+  const myActivitiesMerged = Array.from(
+    new Set(myActivities.map(type => MERGED_ACTIVITY_TYPES[type] ?? type))
+  );
 
   return { myActivitiesMerged, activitiesMerged };
 }

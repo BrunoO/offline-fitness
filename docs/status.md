@@ -130,6 +130,24 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Merged activity types left the yearly tables without a column** — found while chasing the
+  *Last years* crash, but a separate and older bug. `mergeActivities` renamed `EBikeRide` →
+  `Ride` and `Hike` → `Walk` on the **activities** while only **dropping** `EBikeRide`/`Hike`
+  from the type list. An archive with e-bike rides and no plain rides therefore had
+  activities of type `Ride` and no `Ride` column, so `yearlyData` computed
+  `yearMap.get('Ride')! + distance` = `undefined + x` = NaN and appended a column the headers
+  never described — `NaN` in the Total/w-Ave. cells and shifted columns below it.
+  - `mergeActivities` now maps the type list through the same table as the activities
+    (`MERGED_ACTIVITY_TYPES`), keeping each renamed type's position and collapsing a list that
+    holds both a folded type and its target.
+  - `yearlyData` no longer trusts its inputs: an uninitialised type starts at 0 and a
+    non-finite field (a half-written AsyncStorage record whose `distance` is missing after an
+    interrupted import) contributes 0. Silent zero beats a NaN cell, because those numbers are
+    fed straight into victory-native paths and react-native-svg's native parser **crashes** on
+    NaN.
+  - Tests: `__tests__/activities/mergeActivities.spec.ts` (5 cases) and
+    `__tests__/yearly-data.spec.ts` (4 cases). Both suites fail against the pre-fix code.
+
 - **"Last years" crashed the app: the palette theme starved the legend of its font size** —
   opening the Stats → *Last years* tab killed the app on Android with a native
   `IllegalArgumentException: Invalid number formating character 'N' (… s=M NaN, NaN …)` from

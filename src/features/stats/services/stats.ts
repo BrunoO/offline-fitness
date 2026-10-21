@@ -41,7 +41,12 @@ export function yearlyData(
     }
     // add the activity field to (year, activity) position in the table
     const yearMap = allYearsMap.get(ga.start_year)!;
-    yearMap.set(ga.type, yearMap.get(ga.type)! + activityField(ga));
+    // Two inputs must not reach the cell as NaN: a type the list never
+    // initialised, and a field that is not a number. The yearly charts feed
+    // these values straight into victory-native paths, whose native parser on
+    // Android crashes on NaN, so a broken cell is worse than a zero here.
+    const value = activityField(ga);
+    yearMap.set(ga.type, (yearMap.get(ga.type) ?? 0) + (Number.isFinite(value) ? value : 0));
   });
 
   // transform the map into a array of arrays
