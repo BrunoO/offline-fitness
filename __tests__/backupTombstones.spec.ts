@@ -246,7 +246,7 @@ describe('deletion tombstones', () => {
       expect(summary.skippedActivities).toBe(1);
       expect(summary.restoredStreams).toBe(0);
       expect(summary.skippedStreams).toBe(1);
-      expect(mockStorage.storeActivity).not.toHaveBeenCalled();
+      expect(mockStorage.storeMultiActivities).not.toHaveBeenCalled();
       expect(mockStorage.removeActivity).not.toHaveBeenCalled();
       expect(mockFileSystem.__mockFiles.get('doc/streams/3.json')).toBe('stream-3');
     });

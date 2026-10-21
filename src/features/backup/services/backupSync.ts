@@ -52,6 +52,46 @@ interface RemoteSyncState {
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * In-flight WebDAV requests during a sync. A full collection is thousands of
+ * small files; on a LAN each request is a few milliseconds of work behind a
+ * few milliseconds of latency, and sequential handling meant paying the
+ * latency 4,000+ times in a row. Six overlaps the waits without queueing so
+ * deep that the progress line stops saying anything new, and without making
+ * the phone's network stack the complaint box of the home server.
+ */
+const SYNC_CONCURRENCY = 6;
+
+/** Activity restores are written to storage in batches of this size. */
+const ACTIVITY_BATCH_SIZE = 100;
+
+/**
+ * Runs `fn` over `items` with at most `limit` calls in flight at once.
+ *
+ * `fn` must handle its own per-item failures (every call site below catches
+ * and records into `summary.errors`, like the sequential loops it replaced):
+ * a rejection would orphan the remaining slots' work and the whole sync.
+ * Counters and progress keep the same semantics as the loops — `done` is now
+ * completion order rather than file order, which is exactly what a busy
+ * progress bar was already showing under network jitter.
+ */
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  let index = 0;
+  const runner = async (): Promise<void> => {
+    for (;;) {
+      const current = index++;
+      if (current >= items.length) return;
+      await fn(items[current]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
+}
+
+/**
  * Marker file recording which app id, profile and layout version own a
  * collection. It is written on the first sync and verified on every later one:
  * if a folder belongs to a different profile, syncing is refused instead of
@@ -278,7 +318,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
 
   onProgress?.({ phase: 'activities', done: 0, total: activities.length });
   let activityDone = 0;
-  for (const activity of activities) {
+  await runWithConcurrency(activities, SYNC_CONCURRENCY, async activity => {
     const name = `${activity.id}.json`;
     try {
       const content = JSON.stringify(activity);
@@ -297,7 +337,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
     }
     activityDone += 1;
     onProgress?.({ phase: 'activities', done: activityDone, total: activities.length });
-  }
+  });
 
   const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
   const streamFiles = streamsFolder.exists
@@ -306,7 +346,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
   const jsonStreamFiles = streamFiles.filter(file => file.name.endsWith('.json'));
   onProgress?.({ phase: 'streams', done: 0, total: jsonStreamFiles.length });
   let streamDone = 0;
-  for (const file of jsonStreamFiles) {
+  await runWithConcurrency(jsonStreamFiles, SYNC_CONCURRENCY, async file => {
     try {
       const hasBytes = typeof (file as { bytes?: unknown }).bytes === 'function';
       const content = hasBytes ? await file.bytes() : await file.text();
@@ -325,7 +365,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
     }
     streamDone += 1;
     onProgress?.({ phase: 'streams', done: streamDone, total: jsonStreamFiles.length });
-  }
+  });
 
   onProgress?.({ phase: 'state', done: 0, total: 1 });
   const syncState: RemoteSyncState = {
@@ -440,7 +480,20 @@ async function pullBackup(
 
   onProgress?.({ phase: 'activities', done: 0, total: remoteActivities.length });
   let activityDone = 0;
-  for (const name of remoteActivities) {
+  // Downloads run concurrently and writes go through `storeMultiActivities`
+  // in batches: 2,122 individual `Storage.storeActivity` calls is the same
+  // per-item native round-trip cost that pass 1 of the archive importer was
+  // rewritten to avoid, and this loop was left behind by that change.
+  const pendingWrites: Activity[] = [];
+  const flushWrites = async (flushRemainder: boolean): Promise<void> => {
+    while (pendingWrites.length >= ACTIVITY_BATCH_SIZE) {
+      await Storage.storeMultiActivities(pendingWrites.splice(0, ACTIVITY_BATCH_SIZE));
+    }
+    if (flushRemainder && pendingWrites.length > 0) {
+      await Storage.storeMultiActivities(pendingWrites.splice(0));
+    }
+  };
+  await runWithConcurrency(remoteActivities, SYNC_CONCURRENCY, async name => {
     const id = name.replace(/\.json$/, '');
     try {
       if (tombstonedIds.has(id)) {
@@ -458,8 +511,11 @@ async function pullBackup(
         if (!activity || typeof activity.id === 'undefined') {
           throw new Error('downloaded file is not a valid activity');
         }
-        await Storage.storeActivity(activity);
+        pendingWrites.push(activity);
         summary.restoredActivities += 1;
+        // splice() is synchronous, so concurrent flushes take disjoint
+        // batches; a batch can end up smaller than the size, which is fine.
+        await flushWrites(false);
       }
     } catch (error) {
       summary.errors.push(
@@ -468,17 +524,18 @@ async function pullBackup(
     }
     activityDone += 1;
     onProgress?.({ phase: 'activities', done: activityDone, total: remoteActivities.length });
-  }
+  });
+  await flushWrites(true);
 
   const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
   if (!streamsFolder.exists) streamsFolder.create();
   onProgress?.({ phase: 'streams', done: 0, total: remoteStreams.length });
   let streamDone = 0;
-  for (const name of remoteStreams) {
+  await runWithConcurrency(remoteStreams, SYNC_CONCURRENCY, async name => {
     try {
       if (tombstonedIds.has(name.replace(/\.(nostreamflag|json)$/, ''))) {
         summary.skippedStreams += 1; // belongs to a deliberately deleted activity
-        continue;
+        return;
       }
       const file = new File(streamsFolder, name);
       if (file.exists) {
@@ -502,7 +559,7 @@ async function pullBackup(
     }
     streamDone += 1;
     onProgress?.({ phase: 'streams', done: streamDone, total: remoteStreams.length });
-  }
+  });
 
   simpleLogger.log('WebDAV backup restore complete', { ...summary });
   return summary;

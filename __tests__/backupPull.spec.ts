@@ -112,15 +112,17 @@ describe('pullBackupNow (restore)', () => {
     });
     mockStorage.getAllActivitiesKeys.mockResolvedValue(['1']);
     mockStorage.loadAllActivities.mockResolvedValue([makeActivity('1')]);
-    mockStorage.storeActivity.mockResolvedValue(undefined);
+    mockStorage.storeMultiActivities.mockResolvedValue(undefined);
 
     const summary = await pullBackupNow();
 
     expect(summary.restoredActivities).toBe(1);
     expect(summary.skippedActivities).toBe(1);
     expect(summary.errors).toHaveLength(0);
-    expect(mockStorage.storeActivity).toHaveBeenCalledTimes(1);
-    expect(mockStorage.storeActivity).toHaveBeenCalledWith(expect.objectContaining({ id: '2' }));
+    expect(mockStorage.storeMultiActivities).toHaveBeenCalledTimes(1);
+    expect(mockStorage.storeMultiActivities).toHaveBeenCalledWith([
+      expect.objectContaining({ id: '2' })
+    ]);
   });
 
   it('restores streams that are missing locally and skips existing files', async () => {
@@ -155,7 +157,7 @@ describe('pullBackupNow (restore)', () => {
 
     expect(summary.skippedActivities).toBe(1);
     expect(summary.restoredActivities).toBe(0);
-    expect(mockStorage.storeActivity).not.toHaveBeenCalled();
+    expect(mockStorage.storeMultiActivities).not.toHaveBeenCalled();
   });
 
   it('collects per-file errors without aborting the whole restore', async () => {
@@ -168,13 +170,45 @@ describe('pullBackupNow (restore)', () => {
       return JSON.stringify(makeActivity('good'));
     });
     mockStorage.getAllActivitiesKeys.mockResolvedValue([]);
-    mockStorage.storeActivity.mockResolvedValue(undefined);
+    mockStorage.storeMultiActivities.mockResolvedValue(undefined);
 
     const summary = await pullBackupNow();
 
     expect(summary.restoredActivities).toBe(1);
     expect(summary.errors).toHaveLength(1);
     expect(summary.errors[0]).toContain('bad.json');
+  });
+
+  it('writes restored activities in batches, not one storage call each', async () => {
+    // 250 remote activities is the shape of a real seeded collection; the
+    // point of the batching is that the phone never pays a native round trip
+    // per record. Assert batches of <= 100 whose sizes sum to 250, spread
+    // over several writes.
+    const names = Array.from({ length: 250 }, (_, index) => `${index}.json`);
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      const name = segments[segments.length - 1];
+      if (name === 'sync-state.json') {
+        return JSON.stringify({
+          activityMd5: Object.fromEntries(names.map(entry => [entry, 'x'])),
+          streamMd5: {}
+        });
+      }
+      return JSON.stringify({ id: name.replace(/\.json$/, '') });
+    });
+    mockStorage.getAllActivitiesKeys.mockResolvedValue([]);
+    mockStorage.storeMultiActivities.mockResolvedValue(undefined);
+
+    const summary = await pullBackupNow();
+
+    expect(summary.restoredActivities).toBe(250);
+    expect(summary.errors).toHaveLength(0);
+    const calls = mockStorage.storeMultiActivities.mock.calls;
+    expect(calls.length).toBeGreaterThan(1);
+    const sizes = calls.map(([batch]) => batch.length);
+    expect(sizes.reduce((total, size) => total + size, 0)).toBe(250);
+    for (const size of sizes) {
+      expect(size).toBeLessThanOrEqual(100);
+    }
   });
 
   it('treats a missing remote sync state as nothing to restore', async () => {
@@ -210,6 +244,6 @@ describe('pullBackupNow (restore)', () => {
     expect(summary.restoredActivities).toBe(0);
     expect(summary.errors).toHaveLength(1);
     expect(summary.errors[0]).toContain('not valid JSON');
-    expect(mockStorage.storeActivity).not.toHaveBeenCalled();
+    expect(mockStorage.storeMultiActivities).not.toHaveBeenCalled();
   });
 });

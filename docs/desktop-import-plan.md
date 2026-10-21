@@ -1,6 +1,6 @@
 # Desktop Strava Import Tool — Implementation Plan
 
-**Status:** Phases 0 and 1 complete (portable core + desktop CLI). Phase 2 (cheap phone restore) and Phase 3 (verification) not started.
+**Status:** Phases 0, 1 and 2 complete (portable core, desktop CLI, concurrent/batched phone sync). Phase 3 (verification) not started.
 
 **Goal:** convert a Strava data-export ZIP into a WebDAV backup collection **on a computer**, so the
 phone never runs the import. The phone only ever runs *Restore* to fill itself.
@@ -118,17 +118,17 @@ What shipped as planned, plus the deltas that mattered:
 - Enablers that became part of the core: `SimpleLogger` lost its `react-native` import (the transport's last platform edge), pure ZIP-entry-name helpers moved to `entryNames.ts`, `trackBoundingBox` moved into `gpxParser.ts`, and `zipReader` switched to `import pako` + destructure for Node-ESM interop (pako@1 has no static named exports). The portability guard covers all of it plus the tool modules.
 
 
-### Phase 2 — make the restore cheap on the phone (~1–2 days)
+### Phase 2 — make the restore cheap on the phone ✅ done
 The desktop tool alone is a real UX win (the phone stops parsing and stops copying a gigabyte) but the
-restore still costs ~4,148 requests + 2,026 file writes. Two independent levers:
-1. **Batch the activity restore**: one `storeMultiActivities` per 100 instead of 2,122 `setItem`
-   calls (`backupSync.ts:461`) — a small, isolated change in `pullBackup`.
-2. **Concurrent stream restore**: bounded `Promise.allSettled` (~6–8 in flight) over the stream list,
-   each file downloaded and written on its own.
-Only after measuring, consider a bundle/pack format — it duplicates data server-side and is the
-larger change, so it should be justified by data, not by design taste. Note that `expo-file-system`'s
-`FileHandle` already offers offset `readBytes`, so a single-pack stream store remains technically
-available if the per-file write cost turns out to dominate.
+restore still costs ~4,148 requests + 2,026 file writes. Shipped in `backupSync.ts`:
+1. **Batched activity restore**: one `storeMultiActivities` per ≤100 instead of 2,122 `setItem` calls.
+2. **Concurrent requests**: a `runWithConcurrency` pool (6 in flight) drives the pull loops — and,
+   for symmetry, the push loops, which had the same sequential cost. Per-item error collection,
+   "local wins" (checked before any GET), and the state-file-last ordering are unchanged.
+3. **The bundle/pack idea was deliberately NOT taken.** It duplicates data server-side and is the
+   larger change; the plan always said to justify it by measurement, and this change is what makes
+   that measurement honest. If restore is still slow now, the remaining bottleneck is the phone's
+   raw per-file write cost, and the pack becomes the next candidate.
 
 ### Phase 3 — integrity verification (~0.5 day)
 `strava-import verify` re-hashes local inputs against remote `sync-state.json`, and — the important
@@ -139,8 +139,12 @@ folders, but hash-on-restore closes it for truncated downloads too.
 
 ---
 
-## 4. Sequencing note
+## 4. Sequencing (as executed)
 
-If the user's actual pain is "the import is slow **on the phone**", run **Phase 2 first** — it is a
-phone-only change, needs no new artifact, and speeds up both the tool's own restore path and the
-existing push/pull. Phase 1 then becomes the ingestion convenience it should be.
+The original note advised running **Phase 2 first** if the real pain was phone slowness. In practice
+Phase 1 shipped first, because the desktop tool also removes the 1 GB archive copy and the parsing
+from the device entirely — not just the request serialization Phase 2 fixes. Phase 2 then landed on
+top, speeding up the restore path the tool depends on. What the sequencing note was really guarding
+against — building the tool before knowing whether the phone side was the bottleneck — is now
+resolved by measurement: with Phase 2 done, any remaining restore slowness is the phone's per-file
+write cost, which points at the pack idea, not at more request tuning.
