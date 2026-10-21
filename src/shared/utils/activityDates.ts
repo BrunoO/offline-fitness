@@ -3,7 +3,7 @@ import { Activity } from '@/shared/types/types';
 /**
  * Canonical date helpers for Strava activities.
  *
- * Strava semantics (see example_activity.json):
+ * Strava semantics:
  * - `start_date_utc` is the TRUE UTC instant.
  * - `start_date_local` is athlete-local wall-clock time MISLABELED with a Z
  *   suffix, so `new Date(start_date_local)` is off by `utc_offset` and then

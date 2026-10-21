@@ -40,6 +40,7 @@ sonar-results/
 todo.txt
 .claude/
 path/
+example_activity.json
 
 # Local Strava export archives (personal data; also used as tool smoke-test input)
 testdata/

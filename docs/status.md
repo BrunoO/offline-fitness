@@ -130,6 +130,8 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Purged `example_activity.json` (personal data) from repo and history** — the file was committed by mistake in the root commit and pushed to `origin/main`. Removed with `git filter-repo --path example_activity.json --invert-paths` (all 53 commits rewritten), added to `.gitignore`, and fixed the dangling `(see example_activity.json)` comment in `activityDates.ts`. Follow-up required on GitHub: force-push, then ask GitHub support to purge cached views, and check forks/clones.
+
 - **Final review of the import/backup arc: one latent ping-pong killed, one pin corrected** — a deliberately adversarial re-read of the session's ~15 commits before building found two things the test suite couldn't (both were green):
   - **Fallback-Swim elevation gain would have ping-ponged.** `rowToActivity` zeroes the gain only when the CSV type is already `Swim`; a record flipped by the GPX fallback kept its CSV gain while `applySwimMovingTime` fixed only the moving time — and the phone's startup backfill zeroes *any* Swim gain, so the next push would re-upload and the next seed would restore the non-zero value, forever. Same class as the 200-swim churn, one field over, dormant only because no archive on hand has that shape. The helper now canonicalises both fields (in-place, key order untouched), the seed fixture carries a non-zero gain end to end, and the stale "same effect as the phone importer" comment in `seed.ts` went with the deleted importer.
   - **`geo-tz` was caret-pinned (`^8.1.10`)** while the plan declares its version a data migration (boundary changes re-bucket travel records). Now exact-pinned; the lockfile already holds 8.1.10 so nothing reinstalls.
