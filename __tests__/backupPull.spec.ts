@@ -23,9 +23,7 @@ jest.mock('expo-crypto', () => {
     crypto.createHash('md5').update(data).digest('hex');
   return {
     CryptoDigestAlgorithm: { MD5: 'MD5' },
-    digestStringAsync: jest.fn(async (_algorithm: unknown, value: string) =>
-      md5hex(value)
-    ),
+    digestStringAsync: jest.fn(async (_algorithm: unknown, value: string) => md5hex(value)),
     digest: jest.fn(async (_algorithm: unknown, value: Uint8Array) => {
       const hex = md5hex(value);
       const bytes = new Uint8Array(hex.length / 2);
@@ -238,9 +236,7 @@ describe('pullBackupNow (restore)', () => {
     expect(summary.skippedStreams).toBe(1);
     expect(summary.errors).toHaveLength(0);
     expect(mockFiles.has('doc/streams/9.json')).toBe(false); // orphan cleaned up
-    const streamGets = mockTransport.getDavFile.mock.calls.filter(
-      call => call[1] === 'streams'
-    );
+    const streamGets = mockTransport.getDavFile.mock.calls.filter(call => call[1] === 'streams');
     expect(streamGets).toHaveLength(0); // never even fetched
   });
 

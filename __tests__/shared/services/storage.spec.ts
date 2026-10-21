@@ -297,5 +297,4 @@ describe('storage', () => {
       expect(mockedSimpleLogger.error).toHaveBeenCalledWith('error while removing keys ', error);
     });
   });
-
 });

@@ -49,10 +49,20 @@ describe('parseArgs', () => {
   });
 
   it('requires the archive and the timezone for import', () => {
-    expect(() => parseArgs(['import', '--root', 'https://x/dav', '--user', 'u', '--profile', 'p'])).toThrow(
-      /--archive/
-    );
-    const withoutTz = ['import', '--archive', '/tmp/e.zip', '--root', 'https://x/dav', '--user', 'u', '--profile', 'p'];
+    expect(() =>
+      parseArgs(['import', '--root', 'https://x/dav', '--user', 'u', '--profile', 'p'])
+    ).toThrow(/--archive/);
+    const withoutTz = [
+      'import',
+      '--archive',
+      '/tmp/e.zip',
+      '--root',
+      'https://x/dav',
+      '--user',
+      'u',
+      '--profile',
+      'p'
+    ];
     expect(() => parseArgs(withoutTz)).toThrow(/--tz/);
   });
 
@@ -107,9 +117,9 @@ describe('buildConfig', () => {
   });
 
   it('rejects a root that is not an http(s) URL', () => {
-    expect(() =>
-      buildConfig({ ...options, rootUrl: 'srv.example/dav' }, 'pw')
-    ).toThrow(/account root/i);
+    expect(() => buildConfig({ ...options, rootUrl: 'srv.example/dav' }, 'pw')).toThrow(
+      /account root/i
+    );
   });
 
   it('rejects profile names that are not URL-safe folder names, including "." and ".."', () => {
@@ -125,9 +135,7 @@ describe('resolvePasswordSource', () => {
 
   it('falls back to the environment variable', () => {
     const options = parseArgs(VALID.filter(flag => flag !== '--password-stdin'));
-    expect(
-      resolvePasswordSource(options, { STRAVA_IMPORT_PASSWORD: 'from-env' })
-    ).toBe('from-env');
+    expect(resolvePasswordSource(options, { STRAVA_IMPORT_PASSWORD: 'from-env' })).toBe('from-env');
   });
 
   it('fails with guidance when neither is present', () => {

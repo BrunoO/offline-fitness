@@ -1,10 +1,7 @@
 import { decodeUtf8 } from '@/features/strava-import/services/textDecode';
 import { readZipEntries, readZipEntry } from '@/features/strava-import/services/zipReader';
 import { readFileSync } from 'node:fs';
-import {
-  createNodeByteSource,
-  NodeByteSource
-} from '../../scripts/strava-import-tool/nodeSource';
+import { createNodeByteSource, NodeByteSource } from '../../scripts/strava-import-tool/nodeSource';
 import { GPX_123, writeArchiveFixture } from '../helpers/desktopImportFixtures';
 
 /**

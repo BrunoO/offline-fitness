@@ -46,12 +46,13 @@ function hasBackgroundColor(node: unknown, color: string): boolean {
   const style = candidate.props?.style;
   if (style) {
     const flat = Array.isArray(style) ? style.flat(3) : [style];
-    if (flat.some(entry => typeof entry === 'object' && entry !== null && 'backgroundColor' in entry)) {
-      const match = flat.find(
-        entry =>
-          typeof entry === 'object' && entry !== null && 'backgroundColor' in entry
-            ? (entry as { backgroundColor?: string }).backgroundColor === color
-            : false
+    if (
+      flat.some(entry => typeof entry === 'object' && entry !== null && 'backgroundColor' in entry)
+    ) {
+      const match = flat.find(entry =>
+        typeof entry === 'object' && entry !== null && 'backgroundColor' in entry
+          ? (entry as { backgroundColor?: string }).backgroundColor === color
+          : false
       );
       if (match) {
         return true;
@@ -87,9 +88,9 @@ describe('PalettePicker', () => {
       </ThemeProvider>
     );
 
-    const selected = screen.getAllByRole('radio').filter(
-      row => row.props.accessibilityState?.selected === true
-    );
+    const selected = screen
+      .getAllByRole('radio')
+      .filter(row => row.props.accessibilityState?.selected === true);
     expect(selected).toHaveLength(1);
     expect(selected[0].props.accessibilityLabel).toBe(
       `${PALETTES[DEFAULT_PALETTE_ID].label} palette`

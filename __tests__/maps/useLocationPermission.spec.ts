@@ -9,7 +9,8 @@ jest.mock('expo-location', () => ({
 }));
 
 const mockGetForegroundPermissionsAsync = Location.getForegroundPermissionsAsync as jest.Mock;
-const mockRequestForegroundPermissionsAsync = Location.requestForegroundPermissionsAsync as jest.Mock;
+const mockRequestForegroundPermissionsAsync =
+  Location.requestForegroundPermissionsAsync as jest.Mock;
 
 describe('useLocationPermission', () => {
   beforeEach(() => {

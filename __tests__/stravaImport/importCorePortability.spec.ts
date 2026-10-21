@@ -107,7 +107,8 @@ function resolveToLocal(fromFile: string, specifier: string): string | null {
       path.posix.join(base, 'index.ts'),
       path.posix.join(base, 'index.tsx'),
       base
-    ].map(asFile)
+    ]
+      .map(asFile)
       .find(Boolean);
 
   if (specifier.startsWith('.')) {
@@ -193,7 +194,8 @@ describe('portable import core (desktop tool, Phase 0)', () => {
     // ~1,500 lines of UI + orchestration, a 1 GB cache-copy path, keep-awake
     // and the picker — re-adding any of it by accident must fail a test, not
     // ship. The names are the ones that module used across the codebase.
-    const banned = /StravaImportModal|importStravaExport|expoByteSource|expo-keep-awake|pickFileAsync/;
+    const banned =
+      /StravaImportModal|importStravaExport|expoByteSource|expo-keep-awake|pickFileAsync/;
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

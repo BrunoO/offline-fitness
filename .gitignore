@@ -43,3 +43,7 @@ path/
 
 # Local Strava export archives (personal data; also used as tool smoke-test input)
 testdata/
+
+# Skill-install artifacts (local agent tooling)
+.agents/
+skills-lock.json

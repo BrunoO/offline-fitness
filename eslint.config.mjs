@@ -13,7 +13,8 @@ export default [
       'android/*',
       'ios/*',
       '.expo/*',
-      'python-app/*'
+      'python-app/*',
+      '.agents/*'
     ]
   },
   ...expoConfig,
@@ -57,7 +58,7 @@ export default [
       '@typescript-eslint/require-array-sort-compare': ['error', { ignoreStringArrays: true }],
       // Visibility gates: complexity and sequential awaits surface during
       // writing rather than weeks later in a Sonar scan.
-      'complexity': ['warn', 15],
+      complexity: ['warn', 15],
       'no-await-in-loop': 'warn',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',

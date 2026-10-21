@@ -83,7 +83,9 @@ function reportSeed(summary: SeedSummary, dryRun: boolean): void {
   const lines = [
     `Activities: ${summary.activitiesParsed} parsed — ` +
       `${summary.activitiesUploaded} uploaded, ${summary.activitiesSkipped} already present` +
-      (summary.activitiesTombstoned > 0 ? `, ${summary.activitiesTombstoned} deleted remotely (skipped)` : ''),
+      (summary.activitiesTombstoned > 0
+        ? `, ${summary.activitiesTombstoned} deleted remotely (skipped)`
+        : ''),
     `Streams:    ${summary.streamsUploaded} uploaded, ${summary.streamsSkipped} already present`,
     `Skips:      ${summary.activitiesWithoutTrack} manual (no track), ` +
       `${summary.unsupportedTracks} unsupported format (.fit/.tcx), ` +
@@ -97,7 +99,9 @@ function reportSeed(summary: SeedSummary, dryRun: boolean): void {
     idsReport
   ];
   if (dryRun) {
-    lines.unshift('DRY RUN — converted and hashed locally; the counts are what a real run would upload.');
+    lines.unshift(
+      'DRY RUN — converted and hashed locally; the counts are what a real run would upload.'
+    );
   }
   console.log(`\n${lines.join('\n')}`);
   if (summary.warnings.length > 0) {
@@ -130,7 +134,9 @@ async function main(): Promise<void> {
   }
 
   console.log(`Archive:    ${options.archivePath}`);
-  console.log(`Timezone:   ${options.timezone}  (fallback for GPS-less rows; tracks derive their own zone)`);
+  console.log(
+    `Timezone:   ${options.timezone}  (fallback for GPS-less rows; tracks derive their own zone)`
+  );
   if (!options.dryRun) {
     // Fail fast on a wrong URL/credential rather than mid-upload.
     await testDavConnection({ ...config, baseUrl: config.rootUrl });
@@ -158,7 +164,9 @@ async function main(): Promise<void> {
   process.stdout.write('\r');
   reportSeed(summary, options.dryRun);
   if (options.dryRun) {
-    console.log('\nNext: drop --dry-run to upload. On the phone, drawer → Settings → Restore fills the app.');
+    console.log(
+      '\nNext: drop --dry-run to upload. On the phone, drawer → Settings → Restore fills the app.'
+    );
   }
 }
 

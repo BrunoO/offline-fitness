@@ -22,7 +22,7 @@ describe('YTD Stats Calculator', () => {
       distance: 10000,
       moving_time: 3600,
       total_elevation_gain: 100,
-      type: 'Run',
+      type: 'Run'
     } as Activity,
     {
       id: '2',
@@ -39,7 +39,7 @@ describe('YTD Stats Calculator', () => {
       distance: 20000,
       moving_time: 7200,
       total_elevation_gain: 200,
-      type: 'Ride',
+      type: 'Ride'
     } as Activity,
 
     // Previous Year Activities
@@ -58,7 +58,7 @@ describe('YTD Stats Calculator', () => {
       distance: 5000,
       moving_time: 1800,
       total_elevation_gain: 50,
-      type: 'Run',
+      type: 'Run'
     } as Activity,
     {
       id: '4',
@@ -75,7 +75,7 @@ describe('YTD Stats Calculator', () => {
       distance: 15000,
       moving_time: 5400,
       total_elevation_gain: 150,
-      type: 'Ride',
+      type: 'Ride'
     } as Activity,
     {
       id: '5',
@@ -92,8 +92,8 @@ describe('YTD Stats Calculator', () => {
       distance: 10000,
       moving_time: 3600,
       total_elevation_gain: 100,
-      type: 'Run',
-    } as Activity,
+      type: 'Run'
+    } as Activity
   ];
 
   beforeAll(() => {
@@ -148,7 +148,8 @@ describe('YTD Stats Calculator', () => {
 
     const ytdStats = calculateYTDStats(mockActivities);
     const dayOfYear = Math.floor(
-      (mockDate.getTime() - new Date(mockDate.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)
+      (mockDate.getTime() - new Date(mockDate.getFullYear(), 0, 0).getTime()) /
+        (1000 * 60 * 60 * 24)
     );
     expect(ytdStats.currentYear.data.length).toBe(dayOfYear);
     expect(ytdStats.previousYear.data.length).toBe(dayOfYear);

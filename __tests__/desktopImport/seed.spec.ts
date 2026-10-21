@@ -1,7 +1,10 @@
 import { APP_CONFIG } from '@/constants';
 import { WebDavTransportError } from '@/features/backup/services/webdavTransport';
 import { normalizeEntryPath } from '@/features/strava-import/services/entryNames';
-import { createMemoryByteSource, readZipEntries } from '@/features/strava-import/services/zipReader';
+import {
+  createMemoryByteSource,
+  readZipEntries
+} from '@/features/strava-import/services/zipReader';
 import JSZip from 'jszip';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { seedCollection } from '../../scripts/strava-import-tool/seed';
@@ -344,7 +347,8 @@ describe('seedCollection travel zones (Phase 4)', () => {
 });
 
 describe('seedCollection upload resilience', () => {
-  it('retries a dropped PUT and still converges', async () => {    const base = createFakeClient();
+  it('retries a dropped PUT and still converges', async () => {
+    const base = createFakeClient();
     let attempts = 0;
     const flaky: DavClient = {
       ...base.client,
@@ -557,7 +561,8 @@ describe('seedCollection archive failures', () => {
       [
         CSV_HEADER,
         ...trackIds.map(
-          id => `${id},"Jan 14, 2024, 10:00:00",Loop ${id},Ride,activities/${id}.gpx,60,60,1000,16.67,5,0,10,20`
+          id =>
+            `${id},"Jan 14, 2024, 10:00:00",Loop ${id},Ride,activities/${id}.gpx,60,60,1000,16.67,5,0,10,20`
         )
       ].join('\n')
     );

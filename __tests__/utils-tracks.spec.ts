@@ -76,9 +76,10 @@ describe('findSimilarActivitiesByTrack', () => {
     const similarActivities = [activity2, activity3];
     const result = await findSimilarActivitiesByTrack(activity1, similarActivities);
     // Both activities should be returned since they have some similarity
-    expect(
-      result.map((a: { activity: Activity; similarity: number }) => a.activity.id)
-    ).toEqual(['2', '3']);
+    expect(result.map((a: { activity: Activity; similarity: number }) => a.activity.id)).toEqual([
+      '2',
+      '3'
+    ]);
   });
 
   it('should return activities with some similarity even for different tracks', async () => {
