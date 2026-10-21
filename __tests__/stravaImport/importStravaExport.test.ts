@@ -27,6 +27,8 @@ const mockLiveState: {
 } = { state: null };
 /** Sub-step recorded at each stream/flag write, to prove the live granularity. */
 const mockStepLog: string[] = [];
+/** When >= 0, reads throw once the count runs out, standing in for a dead handle. */
+const mockReadFailAfter = { remaining: -1 };
 
 jest.mock('expo-file-system', () => {
   class VirtualDirectory {
@@ -110,6 +112,10 @@ jest.mock('expo-file-system', () => {
           state.offset = value;
         },
         readBytes(length: number) {
+          if (mockReadFailAfter.remaining === 0) {
+            throw new Error('java.io.IOException: Bad file descriptor');
+          }
+          if (mockReadFailAfter.remaining > 0) mockReadFailAfter.remaining -= 1;
           return entry.bytes.slice(state.offset, state.offset + length);
         },
         close() {}
@@ -149,14 +155,29 @@ const CSV = `Activity ID,Activity Date,Activity Name,Activity Type,Activity Desc
 200,"Oct 16, 2023, 7:00:00 AM",Yoga du matin,Yoga,,1800,0,,,,,,,1800,1800,,,,,,,
 `;
 
+/**
+ * A CSV whose activities all point at the same track. Twelve of them, so a
+ * run of read failures can reach the abort threshold.
+ */
+const MANY_ACTIVITIES_CSV = `${CSV.split('\n')[0]}
+${Array.from({ length: 12 }, (_, index) => {
+  const id = 3000 + index;
+  return `${id},"Oct 15, 2023, 5:50:05 AM",Sortie ${index},Walk,,3600,2.8,,,,,,activities/100.gpx,,,3600,3500,2825.4,2.93,1.202,9.4,9.4,203.7,210.4`;
+}).join('\n')}
+`;
+
 const ARCHIVE_PATH = 'file:///cache/strava-export-import.zip';
 const PICKED_PATH = 'file:///picked/export_6466806.zip';
 
-async function buildArchive(): Promise<Uint8Array> {
+async function buildArchiveWith(csv: string): Promise<Uint8Array> {
   const zip = new JSZip();
-  zip.file('activities.csv', CSV);
+  zip.file('activities.csv', csv);
   zip.file('activities/100.gpx', GPX);
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+async function buildArchive(): Promise<Uint8Array> {
+  return buildArchiveWith(CSV);
 }
 
 const pickedFile = (): File => new File('file:///picked/', 'export_6466806.zip');
@@ -225,34 +246,61 @@ describe('importStravaExport', () => {
     expect(summary.timezone.length).toBeGreaterThan(0);
   });
 
-  it('reads the picked archive in place, without copying it', async () => {
+  it('copies the picked archive before reading it', async () => {
     mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
     const copiesBefore = mockCopyCount.count;
 
     const result = await importStravaExport(pickedFile());
 
     expect(result.failedFiles).toBe(0);
-    expect(mockCopyCount.count).toBe(copiesBefore);
+    expect(mockCopyCount.count).toBe(copiesBefore + 1);
+    // The copy is a working file, not something to keep.
     expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
   });
 
-  it('falls back to a copy when the picked file cannot be read in place', async () => {
+  it('imports even when the picked file cannot be opened for random access', async () => {
     mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
     mockUnseekable.add(PICKED_PATH);
-    const copiesBefore = mockCopyCount.count;
 
     try {
+      // The importer must never read the content:// URI directly: its descriptor
+      // does not survive a long run (Bad file descriptor), so everything is read
+      // from the copy.
       const result = await importStravaExport(pickedFile());
       expect(result.failedFiles).toBe(0);
-      expect(mockCopyCount.count).toBe(copiesBefore + 1);
-      // The copy is a means to an end; it does not outlive the run.
-      expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+      expect(result.streamsImported + result.streamsAlreadyPresent).toBeGreaterThan(0);
     } finally {
       mockUnseekable.delete(PICKED_PATH);
     }
   });
 
-  it('drops the fallback copy even when the run is interrupted', async () => {
+  it('gives up when the archive stops being readable', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchiveWith(MANY_ACTIVITIES_CSV) });
+    const copiesBefore = mockCopyCount.count;
+
+    let armed = false;
+    const run = importStravaExport(pickedFile(), {
+      onProgress: progress => {
+        if (progress.phase === 'streams' && !armed) {
+          armed = true;
+          // From here every read behaves like a closed file descriptor.
+          mockReadFailAfter.remaining = 0;
+        }
+      }
+    });
+
+    try {
+      await expect(run).rejects.toThrow(/tracks failed in a row/);
+    } finally {
+      mockReadFailAfter.remaining = -1;
+    }
+
+    expect(mockCopyCount.count).toBe(copiesBefore + 1);
+    // An aborted run still cleans up and does not leave a half-written cache.
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+  });
+
+  it('drops the working copy even when the run is interrupted', async () => {
     mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
     mockUnseekable.add(PICKED_PATH);
 

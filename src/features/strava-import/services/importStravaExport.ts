@@ -49,9 +49,12 @@ import {
  * The per-run cost on a phone is dominated by native calls, not by parsing
  * (~13 ms of JavaScript per track), so the loop is shaped to make as few of
  * them as possible: one directory listing instead of two file stats per
- * activity, and one batched AsyncStorage write per batch instead of one per
- * track. Every phase is timed into `summary.timings` so a slow run can be
- * diagnosed from the phone itself.
+ * activity, one batched AsyncStorage write per batch instead of one per track,
+ * and a single copy of the archive that everything is read from (see
+ * `openArchive` for why that copy cannot be skipped).
+ *
+ * Every phase is timed into `summary.timings` so a slow run can be diagnosed
+ * from the phone itself.
  */
 
 const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
@@ -62,6 +65,16 @@ const YIELD_EVERY = 25;
 
 /** A track slower than this is logged with its id, so a bad file names itself. */
 const SLOW_TRACK_MS = 3000;
+
+/**
+ * How many track reads may fail in a row before the run gives up.
+ *
+ * Consecutive failures mean the archive itself stopped being readable (a dead
+ * file handle, or the file was moved), not that several tracks are broken. Left
+ * alone the loop would grind through every remaining track, flag each one as
+ * failed and report "finished" with a couple of thousand warnings.
+ */
+const MAX_CONSECUTIVE_READ_FAILURES = 10;
 
 /** Track formats present in exports that this importer does not parse yet. */
 const UNSUPPORTED_TRACK_EXTENSIONS = ['.fit', '.fit.gz', '.tcx', '.tcx.gz'];
@@ -142,42 +155,27 @@ function mark(
 }
 
 /**
- * Opens the picked archive for random access, reading it where it is.
+ * Copies the picked archive into the app cache and opens the copy.
  *
- * Android hands the picker result over as a `content://` URI, and the native
- * handle reads it through the provider's file descriptor with real random
- * access (`FileChannel.position`), so a copy into the app cache is not needed.
- * It used to run on every attempt anyway — a second copy of a ~1 GB archive
- * written to a device that already holds the original, on the same storage the
- * stream cache and AsyncStorage are writing to, which is exactly the resource a
- * slow import runs out of.
- *
- * A provider that hands out a pipe instead of a seekable descriptor cannot be
- * read this way, so the copy stays as a fallback.
+ * The copy is not an optimisation, it is required: the picker hands over a
+ * `content://` URI, and expo's `FileSystemFileHandle.forContentURI` builds its
+ * channel from a `ParcelFileDescriptor` it never retains. Once that descriptor
+ * is collected the channel still points at its file descriptor, and every
+ * subsequent read fails with `java.io.IOException: Bad file descriptor`
+ * (`FileChannelImpl.position0` via `setOffset`). Reading in place therefore
+ * works for the first tracks and then fails for all the rest, which is exactly
+ * what a long import must not do. A plain file we own has no such lifetime.
  */
 async function openArchive(
   pickedFile: File,
   timings: ImportTimings,
   live: ImportLiveState | undefined
-): Promise<{ source: ByteSource; copy: File | null }> {
-  // A previous version cached the archive between runs and could leave a
-  // ~1 GB file behind; reclaim it before adding any work of our own.
+): Promise<{ source: ByteSource; copy: File }> {
+  // A previous version cached the archive between runs; reclaim it first.
   deleteArchiveCopy();
-
-  let direct: ByteSource | undefined;
-  try {
-    direct = createFileByteSource(pickedFile);
-    // Proves the descriptor is seekable before the reader depends on it.
-    await direct.read(0, 4);
-    return { source: direct, copy: null };
-  } catch (error) {
-    simpleLogger.log('Reading the picked archive in place failed; copying it first', error);
-    direct?.close?.();
-  }
 
   mark(live, 'copying');
   const copy = new File(Paths.cache, CACHE_ARCHIVE_NAME);
-  if (copy.exists) copy.delete();
   const startedAt = Date.now();
   await pickedFile.copy(copy, { overwrite: true });
   timings.copyArchive += Date.now() - startedAt;
@@ -414,6 +412,8 @@ export async function importStravaExport(
     // Pass 2 — convert track files into streams, newest activity first.
     const ordered = [...activities].sort(compareActivitiesByUtcDesc);
     const { streams: storedStreams, flagged } = snapshotStreamCache();
+    /** Consecutive track-read failures; reset by any successful read. */
+    let consecutiveReadFailures = 0;
 
     // Track-derived fields are written back in batches: one AsyncStorage call
     // per track is a native round trip (pass 1 already showed batching is the
@@ -493,6 +493,7 @@ export async function importStravaExport(
         const readStartedAt = Date.now();
         const raw = await readZipEntry(byteSource, entry);
         timings.readTracks += Date.now() - readStartedAt;
+        consecutiveReadFailures = 0;
 
         mark(live, 'parsing-track');
         const parseStartedAt = Date.now();
@@ -538,10 +539,17 @@ export async function importStravaExport(
         summary.streamsImported++;
       } catch (error) {
         summary.failedFiles++;
-        warnings.push(
-          `Activity ${activity.id}: ${error instanceof Error ? error.message : String(error)}`
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        warnings.push(`Activity ${activity.id}: ${message}`);
         writeNoStreamFlag(activity.id, flagged);
+
+        // One bad track is a warning; a run of them means the archive is gone.
+        consecutiveReadFailures++;
+        if (consecutiveReadFailures >= MAX_CONSECUTIVE_READ_FAILURES) {
+          throw new Error(
+            `Stopped after ${consecutiveReadFailures} tracks failed in a row — the archive could not be read. Last error: ${message}`
+          );
+        }
       }
 
       // A track that takes seconds is the thing worth knowing about, and its id
