@@ -50,6 +50,65 @@ interface RemoteSyncState {
  */
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Marker file recording which app id and profile own a collection. It is
+ * written on the first sync and verified on every later one: if a folder
+ * belongs to a different profile, syncing is refused instead of mixing
+ * two athletes' data into one index.
+ */
+interface CollectionMarker {
+  appId: string;
+  profile: string;
+  createdAt: string;
+}
+
+/**
+ * Reads the collection marker. Returns null when the collection has none
+ * yet (a fresh folder, or a legacy collection written before the marker
+ * existed). A body that is not JSON is treated the same way: the marker
+ * is written by this app alone, so an unreadable one only means "unknown
+ * owner" and must not block a restore.
+ */
+async function loadCollectionMarker(config: WebDavConfig): Promise<CollectionMarker | null> {
+  let text: string;
+  try {
+    text = await getDavFile(config, APP_CONFIG.BACKUP_COLLECTION_FILE);
+  } catch (error) {
+    if (error instanceof WebDavTransportError && error.status === 404) return null;
+    throw error;
+  }
+  try {
+    const marker = JSON.parse(text) as CollectionMarker;
+    if (!marker || typeof marker.appId !== 'string' || typeof marker.profile !== 'string') {
+      return null;
+    }
+    return marker;
+  } catch {
+    simpleLogger.warn('WebDAV collection marker is not readable, ignoring it');
+    return null;
+  }
+}
+
+/**
+ * Verifies the collection belongs to this app id and profile. A mismatch is
+ * a hard error: it means two athletes are pointed at the same folder and
+ * their indexes would be mixed.
+ */
+function assertCollectionOwnership(marker: CollectionMarker, config: WebDavConfig): void {
+  if (marker.appId !== APP_CONFIG.BACKUP_APP_ID) {
+    throw new Error(
+      `This backup folder belongs to a different app (${marker.appId}). ` +
+        'Point the app at its own folder, or use a different profile name.'
+    );
+  }
+  if (marker.profile !== config.profile) {
+    throw new Error(
+      `This backup folder belongs to profile "${marker.profile}", not "${config.profile}". ` +
+        'Use a different profile name, or pick the folder of the right profile.'
+    );
+  }
+}
+
 async function loadRemoteSyncState(config: WebDavConfig): Promise<RemoteSyncState> {
   try {
     const text = await getDavFile(config, APP_CONFIG.BACKUP_SYNC_STATE_FILE);
@@ -77,6 +136,26 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
     syncedAt: new Date().toISOString()
   };
 
+  // The collection is <root>/<appId>/<profile>/. Recreate the chain in case
+  // it was removed on the server, then check the collection is ours before
+  // writing anything into it.
+  await ensureDavFolder(
+    { ...config, baseUrl: config.rootUrl },
+    APP_CONFIG.BACKUP_APP_ID,
+    config.profile
+  );
+  const marker = await loadCollectionMarker(config);
+  if (marker) {
+    assertCollectionOwnership(marker, config);
+  } else {
+    // Fresh collection: claim it by recording who owns it.
+    const fresh: CollectionMarker = {
+      appId: APP_CONFIG.BACKUP_APP_ID,
+      profile: config.profile,
+      createdAt: new Date().toISOString()
+    };
+    await putDavFile(config, APP_CONFIG.BACKUP_COLLECTION_FILE, JSON.stringify(fresh));
+  }
   await ensureDavFolder(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER);
   await ensureDavFolder(config, APP_CONFIG.BACKUP_STREAMS_FOLDER);
   const remoteState = await loadRemoteSyncState(config);
@@ -256,6 +335,12 @@ async function pullBackup(
     skippedStreams: 0,
     errors: []
   };
+
+  // Never restore from a collection owned by another profile or app: its
+  // index would list activities that are not ours. A collection without a
+  // marker is restored from as-is (it predates the marker).
+  const marker = await loadCollectionMarker(config);
+  if (marker) assertCollectionOwnership(marker, config);
 
   const remoteState = await loadRemoteSyncState(config);
   const remoteActivities = Object.keys(remoteState.activityMd5 ?? {});

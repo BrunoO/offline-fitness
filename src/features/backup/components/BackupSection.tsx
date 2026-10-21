@@ -1,3 +1,4 @@
+import { APP_CONFIG } from '@/constants';
 import { blueGrey300, gray100, gray800 } from '@/constants/colors';
 import { compareActivitiesByUtcDesc, simpleLogger } from '@/shared';
 import * as Storage from '@/shared/services/storage';
@@ -5,7 +6,7 @@ import { useActivitiesDataContext } from '@/features/activities';
 import React from 'react';
 import { Alert, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { RestoreSummary, SyncProgress, pullBackupNow, pushBackupNow } from '../services/backupSync';
-import { useWebDavBackup } from '../services/webdavAuth';
+import { useWebDavBackup, validateProfile } from '../services/webdavAuth';
 
 function formatLastSync(isoString: string): string {
   if (!isoString) return 'Never synced';
@@ -15,19 +16,27 @@ function formatLastSync(isoString: string): string {
 
 /**
  * WebDAV backup controls for the drawer. Unconfigured: a small form for
- * the server collection URL, username and password, validated with a
- * PROPFIND before being saved. Configured: manual push-only "Sync now"
- * plus disconnect. No automatic syncing happens.
+ * the server account URL, username, password and profile name, validated
+ * with a PROPFIND before being saved. Configured: manual "Sync now" and
+ * "Restore" plus disconnect. No automatic syncing happens.
  */
 export function BackupSection() {
   const colorScheme = useColorScheme();
-  const { isConfigured, baseUrl, username, connect, retrieveConnection, disconnect } =
-    useWebDavBackup();
+  const {
+    isConfigured,
+    username,
+    profile,
+    collectionUrl,
+    connect,
+    retrieveConnection,
+    disconnect
+  } = useWebDavBackup();
   const { setGlobalActivities, setTotalActivitiesStored } = useActivitiesDataContext();
 
   const [serverUrl, setServerUrl] = React.useState('');
   const [serverUser, setServerUser] = React.useState('');
   const [serverPassword, setServerPassword] = React.useState('');
+  const [profileName, setProfileName] = React.useState('');
   const [isTesting, setTesting] = React.useState(false);
   const [isSyncing, setSyncing] = React.useState(false);
   const [isRestoring, setRestoring] = React.useState(false);
@@ -50,10 +59,18 @@ export function BackupSection() {
       setStatus('Server URL, username and password are all required.');
       return;
     }
+    const profileError = validateProfile(profileName);
+    if (profileError) {
+      setStatus(profileError);
+      return;
+    }
     setTesting(true);
     setStatus('Testing connection…');
     try {
-      await connect({ baseUrl: serverUrl.trim(), username: serverUser.trim() }, serverPassword);
+      await connect(
+        { rootUrl: serverUrl.trim(), username: serverUser.trim(), profile: profileName.trim() },
+        serverPassword
+      );
       setServerPassword('');
       setStatus('Connected.');
     } catch (error) {
@@ -190,7 +207,7 @@ export function BackupSection() {
       <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
         <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
         <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
-          Server URL of the backup folder (e.g. Nextcloud:
+          Account URL of your WebDAV server (e.g. Nextcloud:
           https://host:8080/remote.php/dav/files/USER/), plus username and password (app password
           recommended).
         </Text>
@@ -223,6 +240,20 @@ export function BackupSection() {
           value={serverPassword}
           onChangeText={setServerPassword}
         />
+        <TextInput
+          style={inputStyle}
+          placeholder="Profile name (e.g. your name)"
+          placeholderTextColor={mutedColor}
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={profileName}
+          onChangeText={setProfileName}
+        />
+        <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
+          Your backup goes to {APP_CONFIG.BACKUP_APP_ID}/{profileName.trim() || '<profile>'}. Use
+          the same profile name on all your devices; people sharing one server account each pick
+          their own.
+        </Text>
         <TouchableOpacity onPress={handleConnect} disabled={isTesting} style={buttonStyle}>
           <Text style={{ color: textColor }}>{isTesting ? 'Testing…' : 'Connect'}</Text>
         </TouchableOpacity>
@@ -239,7 +270,10 @@ export function BackupSection() {
     <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
       <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
       <Text style={{ color: mutedColor, fontSize: 12 }} numberOfLines={1}>
-        {baseUrl} ({username})
+        {username} · {profile}
+      </Text>
+      <Text style={{ color: mutedColor, fontSize: 12, marginBottom: 4 }} numberOfLines={2}>
+        {collectionUrl}
       </Text>
       <Text style={{ color: mutedColor, marginBottom: 8 }}>{formatLastSync(lastSync)}</Text>
       <TouchableOpacity

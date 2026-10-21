@@ -2,11 +2,12 @@ import { simpleLogger } from '@/shared/services/SimpleLogger';
 
 /**
  * Minimal RFC 4918 WebDAV transport over fetch: PROPFIND (connection test),
- * MKCOL (folders), PUT (upload/overwrite), GET (download). Deliberately
- * provider-neutral so the same code works against Nextcloud, rclone serve
- * webdav, Apache mod_dav, or a NAS. The server URL is expected to be the
- * full collection root (for Nextcloud:
- * https://host/remote.php/dav/files/<user>/).
+ * MKCOL (folders), PUT (upload/overwrite), GET (download), DELETE (removal).
+ * Deliberately provider-neutral so the same code works against Nextcloud,
+ * rclone serve webdav, Apache mod_dav, or a NAS. The server URL is expected
+ * to be the account root (for Nextcloud:
+ * https://host/remote.php/dav/files/<user>/); the app composes the
+ * collection below it (see webdavAuth.ts).
  */
 
 export class WebDavTransportError extends Error {
@@ -19,7 +20,12 @@ export class WebDavTransportError extends Error {
 }
 
 export interface WebDavConfig {
+  /** Collection URL every file operation is relative to. */
   baseUrl: string;
+  /** Account root as entered by the user; the collection lives below it. */
+  rootUrl: string;
+  /** Athlete label identifying the collection. */
+  profile: string;
   username: string;
   password: string;
 }
@@ -97,16 +103,24 @@ export async function testDavConnection(config: WebDavConfig): Promise<void> {
 }
 
 /**
- * Creates a collection (folder). 405 Method Not Allowed means it already
- * exists, which is the desired end state, so it is not an error.
+ * Creates a collection (folder) and, for several segments, every parent
+ * level first — servers reject a nested MKCOL whose parent is missing.
+ * 405 (or 301) means the collection already exists, which is the desired
+ * end state, so it is not an error.
  */
-export async function ensureDavFolder(config: WebDavConfig, name: string): Promise<void> {
-  try {
-    await davRequest(config, davUrl(config.baseUrl, name) + '/', 'MKCOL');
-    simpleLogger.log('Created WebDAV folder', { name });
-  } catch (error) {
-    if (error instanceof WebDavTransportError && error.status === 405) return;
-    throw error;
+export async function ensureDavFolder(config: WebDavConfig, ...segments: string[]): Promise<void> {
+  let current = config.baseUrl.replace(/\/+$/, '');
+  for (const segment of segments) {
+    current = davUrl(current, segment);
+    try {
+      await davRequest(config, current + '/', 'MKCOL');
+      simpleLogger.log('Created WebDAV folder', { path: current });
+    } catch (error) {
+      if (error instanceof WebDavTransportError && (error.status === 405 || error.status === 301)) {
+        continue; // already there
+      }
+      throw error;
+    }
   }
 }
 

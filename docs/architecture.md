@@ -14,6 +14,37 @@ This document describes the system architecture of the Offline Fitness applicati
 
 5. **Clean Architecture Layers**: Clear separation between UI components, business logic services, and data management.
 
+## WebDAV backup layout
+
+The backup feature stores every file below a per-app, per-athlete collection, so
+that two apps — or two athletes sharing one server account — never write into the
+same folder:
+
+```
+<account root>/               e.g. https://host/remote.php/dav/files/<user>/
+  offline-fitness/            app id, fixed in code (APP_CONFIG.BACKUP_APP_ID)
+    <profile>/                athlete label, chosen by the user (required)
+      collection.json         app id + profile that own this folder
+      activities/<id>.json    activity JSON
+      streams/<id>.json       stream JSON
+      sync-state.json         md5 index + deletion tombstones
+```
+
+- The user types the **account root**; the app composes the collection from it
+  (`collectionUrlFor()` in `services/webdavAuth.ts`).
+- The **profile** identifies the athlete, not the device: the same person on two
+  phones uses the same label, so they share one backup and a restore onto a new
+  phone finds the old phone's data. People sharing one account each pick their
+  own label. The label is required and restricted to letters, digits, dots,
+  dashes and underscores.
+- `collection.json` is written on the first sync and verified on every later
+  push and restore. A folder owned by another app id or profile is refused
+  rather than mixed — this is what stops two athletes who picked the same
+  default label from sharing one index (the index lists every activity id, so a
+  shared one would restore the wrong activities).
+- The app id must stay stable across releases: renaming it would orphan every
+  backup written under the old name.
+
 ## System Overview
 
 ```mermaid
@@ -52,7 +83,7 @@ graph TB
 
     %% Data Flow
     StravaArchive -->|"ZIP reader<br/>(strava-import)"| GlobalState
-    GlobalState -->|"Manual push"| WebDav
+    GlobalState -->|"Manual push / restore"| WebDav
     GlobalState -->|"Store"| LocalStorage
     GlobalState -->|"Cache"| StreamCache
     GlobalState -->|"Activities"| DrawerNav

@@ -1,5 +1,5 @@
 // Backup Feature - Public API
-// WebDAV mirror of local activities and streams (manual push only).
+// WebDAV mirror of local activities and streams (manual push and restore).
 
 // Services
 export {
@@ -12,9 +12,11 @@ export {
 } from './services/webdavTransport';
 export {
   clearWebDavConfig,
+  collectionUrlFor,
   loadWebDavConfig,
   saveWebDavConfig,
   useWebDavBackup,
+  validateProfile,
   type WebDavBackupHook
 } from './services/webdavAuth';
 export {

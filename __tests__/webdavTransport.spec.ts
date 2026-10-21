@@ -9,7 +9,9 @@ import {
 } from '@/features/backup/services/webdavTransport';
 
 const CONFIG = {
-  baseUrl: 'https://cloud.example.com/remote.php/dav/files/testuser',
+  baseUrl: 'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser',
+  rootUrl: 'https://cloud.example.com/remote.php/dav/files/testuser',
+  profile: 'testuser',
   username: 'testuser',
   password: 'app-password'
 } as const;
@@ -52,7 +54,9 @@ describe('webdavTransport', () => {
     await testDavConnection(CONFIG);
 
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-    expect(String(url)).toBe('https://cloud.example.com/remote.php/dav/files/testuser/');
+    expect(String(url)).toBe(
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/'
+    );
     expect(init.method).toBe('PROPFIND');
     expect(init.headers.Depth).toBe('0');
     expect(init.headers.Authorization).toBe(
@@ -67,7 +71,7 @@ describe('webdavTransport', () => {
 
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(String(url)).toBe(
-      'https://cloud.example.com/remote.php/dav/files/testuser/activities/'
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/activities/'
     );
     expect(init.method).toBe('MKCOL');
   });
@@ -94,7 +98,7 @@ describe('webdavTransport', () => {
 
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(String(url)).toBe(
-      'https://cloud.example.com/remote.php/dav/files/testuser/activities/9.json'
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/activities/9.json'
     );
     expect(init.method).toBe('PUT');
     expect(init.body).toBe('{"id":9}');
@@ -108,7 +112,7 @@ describe('webdavTransport', () => {
     expect(content).toBe('{"syncedAt":"x"}');
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(String(url)).toBe(
-      'https://cloud.example.com/remote.php/dav/files/testuser/sync-state.json'
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/sync-state.json'
     );
     expect(init.method).toBe('GET');
   });
@@ -120,7 +124,7 @@ describe('webdavTransport', () => {
 
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(String(url)).toBe(
-      'https://cloud.example.com/remote.php/dav/files/testuser/activities/1.json'
+      'https://cloud.example.com/remote.php/dav/files/testuser/offline-fitness/testuser/activities/1.json'
     );
     expect(init.method).toBe('DELETE');
   });

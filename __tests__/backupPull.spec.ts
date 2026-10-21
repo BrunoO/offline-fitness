@@ -76,7 +76,13 @@ const RealTransportError = jest.requireActual('@/features/backup/services/webdav
   mockTransport as unknown as { WebDavTransportError: typeof RealTransportError }
 ).WebDavTransportError = RealTransportError;
 
-const CONFIG = { baseUrl: 'https://x/dav', username: 'u', password: 'p' };
+const CONFIG = {
+  baseUrl: 'https://x/dav/offline-fitness/tester',
+  rootUrl: 'https://x/dav',
+  profile: 'tester',
+  username: 'u',
+  password: 'p'
+};
 
 function makeActivity(id: string): Activity {
   return { id, name: `A${id}` } as unknown as Activity;
