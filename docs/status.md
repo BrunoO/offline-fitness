@@ -670,3 +670,34 @@ A comprehensive code review was performed, covering technical debt, architecture
   - Removed the stale reference to `get_sonarqube_measures.sh` (not copied) and updated the `--path-contains` example to `src/features` for this codebase layout.
   - Added `sonar-results/` to `.gitignore` so script outputs are not committed.
 - Verified with `bash -n`, `--help`, and a cwd-independent smoke run. Scripts require `SONARQUBE_TOKEN` (or `--token`), plus `curl` and `jq`.
+
+## ESLint Correctness Gate - 2026-10-21
+
+- Closed the enforcement gap that let the Sonar bug classes recur: enabled type-aware linting (`parserOptions.projectService` on the TS block) and added rules mirroring the Sonar findings:
+  - `@typescript-eslint/no-floating-promises: error` (Sonar S9383, 12 MAJOR bugs) — currently surfaces 14 open errors across 10 files, including 2 new ones in `scripts/strava-import-tool/seed.ts`; these are the same sites as the Sonar bug list and the ongoing refactor touches several of them.
+  - `@typescript-eslint/require-array-sort-compare: ['error', { ignoreStringArrays: true }]` (Sonar S2871 sort bugs) — zero violations repo-wide: the remaining `.sort()` calls (`streaks.ts` etc.) sort ISO-format strings where lexical order is correct, which `ignoreStringArrays` deliberately allows; verified the rule does fire for number/object arrays.
+  - `complexity: warn @ 15` and `no-await-in-loop: warn` as visibility gates (9 + 21 warnings today, non-blocking).
+- Notes: `@typescript-eslint/no-await-in-loop` doesn't exist in the installed typescript-eslint 8.x line, so the core ESLint rule is used. Do not re-register the `@typescript-eslint` plugin key in `eslint.config.mjs` — `eslint-config-expo` already provides one (8.67) and flat config errors on redefinition; the type-aware rules resolve through it.
+
+## Sonar Scan Fix - 2026-10-21
+
+- Removed `sonar.testExecutionReportPaths=coverage/test-reporter.xml` from `sonar-project.properties`: nothing in the toolchain generates Sonar's generic test-execution XML, and a declared path that fails to parse aborts the whole local scan (`Scanner engine failed with code 1`). Added a comment so the reference isn't reintroduced blindly. If test metrics are wanted later, wire up `jest-sonar-reporter` and declare the path again.
+- Coverage in Sonar still works via `sonar.javascript.lcov.reportPaths=coverage/lcov.info` (a missing or empty lcov is tolerated by the scanner; run `npx jest --coverage` before scanning to feed it).
+
+## Sonar Quick Fixes - 2026-10-21
+
+- `fetchAndStoreStreams.loadMostRecentStream`: gave the `reduce()` an explicit initial value (`jsonFiles[0]`) to clear Sonar S6959 (MAJOR) — the empty-folder guard already prevented the crash, but the initial value makes the fold provably safe and rule-clean.
+- `App.tsx`: suppressed Sonar S3863 / ESLint `import/no-duplicates` on the `react-native-gesture-handler` side-effect + named import pair with `NOSONAR` comments and scoped `eslint-disable-next-line`s — merging these imports is forbidden by AGENTS.md (side-effect import must stay first and separate), so the tools are aligned with the documented pattern instead of nagging against it.
+
+## Floating Promises Cleared - 2026-10-21
+
+- Fixed all 14 `@typescript-eslint/no-floating-promises` errors so the new lint gate starts green (also clears the 13 Sonar S9383 MAJOR bugs):
+  - `void` marker where the callee provably never rejects (own try/catch, best-effort by design): `App.tsx` splash calls, `ThemeProvider.loadPalette`, `ActivityAnalysisView.loadStream/handleExport`, `HomeScreen.fetchData/updateStreamStatus`, `useLocationPermission.ensurePermissionAsync`, `seed.ts` interim `writeState(false)` (already swallows its own failures).
+  - `.catch(log)` where a rejection would have been silently lost: `App.tsx` activity reload, `DetailsScreen` stream-file delete + no-stream ids load, `MapsScreen.web` stream load, `StatsTabSettingsContext.loadSettings` (also exits the loading state on failure so the UI cannot hang).
+
+## Sort Comparator Policy - 2026-10-21
+
+- Resolved the Sonar S2871 CRITICAL sort backlog: added explicit `(a, b) => a.localeCompare(b)` comparators to all 10 flagged `.sort()` calls (`streaks.ts` x3, `ActivityCalendarPeriod`, `HomeScreen` x2, Recent Months/Weeks/Years screens, `YTDStatsComponent`).
+- Chose `localeCompare` deliberately: a plain `<`/`>` comparator would satisfy ESLint but NOT Sonar, whose string-array variant of S2871 specifically requires locale-aware comparison. For the values actually sorted here (ASCII ISO date/week keys and PascalCase Strava type ids) localeCompare yields the same order as the previous default sort, so behavior is unchanged — verified by the existing streaks/stats test suites (389 pass).
+- The comparator also removes the silent trap: if these arrays ever hold non-string values, TypeScript rejects the call instead of alphabetising numbers unnoticed.
+- Remaining bare `.sort()` calls are test-only (sorting expected-value string literals) and stay.
