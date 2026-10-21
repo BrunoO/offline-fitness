@@ -68,6 +68,30 @@ Notes:
 - `.fit` and `.tcx` tracks are not parsed yet — those activities are imported without a map.
 - Activities that exist only on the device are never removed by an import.
 
+### From a computer instead (for large archives)
+
+A full archive (~1 GB, 2,000+ tracks) is heavy work for a phone. The desktop tool converts the
+same archive and writes it **directly into your WebDAV backup collection**, so the phone only
+has to fill itself with *Restore*:
+
+```bash
+# Preview without any network access:
+npm run tool:seed -- import --archive export.zip \
+  --root https://host/remote.php/dav/files/<user>/ \
+  --user <user> --profile <label> --tz <phone timezone, e.g. Europe/Paris> --dry-run
+
+# Upload (password on stdin — the tool refuses it as a flag, and there is STRAVA_IMPORT_PASSWORD):
+echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
+  --root ... --user ... --profile ... --tz ... --password-stdin
+```
+
+`--root`, `--user` and `--profile` are exactly what the phone's Backup screen shows; a mismatch
+is refused before anything uploads. The run is idempotent and resumable — re-running skips what
+the server already has. Then on the phone: drawer → **Backup** → **Restore**.
+
+`npm run tool:seed -- status ...` reports what a collection currently holds, and
+`docs/desktop-import-plan.md` describes the layout contract.
+
 ## Activity type merging
 
 Strava files an e-bike ride as `EBikeRide` and a hike as `Hike`, as types of their own,

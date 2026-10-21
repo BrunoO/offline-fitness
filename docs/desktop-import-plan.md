@@ -1,6 +1,6 @@
 # Desktop Strava Import Tool — Implementation Plan
 
-**Status:** Phase 0 complete (portable import core extracted and guarded). Phases 1–3 not started.
+**Status:** Phases 0 and 1 complete (portable core + desktop CLI). Phase 2 (cheap phone restore) and Phase 3 (verification) not started.
 
 **Goal:** convert a Strava data-export ZIP into a WebDAV backup collection **on a computer**, so the
 phone never runs the import. The phone only ever runs *Restore* to fill itself.
@@ -58,8 +58,8 @@ batch; `backupSync.ts:461`).
 | `strava-import/services/textDecode.ts` | ✅ | pure |
 | `strava-import/services/activityMapper.ts` | ✅ | (was: `week_of_year` via the `@/shared` barrel — repointed to `@/shared/utils/utils` in Phase 0) |
 | `strava-import/services/zipReader.ts` | ✅ | (Phase 0 split: the expo-backed `createFileByteSource` moved to `services/expoByteSource.ts`; the reader talks only to the `ByteSource` seam) |
-| `backup/services/webdavTransport.ts` | ⚠️ | `fetch`/`btoa`/`AbortController` exist in Node 18+, and `PUT`/`GET` are already binary-aware (`Uint8Array` → `application/octet-stream`, `getDavFileBytes`); only `simpleLogger` (react-native `Platform`) needs a shim |
-| `backup/services/backupSync.ts` | ❌ | AsyncStorage + expo `File` + `expo-crypto`; the tool gets its own orchestrator |
+| `backup/services/webdavTransport.ts` | ✅ | Phase 1 removed the last edge: `SimpleLogger` no longer imports `react-native` (its web console-echo checks `document` — Hermes aliases `window` on native). `fetch`/`btoa`/`AbortController` exist in Node 18+, and PUT/GET are byte-aware (`Uint8Array` → `application/octet-stream`, `getDavFileBytes`). The tool wraps it in an injectable `DavClient`. |
+| `backup/services/backupSync.ts` | ❌ | AsyncStorage + expo `File` + `expo-crypto`; the tool's orchestrator is `seed.ts`, mirroring `pushBackup`'s semantics against the same transport |
 
 The core graph (`csvParser`, `gpxParser`, `textDecode`, `activityMapper`, `zipReader`,
 `import.types`, `streamCodec` + the utils/types they reach) is guarded against re-coupling by
@@ -71,9 +71,11 @@ wrote `"(GMT+01:00) Europe/Paris"`. **Display never parses that field** (`local_
 source of truth), so it is cosmetic — but a mixed collection would show both shapes, and the tool
 should write the same shape the app writes to stay byte-comparable.
 
-Node runtime: `tsx` (reads the existing tsconfig `paths`) or an esbuild bundle. `papaparse` and
-`pako` are already pure-JS deps. md5: `crypto.createHash('md5').update(bytes).digest('hex')` —
-identical to expo-crypto's hex output.
+Node runtime: `tsx` (a devDependency since Phase 1; reads the existing tsconfig `paths`). md5:
+`crypto.createHash('md5').update(content).digest('hex')` — identical to expo-crypto's hex output for
+both strings (UTF-8 bytes) and raw buffers. One CJS interop caveat: **pako@1 has no static named
+exports**, so modules on the Node path must `import pako` and destructure (named imports throw under
+Node ESM while Metro never notices).
 
 ---
 
@@ -97,23 +99,24 @@ What landed:
    `react-native` import is injected into the graph.
 6. Everything stayed under `src/`; no test expectation changed; `jest-expo` still runs all of it.
 
-### Phase 1 — the desktop CLI (~1–2 days)
-`scripts/strava-import-tool/` with `import`, `status`, and later `verify`:
+### Phase 1 — the desktop CLI ✅ done
+`scripts/strava-import-tool/` (`npm run tool:seed`), commands `import`, `status`, `help`:
 
 ```
-strava-import import --archive <zip> --root <url> --user <u> --profile <name> [--tz Europe/Paris]
+npm run tool:seed -- import --archive export.zip --root <account-root-url> \
+  --user <u> --profile <label> --tz <phone IANA zone> [--concurrency 8] [--dry-run] [--password-stdin]
 ```
 
-- `--password-stdin` (or an env var) — never a CLI arg, it leaks through `ps`.
-- **`--tz` is mandatory-ish**: local dates come from the *computer's* zone, and a wrong zone silently
-  moves activities across day/week/year buckets and breaks streaks. Refuse to run unless the zone is
-  given, or explicitly defaults to the phone's (not the laptop's) zone.
-- Idempotent: read remote `sync-state.json` first, skip anything whose md5 matches, merge `deletedAt`.
-- Order: claim `collection.json` → `ensureDavFolder` per level → activities → streams → state last.
-- Upload with ~8-way parallel `PUT` (sequential 4,148 requests on a LAN is minutes; parallel is seconds).
-- Report a summary in the app's terms: imported / skipped / no-track / unsupported (.fit/.tcx) / failed.
-- Credentials: the tool reads the same server URL/username/profile the user types into the drawer
-  (phone → drawer → Backup screen shows the resolved collection URL).
+What shipped as planned, plus the deltas that mattered:
+
+- Password via `--password-stdin` or `STRAVA_IMPORT_PASSWORD` only — never a flag (argv leaks through `ps`). `--dry-run` needs no credentials and makes zero network calls.
+- `--tz` is required for `import` and **verified at runtime**: the process zone is pinned, then `Intl` is asked whether the pin took (Node honours it; jest's vm context does not — the tool's tests seed with the ambient zone and compute expected dates with `Intl` instead). On mismatch the error tells the user to relaunch with `TZ=` in the environment.
+- The `WebDAVConfig` is built from the flags (`buildConfig` mirrors `collectionUrlFor`/`validateProfile`, with a keep-in-step comment); the user reads root/username/profile off the phone's Backup screen.
+- Uploads run through an injectable `DavClient` interface wrapping the app's own `webdavTransport` (~8-way parallel via a worker pool over the queue).
+- Order: `ensureFolders` → claim/verify `collection.json` → activities + streams (md5-skip against the remote state) → `sync-state.json` **last** → re-runs are idempotent; `deletedAt` merged and honored; a corrupt archive aborts after 10 consecutive read failures.
+- `status` prints owner, layout version, index counts and last sync from a live collection.
+- Enablers that became part of the core: `SimpleLogger` lost its `react-native` import (the transport's last platform edge), pure ZIP-entry-name helpers moved to `entryNames.ts`, `trackBoundingBox` moved into `gpxParser.ts`, and `zipReader` switched to `import pako` + destructure for Node-ESM interop (pako@1 has no static named exports). The portability guard covers all of it plus the tool modules.
+
 
 ### Phase 2 — make the restore cheap on the phone (~1–2 days)
 The desktop tool alone is a real UX win (the phone stops parsing and stops copying a gigabyte) but the

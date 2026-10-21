@@ -26,15 +26,37 @@ const CORE_FILES = new Set([
   'src/features/strava-import/services/gpxParser.ts',
   'src/features/strava-import/services/textDecode.ts',
   'src/features/strava-import/services/activityMapper.ts',
+  'src/features/strava-import/services/entryNames.ts',
   'src/features/strava-import/services/zipReader.ts',
   'src/features/strava-import/types/import.types.ts',
   'src/shared/services/streamCodec.ts',
+  'src/shared/services/SimpleLogger.ts',
   'src/shared/utils/utils.ts',
   'src/shared/utils/activityDates.ts',
-  'src/shared/types/types.ts'
+  'src/shared/types/types.ts',
+  'src/features/backup/services/webdavTransport.ts',
+  // Literal configuration only — the tool reads the app id, folder names and
+  // schema version from here rather than duplicating them, so this module is
+  // part of the portable graph too.
+  'src/constants/index.ts',
+  // The desktop tool itself: it runs on Node, so the same rule that keeps the
+  // core platform-free keeps the tool's modules free of anything the core
+  // cannot load. A violation here breaks the tool at run time, not compile
+  // time, which is exactly what the guard exists to prevent.
+  'scripts/strava-import-tool/state.ts',
+  'scripts/strava-import-tool/timezone.ts',
+  'scripts/strava-import-tool/nodeSource.ts',
+  'scripts/strava-import-tool/client.ts',
+  'scripts/strava-import-tool/args.ts',
+  'scripts/strava-import-tool/seed.ts',
+  'scripts/strava-import-tool/cli.ts'
 ]);
 
-/** npm packages whose code runs identically in Node and Hermes. */
+/**
+ * npm packages whose code runs identically in Node and Hermes. `node:`-prefixed
+ * builtins are allowed separately: only the desktop tool uses them, and Node
+ * compatibility is the whole point of the seam.
+ */
 const PURE_PACKAGES = new Set(['papaparse', 'pako']);
 
 interface ImportStatement {
@@ -58,10 +80,23 @@ function extractImports(source: string): ImportStatement[] {
 
 /** Resolve an import specifier to a repo-relative file path, or null for packages. */
 function resolveToLocal(fromFile: string, specifier: string): string | null {
+  const asFile = (candidate: string): string | undefined => {
+    const absolute = path.join(REPO_ROOT, candidate);
+    try {
+      return fs.statSync(absolute).isFile() ? candidate : undefined;
+    } catch {
+      return undefined;
+    }
+  };
   const candidates = (base: string) =>
-    ['', '.ts', '.tsx']
-      .map(extension => path.normalize(base + extension))
-      .find(candidate => fs.existsSync(path.join(REPO_ROOT, candidate)));
+    [
+      `${base}.ts`,
+      `${base}.tsx`,
+      path.posix.join(base, 'index.ts'),
+      path.posix.join(base, 'index.tsx'),
+      base
+    ].map(asFile)
+      .find(Boolean);
 
   if (specifier.startsWith('.')) {
     return candidates(path.join(path.dirname(fromFile), specifier)) ?? specifier;
@@ -84,6 +119,7 @@ describe('portable import core (desktop tool, Phase 0)', () => {
       .map(statement => {
         const resolved = resolveToLocal(relative, statement.specifier);
         if (resolved === null) {
+          if (statement.specifier.startsWith('node:')) return null; // Node builtin (tool adapters only)
           // Sub-path imports (`pako/dist/...`) count by their package root.
           const packageName = statement.specifier.startsWith('@')
             ? statement.specifier.split('/').slice(0, 2).join('/')
@@ -117,8 +153,12 @@ describe('portable import core (desktop tool, Phase 0)', () => {
     }
   });
 
-  it('has no barrel imports (the RN-dragging `@/shared`, `@/constants`, `@/features`, `@/theme`)', () => {
-    const barrels = ['@/shared', '@/constants', '@/theme', '@/features'];
+  it('has no barrel imports (the RN-dragging `@/shared`, `@/features`, `@/theme`)', () => {
+    // `@/constants` is deliberately NOT on this list: unlike the shared and
+    // feature barrels it re-exports nothing but literal data, and the desktop
+    // tool must read `APP_CONFIG` from it rather than duplicate the folder
+    // names and schema version (the two things that must never drift).
+    const barrels = ['@/shared', '@/features', '@/theme'];
     for (const relative of CORE_FILES) {
       const source = fs.readFileSync(path.join(REPO_ROOT, relative), 'utf8');
       for (const { specifier } of extractImports(source)) {

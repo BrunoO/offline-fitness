@@ -1,5 +1,10 @@
-import { inflateRaw, ungzip } from 'pako';
+// Default import with destructuring, not `import { inflateRaw }`: pako@1 is
+// CommonJS without static named exports, so a named import fails under the
+// desktop tool's Node-ESM runtime (Metro and babel interop never noticed).
+import pako from 'pako';
 import { ByteSource, ZipEntryInfo } from '../types/import.types';
+
+const { inflateRaw, ungzip } = pako;
 
 /**
  * Minimal random-access ZIP reader.

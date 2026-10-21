@@ -24,8 +24,9 @@ import {
 } from '../types/import.types';
 import { deviceTimezoneLabel, repairDistanceUnit, rowToActivity } from './activityMapper';
 import { mapActivityType, parseActivitiesCsv } from './csvParser';
+import { baseNameOf, isUnsupportedTrack, normalizeEntryPath } from './entryNames';
 import { createFileByteSource } from './expoByteSource';
-import { parseGpx, toStreamSet } from './gpxParser';
+import { parseGpx, toStreamSet, trackBoundingBox } from './gpxParser';
 import { decodeUtf8 } from './textDecode';
 import { gunzipEntry, isGzip, isZip, readZipEntries, readZipEntry } from './zipReader';
 
@@ -67,9 +68,6 @@ const SLOW_TRACK_MS = 3000;
  */
 const MAX_CONSECUTIVE_READ_FAILURES = 10;
 
-/** Track formats present in exports that this importer does not parse yet. */
-const UNSUPPORTED_TRACK_EXTENSIONS = ['.fit', '.fit.gz', '.tcx', '.tcx.gz'];
-
 /** Lets the UI start the picker without knowing the details. */
 export async function pickStravaExportFile(): Promise<File | null> {
   const result = await File.pickFileAsync({
@@ -77,21 +75,6 @@ export async function pickStravaExportFile(): Promise<File | null> {
   });
   if (result.canceled || !result.result) return null;
   return result.result;
-}
-
-export function baseNameOf(entryName: string): string {
-  const normalized = entryName.replace(/\\/g, '/');
-  const index = normalized.lastIndexOf('/');
-  return (index >= 0 ? normalized.slice(index + 1) : normalized).toLowerCase();
-}
-
-export function normalizeEntryPath(value: string): string {
-  return value.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
-}
-
-export function isUnsupportedTrack(fileName: string): boolean {
-  const lower = fileName.toLowerCase();
-  return UNSUPPORTED_TRACK_EXTENSIONS.some(extension => lower.endsWith(extension));
 }
 
 function zeroTimings(): ImportTimings {
@@ -278,36 +261,6 @@ function lacksTrackFields(activity: Activity): boolean {
   if (!activity.start_latlng || activity.start_latlng.length < 2) return true;
   if (!activity.end_latlng || activity.end_latlng.length < 2) return true;
   return false;
-}
-
-/**
- * Min/max of a raw `latlng` stream.
- *
- * The bounding box used to come from `compressStreamSet(...).coordinates`, i.e.
- * the whole track was run through Ramer-Douglas-Peucker (and turned into an
- * array of `{latitude, longitude}` objects) purely to find four numbers. A
- * track's extremes are the same before and after simplification, so scanning
- * the pairs directly is both cheaper and more accurate.
- */
-function trackBoundingBox(
-  latlng: [number, number][]
-): [[number, number], [number, number]] | undefined {
-  if (latlng.length === 0) return undefined;
-  let minLat = latlng[0][0];
-  let maxLat = minLat;
-  let minLng = latlng[0][1];
-  let maxLng = minLng;
-  for (let index = 1; index < latlng.length; index++) {
-    const [lat, lng] = latlng[index];
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-    if (lng < minLng) minLng = lng;
-    if (lng > maxLng) maxLng = lng;
-  }
-  return [
-    [minLat, minLng],
-    [maxLat, maxLng]
-  ];
 }
 
 /**

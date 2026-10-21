@@ -155,6 +155,39 @@ export function toStreamSet(points: GpxPoint[]): StreamConversionResult | undefi
   };
 }
 
+/**
+ * Min/max of a raw `latlng` stream (the `[lat, lng]` pairs as `toStreamSet`
+ * produces them).
+ *
+ * The bounding box used to come from `compressStreamSet(...).coordinates`, i.e.
+ * the whole track was run through Ramer-Douglas-Peucker (and turned into an
+ * array of `{latitude, longitude}` objects) purely to find four numbers. A
+ * track's extremes are the same before and after simplification, so scanning
+ * the pairs directly is both cheaper and more accurate. Lives here (not in the
+ * importer) because the desktop tool derives the same four numbers from the
+ * same points, and the activity records must match byte for byte.
+ */
+export function trackBoundingBox(
+  latlng: [number, number][]
+): [[number, number], [number, number]] | undefined {
+  if (latlng.length === 0) return undefined;
+  let minLat = latlng[0][0];
+  let maxLat = minLat;
+  let minLng = latlng[0][1];
+  let maxLng = minLng;
+  for (let index = 1; index < latlng.length; index++) {
+    const [lat, lng] = latlng[index];
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+  return [
+    [minLat, minLng],
+    [maxLat, maxLng]
+  ];
+}
+
 /** Convenience wrapper used by the importer. */
 export function gpxToStream(xml: string): StreamConversionResult | undefined {
   return toStreamSet(parseGpx(xml).points);
