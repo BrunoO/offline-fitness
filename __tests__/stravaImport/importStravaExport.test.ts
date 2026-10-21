@@ -17,6 +17,8 @@ interface VirtualFileEntry {
 
 const mockVirtualFiles = new Map<string, VirtualFileEntry>();
 const mockVirtualDirectories = new Set<string>();
+/** Counts archive copies, so a test can prove a copy was skipped. */
+const mockCopyCount = { count: 0 };
 
 jest.mock('expo-file-system', () => {
   class VirtualDirectory {
@@ -64,6 +66,7 @@ jest.mock('expo-file-system', () => {
     }
 
     async copy(destination: VirtualFile) {
+      mockCopyCount.count += 1;
       const source = mockVirtualFiles.get(this.uri);
       if (!source) throw new Error(`File not found: ${this.uri}`);
       mockVirtualFiles.set(destination.uri, { bytes: source.bytes.slice() });
@@ -106,7 +109,8 @@ jest.mock('expo-file-system', () => {
     File: VirtualFile,
     Directory: VirtualDirectory,
     Paths: { document: 'file:///documents/', cache: 'file:///cache/' },
-    FileMode: { ReadOnly: 'r', ReadWrite: 'rw' }
+    FileMode: { ReadOnly: 'r', ReadWrite: 'rw' },
+    __mockCopyCount: mockCopyCount
   };
 });
 
@@ -211,6 +215,65 @@ describe('importStravaExport', () => {
 
   it('deletes the cached copy of the archive', () => {
     expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+  });
+
+  it('keeps and reuses the copy when a run is interrupted', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+
+    // Cancelled before pass 1 writes anything: the archive copy is kept.
+    const interrupted = await importStravaExport(pickedFile(), { shouldCancel: () => true });
+    expect(interrupted.cancelled).toBe(true);
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(true);
+
+    // The next attempt picks the same file up without copying ~1 GB again.
+    const copiesBefore = mockCopyCount.count;
+    const resumed = await importStravaExport(pickedFile());
+    expect(mockCopyCount.count).toBe(copiesBefore);
+    expect(resumed.cancelled).toBe(false);
+    expect(resumed.activitiesImported).toBe(2);
+
+    // A finished run leaves no copy behind.
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+  });
+
+  it('copies again when a different archive is picked', async () => {
+    // Leave the previous archive cached, then pick a file of another size.
+    await importStravaExport(pickedFile(), { shouldCancel: () => true });
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(true);
+
+    const other = new JSZip();
+    other.file('activities.csv', CSV);
+    other.file('activities/100.gpx', GPX);
+    other.file('activities/extra.gpx', GPX);
+    const otherBytes = await other.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+    mockVirtualFiles.set('file:///picked/export_other.zip', { bytes: otherBytes });
+
+    const copiesBefore = mockCopyCount.count;
+    const result = await importStravaExport(new File('file:///picked/', 'export_other.zip'));
+
+    expect(mockCopyCount.count).toBe(copiesBefore + 1);
+    expect(result.failedFiles).toBe(0);
+    expect(result.activitiesImported).toBe(2);
+    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+  });
+
+  it('reports a timing breakdown', () => {
+    const { timings } = summary;
+    expect(Object.values(timings).every(value => Number.isFinite(value))).toBe(true);
+    expect(timings.total).toBeGreaterThan(0);
+
+    // The measured phases are sequential slices of the same run, so they can
+    // never add up to more than the wall clock.
+    const phases =
+      timings.copyArchive +
+      timings.readDirectory +
+      timings.parseCsv +
+      timings.writeActivities +
+      timings.readTracks +
+      timings.parseTracks +
+      timings.writeStreams +
+      timings.writeTrackFields;
+    expect(phases).toBeLessThanOrEqual(timings.total);
   });
 
   it('is idempotent: a second import keeps existing streams', async () => {

@@ -43,6 +43,36 @@ export interface ImportProgress {
   currentActivityId?: string;
 }
 
+/**
+ * Where an import run spent its time, in milliseconds.
+ *
+ * Measured rather than estimated: a phone run that looks pathologically slow
+ * is nearly always waiting on a native call or standing still, not parsing, so
+ * the report separates the JavaScript work (`parseTracks`) from the file work
+ * (`readTracks`, `writeStreams`) and from the copy of the archive. `total` is
+ * the wall clock of the whole call, so whatever is left over is stall time.
+ */
+export interface ImportTimings {
+  /** Copying the picked archive into the app cache (0 when reused). */
+  copyArchive: number;
+  /** Reading the ZIP central directory. */
+  readDirectory: number;
+  /** Reading, decoding and parsing `activities.csv`. */
+  parseCsv: number;
+  /** Writing the activity records back (pass 1). */
+  writeActivities: number;
+  /** Reading track bytes out of the archive. */
+  readTracks: number;
+  /** Inflating and parsing GPX, and serialising the stream (JavaScript). */
+  parseTracks: number;
+  /** Writing stream files into the cache. */
+  writeStreams: number;
+  /** Writing track-derived fields back into the activity records. */
+  writeTrackFields: number;
+  /** Wall clock of the whole import call. */
+  total: number;
+}
+
 /** What an import run did, shown to the user when it finishes. */
 export interface ImportSummary {
   /** Activities written to local storage (inserted or updated). */
@@ -63,6 +93,8 @@ export interface ImportSummary {
   timezone: string;
   /** True when the user cancelled before the archive was fully processed. */
   cancelled: boolean;
+  /** Where the run spent its time, for diagnosing a slow import. */
+  timings: ImportTimings;
 }
 
 export interface ImportOptions {

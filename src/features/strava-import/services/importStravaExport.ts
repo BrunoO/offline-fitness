@@ -18,6 +18,7 @@ import {
   ExportedActivityRow,
   ImportOptions,
   ImportSummary,
+  ImportTimings,
   ZipEntryInfo
 } from '../types/import.types';
 import { deviceTimezoneLabel, repairDistanceUnit, rowToActivity } from './activityMapper';
@@ -41,11 +42,19 @@ import {
  * usable immediately), then each track file is converted into the stream cache
  * one at a time. Re-running an import is safe: activities are upserted by id
  * and existing stream files are never overwritten.
+ *
+ * The per-run cost on a phone is dominated by native calls, not by parsing
+ * (~13 ms of JavaScript per track), so the loop is shaped to make as few of
+ * them as possible: one directory listing instead of two file stats per
+ * activity, and one batched AsyncStorage write per batch instead of one per
+ * track. Every phase is timed into `summary.timings` so a slow run can be
+ * diagnosed from the phone itself.
  */
 
 const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
 
 const CACHE_ARCHIVE_NAME = 'strava-export-import.zip';
+const CACHE_STAMP_NAME = `${CACHE_ARCHIVE_NAME}.key`;
 const ACTIVITY_BATCH_SIZE = 100;
 const YIELD_EVERY = 25;
 
@@ -76,6 +85,20 @@ export function isUnsupportedTrack(fileName: string): boolean {
   return UNSUPPORTED_TRACK_EXTENSIONS.some(extension => lower.endsWith(extension));
 }
 
+function zeroTimings(): ImportTimings {
+  return {
+    copyArchive: 0,
+    readDirectory: 0,
+    parseCsv: 0,
+    writeActivities: 0,
+    readTracks: 0,
+    parseTracks: 0,
+    writeStreams: 0,
+    writeTrackFields: 0,
+    total: 0
+  };
+}
+
 function emptySummary(timezone: string): ImportSummary {
   return {
     activitiesImported: 0,
@@ -86,7 +109,8 @@ function emptySummary(timezone: string): ImportSummary {
     unsupportedFiles: 0,
     failedFiles: 0,
     timezone,
-    cancelled: false
+    cancelled: false,
+    timings: zeroTimings()
   };
 }
 
@@ -95,9 +119,76 @@ function yieldToUi(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-function writeNoStreamFlag(activityId: string): void {
+/**
+ * Copies the picked archive into the app cache, reusing a copy left by an
+ * interrupted run.
+ *
+ * A full export is ~1 GB, so the copy takes tens of seconds, and it used to be
+ * thrown away at the end of every attempt — an import stopped at track 1,500
+ * paid for the whole copy again. The copy is keyed by the picked file's name
+ * and size and dropped when a run completes, so a retry resumes for free while
+ * a finished import leaves no gigabyte behind.
+ */
+async function prepareArchiveCopy(pickedFile: File, timings: ImportTimings): Promise<File> {
+  const cached = new File(Paths.cache, CACHE_ARCHIVE_NAME);
+  const stamp = new File(Paths.cache, CACHE_STAMP_NAME);
+  const key = `${pickedFile.name}:${pickedFile.size}`;
+
+  const reusable =
+    cached.exists &&
+    stamp.exists &&
+    cached.size === pickedFile.size &&
+    (await stamp.text()) === key;
+  if (reusable) {
+    simpleLogger.log('Reusing the cached copy of the Strava export');
+    return cached;
+  }
+
+  if (cached.exists) cached.delete();
+  const startedAt = Date.now();
+  await pickedFile.copy(cached, { overwrite: true });
+  timings.copyArchive += Date.now() - startedAt;
+  stamp.write(key);
+  return cached;
+}
+
+/** Drops the cached archive once a run has finished with it. */
+function deleteArchiveCopy(): void {
+  try {
+    const cached = new File(Paths.cache, CACHE_ARCHIVE_NAME);
+    const stamp = new File(Paths.cache, CACHE_STAMP_NAME);
+    if (cached.exists) cached.delete();
+    if (stamp.exists) stamp.delete();
+  } catch {
+    // Best effort: the cache is reclaimable by the OS anyway.
+  }
+}
+
+/**
+ * One listing of the streams cache, instead of two file-system stats per
+ * activity. On a full export that is ~4,000 native calls replaced by one; the
+ * two sets are kept up to date as the import writes.
+ */
+function snapshotStreamCache(): { streams: Set<string>; flagged: Set<string> } {
+  const streams = new Set<string>();
+  const flagged = new Set<string>();
+  if (!streamsFolder.exists) return { streams, flagged };
+
+  for (const entry of streamsFolder.list()) {
+    if (entry.name.endsWith('.json')) {
+      streams.add(entry.name);
+    } else if (entry.name.endsWith('.nostreamflag')) {
+      flagged.add(entry.name.slice(0, -'.nostreamflag'.length));
+    }
+  }
+  return { streams, flagged };
+}
+
+function writeNoStreamFlag(activityId: string, flagged: Set<string>): void {
+  if (flagged.has(activityId)) return;
   const flagFile = new File(streamsFolder, `${activityId}.nostreamflag`);
-  if (!flagFile.exists) flagFile.write('');
+  flagFile.write('');
+  flagged.add(activityId);
 }
 
 /**
@@ -123,9 +214,11 @@ async function loadExistingActivities(): Promise<Map<string, Activity>> {
  * would keep the activity hidden by the "hide no-stream" filter and counted as
  * missing by the stream status.
  */
-function clearNoStreamFlag(activityId: string): void {
+function clearNoStreamFlag(activityId: string, flagged: Set<string>): void {
+  if (!flagged.has(activityId)) return;
   const flagFile = new File(streamsFolder, `${activityId}.nostreamflag`);
   if (flagFile.exists) flagFile.delete();
+  flagged.delete(activityId);
 }
 
 /** True when the record still misses the track-derived fields. */
@@ -144,8 +237,7 @@ function lacksTrackFields(activity: Activity): boolean {
  *
  * @returns true when the record was updated.
  */
-async function backfillTrackFields(activity: Activity): Promise<boolean> {
-  const file = new File(streamsFolder, `${activity.id}.json`);
+async function backfillTrackFields(activity: Activity, file: File): Promise<boolean> {
   if (!file.exists) return false;
   try {
     const stored = JSON.parse(await file.text()) as ActivityStreamLike;
@@ -174,22 +266,23 @@ export async function importStravaExport(
   const { onProgress, shouldCancel } = options;
   const timezone = deviceTimezoneLabel();
   const summary = emptySummary(timezone);
+  const timings = summary.timings;
   const warnings: string[] = [];
+  const startedAt = Date.now();
+  let completed = false;
 
   if (!streamsFolder.exists) {
     streamsFolder.create({ intermediates: true });
   }
 
-  const cached = new File(Paths.cache, CACHE_ARCHIVE_NAME);
   let byteSource: ReturnType<typeof createFileByteSource> | undefined;
 
   try {
     onProgress?.({ phase: 'opening', processed: 0, total: 0 });
 
     // The picker returns a content:// URI on Android; copying into the cache
-    // gives a plain file we can seek at will, then delete afterwards.
-    if (cached.exists) cached.delete();
-    await pickedFile.copy(cached, { overwrite: true });
+    // gives a plain file we can seek at will.
+    const cached = await prepareArchiveCopy(pickedFile, timings);
 
     byteSource = createFileByteSource(cached);
     const head = await byteSource.read(0, 4);
@@ -197,13 +290,18 @@ export async function importStravaExport(
       throw new Error('The selected file is not a ZIP archive');
     }
 
+    const directoryStartedAt = Date.now();
     const entries = await readZipEntries(byteSource);
+    timings.readDirectory += Date.now() - directoryStartedAt;
+
     const csvEntry = entries.find(entry => baseNameOf(entry.name) === 'activities.csv');
     if (!csvEntry) {
       throw new Error('activities.csv was not found in the archive — is this a Strava export?');
     }
 
+    const csvStartedAt = Date.now();
     const parsed = parseActivitiesCsv(decodeUtf8(await readZipEntry(byteSource, csvEntry)));
+    timings.parseCsv += Date.now() - csvStartedAt;
     warnings.push(...parsed.warnings);
     parsed.rows.forEach(row => repairDistanceUnit(row, warnings));
 
@@ -243,9 +341,11 @@ export async function importStravaExport(
     });
 
     // Pass 1 — persist every activity so the app is usable straight away.
+    const activitiesStartedAt = Date.now();
     for (let start = 0; start < activities.length; start += ACTIVITY_BATCH_SIZE) {
       if (shouldCancel?.()) {
         summary.cancelled = true;
+        timings.writeActivities += Date.now() - activitiesStartedAt;
         return summary;
       }
       const batch = activities.slice(start, start + ACTIVITY_BATCH_SIZE);
@@ -258,9 +358,23 @@ export async function importStravaExport(
       });
       await yieldToUi();
     }
+    timings.writeActivities += Date.now() - activitiesStartedAt;
 
     // Pass 2 — convert track files into streams, newest activity first.
     const ordered = [...activities].sort(compareActivitiesByUtcDesc);
+    const { streams: storedStreams, flagged } = snapshotStreamCache();
+
+    // Track-derived fields are written back in batches: one AsyncStorage call
+    // per track is a native round trip (pass 1 already showed batching is the
+    // cheaper shape), and a 100-record batch is a few hundred KB at most.
+    const pendingActivityWrites: Activity[] = [];
+    const flushActivityWrites = async (): Promise<void> => {
+      if (pendingActivityWrites.length === 0) return;
+      const batch = pendingActivityWrites.splice(0, pendingActivityWrites.length);
+      const startedFlushAt = Date.now();
+      await storeMultiActivities(batch);
+      timings.writeTrackFields += Date.now() - startedFlushAt;
+    };
 
     for (let index = 0; index < ordered.length; index++) {
       if (shouldCancel?.()) {
@@ -277,15 +391,15 @@ export async function importStravaExport(
         currentActivityId: activity.id
       });
 
-      const streamFile = new File(streamsFolder, `${activity.id}.json`);
-      if (streamFile.exists) {
+      const streamName = `${activity.id}.json`;
+      if (storedStreams.has(streamName)) {
         summary.streamsAlreadyPresent++;
         // The track is already stored, so it is not parsed again — but the
         // record may have been written without the track-derived fields (an
         // older import, or a re-import that overwrote them). Restore them
         // from the stored stream when they are missing.
         if (lacksTrackFields(activity)) {
-          await backfillTrackFields(activity);
+          await backfillTrackFields(activity, new File(streamsFolder, streamName));
         }
         continue;
       }
@@ -294,13 +408,13 @@ export async function importStravaExport(
       if (!fileName) {
         // Manual entry: no track was ever recorded, so never retry it.
         summary.activitiesWithoutFile++;
-        writeNoStreamFlag(activity.id);
+        writeNoStreamFlag(activity.id, flagged);
         continue;
       }
 
       if (isUnsupportedTrack(fileName)) {
         summary.unsupportedFiles++;
-        writeNoStreamFlag(activity.id);
+        writeNoStreamFlag(activity.id, flagged);
         continue;
       }
 
@@ -315,7 +429,11 @@ export async function importStravaExport(
       }
 
       try {
+        const readStartedAt = Date.now();
         const raw = await readZipEntry(byteSource, entry);
+        timings.readTracks += Date.now() - readStartedAt;
+
+        const parseStartedAt = Date.now();
         const gpx = parseGpx(decodeUtf8(isGzip(raw) ? gunzipEntry(raw) : raw));
 
         // The CSV type is localized; when it could not be mapped, the GPX
@@ -327,20 +445,31 @@ export async function importStravaExport(
 
         const converted = toStreamSet(gpx.points);
         if (!converted) {
+          timings.parseTracks += Date.now() - parseStartedAt;
           summary.streamsWithoutTrack++;
-          writeNoStreamFlag(activity.id);
+          writeNoStreamFlag(activity.id, flagged);
           continue;
         }
 
-        streamFile.write(JSON.stringify(converted.stream));
+        const payload = JSON.stringify(converted.stream);
+        timings.parseTracks += Date.now() - parseStartedAt;
+
+        const streamStartedAt = Date.now();
+        new File(streamsFolder, streamName).write(payload);
+        timings.writeStreams += Date.now() - streamStartedAt;
+
         // The track is stored now, so any earlier "no stream" marker is stale.
-        clearNoStreamFlag(activity.id);
+        clearNoStreamFlag(activity.id, flagged);
+        storedStreams.add(streamName);
 
         activity.start_latlng = converted.startLatLng;
         activity.end_latlng = converted.endLatLng;
         const boundingBox = calculateBoundingBox(compressStreamSet(converted.stream).coordinates);
         if (boundingBox) activity.bounding_box = boundingBox;
-        await storeActivity(activity);
+        pendingActivityWrites.push(activity);
+        if (pendingActivityWrites.length >= ACTIVITY_BATCH_SIZE) {
+          await flushActivityWrites();
+        }
 
         summary.streamsImported++;
       } catch (error) {
@@ -348,13 +477,17 @@ export async function importStravaExport(
         warnings.push(
           `Activity ${activity.id}: ${error instanceof Error ? error.message : String(error)}`
         );
-        writeNoStreamFlag(activity.id);
+        writeNoStreamFlag(activity.id, flagged);
       }
 
       if (index % YIELD_EVERY === 0) await yieldToUi();
     }
 
+    await flushActivityWrites();
     onProgress?.({ phase: 'done', processed: ordered.length, total: ordered.length });
+
+    timings.total = Date.now() - startedAt;
+    completed = true;
 
     simpleLogger.log('Strava export import finished', {
       activities: summary.activitiesImported,
@@ -364,7 +497,8 @@ export async function importStravaExport(
       unsupported: summary.unsupportedFiles,
       failed: summary.failedFiles,
       cancelled: summary.cancelled,
-      timezone: summary.timezone
+      timezone: summary.timezone,
+      timings
     });
     if (warnings.length > 0) {
       simpleLogger.warn('Strava export import warnings', warnings.slice(0, 20));
@@ -372,11 +506,10 @@ export async function importStravaExport(
 
     return summary;
   } finally {
+    timings.total = Date.now() - startedAt;
     byteSource?.close?.();
-    try {
-      if (cached.exists) cached.delete();
-    } catch {
-      // Best effort: the cache is reclaimable by the OS anyway.
-    }
+    // A completed run does not need the copy; an interrupted one keeps it so
+    // the next attempt does not pay for a ~1 GB copy again.
+    if (completed) deleteArchiveCopy();
   }
 }

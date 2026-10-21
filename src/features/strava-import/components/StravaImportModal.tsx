@@ -1,6 +1,7 @@
 import * as MyColors from '@/constants/colors';
 import { useActivitiesSyncContext } from '@/features/activities';
 import { simpleLogger } from '@/shared';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,8 +34,30 @@ type Stage = 'idle' | 'running' | 'finished' | 'failed';
 
 const STRAVA_EXPORT_URL = 'https://www.strava.com/athlete/delete_your_account';
 
+/**
+ * Keep-awake tag: the import runs on the JS thread, and Android throttles (and
+ * eventually freezes) a backgrounded app, so a screen timeout used to stall a
+ * run for minutes. The lock is taken for the duration of the import only.
+ */
+const KEEP_AWAKE_TAG = 'strava-import';
+
+/**
+ * A progress update per track is 2,000 React renders contending with the
+ * import for the JS thread. Phase changes and the final value always pass.
+ */
+const PROGRESS_INTERVAL_MS = 250;
+
 function formatNumber(value: number, singular: string, plural: string): string {
   return `${value} ${value === 1 ? singular : plural}`;
+}
+
+/** Compact duration for the timing report: `840 ms`, `12.4 s`, `3 m 05 s`. */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms} ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes} m ${String(Math.round(seconds % 60)).padStart(2, '0')} s`;
 }
 
 /** Human label for the current import phase. */
@@ -61,6 +84,22 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
+  const lastProgressAtRef = useRef(0);
+  const lastPhaseRef = useRef<ImportProgress['phase'] | null>(null);
+
+  /** Throttled progress sink: 2,000 setState calls would fight the import. */
+  const handleProgress = useCallback((next: ImportProgress) => {
+    const now = Date.now();
+    if (
+      next.phase === lastPhaseRef.current &&
+      now - lastProgressAtRef.current < PROGRESS_INTERVAL_MS
+    ) {
+      return;
+    }
+    lastPhaseRef.current = next.phase;
+    lastProgressAtRef.current = now;
+    setProgress(next);
+  }, []);
 
   const reset = useCallback(() => {
     setStage('idle');
@@ -68,6 +107,8 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
     setSummary(null);
     setError(null);
     cancelledRef.current = false;
+    lastPhaseRef.current = null;
+    lastProgressAtRef.current = 0;
   }, []);
 
   const close = useCallback(() => {
@@ -83,9 +124,16 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
     setError(null);
     setSummary(null);
     cancelledRef.current = false;
+    lastPhaseRef.current = null;
+    lastProgressAtRef.current = 0;
     setStage('running');
     setProgress({ phase: 'opening', processed: 0, total: 0 });
     const startedAt = Date.now();
+
+    // Keep the screen on for the duration: Android throttles the JS thread once
+    // the app is no longer foreground, which is what turned a few minutes of
+    // work into something that appeared to stall for a minute per track.
+    await activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
 
     try {
       const picked = await pickStravaExportFile();
@@ -98,7 +146,7 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
       simpleLogger.log('Strava export import started', { file: picked.name, size: picked.size });
 
       const result = await importStravaExport(picked, {
-        onProgress: setProgress,
+        onProgress: handleProgress,
         shouldCancel: () => cancelledRef.current
       });
 
@@ -117,8 +165,10 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
       simpleLogger.error('Strava export import failed', { message });
       setError(message);
       setStage('failed');
+    } finally {
+      void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     }
-  }, [reloadActivitiesFromLocalStorage]);
+  }, [handleProgress, reloadActivitiesFromLocalStorage]);
 
   const progressRatio =
     progress && progress.total > 0 ? Math.min(1, progress.processed / progress.total) : 0;
@@ -162,8 +212,9 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
                   <View style={[styles.progressBar, { width: `${progressRatio * 100}%` }]} />
                 </View>
                 <Text style={styles.note}>
-                  Keep the app open. A full archive takes a few minutes; imported activities are
-                  saved as they are read, so stopping early keeps what is already done.
+                  The screen stays awake while this runs. A full archive takes a few minutes;
+                  imported activities are saved as they are read, so stopping early keeps what is
+                  already done and the next attempt resumes without copying the archive again.
                 </Text>
               </>
             ) : null}
@@ -216,6 +267,14 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
                   ) : null}
                   <Text style={styles.note}>
                     Activity dates were converted using {summary.timezone}.
+                  </Text>
+                  <Text style={styles.note}>
+                    Took {formatDuration(summary.timings.total)} · archive{' '}
+                    {formatDuration(summary.timings.copyArchive)} · tracks read{' '}
+                    {formatDuration(summary.timings.readTracks)} · parse{' '}
+                    {formatDuration(summary.timings.parseTracks)} · stream writes{' '}
+                    {formatDuration(summary.timings.writeStreams)} · activity writes{' '}
+                    {formatDuration(summary.timings.writeTrackFields)}
                   </Text>
                 </View>
               </>
