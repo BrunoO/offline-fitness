@@ -59,6 +59,11 @@ function localPartsFromUtcMs(utcMs: number): LocalParts {
 /**
  * Builds the stored activity record from a CSV row.
  * `start_latlng`/`end_latlng` are filled in once the track is read.
+ *
+ * The swim `moving_time := elapsed_time` rule (see `applySwimMovingTime`) is
+ * applied here so every writer — the phone importer, the desktop tool —
+ * stores the canonical record, and the backup push's hash of the loaded
+ * version matches the file on the server.
  */
 export function rowToActivity(row: ExportedActivityRow, timezone: string): Activity {
   const local = localPartsFromUtcMs(row.startUtcMs);
@@ -82,7 +87,10 @@ export function rowToActivity(row: ExportedActivityRow, timezone: string): Activ
     start_week: week_of_year(local.year, local.month - 1, local.day),
     distance: row.distance,
     elapsed_time: row.elapsedTime,
-    moving_time: row.movingTime,
+    // Swims get the canonical moving time at write time (see applySwimMovingTime),
+    // but the key keeps its literal position either way, so the serialised record
+    // — and its backup md5 — is stable across every writer.
+    moving_time: row.type === 'Swim' ? row.elapsedTime : row.movingTime,
     type: row.type || 'Workout',
     average_speed: row.averageSpeed,
     total_elevation_gain: row.type === 'Swim' ? 0 : row.elevationGain,
@@ -92,6 +100,24 @@ export function rowToActivity(row: ExportedActivityRow, timezone: string): Activ
     end_latlng: [],
     utc_offset: local.utcOffsetSeconds
   };
+}
+
+/**
+ * Strava does not compute moving time for swimming uploads, so the archive's
+ * `Moving Time` for a swim is meaningless and `elapsed_time` is the better
+ * approximation — the same rule `loadAllActivities` applies at read time for
+ * records written before this existed.
+ *
+ * Callers must apply it wherever a record's type can become `Swim` *after*
+ * `rowToActivity` ran — the GPX `<type>` fallback in both importers — so the
+ * stored record is canonical on every path and the backup push hashes the
+ * exact bytes that are on the server instead of re-uploading its read-time
+ * version every sync (the 200-swim sync churn).
+ */
+export function applySwimMovingTime(activity: Activity): void {
+  if (activity.type === 'Swim') {
+    activity.moving_time = activity.elapsed_time;
+  }
 }
 
 /**

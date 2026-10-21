@@ -22,7 +22,12 @@ import {
   ImportTimings,
   ZipEntryInfo
 } from '../types/import.types';
-import { deviceTimezoneLabel, repairDistanceUnit, rowToActivity } from './activityMapper';
+import {
+  applySwimMovingTime,
+  deviceTimezoneLabel,
+  repairDistanceUnit,
+  rowToActivity
+} from './activityMapper';
 import { mapActivityType, parseActivitiesCsv } from './csvParser';
 import { baseNameOf, isUnsupportedTrack, normalizeEntryPath } from './entryNames';
 import { createFileByteSource } from './expoByteSource';
@@ -515,6 +520,10 @@ export async function importStravaExport(
         if (!row?.type) {
           const fromGpx = mapActivityType(undefined, gpx.type);
           if (fromGpx) activity.type = fromGpx;
+          // A swim discovered only here missed the canonical moving time in
+          // rowToActivity; re-apply so the stored record (and its backup
+          // md5) never depends on the read-time fix. No-op for other types.
+          applySwimMovingTime(activity);
         }
 
         const converted = toStreamSet(gpx.points);

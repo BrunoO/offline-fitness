@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 import JSZip from 'jszip';
 import { decodeStreamBytes, isBinaryStream } from '@/shared';
+import { loadAllActivities } from '@/shared/services/storage';
 import { importStravaExport } from '@/features/strava-import/services/importStravaExport';
 
 /**
@@ -458,5 +459,59 @@ describe('importStravaExport', () => {
     const notAZip = new File('file:///picked/', 'notes.zip');
 
     await expect(importStravaExport(notAZip)).rejects.toThrow(/not a ZIP archive/);
+  });
+});
+
+describe('importStravaExport swim canonicalisation', () => {
+  const SWIM_GPX = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="StravaGPX" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+ <trk>
+  <name>Crawl</name>
+  <type>swimming</type>
+  <trkseg>
+   <trkpt lat="44.9054280" lon="5.7898060"><ele>0</ele><time>2023-10-15T05:50:05Z</time></trkpt>
+   <trkpt lat="44.9054060" lon="5.7897890"><ele>0</ele><time>2023-10-15T05:50:35Z</time></trkpt>
+  </trkseg>
+ </trk>
+</gpx>`;
+
+  const SWIM_CSV = `Activity ID,Activity Date,Activity Name,Activity Type,Activity Description,Elapsed Time,Distance,Max Heart Rate,Relative Effort,Commute,Activity Private Note,Activity Gear,Filename,Athlete Weight,Bike Weight,Elapsed Time,Moving Time,Distance,Max Speed,Average Speed,Elevation Gain,Elevation Loss,Elevation Low,Elevation High
+500,"Oct 15, 2023, 5:50:05 AM",Crawl,Swim,,3600,1500,,,,,,activities/500.gpx,,,3600,1400,1500,0,0,0,0,0,0
+501,"Oct 15, 2023, 6:50:05 AM",Drift,Inconnu,,1200,900,,,,,,activities/501.gpx,,,1200,1000,900,0,0,0,0,0,0
+`;
+
+  beforeAll(async () => {
+    const zip = new JSZip();
+    zip.file('activities.csv', SWIM_CSV);
+    zip.file('activities/500.gpx', SWIM_GPX);
+    zip.file('activities/501.gpx', SWIM_GPX);
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await zip.generateAsync({ type: 'uint8array' }) });
+    await importStravaExport(pickedFile());
+  });
+
+  it('writes swims with moving_time = elapsed_time at write time, on both type paths', async () => {
+    const stored = new Map(await AsyncStorage.multiGet(['a_500', 'a_501']));
+    const csvSwim = JSON.parse(String(stored.get('a_500')));
+    const gpxSwim = JSON.parse(String(stored.get('a_501')));
+
+    // CSV said moving 1400 / elapsed 3600: the canonical value is stored.
+    expect(csvSwim.type).toBe('Swim');
+    expect(csvSwim.moving_time).toBe(3600);
+
+    // 'Inconnu' is unmapped; the GPX <type> made it a Swim after mapping —
+    // the fallback must re-apply the canonicalisation too, or the backup
+    // push would hash a different record than the one on the server.
+    expect(gpxSwim.type).toBe('Swim');
+    expect(gpxSwim.moving_time).toBe(1200);
+  });
+
+  it('the stored record equals what the backup push hashes (no read-time drift)', async () => {
+    const [, raw] = (await AsyncStorage.multiGet(['a_500']))[0];
+    // The push does exactly this: load through the storage layer (which still
+    // applies the legacy read-time swim fix) and re-serialise. With the
+    // canonical write the fix is a no-op, so the hash matches the file the
+    // desktop tool uploaded — the property that stops the 200-swim churn.
+    const [loaded] = await loadAllActivities(['a_500']);
+    expect(JSON.stringify(loaded)).toBe(raw);
   });
 });

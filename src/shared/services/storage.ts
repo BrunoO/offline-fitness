@@ -233,6 +233,11 @@ export const loadAllActivities = async (keys: readonly string[]): Promise<Activi
         // this is a workaround
         // they just recommend to use a watch instead of the app
         // in my case elapsed_time is a good enough approx of moving_time
+        //
+        // Since `applySwimMovingTime` the importers store this canonically,
+        // so for imported records this is a no-op that also protects the
+        // backup md5 (push hashes what it loads). It still matters for
+        // records written by older builds.
         activity.moving_time = activity.elapsed_time;
       }
       return activity;

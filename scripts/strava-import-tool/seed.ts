@@ -1,6 +1,10 @@
 import { APP_CONFIG } from '@/constants';
 import { WebDavConfig } from '@/features/backup/services/webdavTransport';
-import { repairDistanceUnit, rowToActivity } from '@/features/strava-import/services/activityMapper';
+import {
+  applySwimMovingTime,
+  repairDistanceUnit,
+  rowToActivity
+} from '@/features/strava-import/services/activityMapper';
 import { mapActivityType, parseActivitiesCsv } from '@/features/strava-import/services/csvParser';
 import {
   baseNameOf,
@@ -320,6 +324,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
             if (!row.type) {
               const fromGpx = mapActivityType(undefined, gpx.type);
               if (fromGpx) activity.type = fromGpx;
+              applySwimMovingTime(activity); // swim discovered only here (see phone importer)
             }
             const converted = toStreamSet(gpx.points);
             if (!converted) {

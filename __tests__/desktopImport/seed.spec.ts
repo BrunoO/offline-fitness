@@ -249,6 +249,45 @@ describe('seedCollection dry runs', () => {
   });
 });
 
+describe('seedCollection swim canonicalisation', () => {
+  it('uploads swims with moving_time = elapsed_time, even via the GPX type fallback', async () => {
+    // 'Inconnu' does not map to a type; the GPX <type> makes it a Swim after
+    // rowToActivity ran. The record on the server must already carry the
+    // canonical moving time — otherwise the phone's push re-hashes it (its
+    // read-time fix applies) and re-uploads those swims on every sync.
+    const swimmingGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="Strava" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+ <trk><name>Drift</name><type>swimming</type><trkseg>
+  <trkpt lat="45.5" lon="4.0"><ele>0</ele><time>2024-01-14T09:00:00Z</time></trkpt>
+  <trkpt lat="45.6" lon="4.1"><ele>0</ele><time>2024-01-14T09:10:00Z</time></trkpt>
+ </trkseg></trk>
+</gpx>`;
+    const zip = new JSZip();
+    zip.file(
+      'activities.csv',
+      [
+        CSV_HEADER,
+        '777,"Jan 14, 2024, 10:00:00",Drift,Inconnu,activities/777.gpx,1000,1200,900,0.75,0,0,0,0'
+      ].join('\n')
+    );
+    zip.file('activities/777.gpx', swimmingGpx);
+    const archivePath = await writeZipToTemp(zip);
+
+    const fake = createFakeClient();
+    await seedCollection({
+      archivePath,
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: fake.client
+    });
+
+    const activity = JSON.parse(fake.store.get('activities/777.json') as string);
+    expect(activity.type).toBe('Swim');
+    expect(activity.elapsed_time).toBe(1200);
+    expect(activity.moving_time).toBe(1200); // not the CSV's 1000
+  });
+});
+
 describe('seedCollection archive failures', () => {
   it('stops the run after 10 consecutive unreadable tracks instead of grinding', async () => {
     // Build a 12-track archive, then overwrite each track entry's LOCAL file
