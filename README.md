@@ -1,7 +1,7 @@
 # Offline Fitness
 
 Personal analytics for your own activity history — maps, statistics, streaks and a calendar,
-**entirely offline**. No account, no tracking, and your activity data never leaves the device.
+**mostly offline**. No account, no tracking, and your activity data never leaves the device.
 
 The app never talks to a server for your activity data. You import the ZIP archive that the
 Strava web UI emails you ("Download or delete your account"), and the app rebuilds the same
@@ -14,13 +14,13 @@ streaks, export, backup — runs entirely on the device.
 ## What it does
 
 - **Archive import** — pick the `.zip` and it reads `activities.csv` plus every GPX track
-  straight out of the archive. The archive is ~1 GB uncompressed, so it is never loaded whole:
-  the ZIP central directory is read first, then each entry is seeked to on demand.
+  straight out of the archive.
 - **Maps** — every track is drawn on a map, with a minimap on the home screen and a
   full-screen map view with date filtering. Tiles come from the map provider, so this is the
   only screen that needs a network connection.
 - **Statistics** — weekly/monthly/yearly totals, distance, elevation, and per-activity-type
-  breakdowns, with a configurable weekly goal and goal streaks.
+  breakdowns, with a configurable weekly goal and goal streaks. E-bike rides fold into rides
+  and hikes into walks by default — see [Activity type merging](#activity-type-merging).
 - **Calendar & streaks** — a month calendar with activity markers, day and week streaks.
 - **Similar activities** — finds other activities with a matching route (bounding-box IoU).
 - **Export** — all activities and tracks as GPX + CSV, in chunks.
@@ -43,6 +43,36 @@ Notes:
   timezone** (the archive carries no timezone column).
 - `.fit` and `.tcx` tracks are not parsed yet — those activities are imported without a map.
 - Activities that exist only on the device are never removed by an import.
+
+## Activity type merging
+
+Strava files an e-bike ride as `EBikeRide` and a hike as `Hike`, as types of their own,
+apart from `Ride` and `Walk`. The **Stats** screens fold them into their sibling by default:
+
+| Stored type | Counted under |
+|---|---|
+| `EBikeRide` | `Ride` |
+| `Hike` | `Walk` |
+
+So a ride logged on an e-bike shows up in the Ride columns and charts rather than as a
+separate near-empty row — which is usually what you want when the question is "how much
+did I bike this year".
+
+This is a **display-time fold, nothing more**. It is controlled by the *Merge Similar
+Activities* switch in the Stats screen settings (enabled by default):
+
+- The stored records and everything that reads them — the activity list, calendar, exports,
+  backups — keep the original `EBikeRide` / `Hike` types. Nothing is rewritten on disk.
+- Turn the switch off and the Stats screens show one column and one chart per original type
+  again.
+- Only the Stats screens apply the fold. Import, deduplication by activity id, and the
+  similar-route comparison work on the original types regardless.
+
+For contributors: the mapping lives in `MERGED_ACTIVITY_TYPES` in
+`src/features/activities/services/mergeActivities.ts`, and it has to be applied to the
+activity **and** the type list together — the type list drives the table columns, so a list
+that drops the source type without renaming it leaves the stats tables keying a column that
+was never initialised.
 
 ## Requirements
 
