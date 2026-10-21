@@ -49,14 +49,16 @@ function normaliseLogValue(value: unknown): SerializableLogValue {
     return value as Record<string, unknown>;
   }
 
+  if (typeof value === 'symbol') {
+    return { value: `Symbol(${value.description ?? ''})` };
+  }
+  if (typeof value === 'bigint') {
+    return { value: value.toString() };
+  }
   if (typeof value === 'function') {
     return { value: `function ${value.name}` };
   }
-
-  // Only symbol and bigint remain (object, null, Error and the primitives
-  // returned above); String() renders both without loss and can never
-  // produce '[object Object]'.
-  return { value: String(value) };
+  return { value: '[unreachable]' };
 }
 
 function serialiseLogArguments(values: unknown[]): string {
