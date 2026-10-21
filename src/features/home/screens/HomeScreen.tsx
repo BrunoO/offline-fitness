@@ -14,6 +14,9 @@ import {
   activityLocalDate,
   activityUtcMs,
   ActivityStream,
+  BACKUP_LAST_SYNC_KEY,
+  relative_time_label,
+  retrieveStringValue,
   RootDrawerParamList,
   seconds_to_label,
   simpleLogger
@@ -35,6 +38,12 @@ import { ActivityCalendarPeriod } from '../components/ActivityCalendarPeriod';
 type HomeScreenProps = {
   navigation: DrawerNavigationProp<RootDrawerParamList, 'Home'>;
 };
+
+/**
+ * A backup older than this is flagged in the header: the app never syncs by
+ * itself, so a stale timestamp means the user's only copy is the phone's.
+ */
+const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The home screen of the app.
@@ -113,11 +122,38 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
   // Archive import state
   const [importVisible, setImportVisible] = useState(false);
 
+  // When the WebDAV backup last ran, shown in the header: the app is offline
+  // and syncs only by hand, so this is the one number that says whether the
+  // data on this phone is also safe somewhere else.
+  const [backupFreshness, setBackupFreshness] = useState<{ label: string; stale: boolean }>({
+    label: 'No backup yet',
+    stale: false
+  });
+
+  const loadBackupFreshness = useCallback(async () => {
+    try {
+      const syncedAt = await retrieveStringValue(BACKUP_LAST_SYNC_KEY);
+      const ago = relative_time_label(syncedAt);
+      if (ago === null) {
+        // Never synced, or an unreadable stamp: unknown, not a warning.
+        setBackupFreshness({ label: 'No backup yet', stale: false });
+        return;
+      }
+      setBackupFreshness({
+        label: `Synced ${ago}`,
+        stale: Date.now() - Date.parse(syncedAt) > STALE_BACKUP_MS
+      });
+    } catch (error) {
+      simpleLogger.error('Could not read the last backup time:', error);
+    }
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();
     const status = await countStreamsStatus();
     setStreamStatus(status);
-  }, [reloadActivitiesFromLocalStorage]);
+    void loadBackupFreshness();
+  }, [reloadActivitiesFromLocalStorage, loadBackupFreshness]);
 
   // Initialize selected activity once when activities first load.
   // Uses a ref so that subsequent user-driven selections don't re-trigger this.
@@ -403,15 +439,34 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     }, [homeScreenStream])
   );
 
+  // Re-read the backup stamp whenever the screen gains focus. The Settings sheet
+  // is a `Modal`, so dismissing it fires no focus event: a sync finished in this
+  // visit appears on the next navigation or the next pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      void loadBackupFreshness();
+    }, [loadBackupFreshness])
+  );
+
   React.useLayoutEffect(() => {
     navigation?.setOptions({
       headerRight: () => (
         <View style={{ marginRight: 10 }}>
-          <Text>Offline archive</Text>
+          {/* The label itself carries the age ("Synced 3 weeks ago"); colour
+              only lifts it out of the muted tier. theme.warning is not used
+              because the palette test (theme.spec.ts) guarantees 4.5:1 for
+              text/textMuted/primary/success only, not for the semantic
+              warning colour. */}
+          <Text
+            numberOfLines={1}
+            style={backupFreshness.stale ? styles.headerMetaStale : styles.headerMeta}
+          >
+            {backupFreshness.label}
+          </Text>
         </View>
       )
     });
-  }, [navigation]);
+  }, [navigation, backupFreshness, styles]);
 
   return (
     <View style={{ flex: 1, paddingTop: 0, paddingBottom: insets.bottom }}>
@@ -644,6 +699,16 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
 
 const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
+    headerMeta: {
+      fontSize: 13,
+      color: theme.textMuted
+    },
+    headerMetaStale: {
+      // Same size, stronger colour: the label itself already says how old the
+      // backup is, this only lifts it out of the muted tier.
+      fontSize: 13,
+      color: theme.textStrong
+    },
     section: {
       marginBottom: 24
     },

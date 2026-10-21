@@ -127,9 +127,7 @@ describe('activityToString', () => {
       local_time: '16:14:44',
       elapsed_time: 3661 // 1h 1m 1s
     } as unknown as Parameters<typeof Utils.activityToString>[0];
-    expect(Utils.activityToString(activity)).toBe(
-      'My Run (Run) on 1/1/2023 at 16:14 for 01:01'
-    );
+    expect(Utils.activityToString(activity)).toBe('My Run (Run) on 1/1/2023 at 16:14 for 01:01');
   });
 
   it('should omit the time when local_time is missing', () => {
@@ -161,5 +159,37 @@ describe('sortRowsOnYearDescending ', () => {
     expect(result[1][1]).toBe(123);
     expect(result[2][0]).toBe(1999);
     expect(result[3][0]).toBe(1999);
+  });
+});
+
+describe('relative_time_label', () => {
+  const now = Date.UTC(2026, 9, 21, 12, 0, 0);
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+
+  it('returns null for a missing or unreadable stamp', () => {
+    expect(Utils.relative_time_label('')).toBeNull();
+    expect(Utils.relative_time_label(null)).toBeNull();
+    expect(Utils.relative_time_label('not a date')).toBeNull();
+  });
+
+  it('steps through minutes, hours and days up to a month', () => {
+    expect(Utils.relative_time_label(ago(30 * 1000), now)).toBe('just now');
+    expect(Utils.relative_time_label(ago(5 * MINUTE), now)).toBe('5 min ago');
+    expect(Utils.relative_time_label(ago(3 * HOUR), now)).toBe('3 h ago');
+    expect(Utils.relative_time_label(ago(DAY), now)).toBe('1 day ago');
+    expect(Utils.relative_time_label(ago(9 * DAY), now)).toBe('9 days ago');
+  });
+
+  it('shows the date itself once the age stops being the point', () => {
+    const label = Utils.relative_time_label(ago(400 * DAY), now);
+    expect(label).not.toBeNull();
+    expect(label).not.toContain('ago');
+  });
+
+  it('treats a stamp from the future as fresh', () => {
+    expect(Utils.relative_time_label(ago(-3 * HOUR), now)).toBe('just now');
   });
 });

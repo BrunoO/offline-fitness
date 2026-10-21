@@ -33,6 +33,40 @@ export function seconds_to_label(seconds: number) {
   return hours.toString().padStart(2, '0') + ':' + minutes.toString().padStart(2, '0');
 }
 
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * Turns an ISO timestamp into a compact "how long ago" label.
+ *
+ * Where the age of something matters more than the moment it happened — the
+ * header's backup freshness, for instance — "2 h ago" reads at a glance and a
+ * `toLocaleString()` does not. Past a month the age stops being the point, so
+ * the date itself is shown instead.
+ * @param iso An ISO-8601 timestamp, e.g. the stored `backup_last_sync`.
+ * @param nowMs Injected for deterministic tests; defaults to the device clock.
+ * @returns The label, or null when `iso` is missing or not a timestamp.
+ */
+export function relative_time_label(
+  iso: string | null | undefined,
+  nowMs: number = Date.now()
+): string | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return null;
+
+  const age = nowMs - then;
+  // A future timestamp (clock skew, a manual edit) is as fresh as it gets.
+  if (age < MINUTE_MS) return 'just now';
+  if (age < HOUR_MS) return `${Math.floor(age / MINUTE_MS)} min ago`;
+  if (age < DAY_MS) return `${Math.floor(age / HOUR_MS)} h ago`;
+
+  const days = Math.floor(age / DAY_MS);
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(then).toLocaleDateString();
+}
+
 /**
  * Gets the date of the first day (Monday) of a given ISO week number and year.
  * Constructed purely in UTC: mixing a UTC instant with device-local
