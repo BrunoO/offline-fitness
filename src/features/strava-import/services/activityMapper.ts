@@ -15,23 +15,12 @@ import { ExportedActivityRow } from '../types/import.types';
  * `activities.csv` stores the start instant in UTC (verified: it matches the
  * `Z` timestamps inside each activity's GPX to the second), while the app
  * buckets activities by athlete-local calendar date. The archive carries no
- * timezone column, so the caller supplies the zone per activity: the phone
- * importer passes the device zone (the athlete is where their phone is), and
- * the desktop tool passes the zone derived from the track's GPS start — which
- * puts holiday rides in the zone they actually happened in.
+ * timezone column, so the caller supplies the zone per activity: the desktop
+ * seeding tool derives it from the track's GPS start, which puts holiday rides
+ * in the zone they actually happened in.
  */
 
 const pad = (value: number, length = 2): string => String(value).padStart(length, '0');
-
-/** IANA zone name of the device, when the JS runtime exposes it. */
-export function deviceTimezoneLabel(): string {
-  try {
-    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return resolved && resolved.length > 0 ? resolved : 'UTC';
-  } catch {
-    return 'UTC';
-  }
-}
 
 interface LocalParts {
   year: number;
@@ -103,9 +92,8 @@ export function utcToLocalParts(utcMs: number, zone: string): LocalParts {
  * `start_latlng`/`end_latlng` are filled in once the track is read.
  *
  * The swim `moving_time := elapsed_time` rule (see `applySwimMovingTime`) is
- * applied here so every writer — the phone importer, the desktop tool —
- * stores the canonical record, and the backup push's hash of the loaded
- * version matches the file on the server.
+ * applied here so the single archive writer stores the canonical record, and
+ * the backup push's hash of the loaded version matches the file on the server.
  */
 export function rowToActivity(row: ExportedActivityRow, timezone: string): Activity {
   const local = utcToLocalParts(row.startUtcMs, timezone);

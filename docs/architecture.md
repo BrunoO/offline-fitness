@@ -4,7 +4,7 @@ This document describes the system architecture of the Offline Fitness applicati
 
 ## Key Architectural Principles
 
-1. **Modular Feature Structure**: Code is organized by features (activities, backup, strava-import, maps, stats, home) with each feature containing its own components, services, screens, and types. The `backup` feature mirrors local activities/streams to a WebDAV server (manual push/pull, no auto-sync). The `strava-import` feature builds the same local activities/streams from a Strava data-export ZIP, with no API or OAuth involved — it is the **only** ingestion path.
+1. **Modular Feature Structure**: Code is organized by features (activities, backup, strava-import, maps, stats, home) with each feature containing its own components, services, screens, and types. The `backup` feature mirrors local activities/streams to a WebDAV server (manual push/pull, no auto-sync). The `strava-import` feature is the Strava data-export conversion core — no API or OAuth involved — and since Phase 5 it is executed by the desktop tool (`npm run tool:seed`), which writes the WebDAV collection that the phone's *Restore* ingests; there is no in-app archive import any more (see `docs/desktop-import-plan.md`).
 
 2. **Barrel Exports with Careful Dependency Management**: Each module exposes a public API through barrel exports (index.ts), but internal module imports use relative paths to prevent circular dependencies.
 
@@ -94,11 +94,10 @@ graph TB
         ActivityList["ActivityListItem"]
         Charts["Victory Charts"]
         SwipeActions["Swipe Actions"]
-        ImportModal["Strava Import Modal"]
     end
 
     %% Data Flow
-    StravaArchive -->|"ZIP reader<br/>(strava-import)"| GlobalState
+    StravaArchive -->|"desktop tool:seed<br/>(ZIP reader + conversion)"| WebDav
     GlobalState -->|"Manual push / restore"| WebDav
     GlobalState -->|"Store"| LocalStorage
     GlobalState -->|"Cache"| StreamCache
@@ -106,7 +105,7 @@ graph TB
     DrawerNav -->|"Route"| HomeScreen & DetailsScreen & MapsScreen & StatsScreen & LogsScreen
 
     %% Component Usage
-    HomeScreen -->|"Uses"| MiniMap & ImportModal
+    HomeScreen -->|"Uses"| MiniMap
     DetailsScreen -->|"Uses"| ActivityList & MiniMap & Charts & SwipeActions
     MapsScreen -->|"Uses"| MiniMap
     StatsScreen -->|"Uses"| Charts
@@ -166,16 +165,15 @@ graph TB
    - Local caching
    - State updates
 
-6. **Strava Archive Import** (`src/features/strava-import`)
-   - Entry point: drawer item "Import Strava Export" → `StravaImportModal`, which needs no Strava connection.
-   - `services/zipReader.ts` — random-access ZIP reader over a plain `ByteSource` seam (seek + read a byte range), with `pako` for deflate/gzip; the expo-backed implementation (`createFileByteSource` over `FileHandle` seek + `readBytes`) lives in `services/expoByteSource.ts`. A full export is ~1 GB uncompressed, so the archive is never loaded whole: peak memory is one central-directory listing plus a single track file. Supports stored/deflate entries and ZIP64.
+6. **Strava Archive Conversion** (`src/features/strava-import`, run by `scripts/strava-import-tool/`)
+   - Entry point: `npm run tool:seed` on a computer (Phase 5 of `docs/desktop-import-plan.md` retired the in-app importer — no Strava connection either way). Nothing under `src/` imports this feature; it is the library the tool runs, so the phone keeps its byte-identity guarantee with the collection.
+   - `services/zipReader.ts` — random-access ZIP reader over a plain `ByteSource` seam (seek + read a byte range), with `pako` for deflate/gzip. A full export is ~1 GB uncompressed, so the archive is never loaded whole: peak memory is one central-directory listing plus a single track file. Supports stored/deflate entries and ZIP64.
    - `services/csvParser.ts` — locale-tolerant `activities.csv` parser. Header names follow the account language, so columns resolve by alias (English/French/major European abbreviations) with the known column layout as a verified fallback. `Distance` and `Elapsed Time` appear twice; the later (metres/seconds) occurrence wins. Activity dates are UTC.
    - `services/gpxParser.ts` — regex GPX reader producing `latlng`/`altitude`/`time` streams in the exact API shape, so maps, charts, bounding boxes and export work unchanged.
-   - `services/activityMapper.ts` — UTC → athlete-local conversion (`local_date`/`local_time`, `start_week`, `utc_offset`) using the device timezone, since the archive has no timezone column. Swims are canonicalised at write time (`applySwimMovingTime`: `moving_time := elapsed_time`), so every writer stores and the backup push hashes the same record.
-   - `services/importStravaExport.ts` — two passes: persist activities in batches (usable immediately), then convert tracks one at a time, skipping stream files that already exist (idempotent, resumable). `.fit`/`.tcx` files are counted as unsupported; activities without GPS get a `nostreamflag`. Stream files (`streams/<id>.json`) are encoded with `encodeStreamSet` (`src/shared/services/streamCodec.ts`) into a compact 16 B/point binary format (`'OF'` magic header + little-endian `int32` arrays) and written via `File.write(Uint8Array)`; `readStreamFile` transparently reads both binary and legacy JSON stream files.
-   - Direct import exception: the pipeline imports `compressStreamSet` from `@/features/activities/services/fetchAndStoreStreams` rather than the barrel, because the barrel pulls in React Native screens and list components.
-   - **Portable import core** (Phase 0 of `docs/desktop-import-plan.md`): the conversion code the desktop tool reuses — `csvParser`, `gpxParser`, `textDecode`, `activityMapper`, `entryNames`, `zipReader`, `types/import.types`, `shared/services/streamCodec` (the binary payload codec), `shared/services/SimpleLogger`, `backup/services/webdavTransport`, `@/constants` and the utils/types they reach — carries no expo or React Native *value* imports. In practice: `activityMapper` takes `week_of_year` from `@/shared/utils/utils` and types from `@/shared/types/types` directly (never the `@/shared` barrel, which re-exports RN components), `utils.ts` does likewise, and `types.ts` spells its navigation import `import type` so it is erased at build time. The guard is `__tests__/stravaImport/importCorePortability.spec.ts`, a static check that fails the day a barrel or platform import creeps back into the graph; it covers the tool's own modules (`scripts/strava-import-tool/`) by the same rules. `importStravaExport.ts` and `expoByteSource.ts` stay deliberately outside the core — they own the app-only half of the seam.
-   - **Desktop seeder** (`npm run tool:seed`, `scripts/strava-import-tool/`): converts a Strava export ZIP into a WebDAV backup collection on a computer, so the phone never runs the import and only needs *Restore*. It reuses the app's own conversion graph *and* its `webdavTransport`, which makes the tool's files byte-identical to what the phone would push — the md5 dedup then skips them. Contract details (marker with `schemaVersion` claimed first, `sync-state.json` written last, tombstones honored) are asserted in `__tests__/desktopImport/`; see `docs/desktop-import-plan.md`.
+   - `services/activityMapper.ts` — UTC → athlete-local conversion (`local_date`/`local_time`, `start_week`, `utc_offset`) via `utcToLocalParts(utcMs, zone)` — the zone is a parameter (`Intl.formatToParts`, never the machine's ambient zone), because the tool derives it per activity from the track's GPS start. Swims are canonicalised at write time (`applySwimMovingTime`: `moving_time := elapsed_time`), so the writer stores and the backup push hashes the same record.
+   - The orchestration that used to live in `services/importStravaExport.ts` (two passes, batched writes, live-state UI, `nostreamflag` files) is retired with the phone importer; `scripts/strava-import-tool/seed.ts` is its desktop counterpart (marker claimed first, `sync-state.json` written last, md5 skips, 8-way pool, zone per GPS start, aborts on 10 unreadable tracks). Stream files (`streams/<id>.json`) are encoded with `encodeStreamSet` (`src/shared/services/streamCodec.ts`) into a compact 16 B/point binary format (`'OF'` magic header + little-endian `int32` arrays); on the phone `readStreamFile` transparently reads binary and legacy JSON files, and *Restore* writes raw bytes.
+   - **Portable import core** (Phase 0 of `docs/desktop-import-plan.md`): the conversion code the desktop tool reuses — `csvParser`, `gpxParser`, `textDecode`, `activityMapper`, `entryNames`, `zipReader`, `types/import.types`, `shared/services/streamCodec` (the binary payload codec), `shared/services/SimpleLogger`, `backup/services/webdavTransport`, `@/constants` and the utils/types they reach — carries no expo or React Native *value* imports. In practice: `activityMapper` takes `week_of_year` from `@/shared/utils/utils` and types from `@/shared/types/types` directly (never the `@/shared` barrel, which re-exports RN components), `utils.ts` does likewise, and `types.ts` spells its navigation import `import type` so it is erased at build time. The guard is `__tests__/stravaImport/importCorePortability.spec.ts`, a static check that fails the day a barrel or platform import creeps back into the graph; it covers the tool's own modules (`scripts/strava-import-tool/`) by the same rules, and its Phase 5 scan refuses any reference to the deleted in-app importer inside `src/`.
+   - **Desktop seeder** (`npm run tool:seed`, `scripts/strava-import-tool/`): converts a Strava export ZIP into a WebDAV backup collection on a computer — the only ingestion path — so the archive never touches the phone, which only runs *Restore*. It reuses the app's own conversion graph *and* its `webdavTransport`, which makes the tool's files byte-identical to what the phone pushes — the md5 dedup then skips them. Contract details (marker with `schemaVersion` claimed first, `sync-state.json` written last, tombstones honored, zone per GPS start with `--tz` fallback) are asserted in `__tests__/desktopImport/`; see `docs/desktop-import-plan.md`.
 
 7. **Import Structure & Best Practices**
 

@@ -201,7 +201,7 @@ async function claimOrVerifyMarker(
   if (marker.profile !== config.profile) {
     throw new Error(
       `This backup folder belongs to profile "${marker.profile}", not "${config.profile}". ` +
-        "Use the profile shown on the phone's Backup screen."
+        "Use the profile shown on the phone's Settings → Backup screen."
     );
   }
   if (marker.schemaVersion !== APP_CONFIG.BACKUP_SCHEMA_VERSION) {

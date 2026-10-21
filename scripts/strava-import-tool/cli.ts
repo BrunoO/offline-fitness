@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   process.stdout.write('\r');
   reportSeed(summary, options.dryRun);
   if (options.dryRun) {
-    console.log('\nNext: drop --dry-run to upload. On the phone, drawer → Backup → Restore fills the app.');
+    console.log('\nNext: drop --dry-run to upload. On the phone, drawer → Settings → Restore fills the app.');
   }
 }
 

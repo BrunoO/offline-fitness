@@ -1,7 +1,7 @@
 import { useActivitiesContext } from '@/features/activities/ActivitiesContext';
 import {
   deleteStreamFiles,
-  getNoStreamFlagIds
+  getNoStreamIds
 } from '@/features/activities/services/fetchAndStoreStreams';
 import {
   Activity,
@@ -120,7 +120,7 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
   React.useEffect(() => {
     const loadNoStreamIds = async () => {
       if (!hideNoStream) return;
-      const ids = await getNoStreamFlagIds();
+      const ids = await getNoStreamIds(allActivities);
       setNoStreamIds(ids);
     };
     loadNoStreamIds();

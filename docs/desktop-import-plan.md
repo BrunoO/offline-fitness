@@ -1,6 +1,6 @@
 # Desktop Strava Import Tool — Implementation Plan
 
-**Status:** Phases 0–2 and 4 complete (portable core, desktop CLI, concurrent/batched phone sync, GPS-derived travel zones). Phase 3 (verification) on hold; Phases 5–6 (retire the phone archive import + rollout) pending.
+**Status:** Phases 0–2, 4 and 5 complete (portable core, desktop CLI, concurrent/batched phone sync, GPS-derived travel zones, phone importer retired). Phase 3 (verification) and Phase 6 (rollout) pending.
 
 **Goal:** convert a Strava data-export ZIP into a WebDAV backup collection **on a computer**, so the
 phone never runs the import. The phone only ever runs *Restore* to fill itself.
@@ -57,7 +57,7 @@ batch; `backupSync.ts:461`).
 | `strava-import/services/gpxParser.ts` | ✅ | pure regex |
 | `strava-import/services/textDecode.ts` | ✅ | pure |
 | `strava-import/services/activityMapper.ts` | ✅ | (was: `week_of_year` via the `@/shared` barrel — repointed to `@/shared/utils/utils` in Phase 0) |
-| `strava-import/services/zipReader.ts` | ✅ | (Phase 0 split: the expo-backed `createFileByteSource` moved to `services/expoByteSource.ts`; the reader talks only to the `ByteSource` seam) |
+| `strava-import/services/zipReader.ts` | ✅ | (Phase 0 split; Phase 5 deleted the expo-backed half entirely — the reader talks only to the `ByteSource` seam, backed by `scripts/strava-import-tool/nodeSource.ts` and the test's memory source) |
 | `backup/services/webdavTransport.ts` | ✅ | Phase 1 removed the last edge: `SimpleLogger` no longer imports `react-native` (its web console-echo checks `document` — Hermes aliases `window` on native). `fetch`/`btoa`/`AbortController` exist in Node 18+, and PUT/GET are byte-aware (`Uint8Array` → `application/octet-stream`, `getDavFileBytes`). The tool wraps it in an injectable `DavClient`. |
 | `backup/services/backupSync.ts` | ❌ | AsyncStorage + expo `File` + `expo-crypto`; the tool's orchestrator is `seed.ts`, mirroring `pushBackup`'s semantics against the same transport |
 
@@ -158,22 +158,28 @@ boundaries.
 - With `lookupZone` absent the tool's bytes are exactly the pre-Phase-4 output — the idempotent
   re-run test proves it.
 
-### Phase 5 — retire the phone-side archive import (~1 day) — pending
+### Phase 5 — retire the phone-side archive import ✅ done
 The phone never needs the 1 GB archive again: the tool plus *Restore* is the ingestion path, and
-deleting the phone importer is what makes option-2 zones cheap (no geo DB on Android; one archive
+deleting the phone importer is what makes travel zones cheap (no geo DB on Android; one archive
 writer means no tool-vs-phone zone divergence to guard against).
-- Delete: `StravaImportModal`, `importStravaExport.ts` (orchestrator, picker, keep-awake wiring), the
-  drawer/home entry points, and the app-side half of the `.nostreamflag` machinery (after Phase 5 no
-  local writer ever creates flags — pull/restore never had them, so they go dead; check
-  `getNoStreamFlagIds` consumers before deleting).
-- Keep: the pure core in `src/` (the tool imports it; the guard keeps it honest) — relocating it to
-  `scripts/` is optional later cleanup, not churn mixed into this.
-- `schemaVersion` stays 2: record *content* changes, the folder layout does not.
-- Docs in the same commit: AGENTS.md (it declares archive import the only ingestion path), README
-  "Getting the data in" + Fine print, architecture (mermaid edge + section 6), the guard list.
-- Migration hazard this ordering avoids: the phone importer writing device-zoned travel records
-  alongside a zone-aware tool is the swim ping-pong again. After Phase 5 there is exactly one
-  archive writer, so there is nothing to diverge.
+- Deleted: `StravaImportModal`, `importStravaExport.ts` (orchestrator, picker, keep-awake), the
+  drawer item and home "Import" row, `importStravaExport.test.ts`, and the `expo-keep-awake`
+  dependency. `__tests__/stravaImport/importCorePortability.spec.ts` gained a scan that fails if
+  any of those names reappears under `src/` — the removal is locked, not just done.
+- **The plan's flag assumption was wrong**: `getNoStreamFlagIds`/`countStreamsStatus` had two
+  live consumers (Details' "hide no-stream" filter, Home's Streams row). Deleting them would have
+  silently broken product behaviour; instead the flag set is now *derived* — `getNoStreamIds`
+  returns records with no GPS fix and no cached stream file, which is exactly what a flag meant
+  (the importer wrote flags iff `start_latlng` stayed empty) and works for tool-seeded
+  collections, which never had flags.
+- Kept: the pure core under `src/features/strava-import/` (the tool imports it; the guard keeps it
+  honest); relocating it under `scripts/` is optional later cleanup.
+- `schemaVersion` stays 2: record *content* changed, the folder layout did not.
+- Docs rewritten in the same commit: AGENTS.md (ingestion path, fragile areas, checklist,
+  commands), README ("Getting the data in" is now the tool flow; keep-awake fine print dropped),
+  architecture (mermaid, section 6), `deviceTimezoneLabel` removed with its only consumer.
+- Rollout note: after upgrading an install that used the phone importer, do the Phase 6 wipe +
+  Restore once so stale travel records don't re-propagate via push.
 
 ### Phase 6 — rollout runbook (~0.5 day, mostly waiting) — pending
 The wipe-before-push ordering is the migration lesson (swim churn) applied: phone copies of travel

@@ -6,7 +6,6 @@ import {
   useActivitiesContext
 } from '@/features/activities';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
-import { StravaImportModal } from '@/features/strava-import';
 import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
 import {
@@ -66,11 +65,9 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
   const [streamStatus, setStreamStatus] = useState<{
     downloadedStreams: number;
     missingStreams: number;
-    totalFiles: number;
   }>({
     downloadedStreams: 0,
-    missingStreams: 0,
-    totalFiles: 0
+    missingStreams: 0
   });
   const [selectedActivityStats, setSelectedActivityStats] = useState<ActivityStats | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
@@ -119,9 +116,6 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
   // re-running initialization when the user selects a different activity.
   const hasInitializedActivity = useRef(false);
 
-  // Archive import state
-  const [importVisible, setImportVisible] = useState(false);
-
   // When the WebDAV backup last ran, shown in the header: the app is offline
   // and syncs only by hand, so this is the one number that says whether the
   // data on this phone is also safe somewhere else.
@@ -150,10 +144,10 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
 
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();
-    const status = await countStreamsStatus();
+    const status = await countStreamsStatus(globalActivities);
     setStreamStatus(status);
     void loadBackupFreshness();
-  }, [reloadActivitiesFromLocalStorage, loadBackupFreshness]);
+  }, [globalActivities, reloadActivitiesFromLocalStorage, loadBackupFreshness]);
 
   // Initialize selected activity once when activities first load.
   // Uses a ref so that subsequent user-driven selections don't re-trigger this.
@@ -381,53 +375,30 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     };
   }, [selectedActivity]);
 
-  // Periodic stream status update
+  // Stream cache counters for the "Streams" row. Counting is derived from the
+  // records (getNoStreamIds), so the activity-set dependency refreshes exactly
+  // when it matters — a backup Restore writing new stream files also changes
+  // the set — and the 120 s tick covers completion between changes.
   useEffect(() => {
     let isMounted = true;
 
     const updateStreamStatus = async () => {
-      if (!isMounted) return;
-
       try {
-        const status = await countStreamsStatus();
-        if (isMounted) {
-          setStreamStatus(status);
-          simpleLogger.log('Stream status:', status);
-        }
+        const status = await countStreamsStatus(globalActivities);
+        if (isMounted) setStreamStatus(status);
       } catch (error) {
-        if (isMounted) {
-          simpleLogger.error('Error updating stream status:', error);
-        }
+        if (isMounted) simpleLogger.error('Error updating stream status:', error);
       }
     };
 
-    // Update immediately
     updateStreamStatus();
-
-    // Set up periodic updates every 120 seconds
     const interval = setInterval(updateStreamStatus, 120 * 1000);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
-
-  // Refresh the stream counters whenever the activity set changes — an archive
-  // import writes new stream files, and the periodic refresh would lag behind.
-  useEffect(() => {
-    let isMounted = true;
-    countStreamsStatus()
-      .then(status => {
-        if (isMounted) setStreamStatus(status);
-      })
-      .catch(error => {
-        simpleLogger.error('Error updating stream status:', error);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [totalActivitiesStored]);
+  }, [globalActivities]);
 
   // Handle screen focus to refresh map if needed
   useFocusEffect(
@@ -510,19 +481,6 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
                     ? totalActivitiesStored - streamStatus.missingStreams
                     : 0}
                 </Text>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Import</Text>
-              <View style={styles.infoValueContainer}>
-                <Text style={styles.infoValue}>Strava archive</Text>
-                <TouchableOpacity
-                  onPress={() => setImportVisible(true)}
-                  style={styles.actionButton}
-                >
-                  <Ionicons name="cloud-upload-outline" size={18} color={theme.primary} />
-                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -691,8 +649,6 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
         </View>
         {/* End of Footer Section */}
       </ScrollView>
-
-      <StravaImportModal visible={importVisible} onClose={() => setImportVisible(false)} />
     </View>
   );
 }

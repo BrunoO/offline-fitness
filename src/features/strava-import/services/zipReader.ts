@@ -11,8 +11,10 @@ const { inflateRaw, ungzip } = pako;
  *
  * Part of the portable import core: this file has no expo or react-native
  * imports, so the same reader runs on a desktop tool (see
- * `docs/desktop-import-plan.md`, Phase 0). The expo-backed byte source lives
- * in `expoByteSource.ts`.
+ * `docs/desktop-import-plan.md`, Phase 0). Callers bring their own
+ * `ByteSource`: the tool's `fs`-backed one in
+ * `scripts/strava-import-tool/nodeSource.ts`, and `createMemoryByteSource`
+ * below for tests.
  *
  * Why not `JSZip.loadAsync(await file.bytes())`: a Strava export is ~1 GB worth
  * of text that compresses to tens of MB, and inflating the whole archive in one

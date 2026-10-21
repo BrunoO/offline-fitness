@@ -163,9 +163,9 @@ export function toStreamSet(points: GpxPoint[]): StreamConversionResult | undefi
  * the whole track was run through Ramer-Douglas-Peucker (and turned into an
  * array of `{latitude, longitude}` objects) purely to find four numbers. A
  * track's extremes are the same before and after simplification, so scanning
- * the pairs directly is both cheaper and more accurate. Lives here (not in the
- * importer) because the desktop tool derives the same four numbers from the
- * same points, and the activity records must match byte for byte.
+ * the pairs directly is both cheaper and more accurate. Lives here because
+ * the desktop tool derives the same four numbers from the same points, and
+ * the activity records must match byte for byte.
  */
 export function trackBoundingBox(
   latlng: [number, number][]
@@ -188,7 +188,7 @@ export function trackBoundingBox(
   ];
 }
 
-/** Convenience wrapper used by the importer. */
+/** Convenience wrapper: parse and convert in one call. */
 export function gpxToStream(xml: string): StreamConversionResult | undefined {
   return toStreamSet(parseGpx(xml).points);
 }

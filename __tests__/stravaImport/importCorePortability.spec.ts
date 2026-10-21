@@ -14,8 +14,10 @@ import * as path from 'path';
  *   package on the pure-package list (`papaparse`, `pako` — both plain JS).
  * - `import type` statements are exempt: they are erased at build time, which
  *   is exactly why `types.ts` must spell its navigation import that way.
- * - The app-only adapters (`importStravaExport.ts`, `expoByteSource.ts`) are
- *   deliberately NOT in the core: they own the expo/native half of the seam.
+ * - Phase 5 deleted the app-side archive importer (modal, orchestrator, expo
+ *   byte source); a scan below fails the day any reference to that machinery
+ *   creeps back into `src/`. Ingestion is `npm run tool:seed` -> WebDAV ->
+ *   Restore, and the core's only runtime consumers are the tool and tests.
  */
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -186,19 +188,24 @@ describe('portable import core (desktop tool, Phase 0)', () => {
     }
   });
 
-  it('moves the expo-backed byte source out of the ZIP reader', () => {
-    const reader = fs.readFileSync(
-      path.join(REPO_ROOT, 'src/features/strava-import/services/zipReader.ts'),
-      'utf8'
-    );
-    expect(reader).not.toContain('expo-file-system');
-    expect(reader).toContain('createMemoryByteSource');
-    const seam = fs.readFileSync(
-      path.join(REPO_ROOT, 'src/features/strava-import/services/expoByteSource.ts'),
-      'utf8'
-    );
-    expect(seam).toContain('createFileByteSource');
-    expect(seam).toContain('expo-file-system');
+  it('has no app-side archive import path any more (Phase 5)', () => {
+    // Ingestion is desktop tool -> WebDAV -> Restore. What Phase 5 removed was
+    // ~1,500 lines of UI + orchestration, a 1 GB cache-copy path, keep-awake
+    // and the picker — re-adding any of it by accident must fail a test, not
+    // ship. The names are the ones that module used across the codebase.
+    const banned = /StravaImportModal|importStravaExport|expoByteSource|expo-keep-awake|pickFileAsync/;
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.tsx?$/.test(entry.name) && banned.test(fs.readFileSync(full, 'utf8'))) {
+          offenders.push(path.relative(REPO_ROOT, full));
+        }
+      }
+    };
+    walk(path.join(REPO_ROOT, 'src'));
+    expect(offenders).toEqual([]);
   });
 
   it('keeps the byte-source seam behind the ByteSource interface', () => {

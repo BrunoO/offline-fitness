@@ -1,13 +1,17 @@
-// Strava Import Feature - Public API
-// Imports a Strava "Download your account" archive without the Strava API.
+// Strava Import Core - Public API
+// The archive-conversion library the desktop seeding tool runs
+// (`npm run tool:seed` → `scripts/strava-import-tool/`). Since Phase 5 the phone
+// no longer imports archives itself — ingestion is tool -> WebDAV -> Restore —
+// so nothing under `src/` consumes this barrel; it documents the public surface
+// of the core that the tool and the tests import.
 
-export { StravaImportModal } from './components/StravaImportModal';
-export { importStravaExport, pickStravaExportFile } from './services/importStravaExport';
 export { parseActivitiesCsv } from './services/csvParser';
-export { parseGpx, toStreamSet } from './services/gpxParser';
+export { gpxToStream, parseGpx, toStreamSet, trackBoundingBox } from './services/gpxParser';
+export { applySwimMovingTime, rowToActivity, utcToLocalParts } from './services/activityMapper';
 export type {
-  ImportProgress,
-  ImportSummary,
+  ByteSource,
   ExportedActivityRow,
-  ParsedExport
+  ParsedExport,
+  StreamConversionResult,
+  ZipEntryInfo
 } from './types/import.types';

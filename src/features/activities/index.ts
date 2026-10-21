@@ -21,7 +21,7 @@ export {
   countStreamsStatus,
   deleteStreamFiles,
   getActivityStreams,
-  getNoStreamFlagIds,
+  getNoStreamIds,
   loadRawStreamForActivity,
   loadStreamForActivity
 } from './services/fetchAndStoreStreams';

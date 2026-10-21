@@ -1,4 +1,3 @@
-import { StravaImportModal } from '@/features/strava-import';
 import { ProgressOverlay } from '@/features/stats';
 import { exportData, removeAllActivities, simpleLogger } from '@/shared';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,7 +54,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
   // Progress overlay states
   const [exportProgress, setExportProgress] = useState(0);
   const [exportVisible, setExportVisible] = useState(false);
-  const [importVisible, setImportVisible] = useState(false);
 
   const handleExportData = async () => {
     simpleLogger.log('User initiated data export', {
@@ -86,14 +84,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         label="Export Data"
         onPress={handleExportData}
         icon={getIconOptions('download-outline')}
-      />
-      <DrawerItem
-        label="Import Strava Export"
-        onPress={() => {
-          props.navigation.closeDrawer();
-          setImportVisible(true);
-        }}
-        icon={getIconOptions('cloud-upload-outline')}
       />
       <DrawerItem
         label="Clear Local Activities"
@@ -145,8 +135,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         progress={exportProgress}
         onCancel={() => setExportVisible(false)}
       />
-
-      <StravaImportModal visible={importVisible} onClose={() => setImportVisible(false)} />
     </DrawerContentScrollView>
   );
 }

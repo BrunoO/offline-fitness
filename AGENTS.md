@@ -75,14 +75,14 @@ This document provides essential context and rules for AI agents working on this
    │   ├── home/            # Home screen, launcher buttons
    │   ├── maps/            # Map visualization (MiniMapComponent)
    │   ├── stats/           # Charts, statistics screens, SettingsProvider
-   │   └── strava-import/   # Offline Strava ZIP/CSV/GPX export importer
+   │   └── strava-import/   # Archive-conversion core (CSV/GPX/ZIP/mapping), run by the desktop tool
    ├── shared/              # Cross-cutting: components, services, utils, types
    ├── theme/               # Colour system: palettes, resolver, provider, useTheme
    └── constants/           # index.ts (app config & storage keys)
    ```
 2. **State Management & Data Flow**:
    - **Providers**: `ActivitiesProvider` (central activity state via `useActivities` hook; persists to AsyncStorage, caches streams to FileSystem) and `SettingsProvider` (user preferences in `stats`). There is **no auth provider** — the app is offline-only.
-   - **Data Flow**: Local Export Import → AsyncStorage (activities) + FileSystem (stream polylines) → Context → Drawer Navigator Screens. The Strava API/OAuth path was removed (see `docs/deprecate-strava-api-path.md`).
+   - **Data Flow**: desktop `tool:seed` (Strava archive → WebDAV collection) → phone Restore → AsyncStorage (activities) + FileSystem (stream payloads) → Context → Drawer Navigator Screens. The Strava API/OAuth path and the in-app archive importer are both gone (see `docs/deprecate-strava-api-path.md`, `docs/desktop-import-plan.md` Phase 5).
 3. **Barrel Exports**: Use barrel exports (`index.ts`) for public APIs across features, and relative imports within the same feature to prevent circular dependencies (see `docs/architecture.md`).
 4. **Direct Imports for Known Cycles**: Certain components and services must be imported directly (listed under Import Patterns below).
 
@@ -91,7 +91,7 @@ This document provides essential context and rules for AI agents working on this
 These areas are particularly sensitive - be extra careful when modifying:
 - **`useActivities` hook** (`features/activities/hooks/useActivities.ts`) - Core state management
 - **Stream caching** (`fetchAndStoreStreams.ts`) - Performance-critical, handles large datasets
-- **Archive import** (`features/strava-import/`) - The only ingestion path; idempotent and resumable by design
+- **Archive ingestion** (`scripts/strava-import-tool/` + `features/strava-import/` core) - The only ingestion path: desktop tool → WebDAV → Restore; idempotent and resumable by design
 - **Calendar components** (`ActivityCalendarPeriod`) - Complex state and performance optimizations
 - **MiniMap component** - Navigation lifecycle issues, platform-specific behavior
 
@@ -207,7 +207,7 @@ Currently limited test coverage. When adding new features:
 ### Manual Testing Checklist
 
 After significant changes, verify these critical flows:
-1. **Archive Import**: Import a Strava export ZIP → activities and maps appear
+1. **Ingestion**: seed a Strava export with `npm run tool:seed` → Restore on the phone → activities and maps appear
 2. **Home Screen**: Loads with cached activities, displays recent activity and map
 3. **Activity Details**: View activity details, stream data, charts
 4. **Stats Screens**: Recent Weeks, Recent Years, YTD stats display correctly
@@ -217,13 +217,14 @@ After significant changes, verify these critical flows:
 
 ## Strava Data Import & External Services
 
-### Strava archive import (the only ingestion path)
+### Strava archive ingestion (desktop tool -> WebDAV -> Restore)
 
 - **Source**: the ZIP Strava emails from *Settings → My Account → "Download or delete your account"* (no API subscription, no OAuth)
 - **Inputs**: `activities.csv` (localized headers, UTC dates) plus `activities/<id>.gpx` tracks
-- **Rules**: the import is **idempotent** (upsert by id, existing stream files are never overwritten) and **resumable** (stop and re-import later); `.fit`/`.tcx` tracks are counted as unsupported and skipped
-- **Dates**: CSV dates are UTC; `local_date`/`local_time` are derived with the **device timezone** at import time
-- **Testing**: use the fixtures in `__tests__/stravaImport/` — never hit the live Strava API (it is gone)
+- **Path**: the desktop tool (`npm run tool:seed`, Phase 5 of `docs/desktop-import-plan.md`) converts the archive into the WebDAV backup collection; the phone fills itself with *Restore*. The phone no longer imports archives itself — do not reintroduce an in-app importer (a guard test fails if its names come back)
+- **Rules**: seeding is **idempotent** (md5 skips) and **resumable** (`sync-state.json` written last); `.fit`/`.tcx` tracks are counted as unsupported and skipped
+- **Dates**: CSV dates are UTC; `local_date`/`local_time` are derived from the zone of each track's **GPS start** (geo-tz lookup in the tool), falling back to the required `--tz` for records without a usable fix
+- **Testing**: use the fixtures in `__tests__/stravaImport/` and `__tests__/desktopImport/` — never hit the live Strava API (it is gone)
 
 ### Google Cloud CLI
 
@@ -282,6 +283,9 @@ If you modify:
 ## Quick Reference Commands
 
 ```bash
+# Seed the WebDAV collection from a Strava export archive (desktop tool; --dry-run previews)
+npm run tool:seed -- import --archive export.zip --root <url> --user <u> --profile <p> --tz <zone>
+
 # Type checking
 npx tsc --noEmit
 

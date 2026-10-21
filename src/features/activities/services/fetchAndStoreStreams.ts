@@ -58,22 +58,40 @@ export async function deleteStreamFiles(activityId: string) {
 }
 
 /**
- * Reads the streams folder and returns the set of activity IDs that are flagged
- * with a ".nostreamflag" file, indicating no stream is available for them.
+ * The set of activity ids that have no stream and never will — the successor
+ * to the importer's ".nostreamflag" files, which no longer exist (the phone
+ * stopped importing archives; the desktop tool uploads no flags, matching
+ * what the app's push has always skipped). The meaning is derived instead:
+ * the importer wrote a flag exactly when the record's `start_latlng` was
+ * still empty after all track handling, so "no fix on the record *and* no
+ * cached stream file" reproduces the same set on legacy installs while also
+ * working for collections filled by the desktop tool + Restore. The file
+ * check keeps it honest for records whose position fields never got
+ * backfilled even though a stream is cached.
  */
-export const getNoStreamFlagIds = async (): Promise<Set<string>> => {
+export const getNoStreamIds = async (activities: readonly Activity[]): Promise<Set<string>> => {
+  const streamIds = new Set<string>();
   try {
-    if (!streamsFolder.exists) {
-      return new Set();
+    if (streamsFolder.exists) {
+      for (const file of streamsFolder.list()) {
+        if (file.name.endsWith('.json')) {
+          streamIds.add(file.name.slice(0, -'.json'.length));
+        }
+      }
     }
-    const files = streamsFolder.list();
-    const flaggedIds = files
-      .filter(file => file.name.endsWith('.nostreamflag'))
-      .map(file => file.name.split('.')[0]);
-    return new Set(flaggedIds);
-  } catch {
+  } catch (error) {
+    simpleLogger.error('Error listing the streams cache:', error);
     return new Set();
   }
+  const noStream = new Set<string>();
+  for (const activity of activities) {
+    const hasFix = Array.isArray(activity.start_latlng) && activity.start_latlng.length >= 2;
+    const id = String(activity.id);
+    if (!hasFix && !streamIds.has(id)) {
+      noStream.add(id);
+    }
+  }
+  return noStream;
 };
 
 /**
@@ -244,39 +262,21 @@ export const loadRawStreamForActivity = async (activity: Activity): Promise<Stre
 };
 
 /**
- * Counts the number of downloaded streams and missing data files.
- *
- * @returns {Promise<{downloadedStreams: number, missingStreams: number, totalFiles: number}>}
- * Object containing counts of downloaded streams, missing streams, and total files
+ * Counts the cached stream files and the activities that will never have one
+ * (derived from the records — see `getNoStreamIds`). Home's "Streams x / y"
+ * row divides by `totalActivitiesStored - missingStreams`.
  */
-export const countStreamsStatus = async (): Promise<{
-  downloadedStreams: number;
-  missingStreams: number;
-  totalFiles: number;
-}> => {
+export const countStreamsStatus = async (
+  activities: readonly Activity[]
+): Promise<{ downloadedStreams: number; missingStreams: number }> => {
   try {
+    const missingStreams = (await getNoStreamIds(activities)).size;
     if (!streamsFolder.exists) {
-      return {
-        downloadedStreams: 0,
-        missingStreams: 0,
-        totalFiles: 0
-      };
+      return { downloadedStreams: 0, missingStreams };
     }
-
     const files = streamsFolder.list();
-
-    const jsonFiles = files.filter(file => file.name.endsWith('.json'));
-    const noStreamFlagFiles = files.filter(file => file.name.endsWith('.nostreamflag'));
-
-    const downloadedStreams = jsonFiles.length;
-    const missingStreams = noStreamFlagFiles.length;
-    const totalFiles = files.length;
-
-    return {
-      downloadedStreams,
-      missingStreams,
-      totalFiles
-    };
+    const downloadedStreams = files.filter(file => file.name.endsWith('.json')).length;
+    return { downloadedStreams, missingStreams };
   } catch (error) {
     simpleLogger.error('Error counting streams status:', error);
     throw error;

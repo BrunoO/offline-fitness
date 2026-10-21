@@ -2,10 +2,13 @@ import * as FileSystem from 'expo-file-system';
 import { APP_CONFIG } from '../src/constants';
 import {
   compressStreamSet,
+  countStreamsStatus,
   getActivityStreams,
+  getNoStreamIds,
   loadRawStreamForActivity
 } from '../src/features/activities/services/fetchAndStoreStreams';
 import { StreamSet } from '../src/features/activities/types/stravaActivityStream.model';
+import { makeTestActivity } from './helpers/testActivities';
 import { encodeStreamSet } from '../src/shared';
 import { Activity } from '../src/shared/types/types';
 
@@ -117,6 +120,53 @@ describe('fetchAndStoreStreams', () => {
     it('should return null when no stream is stored', async () => {
       const result = await loadRawStreamForActivity({ id: '404' } as Activity);
       expect(result).toBeNull();
+    });
+  });
+
+  describe('getNoStreamIds / countStreamsStatus (derived, post-Phase-5)', () => {
+    const streamsFolder = new FileSystem.Directory(
+      FileSystem.Paths.document,
+      APP_CONFIG.STREAMS_FOLDER
+    );
+
+    // Shaped like tool-seeded data: a GPS fix means a track was converted;
+    // no fix plus no cached file means there will never be a stream. Built on
+    // the shared complete-Activity helper, with only start_latlng overridden.
+    const record = (id: string, start_latlng: number[]): Activity => ({
+      ...makeTestActivity({ id }),
+      start_latlng
+    });
+    const activities: Activity[] = [
+      record('1', [44.9, 5.79]),
+      record('2', [44.9, 5.79]),
+      record('3', []),
+      record('4', [])
+    ];
+
+    beforeEach(() => {
+      // '4' has a cached stream despite the empty position fields (a legacy
+      // record whose fields never got backfilled) — the file check covers it.
+      new FileSystem.File(streamsFolder, '1.json').write('x');
+      new FileSystem.File(streamsFolder, '4.json').write('x');
+    });
+
+    it('flags exactly the records with neither a GPS fix nor a cached stream', async () => {
+      const ids = await getNoStreamIds(activities);
+      expect([...ids]).toEqual(['3']);
+    });
+
+    it('counts cached .json files only, and the derived missing set', async () => {
+      new FileSystem.File(streamsFolder, '3.nostreamflag').write(''); // legacy leftover
+      const status = await countStreamsStatus(activities);
+      expect(status).toEqual({ downloadedStreams: 2, missingStreams: 1 });
+    });
+
+    it('derives no missing records from an empty set, even with cached files', async () => {
+      // The two beforeEach files exist, but with no records nothing is
+      // derived as missing — and nothing is downloaded from an empty list.
+      const status = await countStreamsStatus([]);
+      expect(status).toEqual({ downloadedStreams: 2, missingStreams: 0 });
+      expect(await getNoStreamIds([])).toEqual(new Set());
     });
   });
 });

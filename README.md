@@ -4,8 +4,9 @@ Personal analytics for your own activity history — maps, statistics, streaks a
 **mostly offline**. No account, no tracking, and your activity data never leaves the device.
 
 The app never talks to a server for your activity data. You import the ZIP archive that the
-Strava web UI emails you ("Download or delete your account"), and the app rebuilds the same
-local records and track cache that a sync would have produced.
+Strava web UI emails you ("Download or delete your account") — the conversion runs on a
+computer, and the phone fills itself from your WebDAV backup. The result is the same local
+records and track cache that a sync would have produced.
 
 The one part that still needs a network is the map itself: map tiles are fetched from the map
 provider (Google Maps today), which needs an API key. Everything else — statistics, calendar,
@@ -13,8 +14,9 @@ streaks, export, backup — runs entirely on the device.
 
 ## What it does
 
-- **Archive import** — pick the `.zip` and it reads `activities.csv` plus every GPX track
-  straight out of the archive.
+- **Strava archive ingestion** — a desktop tool reads `activities.csv` plus every GPX track
+  straight out of the archive `.zip` and seeds your WebDAV backup; the phone fills itself
+  with *Restore* (no Strava account connection, no API).
 - **Maps** — every track is drawn on a map, with a minimap on the home screen and a
   full-screen map view with date filtering. Tiles come from the map provider, so this is the
   only screen that needs a network connection.
@@ -34,10 +36,10 @@ The app is built in layers, each one unlocking the next. Where we are:
 1. **Fitness statistics** — *done*. Weekly/monthly/yearly totals, per-type breakdowns,
    calendar, day/week/goal streaks, year-to-date comparison and similar-route detection all
    work on the local store.
-2. **Import the Strava archive** — *in progress*. Importing `activities.csv` plus GPX
-   tracks works end to end and is idempotent and resumable. Still open: `.fit` and `.tcx`
-   tracks are not parsed (those activities import without a map), and large archives keep
-   surfacing performance work on low-end devices.
+2. **Import the Strava archive** — *done*. A desktop tool converts `activities.csv` plus GPX
+   tracks into the WebDAV backup collection and the phone restores from it; the run is
+   idempotent and resumable. Still open: `.fit` and `.tcx` tracks are not parsed (those
+   activities import without a map).
 3. **Backup and sync over WebDAV** — *in progress*. Pushing and restoring activities and
    tracks against any RFC 4918 server exists in the app; the stream files are moving to a
    compact binary format to make the sync faster and roughly half the size.
@@ -45,7 +47,7 @@ The app is built in layers, each one unlocking the next. Where we are:
    itself, so Offline Fitness can stand alone and you no longer depend on Strava to produce
    the data.
 5. **Activities without GPS** — *todo*. Enter activities by hand (indoor sessions,
-   a treadmill run, yoga). Some groundwork exists already: the importer tolerates
+   a treadmill run, yoga). Some groundwork exists already: ingestion tolerates
    activities without a track and excludes them from distance/elevation stats.
 6. **Alternative map provider** — *todo*. Replace the Google Maps SDK — the one dependency
    that needs an API key and a network — with a provider that does not, completing the
@@ -55,43 +57,44 @@ The app is built in layers, each one unlocking the next. Where we are:
 
 1. Sign in to the Strava website → **Settings → My Account → Download or delete your account**
    and request the archive. Strava emails you a link to a `.zip`.
-2. In the app: open the drawer → **Import Strava Export** (or the *Import* row on the home
-   screen) → pick the `.zip`.
-3. The import shows progress and a summary. It is **idempotent**: re-importing the same
-   archive updates the activity records and leaves existing tracks untouched, so it is safe
-   to run again after downloading a newer archive.
+2. Preview the conversion on a computer — it parses, converts and reports, but makes no
+   network requests and writes nothing:
+
+```bash
+npm run tool:seed -- import --archive export.zip \
+  --root https://host/remote.php/dav/files/<user>/ \
+  --user <user> --profile <label> --tz Europe/Paris --dry-run
+```
+
+3. Seed for real. The password comes from stdin or `STRAVA_IMPORT_PASSWORD` — the tool refuses
+   it as a flag, because command lines leak through `ps`:
+
+```bash
+echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
+  --root https://host/remote.php/dav/files/<user>/ \
+  --user <user> --profile <label> --tz Europe/Paris --password-stdin
+```
+
+4. On the phone: drawer → **Settings** → **Restore**. The download fills the app; the archive
+   itself never touches the phone.
 
 Notes:
 
-- Archive timestamps are **UTC**; the app derives athlete-local dates using the **device
-  timezone** (the archive carries no timezone column).
-- `.fit` and `.tcx` tracks are not parsed yet — those activities are imported without a map.
-- Activities that exist only on the device are never removed by an import.
-
-### From a computer instead (for large archives)
-
-A full archive (~1 GB, 2,000+ tracks) is heavy work for a phone. The desktop tool converts the
-same archive and writes it **directly into your WebDAV backup collection**, so the phone only
-has to fill itself with *Restore*:
-
-```bash
-# Preview without any network access:
-npm run tool:seed -- import --archive export.zip \
-  --root https://host/remote.php/dav/files/<user>/ \
-  --user <user> --profile <label> --tz <home timezone, e.g. Europe/Paris> --dry-run
-
-# Upload (password on stdin — the tool refuses it as a flag, and there is STRAVA_IMPORT_PASSWORD):
-echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
-  --root ... --user ... --profile ... --tz ... --password-stdin
-```
-
-The archive carries no timezones, so the tool derives each activity's zone from its GPS start — a
-holiday in Porto is bucketed in Lisbon time — and uses `--tz` only for records without a usable track
-(manual entries, swims, `.fit` files). The final report lists every zone used.
-
-`--root`, `--user` and `--profile` are exactly what the phone's Settings → WebDAV Backup shows;
-a mismatch is refused before anything uploads. The run is idempotent and resumable — re-running
-skips what the server already has. Then on the phone: drawer → **Settings** → **Restore**.
+- Both steps 3 and 4 are **idempotent and resumable**: the tool skips whatever the server
+  already holds (byte-for-byte, via md5), and a restore only fills gaps — it never overwrites
+  or deletes what the phone has. Interrupt a run at any point; re-running resumes.
+- Set up the WebDAV backup first: drawer → **Settings** → Backup. `--root`, `--user` and
+  `--profile` are exactly what that screen shows; a mismatch with the folder's owner is
+  refused before anything uploads.
+- The archive stores only **UTC** timestamps and no timezone. The tool derives each activity's
+  zone from its GPS start — a holiday ride in Porto is bucketed Porto-local — and uses `--tz`
+  (your home zone) only for records without a usable track: manual entries, swims and `.fit`.
+  The final report lists every zone used.
+- `.fit` and `.tcx` tracks are not converted yet — those activities arrive without a map.
+- Activities that exist only on the device are never removed by seeding or restoring.
+- If the tool reports a layout-version or ownership mismatch, it is refusing to mix folders:
+  use the collection your phone's Backup screen names, or erase an old-format folder on the
+  server and re-seed (old layouts are not migrated).
 
 `npm run tool:seed -- status ...` reports what a collection currently holds, and
 `docs/desktop-import-plan.md` describes the layout contract.
@@ -152,8 +155,6 @@ Behaviours of the app (or the OS around it) that can surprise you:
 - **Plain HTTP to the WebDAV server is allowed, on purpose.** `usesCleartextTraffic` is
   enabled so self-hosted servers on a LAN without certificates work. Prefer HTTPS or a
   VPN where you can, and use a scoped app password.
-- **The screen stays awake during an archive import.** A long import deliberately holds the
-  wake lock so Android does not suspend the work mid-archive.
 
 ## Requirements
 

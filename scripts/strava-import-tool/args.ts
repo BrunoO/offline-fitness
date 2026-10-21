@@ -31,13 +31,13 @@ Usage:
   strava-import help
 
   --archive   The ZIP from Strava's "Download your account" page.
-  --root      WebDAV *account root* — exactly what the phone's Backup screen asks for
+  --root      WebDAV *account root* — exactly what the phone's Settings → Backup shows
               (Nextcloud: https://host/remote.php/dav/files/<user>/). The collection
               folder is composed below it, the same way the phone composes it.
   --user      WebDAV username.
   --profile   The athlete label chosen on the phone. A mismatch is refused by both
-              the tool and the phone (collection ownership), so pick it from the
-              phone's Backup screen rather than typing it again here.
+              the tool and the phone (collection ownership), so read it off the phone's
+              Settings → Backup screen rather than typing it again here.
   --tz        IANA zone used for activities with no GPS fix (manual entries, swims, .fit) —
               use the phone's zone (e.g. Europe/Paris). Activities WITH a track get their
               zone from the GPS start automatically, so holiday rides land in the day and
