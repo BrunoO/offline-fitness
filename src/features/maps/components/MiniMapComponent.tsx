@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { ActivityStream } from '@/shared';
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
-  overlayStream?: ActivityStream | undefined;
+  overlayStream?: ActivityStream;
 };
 
 /**

@@ -37,7 +37,8 @@ const REQUEST_TIMEOUT_MS = 30000;
  * app passwords are effectively always ASCII, which btoa accepts directly.
  */
 function basicAuth(username: string, password: string): string {
-  return `Basic ${btoa(`${username}:${password}`)}`;
+  const credentials = `${username}:${password}`;
+  return `Basic ${btoa(credentials)}`;
 }
 
 /**

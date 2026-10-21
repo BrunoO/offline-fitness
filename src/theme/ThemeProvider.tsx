@@ -38,7 +38,7 @@ export const ThemeContext = createContext<ThemeContextValue | undefined>(undefin
 export function ThemeProvider({ children }: Readonly<PropsWithChildren>): React.JSX.Element {
   const colorScheme = useColorScheme();
   const scheme: ColorScheme = colorScheme === 'dark' ? 'dark' : 'light';
-  const [paletteId, setPaletteIdState] = useState<string>(DEFAULT_PALETTE_ID);
+  const [paletteIdState, setPaletteIdState] = useState<string>(DEFAULT_PALETTE_ID);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,10 +66,10 @@ export function ThemeProvider({ children }: Readonly<PropsWithChildren>): React.
     AsyncStorage.setItem(PALETTE_STORAGE_KEY, id).catch(() => undefined);
   }, []);
 
-  const theme = useMemo(() => resolveThemeById(paletteId, scheme), [paletteId, scheme]);
+  const theme = useMemo(() => resolveThemeById(paletteIdState, scheme), [paletteIdState, scheme]);
   const value = useMemo(
-    () => ({ theme, paletteId, setPaletteId }),
-    [theme, paletteId, setPaletteId]
+    () => ({ theme, paletteId: paletteIdState, setPaletteId }),
+    [theme, paletteIdState, setPaletteId]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -49,6 +49,13 @@ function normaliseLogValue(value: unknown): SerializableLogValue {
     return value as Record<string, unknown>;
   }
 
+  if (typeof value === 'function') {
+    return { value: `function ${value.name}` };
+  }
+
+  // Only symbol and bigint remain (object, null, Error and the primitives
+  // returned above); String() renders both without loss and can never
+  // produce '[object Object]'.
   return { value: String(value) };
 }
 
@@ -68,18 +75,9 @@ function serialiseLogArguments(values: unknown[]): string {
  * A simple logger class.
  */
 export class Logger {
-  logs: LogEntry[];
-  private creationDate: Date;
-  private previousEntryDate: Date;
-
-  /**
-   * Creates a new Logger instance.
-   */
-  constructor() {
-    this.logs = [];
-    this.creationDate = new Date();
-    this.previousEntryDate = this.creationDate;
-  }
+  logs: LogEntry[] = [];
+  private creationDate: Date = new Date();
+  private previousEntryDate: Date = this.creationDate;
 
   /**
    * Clears all logs.

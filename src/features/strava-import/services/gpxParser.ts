@@ -93,7 +93,7 @@ export function parseGpx(xml: string): ParsedGpx {
 
     // Keep timestamps monotonic: a few exports concatenate segments that
     // overlap, which would otherwise produce negative offsets in the stream.
-    const monotonicTime = point.timeMs < previousTime ? previousTime : point.timeMs;
+    const monotonicTime = Math.max(point.timeMs, previousTime);
     previousTime = monotonicTime;
 
     points.push({ ...point, timeMs: monotonicTime });

@@ -11,8 +11,11 @@ import { createChartTheme, useTheme } from '@/theme';
 import { VictoryAxis, VictoryChart, VictoryLine } from 'victory-native';
 import MiniMapComponent from '../components/MiniMapComponent';
 
+/**
+ * Web-only shape: this screen needs the raw `StreamSet` (the shared
+ * `ActivityWithStream` carries the converted `ActivityStream` instead).
+ */
 interface ActivityWithStream {
-  //todo replace from types.ts
   activity: Activity;
   stream: StreamSet;
 }

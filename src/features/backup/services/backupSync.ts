@@ -212,8 +212,8 @@ async function md5Bytes(bytes: Uint8Array): Promise<string> {
     const buffer = await digest(CryptoDigestAlgorithm.MD5, bytes as BufferSource);
     const view = new Uint8Array(buffer);
     let hex = '';
-    for (let i = 0; i < view.length; i++) {
-      hex += view[i].toString(16).padStart(2, '0');
+    for (const byte of view) {
+      hex += byte.toString(16).padStart(2, '0');
     }
     return hex;
   }

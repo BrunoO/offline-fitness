@@ -769,3 +769,23 @@ A comprehensive code review was performed, covering technical debt, architecture
 - Sonar's 15 remaining S9382 (await-in-loop) issues were marked **Won't Fix** via the API, each with a rationale comment. Reviewed individually: every flagged loop is sequential by design — bounded-memory stream/ZIP reads on low-end devices (the explicit fragile-area strategy), WebDAV MKCOL parent-before-child ordering, PROPFIND pagination that depends on the previous response, one-at-a-time human share-sheet flow, short-circuit scans, and loops already wrapped in `runWithConcurrency`. Parallelizing would trade a lint badge for memory spikes, server races and per-item error-handling regressions.
 - The local ESLint `no-await-in-loop` **warning** stays as the tripwire for accidental new occurrences; the Sonar board is now honest (no rule-level blanket suppression).
 - Result: 40 → 25 open issues without a rescan (transition is immediate).
+
+## Final Sweep (Batch 6) - 2026-10-22
+
+- Closed the last 24 open Sonar issues, emptying the board (25 -> ~1; S6551 handled via code, see below):
+  - **S4144 x3**: `storage.ts` storeIntValue/storeValue/storeStringValue unified behind a private `storeJson`; `SimpleLogger` constructor collapsed into field initializers + `clearLogs` (no duplicated body).
+  - **S7503 x3**: `zipReader` memory source returns `Promise.resolve(...)` instead of a no-await `async`; `BackupSection.handleDisconnect` made synchronous (its async work is inside the Alert callback); `getNoStreamIds` split into a synchronous core wrapped as a Promise so all existing callers (and `countStreamsStatus`'s await) stay untouched.
+  - **S4138 x2**: index loops -> `for...of` (md5 hex, ZIP name decode).
+  - **S4624 x2**: nested templates flattened (`basicAuth`, `idSuffix`).
+  - **S4782 x3**: `overlayStream?: X | undefined` -> `overlayStream?: X` in all three MiniMap platform prop types.
+  - **S6481**: `StatsTabSettingsContext` provider value memoized with `useMemo` (was a fresh object every render).
+  - **S4043**: `RecentYearsScreen` sorts a copy (`[...dataTime].sort`) instead of mutating inside a call argument.
+  - **S6754 x2**: `setShowHeatamp` typo renamed to `setShowHeatmap`; `ThemeProvider` state pair renamed to `paletteIdState/setPaletteIdState` (value/setter symmetry kept, public API unchanged).
+  - **S7723 x2**: `Array(n)` -> `new Array(n)` in the DP table init.
+  - **S7754**: `.find(...)` -> `.some(...)` in DetailsScreen reset guard.
+  - **S7766**: monotonic-time ternary -> `Math.max`.
+  - **S7781**: leftover `/\./g` replace -> `replaceAll('.')`.
+  - **S9381**: `deleteActivity` rewritten as a linear `await` flow (no nested promise chains); semantics preserved, the tombstone await is failure-contained and cannot fail the local delete.
+  - **S6551**: `normaliseLogValue` now branches on function first, so the `String()` fallback only sees symbol/bigint - never `[object Object]`.
+  - **S1135**: stale `//todo replace from types.ts` resolved by documenting why the web MapsScreen keeps its own `ActivityWithStream` (raw `StreamSet` vs the shared converted type).
+- Caught by tests: the `getNoStreamIds` Promise.resolve transcription initially dropped `offset + length` in the memory byte source slice; 5 zipReader/seed tests failed immediately and the fix restored them - another win for the fixture suite.

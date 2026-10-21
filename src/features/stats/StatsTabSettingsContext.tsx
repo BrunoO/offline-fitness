@@ -1,5 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useState, PropsWithChildren, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  PropsWithChildren,
+  useEffect
+} from 'react';
 import { simpleLogger } from '@/shared';
 
 type SettingsContextType = {
@@ -103,24 +110,34 @@ export const SettingsProvider: React.FC<PropsWithChildren> = ({ children }) => {
     }
   }, [weeklyGoal, isLoading]);
 
-  return (
-    <SettingsContext.Provider
-      value={{
-        numberRecentWeeks,
-        numberRecentMonths,
-        useElapsedTime,
-        mergeSimilarActivities,
-        weeklyGoal,
-        setNumberRecentWeeks,
-        setNumberRecentMonths,
-        setUseElapsedTime,
-        setMergeSimilarActivities,
-        setWeeklyGoal
-      }}
-    >
-      {children}
-    </SettingsContext.Provider>
+  const value = useMemo(
+    () => ({
+      numberRecentWeeks,
+      numberRecentMonths,
+      useElapsedTime,
+      mergeSimilarActivities,
+      weeklyGoal,
+      setNumberRecentWeeks,
+      setNumberRecentMonths,
+      setUseElapsedTime,
+      setMergeSimilarActivities,
+      setWeeklyGoal
+    }),
+    [
+      numberRecentWeeks,
+      numberRecentMonths,
+      useElapsedTime,
+      mergeSimilarActivities,
+      weeklyGoal,
+      setNumberRecentWeeks,
+      setNumberRecentMonths,
+      setUseElapsedTime,
+      setMergeSimilarActivities,
+      setWeeklyGoal
+    ]
   );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 };
 
 /**

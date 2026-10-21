@@ -64,7 +64,11 @@ export function deleteStreamFiles(activityId: string): void {
  * check keeps it honest for records whose position fields never got
  * backfilled even though a stream is cached.
  */
-export const getNoStreamIds = async (activities: readonly Activity[]): Promise<Set<string>> => {
+export const getNoStreamIds = (activities: readonly Activity[]): Promise<Set<string>> =>
+  Promise.resolve(computeNoStreamIds(activities));
+
+/** Synchronous core; the Promise signature above is kept for its async callers. */
+function computeNoStreamIds(activities: readonly Activity[]): Set<string> {
   const streamIds = new Set<string>();
   try {
     if (streamsFolder.exists) {
@@ -87,7 +91,7 @@ export const getNoStreamIds = async (activities: readonly Activity[]): Promise<S
     }
   }
   return noStream;
-};
+}
 
 /**
  * Compresses a given stream set using Ramer-Douglas-Peucker simplification.

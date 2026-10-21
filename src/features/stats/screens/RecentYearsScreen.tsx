@@ -81,10 +81,8 @@ export function RecentYearsScreen(): JSX.Element {
   );
 
   const dataHoursFormated = (() => {
-    const formattedTable = formatYearlyTable(
-      dataTime.sort(sortRowsOnYearDescending),
-      seconds_to_label
-    );
+    const sortedDataTime = [...dataTime].sort(sortRowsOnYearDescending);
+    const formattedTable = formatYearlyTable(sortedDataTime, seconds_to_label);
     return formattedTable.map(row => [...row, row[0]]);
   })();
 

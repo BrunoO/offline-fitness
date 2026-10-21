@@ -65,7 +65,7 @@ function readU64(bytes: Uint8Array, offset: number): number {
 function decodeName(bytes: Uint8Array): string {
   // Entry names are ASCII in Strava archives; decode defensively anyway.
   let out = '';
-  for (let i = 0; i < bytes.length; i++) out += String.fromCodePoint(bytes[i]);
+  for (const byte of bytes) out += String.fromCodePoint(byte);
   return out;
 }
 
@@ -73,7 +73,7 @@ function decodeName(bytes: Uint8Array): string {
 export function createMemoryByteSource(bytes: Uint8Array): ByteSource {
   return {
     size: bytes.length,
-    read: async (offset, length) => bytes.slice(offset, offset + length)
+    read: (offset, length) => Promise.resolve(bytes.slice(offset, offset + length))
   };
 }
 

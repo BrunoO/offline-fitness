@@ -89,7 +89,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
 
   // Reset selected activity if it's no longer in the updated activities list
   React.useEffect(() => {
-    if (selectedActivity && !allActivities.find(a => a.id === selectedActivity.id)) {
+    if (selectedActivity && !allActivities.some(a => a.id === selectedActivity.id)) {
       setSelectedActivity(null);
     }
   }, [allActivities, selectedActivity]);

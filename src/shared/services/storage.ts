@@ -31,18 +31,22 @@ function makeActivityKey(activity: { id: string }): string {
   return ACTIVITY_KEY + activity.id;
 }
 
+/** Shared AsyncStorage write path used by the typed store* helpers. */
+async function storeJson(key: string, value: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    simpleLogger.error('ERROR saving key ' + key + ' ' + e);
+  }
+}
+
 /**
  * Stores an integer value in AsyncStorage.
  * @param key The key to store the value under.
  * @param value The value to store.
  */
 export async function storeIntValue(key: string, value: number): Promise<void> {
-  try {
-    const jsonValue = JSON.stringify(value);
-    await AsyncStorage.setItem(key, jsonValue);
-  } catch (e) {
-    simpleLogger.error('ERROR saving key ' + key + ' ' + e);
-  }
+  await storeJson(key, value);
 }
 
 /**
@@ -54,12 +58,7 @@ export async function storeValue<K extends keyof StorageSchema>(
   key: K,
   value: StorageSchema[K]
 ): Promise<void> {
-  try {
-    const jsonValue = JSON.stringify(value);
-    await AsyncStorage.setItem(key, jsonValue);
-  } catch (e) {
-    simpleLogger.error('ERROR saving key ' + key + ' ' + e);
-  }
+  await storeJson(key, value);
 }
 
 /**
@@ -68,12 +67,7 @@ export async function storeValue<K extends keyof StorageSchema>(
  * @param value The value to store.
  */
 export async function storeStringValue(key: string, value: string): Promise<void> {
-  try {
-    const jsonValue = JSON.stringify(value);
-    await AsyncStorage.setItem(key, jsonValue);
-  } catch (e) {
-    simpleLogger.error('ERROR saving key ' + key + ' ' + e);
-  }
+  await storeJson(key, value);
 }
 
 /**

@@ -137,5 +137,5 @@ export function getPalette(id: string): PaletteDefinition {
  * @returns True when the id resolves to a registered palette.
  */
 export function isKnownPalette(id: string): boolean {
-  return Object.prototype.hasOwnProperty.call(PALETTES, id);
+  return Object.hasOwn(PALETTES, id);
 }

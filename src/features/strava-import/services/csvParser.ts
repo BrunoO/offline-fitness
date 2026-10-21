@@ -246,7 +246,7 @@ const MONTHS: Record<string, number> = {
 };
 
 function monthFromToken(token: string): number | undefined {
-  const key = normalizeHeader(token).replace(/\./g, '');
+  const key = normalizeHeader(token).replaceAll('.', '');
   if (!key) return undefined;
   return MONTHS[key] ?? MONTHS[key.slice(0, 4)] ?? MONTHS[key.slice(0, 3)];
 }

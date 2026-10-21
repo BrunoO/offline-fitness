@@ -93,10 +93,10 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   const [heatmapData, setHeatmapData] = useState<
     { latitude: number; longitude: number; weight: number }[]
   >([]);
-  const [showHeatmap, setShowHeatamp] = useState<boolean>(false);
+  const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
 
   const toggleHeatmap = () => {
-    setShowHeatamp(prev => {
+    setShowHeatmap(prev => {
       if (prev) setHeatmapData([]); // free memory when hiding
       return !prev;
     });

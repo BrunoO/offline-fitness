@@ -53,33 +53,36 @@ export function useActivities() {
    * Deletes an activity.
    * @param activity The activity to delete.
    */
-  function deleteActivity(activity: Activity) {
+  async function deleteActivity(activity: Activity): Promise<void> {
     simpleLogger.log('APP LEVEL - deleteActivity', {
       activityToDelete: activity,
       currentGlobalActivitiesLength: globalActivities.length
     });
-    Storage.removeActivity(activity)
-      .then(() => {
-        simpleLogger.log('Storage.removeActivity completed');
-        // WebDAV backup tombstone: the next sync push deletes the remote
-        // copy too. Fire-and-forget; failure only delays the propagation.
-        Storage.addActivityTombstone(String(activity.id)).catch(e =>
-          simpleLogger.error('Could not record backup tombstone: ' + e)
-        );
-        setGlobalActivities(prev => {
-          // Maintain sorted order after deletion
-          const next = prev.filter(a => a.id !== activity.id).sort(compareActivitiesByUtcDesc);
-          simpleLogger.log('setGlobalActivities', {
-            prevLength: prev.length,
-            newLength: next.length
-          });
-          return next;
-        });
-        setTotalActivitiesStored(prev => prev - 1);
-      })
-      .catch(error => {
-        simpleLogger.error('Failed to remove activity from storage:', error);
+    try {
+      await Storage.removeActivity(activity);
+    } catch (error) {
+      simpleLogger.error('Failed to remove activity from storage:', error);
+      return;
+    }
+    simpleLogger.log('Storage.removeActivity completed');
+    // WebDAV backup tombstone: the next sync push deletes the remote
+    // copy too. A failure only delays the propagation; it must not fail
+    // the local delete the user just confirmed.
+    try {
+      await Storage.addActivityTombstone(String(activity.id));
+    } catch (e) {
+      simpleLogger.error('Could not record backup tombstone: ' + e);
+    }
+    setGlobalActivities(prev => {
+      // Maintain sorted order after deletion
+      const next = prev.filter(a => a.id !== activity.id).sort(compareActivitiesByUtcDesc);
+      simpleLogger.log('setGlobalActivities', {
+        prevLength: prev.length,
+        newLength: next.length
       });
+      return next;
+    });
+    setTotalActivitiesStored(prev => prev - 1);
   }
 
   return {

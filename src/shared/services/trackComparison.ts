@@ -41,9 +41,7 @@ export function compareTracks(track1: LatLng[], track2: LatLng[]): number {
 
   const gapPenalty = -0.5;
 
-  const dp = Array(n + 1)
-    .fill(null)
-    .map(() => Array(m + 1).fill(0));
+  const dp = new Array(n + 1).fill(null).map(() => new Array(m + 1).fill(0));
 
   // Initialization of the DP table
   for (let i = 0; i <= n; i++) {

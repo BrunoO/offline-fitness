@@ -22,7 +22,8 @@ function formatLastSync(isoString: string): string {
 function idSuffix(ids: readonly string[]): string {
   if (ids.length === 0) return '';
   const shown = ids.slice(0, 3).join(', ');
-  return ` (${shown}${ids.length > 3 ? `, +${ids.length - 3} more` : ''})`;
+  const extra = ids.length > 3 ? `, +${ids.length - 3} more` : '';
+  return ` (${shown}${extra})`;
 }
 
 /**
@@ -96,7 +97,7 @@ export function BackupSection() {
     setTesting(false);
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = () => {
     Alert.alert(
       'Disconnect backup?',
       'This removes the stored server URL, username and password from this phone. The backup on the server is left untouched.',

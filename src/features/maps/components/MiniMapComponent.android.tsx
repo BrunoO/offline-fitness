@@ -8,7 +8,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
-  overlayStream?: ActivityStream | undefined;
+  overlayStream?: ActivityStream;
 };
 
 // Adjust this constant to control how many direction arrows are displayed along the track
