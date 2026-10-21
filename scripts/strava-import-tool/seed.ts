@@ -77,11 +77,11 @@ const RETRY_BASE_DELAY_MS = 500;
 /** Read failures in a row before the run gives up — mirrors the phone importer. */
 const MAX_CONSECUTIVE_READ_FAILURES = 10;
 
-/** True for failures worth retrying: dropped connections and server-side strain — never 4xx, which fail identically every time (auth, conflicts, missing). */
+/** True for failures worth retrying: dropped connections, transient locks (423) and server-side strain — never other 4xx, which fail identically every time (auth, conflicts, missing). */
 function isRetryable(error: unknown): boolean {
   if (error instanceof WebDavTransportError) {
     const status = error.status ?? 0;
-    return status === 0 || status === 408 || status === 429 || status >= 500;
+    return status === 0 || status === 408 || status === 423 || status === 429 || status >= 500;
   }
   // Anything else is connection-level (DNS, refused, reset, hung-up fetch).
   return true;
@@ -366,23 +366,34 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
       }
     }
 
+    // State writes go through one chain so two checkpoints can never overlap
+    // in time: concurrent PUTs to sync-state.json trip the server's file lock
+    // (423) on a loaded box. Maps only grow (entries are added after their
+    // PUT succeeds, never removed), so every queued write is a consistent
+    // state and order between them does not matter — only that they never
+    // run together.
+    let stateChain: Promise<void> = Promise.resolve();
+    let stateDirty = false;
+    const writeState = (force: boolean): Promise<void> => {
+      if (!force && !stateDirty) return Promise.resolve();
+      stateDirty = false;
+      const run = stateChain.then(async () => {
+        const syncState: RemoteSyncState = {
+          syncedAt: new Date().toISOString(),
+          activityMd5,
+          streamMd5,
+          deletedAt
+        };
+        await client.putText([APP_CONFIG.BACKUP_SYNC_STATE_FILE], JSON.stringify(syncState));
+      });
+      stateChain = run.catch(() => {});
+      return force ? run : run.catch(() => {});
+    };
+
     let done = 0;
     let consecutiveReadFailures = 0;
     let fatalError: Error | undefined;
     const total = queue.length;
-
-    // The state write, factored so the final write and the interim
-    // checkpoints share it. Always consistent: both maps only gain entries
-    // for files whose PUT already succeeded, and deletedAt is fixed above.
-    const writeState = async (): Promise<void> => {
-      const syncState: RemoteSyncState = {
-        syncedAt: new Date().toISOString(),
-        activityMd5,
-        streamMd5,
-        deletedAt
-      };
-      await client.putText([APP_CONFIG.BACKUP_SYNC_STATE_FILE], JSON.stringify(syncState));
-    };
 
     const processRow = async (row: ExportedActivityRow): Promise<void> => {
       const id = row.id;
@@ -499,6 +510,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
               client.putBytes([APP_CONFIG.BACKUP_STREAMS_FOLDER, name], payload)
             );
             streamMd5[name] = hash;
+            stateDirty = true;
           }
         }
       }
@@ -517,6 +529,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
             client.putText([APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, name], content)
           );
           activityMd5[name] = hash;
+          stateDirty = true;
         }
       }
     };
@@ -537,12 +550,11 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
           return;
         }
         done++;
-        // Interim checkpoint, awaited inline: cheap (one small PUT per
-        // `checkpointEvery` activities) and strictly ordered — this worker
-        // settles it before rejoining the pool, so the final write below can
-        // never land before a checkpoint. `done++` is synchronous, so each
-        // multiple is hit by exactly one worker.
-        if (!dryRun && done % checkpointEvery === 0) await writeState();
+        // Interim checkpoint: fire-and-forget through the chain (failures are
+        // best effort here — the run's own PUTs will surface a sick server,
+        // and the final write below is authoritative). Skipped entirely when
+        // nothing changed, so all-skip runs do zero interim writes.
+        if (!dryRun && done % checkpointEvery === 0) writeState(false);
         options.onProgress?.({ done, total, currentActivityId: row.id });
       }
     };
@@ -552,12 +564,13 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
       // Leave the completed prefix behind as a valid state so the re-run
       // resumes instead of redoing it. Best effort: if the server is gone,
       // the checkpoint fails too and the original error is what matters.
-      if (!dryRun) await writeState().catch(() => {});
+      if (!dryRun) await writeState(true).catch(() => {});
       throw fatalError;
     }
 
     // ---- state last: its key sets are the file list the phone restores from ----
-    if (!dryRun) await writeState();
+    // Chained after every checkpoint, so it can never land before one.
+    if (!dryRun) await writeState(true);
 
     summary.timings.transfer = Date.now() - startedAt - summary.timings.archive;
     summary.timings.total = Date.now() - startedAt;

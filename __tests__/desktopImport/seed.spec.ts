@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '@/constants';
+import { WebDavTransportError } from '@/features/backup/services/webdavTransport';
 import { normalizeEntryPath } from '@/features/strava-import/services/entryNames';
 import { createMemoryByteSource, readZipEntries } from '@/features/strava-import/services/zipReader';
 import JSZip from 'jszip';
@@ -143,7 +144,9 @@ describe('seedCollection against an existing collection', () => {
     const stored: Record<string, string | Uint8Array> = {};
     first.fake.store.forEach((value, key) => (stored[key] = value));
 
-    const { fake, summary } = await seed(createFakeClient(stored));
+    // checkpointEvery 1 proves the dirty flag: with nothing changed, even a
+    // per-activity cadence must not add interim state writes.
+    const { fake, summary } = await seed(createFakeClient(stored), { checkpointEvery: 1 });
 
     expect(summary.activitiesUploaded).toBe(0);
     expect(summary.streamsUploaded).toBe(0);
@@ -341,8 +344,7 @@ describe('seedCollection travel zones (Phase 4)', () => {
 });
 
 describe('seedCollection upload resilience', () => {
-  it('retries a dropped PUT and still converges', async () => {
-    const base = createFakeClient();
+  it('retries a dropped PUT and still converges', async () => {    const base = createFakeClient();
     let attempts = 0;
     const flaky: DavClient = {
       ...base.client,
@@ -431,6 +433,74 @@ describe('seedCollection upload resilience', () => {
     expect(summary.uploadedActivityIds.sort()).toEqual(['123', '456']);
     expect(summary.streamsSkipped).toBe(1); // 999's stream survived the abort
     expect(summary.streamsUploaded).toBe(1); // 123's
+  });
+
+  it('retries a transient 423 lock instead of aborting on it', async () => {
+    // Nextcloud answers 423 when a second PUT hits a file the first still
+    // holds — the normal shape of lock contention, not a refusal. rclone
+    // treats it the same way: back off and retry.
+    const base = createFakeClient();
+    let attempts = 0;
+    const locking: DavClient = {
+      ...base.client,
+      putText: async (segments, body) => {
+        if (segments.join('/') === 'activities/123.json') {
+          attempts++;
+          if (attempts < 3) throw new WebDavTransportError('locked', 423);
+        }
+        return base.client.putText(segments, body);
+      }
+    };
+    const summary = await seedCollection({
+      archivePath: await writeArchiveFixture(),
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: locking
+    });
+
+    expect(attempts).toBe(3);
+    expect(summary.failedTracks).toBe(0);
+    expect(summary.uploadedActivityIds).toContain('123');
+  });
+
+  it('never overlaps two sync-state writes (server file lock)', async () => {
+    // Regression test for the 423-at-750 failure: checkpoint PUTs fired by
+    // different workers overlapped in time on sync-state.json. State writes
+    // now go through one chain; with an artificial delay on the state path,
+    // any overlap would show as concurrent executions.
+    const base = createFakeClient();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const slow: DavClient = {
+      ...base.client,
+      putText: async (segments, body) => {
+        if (segments.join('/') === 'sync-state.json') {
+          inFlight++;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise(resolve => setTimeout(resolve, 50));
+          inFlight--;
+        }
+        return base.client.putText(segments, body);
+      }
+    };
+    const summary = await seedCollection({
+      archivePath: await writeArchiveFixture(),
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: slow,
+      concurrency: 8,
+      checkpointEvery: 1
+    });
+
+    expect(maxInFlight).toBe(1);
+    expect(summary.activitiesUploaded).toBe(4);
+    const state = JSON.parse(base.store.get('sync-state.json') as string);
+    expect(Object.keys(state.activityMd5).sort()).toEqual([
+      '123.json',
+      '456.json',
+      '789.json',
+      '999.json'
+    ]);
   });
 });
 
