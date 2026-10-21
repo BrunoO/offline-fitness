@@ -27,6 +27,30 @@ streaks, export, backup — runs entirely on the device.
 - **Backup** — optional WebDAV backup/restore of the local store (Nextcloud, rclone, Apache
   mod_dav or any RFC 4918 server). The password is kept in the system keychain.
 
+## Roadmap
+
+The app is built in layers, each one unlocking the next. Where we are:
+
+1. **Fitness statistics** — *done*. Weekly/monthly/yearly totals, per-type breakdowns,
+   calendar, day/week/goal streaks, year-to-date comparison and similar-route detection all
+   work on the local store.
+2. **Import the Strava archive** — *in progress*. Importing `activities.csv` plus GPX
+   tracks works end to end and is idempotent and resumable. Still open: `.fit` and `.tcx`
+   tracks are not parsed (those activities import without a map), and large archives keep
+   surfacing performance work on low-end devices.
+3. **Backup and sync over WebDAV** — *in progress*. Pushing and restoring activities and
+   tracks against any RFC 4918 server exists in the app; the stream files are moving to a
+   compact binary format to make the sync faster and roughly half the size.
+4. **Record your own GPS tracks** — *todo*. Capture a track during an activity in the app
+   itself, so Offline Fitness can stand alone and you no longer depend on Strava to produce
+   the data.
+5. **Activities without GPS** — *todo*. Enter activities by hand (indoor sessions,
+   a treadmill run, yoga). Some groundwork exists already: the importer tolerates
+   activities without a track and excludes them from distance/elevation stats.
+6. **Alternative map provider** — *todo*. Replace the Google Maps SDK — the one dependency
+   that needs an API key and a network — with a provider that does not, completing the
+   "no account, no tracking" promise and making the whole app usable fully offline.
+
 ## Getting the data in
 
 1. Sign in to the Strava website → **Settings → My Account → Download or delete your account**
