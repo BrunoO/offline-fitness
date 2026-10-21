@@ -714,3 +714,12 @@ A comprehensive code review was performed, covering technical debt, architecture
   - `backupSync`: shared `describeError`, plus `ensureOwnedCollection`, `propagateLocalTombstones`, `mergeRemoteTombstones` (push) and `cleanOrphanedStreamFiles`, `localStreamMatchesIndex`, `fetchStreamContent` (pull); tombstone/stream decisions and error strings identical.
   - `StatsTab` modal: `ValidationBadge` and `SettingToggle` extracted as module-level theme-aware components (createStyles + useMemo, no hardcoded colours), removing six inline ternaries from the modal body.
 - 389 tests, tsc, check:imports and eslint all green after the refactor.
+
+## Post-Scan Regressions Cleared - 2026-10-21
+
+- Second scan showed 190 open (vs ~187 projected): the complexity refactor itself introduced 4 small issues; all fixed:
+  - `textDecode.decodeUtf8Manually` still at cognitive 16: lead-byte dispatch extracted to `pushDecodedSequence`; ASCII fast path untouched.
+  - `cleanOrphanedStreamFiles` was `async` with no `await` (S7503): made synchronous, call site updated.
+  - `ValidationBadge`/`SettingToggle` props not `Readonly` (S6759 x2): marked.
+  - `deleteStreamFiles` `Promise.all` over sync `File.delete()` results (S4123 CRITICAL): now a plain sync loop; the misleading `runWithCleanup`/`Promise.all` scaffolding around it removed (function made non-async, `DetailsScreen` call wrapped in try/catch, same rethrow semantics, cleanup guard preserved).
+- Also fixed the last open BUG: `stats.ts` `allActivities.map(...)` used for side effects -> `forEach` (S2201).

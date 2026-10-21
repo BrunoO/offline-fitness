@@ -194,8 +194,8 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     }
 
     // Reuse weeklyData and only look at the most recent week
-    const activityTypes = Array.from(new Set(globalActivities.map(a => a.type))).sort(
-      (a, b) => a.localeCompare(b)
+    const activityTypes = Array.from(new Set(globalActivities.map(a => a.type))).sort((a, b) =>
+      a.localeCompare(b)
     ) as string[];
     const weeks = weeklyData(activityTypes, globalActivities, 1, useElapsedTime);
     if (weeks.length === 0) {
@@ -268,8 +268,8 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     }
 
     // Compute longest recent week by total distance
-    const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort(
-      (a, b) => a.localeCompare(b)
+    const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort((a, b) =>
+      a.localeCompare(b)
     ) as string[];
     const weeks = weeklyData(activityTypes, recentActivities, numberRecentWeeks, useElapsedTime);
 

@@ -8,7 +8,6 @@ import {
   getAllActivitiesKeys,
   loadAllActivities,
   readStreamFile,
-  runWithCleanup,
   simpleLogger,
   storeActivity
 } from '@/shared';
@@ -26,34 +25,30 @@ const processingActivities = new Set<string>();
  * @param {string} activityId - The ID of the activity to delete stream files for.
  * @throws {Error} Throws an error if the deletion fails.
  */
-export async function deleteStreamFiles(activityId: string) {
+export function deleteStreamFiles(activityId: string): void {
   if (processingActivities.has(activityId)) {
     simpleLogger.log(`Activity ${activityId} is being processed, skipping delete`);
     return;
   }
   processingActivities.add(activityId);
   try {
-    await runWithCleanup(
-      async () => {
-        if (!streamsFolder.exists) {
-          return;
-        }
-        const files = streamsFolder.list();
-        const filesToDelete = files.filter(file => file.name.startsWith(activityId + '.'));
+    if (streamsFolder.exists) {
+      const files = streamsFolder.list();
+      const filesToDelete = files.filter(file => file.name.startsWith(`${activityId}.`));
 
-        await Promise.all(filesToDelete.map(file => file.delete())).catch(error => {
-          simpleLogger.error('Error deleting stream file:', error);
-        });
-
-        simpleLogger.log(`Deleted ${filesToDelete.length} stream files for activity ${activityId}`);
-      },
-      () => {
-        processingActivities.delete(activityId);
+      // File.delete() is synchronous; a failing delete throws into the catch
+      // below and rethrows, preserving the old reject-then-rethrow contract.
+      for (const file of filesToDelete) {
+        file.delete();
       }
-    );
+
+      simpleLogger.log(`Deleted ${filesToDelete.length} stream files for activity ${activityId}`);
+    }
   } catch (error) {
     simpleLogger.error('Error deleting stream files:', error);
     throw error;
+  } finally {
+    processingActivities.delete(activityId);
   }
 }
 

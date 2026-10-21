@@ -233,7 +233,9 @@ const createStyles = (theme: ResolvedTheme) =>
  * @returns A React component.
  */
 /** Valid/invalid badge shown after an explicit validation of the goal. */
-function ValidationBadge({ status }: { status: 'valid' | 'invalid' | null }): JSX.Element | null {
+function ValidationBadge({
+  status
+}: Readonly<{ status: 'valid' | 'invalid' | null }>): JSX.Element | null {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   if (status === null) return null;
@@ -267,11 +269,11 @@ function SettingToggle({
   label,
   value,
   onChange
-}: {
+}: Readonly<{
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
-}): JSX.Element {
+}>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (

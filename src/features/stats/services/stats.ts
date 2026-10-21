@@ -31,7 +31,7 @@ export function yearlyData(
 ): number[][] {
   const allYearsMap = new Map<number, Map<string, number>>();
 
-  allActivities.map(ga => {
+  allActivities.forEach(ga => {
     // initialization of a map for the year if needed
     if (!allYearsMap.get(ga.start_year)) {
       const m = new Map();

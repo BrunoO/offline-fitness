@@ -33,6 +33,34 @@ function decodeSequence(bytes: Uint8Array, index: number, extraBytes: number): n
 }
 
 /**
+ * Decodes the multi-byte sequence starting at `index` and appends its result
+ * (or U+FFFD when malformed) to `pieces`. Returns the next index to scan.
+ */
+function pushDecodedSequence(
+  bytes: Uint8Array,
+  index: number,
+  length: number,
+  pieces: string[]
+): number {
+  const extraBytes = continuationCount(bytes[index]);
+  if (extraBytes < 0) {
+    pieces.push('\uFFFD');
+    return index + 1;
+  }
+  if (index + extraBytes >= length) {
+    pieces.push('\uFFFD');
+    return length;
+  }
+  const codePoint = decodeSequence(bytes, index, extraBytes);
+  if (codePoint < 0) {
+    pieces.push('\uFFFD');
+    return index + 1;
+  }
+  pieces.push(String.fromCodePoint(codePoint));
+  return index + extraBytes + 1;
+}
+
+/**
  * Fallback decoder, used only when the platform has no `TextDecoder`.
  *
  * Two things matter for speed here, because a track file is ~250 KB–2 MB:
@@ -63,29 +91,10 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
       );
     }
     if (index >= length) break;
-    if (bytes[index] < 0x80) continue; // the run stopped at the 8 KB cap
+    // A remaining ASCII byte means the run stopped at the 8 KB cap.
+    if (bytes[index] < 0x80) continue;
 
-    const extraBytes = continuationCount(bytes[index]);
-    if (extraBytes < 0) {
-      pieces.push('\uFFFD');
-      index += 1;
-      continue;
-    }
-
-    if (index + extraBytes >= length) {
-      pieces.push('\uFFFD');
-      break;
-    }
-
-    const codePoint = decodeSequence(bytes, index, extraBytes);
-    if (codePoint < 0) {
-      pieces.push('\uFFFD');
-      index += 1;
-      continue;
-    }
-
-    pieces.push(String.fromCodePoint(codePoint));
-    index += extraBytes + 1;
+    index = pushDecodedSequence(bytes, index, length, pieces);
   }
 
   return pieces.join('');

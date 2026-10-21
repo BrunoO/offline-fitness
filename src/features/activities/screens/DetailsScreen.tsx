@@ -104,9 +104,13 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
 
   const onDeleteActivity = (activity: Activity) => {
     deleteActivity(activity);
-    deleteStreamFiles(activity.id).catch(error =>
-      simpleLogger.error('Failed to delete stream files for deleted activity', error)
-    );
+    try {
+      deleteStreamFiles(activity.id);
+    } catch (error) {
+      // The service already logged the detail; a failed stream cleanup must
+      // not blow up the user-facing delete action.
+      simpleLogger.error('Failed to delete stream files for deleted activity', error);
+    }
   };
 
   const keyExtractor = (item: Activity) => item.id;

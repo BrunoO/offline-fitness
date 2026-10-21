@@ -492,12 +492,12 @@ export interface RestoreSummary {
  * (tombstoned) and are not present locally. Local wins: an activity that came
  * back after the deletion keeps its streams.
  */
-async function cleanOrphanedStreamFiles(
+function cleanOrphanedStreamFiles(
   summary: RestoreSummary,
   onProgress: ((p: SyncProgress) => void) | undefined,
   tombstonedIds: Set<string>,
   localActivityIds: Set<string>
-): Promise<void> {
+): void {
   const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
   onProgress?.({ phase: 'tombstones', done: 0, total: tombstonedIds.size });
   let tombstoneDone = 0;
@@ -592,7 +592,7 @@ async function pullBackup(
   // the next push drops its tombstone for good. What pull does clean up is
   // orphaned stream files of tombstoned activities.
   const tombstonedIds = new Set(Object.keys(remoteState.deletedAt ?? {}));
-  await cleanOrphanedStreamFiles(summary, onProgress, tombstonedIds, localActivityIds);
+  cleanOrphanedStreamFiles(summary, onProgress, tombstonedIds, localActivityIds);
 
   onProgress?.({ phase: 'activities', done: 0, total: remoteActivities.length });
   let activityDone = 0;
