@@ -1,4 +1,5 @@
 import { useActivitiesContext } from '@/features/activities';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { IconButton, StatsTabParamList, StatsTabScreenProps } from '@/shared';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -14,7 +15,6 @@ import {
   Switch,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View
 } from 'react-native';
 import { validateGoal } from '../services/GoalService';
@@ -27,16 +27,16 @@ type IoniconName = keyof typeof Ionicons.glyphMap;
 
 const Tab = createBottomTabNavigator<StatsTabParamList>();
 
-const createStyles = (isDark: boolean) =>
+const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
     modalOverlay: {
       flex: 1,
       justifyContent: 'center',
-      backgroundColor: 'rgba(0,0,0,0.6)',
+      backgroundColor: theme.scrim,
       paddingHorizontal: 16
     },
     modalContainer: {
-      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+      backgroundColor: theme.surface,
       borderRadius: 24,
       padding: 0,
       ...Platform.select({
@@ -65,19 +65,19 @@ const createStyles = (isDark: boolean) =>
       paddingTop: 24,
       paddingBottom: 16,
       borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#374151' : '#e5e7eb'
+      borderBottomColor: theme.border
     },
     modalTitle: {
       fontSize: 28,
       fontWeight: '700',
-      color: isDark ? '#f9fafb' : '#111827',
+      color: theme.textStrong,
       letterSpacing: -0.5
     },
     closeButton: {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: isDark ? '#374151' : '#f3f4f6',
+      backgroundColor: theme.surfaceSunken,
       justifyContent: 'center',
       alignItems: 'center'
     },
@@ -92,12 +92,12 @@ const createStyles = (isDark: boolean) =>
     settingLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: isDark ? '#e5e7eb' : '#374151',
+      color: theme.text,
       marginBottom: 8
     },
     settingValue: {
       fontSize: 14,
-      color: isDark ? '#9ca3af' : '#6b7280',
+      color: theme.textMuted,
       marginBottom: 12
     },
     sliderContainer: {
@@ -111,33 +111,33 @@ const createStyles = (isDark: boolean) =>
       alignItems: 'center',
       paddingVertical: 12,
       paddingHorizontal: 16,
-      backgroundColor: isDark ? '#374151' : '#f9fafb',
+      backgroundColor: theme.surfaceAlt,
       borderRadius: 12,
       marginBottom: 8
     },
     toggleLabel: {
       fontSize: 16,
       fontWeight: '500',
-      color: isDark ? '#e5e7eb' : '#374151',
+      color: theme.text,
       flex: 1
     },
     toggleStatus: {
       fontSize: 14,
-      color: isDark ? '#9ca3af' : '#6b7280',
+      color: theme.textMuted,
       marginRight: 12
     },
     codeEditorContainer: {
       borderRadius: 16,
       padding: 16,
       borderWidth: 1,
-      borderColor: isDark ? '#374151' : '#e2e8f0',
-      backgroundColor: isDark ? '#282c34' : '#ffffff',
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceMuted,
       overflow: 'hidden'
     },
     codeEditorLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: isDark ? '#e5e7eb' : '#374151',
+      color: theme.text,
       marginBottom: 12
     },
     validationContainer: {
@@ -155,20 +155,12 @@ const createStyles = (isDark: boolean) =>
       borderWidth: 1
     },
     validationBadgeValid: {
-      backgroundColor: '#ecfdf5',
-      borderColor: '#10b981'
+      backgroundColor: theme.successSoft,
+      borderColor: theme.success
     },
     validationBadgeInvalid: {
-      backgroundColor: '#fef2f2',
-      borderColor: '#ef4444'
-    },
-    validationBadgeValidDark: {
-      backgroundColor: '#064e3b',
-      borderColor: '#10b981'
-    },
-    validationBadgeInvalidDark: {
-      backgroundColor: '#7f1d1d',
-      borderColor: '#ef4444'
+      backgroundColor: theme.dangerSoft,
+      borderColor: theme.danger
     },
     validationText: {
       fontSize: 12,
@@ -176,27 +168,21 @@ const createStyles = (isDark: boolean) =>
       marginLeft: 6
     },
     validationTextValid: {
-      color: '#065f46'
+      color: theme.success
     },
     validationTextInvalid: {
-      color: '#991b1b'
-    },
-    validationTextValidDark: {
-      color: '#6ee7b7'
-    },
-    validationTextInvalidDark: {
-      color: '#fca5a5'
+      color: theme.danger
     },
     validateButton: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
       paddingVertical: 8,
-      backgroundColor: isDark ? '#1d4ed8' : '#3b82f6',
+      backgroundColor: theme.primary,
       borderRadius: 8
     },
     validateButtonText: {
-      color: '#ffffff',
+      color: theme.onPrimary,
       fontSize: 14,
       fontWeight: '600',
       marginLeft: 6
@@ -209,7 +195,7 @@ const createStyles = (isDark: boolean) =>
       paddingBottom: 24,
       paddingTop: 16,
       borderTopWidth: 1,
-      borderTopColor: isDark ? '#374151' : '#e5e7eb'
+      borderTopColor: theme.border
     },
     actionButton: {
       flexDirection: 'row',
@@ -221,12 +207,12 @@ const createStyles = (isDark: boolean) =>
       justifyContent: 'center'
     },
     saveButton: {
-      backgroundColor: isDark ? '#059669' : '#10b981'
+      backgroundColor: theme.success
     },
     cancelButton: {
-      backgroundColor: isDark ? '#374151' : '#f3f4f6',
+      backgroundColor: theme.surfaceSunken,
       borderWidth: 1,
-      borderColor: isDark ? '#4b5563' : '#d1d5db'
+      borderColor: theme.border
     },
     actionButtonText: {
       fontSize: 16,
@@ -234,10 +220,10 @@ const createStyles = (isDark: boolean) =>
       marginLeft: 8
     },
     saveButtonText: {
-      color: '#ffffff'
+      color: theme.onPrimary
     },
     cancelButtonText: {
-      color: isDark ? '#e5e7eb' : '#374151'
+      color: theme.text
     }
   });
 
@@ -253,9 +239,9 @@ const SettingsModal = ({
   isSettingsVisible: boolean;
   setIsSettingsVisible: (visible: boolean) => void;
 }) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const styles = createStyles(isDark);
+  const theme = useTheme();
+  const isDark = theme.scheme === 'dark';
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const {
     numberRecentWeeks,
@@ -315,11 +301,11 @@ const SettingsModal = ({
       fontSize: 14,
       inputLineHeight: 18,
       highlighterLineHeight: 18,
-      backgroundColor: isDark ? '#282c34' : '#ffffff',
+      backgroundColor: theme.surfaceMuted,
       // In React 19, transparent input doesn't work properly, use visible text color as fallback
-      inputColor: isDark ? '#abb2bf' : 'rgba(0,0,0,0)'
+      inputColor: isDark ? theme.textMuted : 'rgba(0,0,0,0)'
     }),
-    [isDark]
+    [isDark, theme]
   );
 
   const syntaxStyle = useMemo(
@@ -365,7 +351,7 @@ const SettingsModal = ({
               style={styles.closeButton}
               onPress={() => setIsSettingsVisible(false)}
             >
-              <Ionicons name="close" size={20} color={isDark ? '#9ca3af' : '#6b7280'} />
+              <Ionicons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -383,8 +369,8 @@ const SettingsModal = ({
                   step={1}
                   value={tempNumberRecentWeeks}
                   onValueChange={(value: number) => setTempNumberRecentWeeks(value)}
-                  minimumTrackTintColor={isDark ? '#3b82f6' : '#1d4ed8'}
-                  maximumTrackTintColor={isDark ? '#374151' : '#e5e7eb'}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
                 />
               </View>
             </View>
@@ -401,8 +387,8 @@ const SettingsModal = ({
                   step={1}
                   value={tempNumberRecentMonths}
                   onValueChange={(value: number) => setTempNumberRecentMonths(value)}
-                  minimumTrackTintColor={isDark ? '#3b82f6' : '#1d4ed8'}
-                  maximumTrackTintColor={isDark ? '#374151' : '#e5e7eb'}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
                 />
               </View>
             </View>
@@ -418,10 +404,10 @@ const SettingsModal = ({
                   value={tempUseElapsedTime}
                   onValueChange={(value: boolean) => setTempUseElapsedTime(value)}
                   trackColor={{
-                    false: isDark ? '#4b5563' : '#d1d5db',
-                    true: isDark ? '#1d4ed8' : '#3b82f6'
+                    false: theme.border,
+                    true: theme.primary
                   }}
-                  thumbColor={tempUseElapsedTime ? '#ffffff' : isDark ? '#9ca3af' : '#f3f4f6'}
+                  thumbColor={tempUseElapsedTime ? theme.onPrimary : theme.surfaceSunken}
                 />
               </View>
             </View>
@@ -437,12 +423,10 @@ const SettingsModal = ({
                   value={tempMergeSimilarActivities}
                   onValueChange={(value: boolean) => setTempMergeSimilarActivities(value)}
                   trackColor={{
-                    false: isDark ? '#4b5563' : '#d1d5db',
-                    true: isDark ? '#1d4ed8' : '#3b82f6'
+                    false: theme.border,
+                    true: theme.primary
                   }}
-                  thumbColor={
-                    tempMergeSimilarActivities ? '#ffffff' : isDark ? '#9ca3af' : '#f3f4f6'
-                  }
+                  thumbColor={tempMergeSimilarActivities ? theme.onPrimary : theme.surfaceSunken}
                 />
               </View>
             </View>
@@ -453,7 +437,7 @@ const SettingsModal = ({
                 <Text style={styles.codeEditorLabel}>Weekly Goal Expression</Text>
                 <View
                   style={{
-                    backgroundColor: isDark ? '#282c34' : '#ffffff',
+                    backgroundColor: theme.surfaceMuted,
                     borderRadius: 8,
                     overflow: 'hidden',
                     minHeight: 120,
@@ -477,29 +461,21 @@ const SettingsModal = ({
                       style={[
                         styles.validationBadge,
                         validationStatus === 'valid'
-                          ? isDark
-                            ? styles.validationBadgeValidDark
-                            : styles.validationBadgeValid
-                          : isDark
-                            ? styles.validationBadgeInvalidDark
-                            : styles.validationBadgeInvalid
+                          ? styles.validationBadgeValid
+                          : styles.validationBadgeInvalid
                       ]}
                     >
                       <Ionicons
                         name={validationStatus === 'valid' ? 'checkmark-circle' : 'alert-circle'}
                         size={16}
-                        color={validationStatus === 'valid' ? '#10b981' : '#ef4444'}
+                        color={validationStatus === 'valid' ? theme.success : theme.danger}
                       />
                       <Text
                         style={[
                           styles.validationText,
                           validationStatus === 'valid'
-                            ? isDark
-                              ? styles.validationTextValidDark
-                              : styles.validationTextValid
-                            : isDark
-                              ? styles.validationTextInvalidDark
-                              : styles.validationTextInvalid
+                            ? styles.validationTextValid
+                            : styles.validationTextInvalid
                         ]}
                       >
                         {validationStatus === 'valid' ? 'Valid' : 'Invalid'}
@@ -507,7 +483,7 @@ const SettingsModal = ({
                     </View>
                   ) : null}
                   <TouchableOpacity style={styles.validateButton} onPress={onValidate}>
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#ffffff" />
+                    <Ionicons name="checkmark-circle-outline" size={16} color={theme.onPrimary} />
                     <Text style={styles.validateButtonText}>Validate</Text>
                   </TouchableOpacity>
                 </View>
@@ -521,15 +497,11 @@ const SettingsModal = ({
               style={[styles.actionButton, styles.cancelButton]}
               onPress={() => setIsSettingsVisible(false)}
             >
-              <Ionicons
-                name="close-circle-outline"
-                size={18}
-                color={isDark ? '#e5e7eb' : '#374151'}
-              />
+              <Ionicons name="close-circle-outline" size={18} color={theme.text} />
               <Text style={[styles.actionButtonText, styles.cancelButtonText]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={handleSave}>
-              <Ionicons name="save-outline" size={18} color="#ffffff" />
+              <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
               <Text style={[styles.actionButtonText, styles.saveButtonText]}>Save</Text>
             </TouchableOpacity>
           </View>
@@ -590,12 +562,9 @@ function getTabOptions(label: string, iconName: IoniconName) {
   return {
     headerShown: false,
     tabBarLabel: label,
+    // The tint comes from the navigation theme, which follows the active palette.
     tabBarIcon: (tabInfo: { focused: boolean; color: string; size: number }) => (
-      <Ionicons
-        name={iconName}
-        size={tabInfo.size}
-        color={tabInfo.focused ? '#006600' : '#8e8e93'}
-      />
+      <Ionicons name={iconName} size={tabInfo.size} color={tabInfo.color} />
     )
   };
 }

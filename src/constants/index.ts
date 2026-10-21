@@ -1,9 +1,6 @@
 // Constants - Public API
 // This file exports all app-wide constants
 
-// Colors
-export * from './colors';
-
 // App Configuration
 export const APP_CONFIG = {
   // Namespace for this app's backup collections inside the user's WebDAV

@@ -14,10 +14,11 @@ import { MapsScreen } from '@/features/maps';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
+import { createNavigationTheme, ThemeProvider, useTheme } from '@/theme';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +32,8 @@ SplashScreen.setOptions({
 const Drawer = createDrawerNavigator<RootDrawerParamList>();
 
 function AppContent() {
+  const theme = useTheme();
+  const navigationTheme = useMemo(() => createNavigationTheme(theme), [theme]);
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
   const [backfillComplete, setBackfillComplete] = useState(false);
 
@@ -60,7 +63,7 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer>
+      <NavigationContainer theme={navigationTheme}>
         <Drawer.Navigator drawerContent={props => <CustomDrawerContent {...props} />}>
           <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
             {props => <HomeScreen {...props} />}
@@ -96,10 +99,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <ActivitiesProvider>
-        <AppContent />
-      </ActivitiesProvider>
-    </SettingsProvider>
+    <ThemeProvider>
+      <SettingsProvider>
+        <ActivitiesProvider>
+          <AppContent />
+        </ActivitiesProvider>
+      </SettingsProvider>
+    </ThemeProvider>
   );
 }

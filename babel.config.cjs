@@ -28,7 +28,8 @@ module.exports = function (api) {
             '@': './src',
             '@/features': './src/features',
             '@/shared': './src/shared',
-            '@/constants': './src/constants'
+            '@/constants': './src/constants',
+            '@/theme': './src/theme'
           }
         },
       ],

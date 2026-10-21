@@ -77,7 +77,8 @@ This document provides essential context and rules for AI agents working on this
    │   ├── stats/           # Charts, statistics screens, SettingsProvider
    │   └── strava-import/   # Offline Strava ZIP/CSV/GPX export importer
    ├── shared/              # Cross-cutting: components, services, utils, types
-   └── constants/           # colors.ts (theme), index.ts (app config & storage keys)
+   ├── theme/               # Colour system: palettes, resolver, provider, useTheme
+   └── constants/           # index.ts (app config & storage keys)
    ```
 2. **State Management & Data Flow**:
    - **Providers**: `ActivitiesProvider` (central activity state via `useActivities` hook; persists to AsyncStorage, caches streams to FileSystem) and `SettingsProvider` (user preferences in `stats`). There is **no auth provider** — the app is offline-only.
@@ -103,7 +104,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 - **No enums** - Use maps/const objects instead
 - **Functional components only** - No classes
 - **Descriptive boolean names** - Use auxiliary verbs (`isLoading`, `hasError`, `canSync`)
-- **No magic numbers** - Use constants from `@/constants/colors.ts` for theming
+- **No magic numbers** - Use constants from `@/theme` for theming
 
 ### React Native / Expo
 
@@ -115,7 +116,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 - **Worklets & Reanimated v4**: `react-native-worklets/plugin` must remain the **last** plugin in `babel.config.cjs` (replaces `react-native-reanimated/plugin` in SDK 55+)
 - **Dependency Overrides**: On every Expo SDK bump, update the `expo-location` entry in `package.json` `overrides` in lockstep with the direct dependency (required so `@teovilla/react-native-web-maps` doesn't pull a nested `expo-location@15`), or `EOVERRIDE` will fail `npm install`
 - **Conditional Rendering**: Always use ternary `? ... : null`, **never** `&&` in JSX (prevents React Native `"Text strings must be rendered within a <Text> component"` crashes when values evaluate to `0` or `""`)
-- **Theming**: Use `useColorScheme()` hook and colors from `@/constants/colors.ts` — no hardcoded hex values
+- **Theming**: Read colours from `useTheme()` (`@/theme`) — never hardcode a hex value, and never build styles at module level (a module-level `StyleSheet.create` freezes the colours and cannot follow the active palette). Use `createStyles(theme)` + `useMemo` instead.
 - **Safe Areas**: Use `SafeAreaProvider` and `SafeAreaView` from `react-native-safe-area-context`
 - **Navigation**: React Navigation v7 (Drawer, Stack, Bottom Tabs)
 
@@ -273,7 +274,7 @@ If you modify:
 1. **Circular Dependencies**: Always check import chains - use direct imports when barrel exports create cycles
 2. **Memory Issues**: Large datasets (1000+ activities) can cause memory issues - use chunking for exports/processing
 3. **Navigation Lifecycle**: Map components need special handling for navigation focus/blur events
-4. **Theme Colors**: Never hardcode colors - always use theme constants from `@/constants/colors.ts`
+4. **Theme Colors**: Never hardcode colors - always read them from `useTheme()` (`@/theme`)
 5. **Async State Updates**: Always check if component is mounted before setting state after async operations
 6. **Timer Leaks**: Clean up `setTimeout`/`setInterval` in `useEffect` cleanup functions
 

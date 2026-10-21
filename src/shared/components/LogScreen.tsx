@@ -1,26 +1,19 @@
-import { logColors } from '@/constants/colors';
 import { LogEntry, LogLevel, simpleLogger } from '@/shared/services/SimpleLogger';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { FlashList } from '@shopify/flash-list';
-import React, { JSX, useState } from 'react';
-import {
-  Alert,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme
-} from 'react-native';
+import React, { JSX, useMemo, useState } from 'react';
+import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function LogScreen(): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [logs, setLogs] = useState<LogEntry[]>(simpleLogger.logs);
   const [isReversed, setIsReversed] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const themeColors = logColors[colorScheme];
+  const themeColors = theme.log;
 
   // Force update function to refresh logs
   const forceUpdate = () => {
@@ -160,7 +153,7 @@ export function LogScreen(): JSX.Element {
         <View style={styles.headerButtons}>
           {logs.length > 0 ? (
             <TouchableOpacity
-              style={[styles.copyButton, { backgroundColor: '#4CAF50' }]}
+              style={[styles.copyButton, { backgroundColor: theme.success }]}
               onPress={handleCopyAllLogs}
             >
               <Text style={styles.buttonText}>Copy All</Text>
@@ -168,20 +161,20 @@ export function LogScreen(): JSX.Element {
           ) : null}
           {logs.length > 0 ? (
             <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: '#2196F3' }]}
+              style={[styles.exportButton, { backgroundColor: theme.info }]}
               onPress={handleExportLogs}
             >
               <Text style={styles.buttonText}>Export</Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
-            style={[styles.clearButton, { backgroundColor: '#F44336' }]}
+            style={[styles.clearButton, { backgroundColor: theme.danger }]}
             onPress={handleClearLogs}
           >
             <Text style={styles.buttonText}>Clear</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.refreshButton, { backgroundColor: '#FF9800' }]}
+            style={[styles.refreshButton, { backgroundColor: theme.warning }]}
             onPress={forceUpdate}
           >
             <Text style={styles.buttonText}>Refresh</Text>
@@ -190,14 +183,18 @@ export function LogScreen(): JSX.Element {
             style={[
               styles.invertButton,
               {
-                backgroundColor: isReversed ? '#4CAF50' : '#607D8B',
+                backgroundColor: isReversed ? theme.success : theme.textMuted,
                 borderWidth: 2,
-                borderColor: isReversed ? '#2E7D32' : '#455A64'
+                borderColor: isReversed ? theme.primaryPressed : theme.border
               }
             ]}
             onPress={() => setIsReversed(!isReversed)}
           >
-            <Ionicons name={isReversed ? 'arrow-up' : 'arrow-down'} size={18} color="white" />
+            <Ionicons
+              name={isReversed ? 'arrow-up' : 'arrow-down'}
+              size={18}
+              color={theme.onPrimary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -222,108 +219,109 @@ export function LogScreen(): JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20
-  },
-  header: {
-    marginBottom: 20
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold'
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600'
-  },
-  clearButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8
-  },
-  invertButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 40,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  copyButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8
-  },
-  exportButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8
-  },
-  refreshButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8
-  },
-  emptySubtext: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center'
-  },
-  logsList: {
-    flex: 1
-  },
-  logItem: {
-    borderLeftWidth: 4,
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 8
-  },
-  logHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4
-  },
-  logHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1
-  },
-  logLevel: {
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  logTime: {
-    fontSize: 14
-  },
-  logMessage: {
-    fontSize: 14,
-    marginBottom: 4
-  },
-  logCopyButton: {
-    padding: 4,
-    borderRadius: 4
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 20
+    },
+    header: {
+      marginBottom: 20
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold'
+    },
+    buttonText: {
+      color: theme.onPrimary,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    clearButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8
+    },
+    invertButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      minWidth: 40,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    copyButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8
+    },
+    exportButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8
+    },
+    refreshButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    emptyText: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 8
+    },
+    emptySubtext: {
+      fontSize: 14,
+      opacity: 0.7,
+      textAlign: 'center'
+    },
+    logsList: {
+      flex: 1
+    },
+    logItem: {
+      borderLeftWidth: 4,
+      padding: 12,
+      marginBottom: 8,
+      borderRadius: 8
+    },
+    logHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4
+    },
+    logHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1
+    },
+    logLevel: {
+      fontSize: 14,
+      fontWeight: 'bold'
+    },
+    logTime: {
+      fontSize: 14
+    },
+    logMessage: {
+      fontSize: 14,
+      marginBottom: 4
+    },
+    logCopyButton: {
+      padding: 4,
+      borderRadius: 4
+    }
+  });

@@ -4,9 +4,10 @@ import {
   useActivitiesDataContext
 } from '@/features/activities';
 import { Activity, activityToString, isNoGpsActivity } from '@/shared';
-import React, { JSX, useEffect, useState } from 'react';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, View } from 'react-native';
-import { VictoryAxis, VictoryChart, VictoryLine, VictoryTheme } from 'victory-native';
+import { createChartTheme, useTheme } from '@/theme';
+import { VictoryAxis, VictoryChart, VictoryLine } from 'victory-native';
 import MiniMapComponent from '../components/MiniMapComponent';
 
 interface ActivityWithStream {
@@ -77,6 +78,8 @@ export default function MapsScreen(): JSX.Element {
  * @returns A React component.
  */
 function MapItem({ item }: { item: ActivityWithStream }): JSX.Element {
+  const theme = useTheme();
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   const [mapWidth, setMapWidth] = useState<number>(0);
 
   const altitudeData =
@@ -113,7 +116,7 @@ function MapItem({ item }: { item: ActivityWithStream }): JSX.Element {
       </View>
       <Text>{activityToString(item.activity)}</Text>
       {altitudeData ? (
-        <VictoryChart theme={VictoryTheme.material} width={mapWidth}>
+        <VictoryChart theme={chartTheme} width={mapWidth}>
           <VictoryAxis
             label="Time (h:min)"
             tickFormat={formatTime}
@@ -131,7 +134,7 @@ function MapItem({ item }: { item: ActivityWithStream }): JSX.Element {
           <VictoryLine
             data={altitudeData}
             style={{
-              data: { stroke: '#c43a31' }
+              data: { stroke: theme.danger }
             }}
           />
         </VictoryChart>

@@ -8,7 +8,7 @@ import {
 
 import { yearlyData } from '../services/stats';
 
-import * as MyColors from '@/constants/colors';
+import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
 import {
   ActivityIndicator,
   Platform,
@@ -20,9 +20,9 @@ import {
 } from 'react-native';
 
 import { useActivitiesContext, useProcessedActivities } from '@/features/activities';
-import React, { JSX, useEffect, useState } from 'react';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Row, Table } from 'react-native-reanimated-table';
-import { VictoryAxis, VictoryBar, VictoryChart, VictoryTheme } from 'victory-native';
+import { VictoryAxis, VictoryBar, VictoryChart } from 'victory-native';
 import YTDStatsComponent from '../components/YTDStatsComponent';
 import { useSettings } from '../StatsTabSettingsContext';
 
@@ -39,6 +39,8 @@ import { useSettings } from '../StatsTabSettingsContext';
  * @returns {JSX.Element} The RecentYearsScreen component.
  */
 export function RecentYearsScreen(): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
   const activityTypes = Array.from(myActivitiesDiscovered).sort() as string[];
@@ -123,7 +125,7 @@ export function RecentYearsScreen(): JSX.Element {
         <ActivityIndicator
           animating={true}
           size="large"
-          color={MyColors.deepOrange600}
+          color={theme.primary}
           style={styles.loadingIndicator}
         />
         <Text style={styles.loadingText}>Computing yearly data...</Text>
@@ -140,7 +142,7 @@ export function RecentYearsScreen(): JSX.Element {
           <RefreshControl
             refreshing={fetchingData}
             onRefresh={refreshActivities}
-            tintColor={MyColors.deepOrange600}
+            tintColor={theme.primary}
           />
         }
       >
@@ -152,7 +154,7 @@ export function RecentYearsScreen(): JSX.Element {
             {useElapsedTime ? 'Hours (Elapsed Time)' : 'Hours (Moving Time)'}
           </Text>
           <View style={styles.tableCard}>
-            {renderTable(tableHoursHeaders, widthsHours, dataHoursFormated)}
+            <DataTable headers={tableHoursHeaders} widths={widthsHours} data={dataHoursFormated} />
           </View>
         </View>
 
@@ -160,7 +162,11 @@ export function RecentYearsScreen(): JSX.Element {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Distances (km)</Text>
           <View style={styles.tableCard}>
-            {renderTable(tableDistanceHeaders, widthsDistance, dataDistances)}
+            <DataTable
+              headers={tableDistanceHeaders}
+              widths={widthsDistance}
+              data={dataDistances}
+            />
           </View>
         </View>
 
@@ -168,7 +174,11 @@ export function RecentYearsScreen(): JSX.Element {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Elevation Gain (m)</Text>
           <View style={styles.tableCard}>
-            {renderTable(tableElevationHeaders, widthsElevation, dataElevations)}
+            <DataTable
+              headers={tableElevationHeaders}
+              widths={widthsElevation}
+              data={dataElevations}
+            />
           </View>
         </View>
 
@@ -178,7 +188,7 @@ export function RecentYearsScreen(): JSX.Element {
           <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
             {dataDistancesToChart.map(item => (
               <View key={item.id} style={styles.chartCard}>
-                {renderBarChart(item.data, item.name)}
+                <BarChart chartData={item.data} activityName={item.name} />
               </View>
             ))}
           </ScrollView>
@@ -188,137 +198,138 @@ export function RecentYearsScreen(): JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingHorizontal: 16
-  },
-  scrollContainer: {
-    paddingBottom: 20
-  },
-  section: {
-    marginBottom: 24
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: MyColors.deepOrange600,
-    marginBottom: 12
-  },
-  tableCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.surfaceAlt,
+      paddingHorizontal: 16
+    },
+    scrollContainer: {
+      paddingBottom: 20
+    },
+    section: {
+      marginBottom: 24
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 12
+    },
+    tableCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 8,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 2
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 3.84
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84
-      },
-      android: {
-        elevation: 5
-      },
-      web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }
-    })
-  },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginHorizontal: 8,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2
+        android: {
+          elevation: 5
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84
-      },
-      android: {
-        elevation: 5
-      },
-      web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }
-    })
-  },
-  chartContainer: {
-    flex: 1
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: MyColors.deepOrange600,
-    marginBottom: 12,
-    textAlign: 'center'
-  },
-  rowSection: {
-    height: 30,
-    backgroundColor: '#F0F8F0'
-  },
-  maxValueRow: {
-    height: 30,
-    backgroundColor: '#E3F2FD'
-  },
-  head: {
-    height: 44,
-    backgroundColor: MyColors.deepOrange600
-  },
-  headText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: 'white'
-  },
-  text: {
-    margin: 6,
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#333'
-  },
-  maxValueText: {
-    margin: 6,
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#1976D2',
-    fontWeight: '600'
-  },
-  textTitle: {
-    margin: 6,
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: MyColors.deepOrange600
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60
-  },
-  loadingIndicator: {
-    marginBottom: 16
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: MyColors.deepOrange600,
-    marginBottom: 4
-  },
-  loadingSubtext: {
-    fontSize: 14,
-    color: '#666'
-  }
-});
+        web: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      })
+    },
+    chartCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      marginHorizontal: 8,
+      padding: 16,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 2
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 3.84
+        },
+        android: {
+          elevation: 5
+        },
+        web: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      })
+    },
+    chartContainer: {
+      flex: 1
+    },
+    chartTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 12,
+      textAlign: 'center'
+    },
+    rowSection: {
+      height: 30,
+      backgroundColor: theme.successSoft
+    },
+    maxValueRow: {
+      height: 30,
+      backgroundColor: theme.primarySoft
+    },
+    head: {
+      height: 44,
+      backgroundColor: theme.primary
+    },
+    headText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      color: theme.onPrimary
+    },
+    text: {
+      margin: 6,
+      fontSize: 14,
+      textAlign: 'center',
+      color: theme.text
+    },
+    maxValueText: {
+      margin: 6,
+      fontSize: 14,
+      textAlign: 'center',
+      color: theme.info,
+      fontWeight: '600'
+    },
+    textTitle: {
+      margin: 6,
+      fontSize: 20,
+      fontWeight: '600',
+      textAlign: 'center',
+      color: theme.primary
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 60
+    },
+    loadingIndicator: {
+      marginBottom: 16
+    },
+    loadingText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 4
+    },
+    loadingSubtext: {
+      fontSize: 14,
+      color: theme.textMuted
+    }
+  });
 
 /**
  * Renders a bar chart for a specific activity's yearly distance data.
@@ -327,7 +338,16 @@ const styles = StyleSheet.create({
  * @param {string} activityName - The name of the activity, used for the chart title.
  * @returns {JSX.Element} A bar chart component.
  */
-function renderBarChart(chartData: { x: string; y: number }[], activityName: string) {
+function BarChart({
+  chartData,
+  activityName
+}: {
+  chartData: { x: string; y: number }[];
+  activityName: string;
+}) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   return (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>{'Distances (km) - ' + activityName}</Text>
@@ -336,7 +356,7 @@ function renderBarChart(chartData: { x: string; y: number }[], activityName: str
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
           <VictoryChart
             domainPadding={{ x: 20 }}
-            theme={VictoryTheme.material}
+            theme={chartTheme}
             height={400}
             padding={{ top: 20, bottom: 60, left: 10, right: 20 }}
           >
@@ -345,8 +365,8 @@ function renderBarChart(chartData: { x: string; y: number }[], activityName: str
               labels={({ datum }) => datum.y}
               style={{
                 data: {
-                  fill: MyColors.deepOrange600,
-                  stroke: MyColors.deepOrange600,
+                  fill: theme.primary,
+                  stroke: theme.primary,
                   strokeWidth: 1
                 }
               }}
@@ -412,24 +432,29 @@ function findMaxValuePositions(data: string[][], headers: string[]): Map<string,
  * @param {string[][]} data - A 2D array of strings representing the table data.
  * @returns {JSX.Element} A table component.
  */
-function renderTable(tableHeaders: string[], widths: number[], data: string[][]) {
-  const maxPositions = findMaxValuePositions(data, tableHeaders);
+function DataTable({
+  headers,
+  widths,
+  data
+}: {
+  headers: string[];
+  widths: number[];
+  data: string[][];
+}) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const maxPositions = findMaxValuePositions(data, headers);
 
   return (
     <ScrollView horizontal={true} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
       <View>
         {/* Header */}
-        <Table borderStyle={{ borderWidth: 1, borderColor: MyColors.teal700 }}>
-          <Row
-            data={tableHeaders}
-            widthArr={widths}
-            style={styles.head}
-            textStyle={styles.headText}
-          />
+        <Table borderStyle={{ borderWidth: 1, borderColor: theme.border }}>
+          <Row data={headers} widthArr={widths} style={styles.head} textStyle={styles.headText} />
         </Table>
         {/* Data rows */}
         <ScrollView>
-          <Table borderStyle={{ borderWidth: 1, borderColor: MyColors.teal700 }}>
+          <Table borderStyle={{ borderWidth: 1, borderColor: theme.border }}>
             {data.map((rowData: string[], rowIndex) => (
               <Row
                 key={rowIndex}

@@ -2,7 +2,7 @@ import { Activity, ChipMultiSelect, seconds_to_label, simpleLogger } from '@/sha
 
 import { monthlyData2, MonthSummary } from '../services/stats';
 
-import * as MyColors from '@/constants/colors';
+import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
 
 import {
   ActivityIndicator,
@@ -14,10 +14,10 @@ import {
   View
 } from 'react-native';
 
-import React, { JSX, useState } from 'react';
+import React, { JSX, useMemo, useState } from 'react';
 
 import { useActivitiesContext, useProcessedActivities } from '@/features/activities';
-import { VictoryAxis, VictoryBar, VictoryChart, VictoryLabel, VictoryTheme } from 'victory-native';
+import { VictoryAxis, VictoryBar, VictoryChart, VictoryLabel } from 'victory-native';
 import { useSettings } from '../StatsTabSettingsContext';
 
 /**
@@ -54,6 +54,9 @@ function HorizontalBarChart({
   labelFunction: ({ datum }: { datum: MonthSummary }) => string;
   invertedAxis: boolean;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   type ProcessedDatum = MonthSummary & {
     __isZero: boolean;
     __value: number;
@@ -75,7 +78,7 @@ function HorizontalBarChart({
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>{title}</Text>
       <VictoryChart
-        theme={VictoryTheme.material}
+        theme={chartTheme}
         height={chartHeight}
         padding={{ top: 20, bottom: 20, left: 5, right: 40 }}
       >
@@ -83,8 +86,10 @@ function HorizontalBarChart({
           horizontal
           style={{
             data: {
-              fill: ({ datum }) => ((datum as ProcessedDatum).__isZero ? '#E0E0E0' : barColor),
-              stroke: ({ datum }) => ((datum as ProcessedDatum).__isZero ? '#BDBDBD' : barColor),
+              fill: ({ datum }) =>
+                (datum as ProcessedDatum).__isZero ? theme.chartZeroFill : barColor,
+              stroke: ({ datum }) =>
+                (datum as ProcessedDatum).__isZero ? theme.chartZeroStroke : barColor,
               strokeWidth: 1
             }
           }}
@@ -127,6 +132,8 @@ function HorizontalBarChart({
  * @returns A React component.
  */
 export function RecentMonthsScreen(): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { numberRecentMonths, useElapsedTime } = useSettings();
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
@@ -163,7 +170,7 @@ export function RecentMonthsScreen(): JSX.Element {
         <ActivityIndicator
           animating={true}
           size="large"
-          color={MyColors.deepOrange600}
+          color={theme.primary}
           style={styles.loadingIndicator}
         />
         <Text style={styles.loadingText}>Computing monthly data...</Text>
@@ -194,7 +201,7 @@ export function RecentMonthsScreen(): JSX.Element {
             <RefreshControl
               refreshing={fetchingData}
               onRefresh={refreshActivities}
-              tintColor={MyColors.deepOrange600}
+              tintColor={theme.primary}
             />
           }
         >
@@ -202,7 +209,7 @@ export function RecentMonthsScreen(): JSX.Element {
             <HorizontalBarChart
               title={`Distance last ${numberRecentMonths} months`}
               data={mData}
-              barColor={MyColors.lightBlue1}
+              barColor={theme.chartSeries[0]}
               accessFunction={(d: MonthSummary) => d.distance}
               labelFunction={({ datum }: { datum: MonthSummary }) =>
                 `${formatDateAxis(datum.month) + ' - ' + datum.distance.toFixed(0)}km`
@@ -214,7 +221,7 @@ export function RecentMonthsScreen(): JSX.Element {
             <HorizontalBarChart
               title={`Elevation last ${numberRecentMonths} months`}
               data={mData}
-              barColor={MyColors.lightGreen500}
+              barColor={theme.chartSeries[3]}
               accessFunction={(d: MonthSummary) => d.elevation}
               labelFunction={({ datum }: { datum: MonthSummary }) =>
                 `${formatDateAxis(datum.month) + ' - ' + datum.elevation.toFixed(0)}m`
@@ -226,7 +233,7 @@ export function RecentMonthsScreen(): JSX.Element {
             <HorizontalBarChart
               title={`Time last ${numberRecentMonths} months (${useElapsedTime ? 'Elapsed' : 'Moving'})`}
               data={mData}
-              barColor={MyColors.blueGrey300}
+              barColor={theme.chartSeries[4]}
               accessFunction={(d: MonthSummary) => d.time ?? 0}
               labelFunction={({ datum }: { datum: MonthSummary }) =>
                 `${formatDateAxis(datum.month) + ' - ' + seconds_to_label(Math.round((datum.time ?? 0) * 3600))}`
@@ -240,70 +247,71 @@ export function RecentMonthsScreen(): JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    paddingHorizontal: 16
-  },
-  filterContainer: {
-    marginBottom: 16,
-    paddingHorizontal: 4,
-    paddingTop: 8
-  },
-  scrollContainer: {
-    paddingBottom: 20
-  },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.surfaceAlt,
+      paddingHorizontal: 16
+    },
+    filterContainer: {
+      marginBottom: 16,
+      paddingHorizontal: 4,
+      paddingTop: 8
+    },
+    scrollContainer: {
+      paddingBottom: 20
+    },
+    chartCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      marginBottom: 16,
+      padding: 8,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 2
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 3.84
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84
-      },
-      android: {
-        elevation: 5
-      },
-      web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }
-    })
-  },
-  chartContainer: {
-    flex: 1
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: MyColors.deepOrange600,
-    marginBottom: 12,
-    textAlign: 'center'
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60
-  },
-  loadingIndicator: {
-    marginBottom: 16
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: MyColors.deepOrange600,
-    marginBottom: 4
-  },
-  loadingSubtext: {
-    fontSize: 14,
-    color: '#666'
-  }
-});
+        android: {
+          elevation: 5
+        },
+        web: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      })
+    },
+    chartContainer: {
+      flex: 1
+    },
+    chartTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 12,
+      textAlign: 'center'
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 60
+    },
+    loadingIndicator: {
+      marginBottom: 16
+    },
+    loadingText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 4
+    },
+    loadingSubtext: {
+      fontSize: 14,
+      color: theme.textMuted
+    }
+  });

@@ -14,6 +14,8 @@ This document describes the system architecture of the Offline Fitness applicati
 
 5. **Clean Architecture Layers**: Clear separation between UI components, business logic services, and data management.
 
+6. **A Theme Module for Colours**: All colours come from `src/theme/` — see [Theme Support](#theme-support). Components read them through `useTheme()`; there are no colour literals outside the theme module.
+
 ## WebDAV backup layout
 
 The backup feature stores every file below a per-app, per-athlete collection, so
@@ -262,15 +264,29 @@ By following these architectural patterns and import guidelines, the codebase re
 
 ## Theme Support
 
-The app supports both light and dark themes using React Native's `useColorScheme()` hook. Theme colors are defined in `src/constants/colors.ts`:
+The app's colours come from a **theme layer** in `src/theme/`, not from module-level constants. A *palette* holds only the chromatic choices (brand accent, success tone, chart series, quarter tints); the neutral ramp, surfaces, lines and text ramp are **shared by every palette**, so switching palette never reflows the layout or changes the reading experience — only the accent changes.
 
-- **logColors**: Contains theme-specific colors for the LogScreen component
-- Each theme object includes: text, background, logItemBackground, timestamp, and logLevel colors
-- Components should always use theme colors from the constants rather than hardcoded values
-- Theme changes are detected automatically by the `useColorScheme()` hook
+```
+src/theme/
+├── types.ts           PaletteDefinition, ResolvedTheme, SchemeColor
+├── palettes.ts        the registry: legacy, twilight, alpine, terracotta, crimson
+├── resolve.ts         palette + colour scheme → resolved tokens
+├── ThemeProvider.tsx  holds the active palette, persists it, exposes context
+├── useTheme.ts        const theme = useTheme()
+├── chartTheme.ts      createVictoryTheme(theme) for the Victory charts
+└── navigationTheme.ts createNavigationTheme(theme) for React Navigation
+```
+
+- **Reading colours**: components call `useTheme()` and read `theme.primary`, `theme.success`, `theme.surface`, `theme.text`, `theme.chartSeries`, … Module-level `StyleSheet.create` freezes colours at import time and cannot follow a palette, so styles are built by a `createStyles(theme)` function and memoised on the theme.
+- **Colour scheme**: follows the device setting through `useColorScheme()` inside `ThemeProvider`. `app.json` currently pins `userInterfaceStyle` to `"light"`, so the app does not yet follow the system theme.
+- **Charts**: `createChartTheme(theme)` derives the Victory axis, grid, tick-label and legend colours from the same tokens, so charts no longer keep Material's own greys and blue accents.
+- **Navigation**: `createNavigationTheme(theme)` feeds the same tokens to React Navigation, so the drawer and the bottom tab bar take their active/inactive tints from the active palette.
+- **Adding a palette**: define it in `palettes.ts` and add its id to `PALETTE_ORDER`. `__tests__/theme/theme.spec.ts` checks every registered palette against the accessibility floor (4.5:1 for text and labels, 3:1 for chart fills).
+- **The picker** is not wired up yet: the selected palette id is persisted (`paletteId` in AsyncStorage) but nothing changes it at runtime, so the app always starts on the default palette.
 
 If dark theme appears not to work, ensure:
 
 1. Device system theme is properly set
-2. App has been refreshed/rebuilt after theme change
-3. All text and background colors use theme variables
+2. `app.json` has `userInterfaceStyle` set to `"automatic"`
+3. The app has been refreshed/rebuilt after the change
+4. All text and background colors come from `useTheme()`

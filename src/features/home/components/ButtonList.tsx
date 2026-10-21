@@ -1,7 +1,8 @@
 // https://docs.expo.dev/ui-programming/react-native-styling-buttons/
 // https://blog.logrocket.com/create-radio-buttons-react-native/
 
-import React, { JSX } from 'react';
+import { useTheme } from '@/theme';
+import React, { JSX, useMemo } from 'react';
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -25,6 +26,8 @@ function ButtonList({
   handleOnPress: (item: string) => void;
   opacity?: number;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <View style={{ ...styles.container, opacity: opacity }}>
       {items.map(item => {
@@ -44,37 +47,38 @@ function ButtonList({
 
 export default ButtonList;
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    paddingBottom: 15
-  },
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+      paddingBottom: 15
+    },
 
-  button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 4,
-    elevation: 3,
-    backgroundColor: 'lightblue'
-  },
-  buttonSelected: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 4,
-    elevation: 3,
-    backgroundColor: 'darkblue'
-  },
-  text: {
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: 'bold',
-    letterSpacing: 0.25,
-    color: 'white'
-  }
-});
+    button: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      borderRadius: 4,
+      elevation: 3,
+      backgroundColor: theme.surfaceMuted
+    },
+    buttonSelected: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      borderRadius: 4,
+      elevation: 3,
+      backgroundColor: theme.primary
+    },
+    text: {
+      fontSize: 16,
+      lineHeight: 21,
+      fontWeight: 'bold',
+      letterSpacing: 0.25,
+      color: theme.onPrimary
+    }
+  });

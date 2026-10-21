@@ -1,6 +1,6 @@
-import React from 'react';
+import { ResolvedTheme, useTheme } from '@/theme';
+import React, { useMemo } from 'react';
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as MyColors from '@/constants/colors';
 
 interface ProgressOverlayProps {
   visible: boolean;
@@ -22,6 +22,9 @@ export function ProgressOverlay({
   onCancel,
   showCancel = true
 }: ProgressOverlayProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   // Don't render if not visible to save memory
   if (!visible) {
     return <></>;
@@ -47,73 +50,74 @@ export function ProgressOverlay({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  container: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    minWidth: 280,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: theme.scrim,
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    container: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 24,
+      alignItems: 'center',
+      minWidth: 280,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 2
+          },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84
         },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84
-      },
-      android: {
-        elevation: 5
-      },
-      web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.25)'
-      }
-    })
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: MyColors.deepOrange600,
-    marginBottom: 8,
-    textAlign: 'center'
-  },
-  progressText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 16
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 16
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: MyColors.lightGreen500,
-    borderRadius: 4
-  },
-  cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#E0E0E0'
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '500'
-  }
-});
+        android: {
+          elevation: 5
+        },
+        web: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.25)'
+        }
+      })
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.primary,
+      marginBottom: 8,
+      textAlign: 'center'
+    },
+    progressText: {
+      fontSize: 16,
+      color: theme.textMuted,
+      marginBottom: 16
+    },
+    progressBarContainer: {
+      width: '100%',
+      height: 8,
+      backgroundColor: theme.border,
+      borderRadius: 4,
+      overflow: 'hidden',
+      marginBottom: 16
+    },
+    progressBar: {
+      height: '100%',
+      backgroundColor: theme.success,
+      borderRadius: 4
+    },
+    cancelButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 6,
+      backgroundColor: theme.surfaceSunken,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    cancelButtonText: {
+      color: theme.textMuted,
+      fontSize: 14,
+      fontWeight: '500'
+    }
+  });

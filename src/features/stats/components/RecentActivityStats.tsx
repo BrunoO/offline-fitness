@@ -1,6 +1,6 @@
-import React from 'react';
-import { Text, View } from 'react-native';
-import * as MyColors from '@/constants/colors';
+import { useTheme } from '@/theme';
+import React, { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { ActivityStats } from '../services/activity-stats';
 
 interface RecentActivityStatsProps {
@@ -8,6 +8,9 @@ interface RecentActivityStatsProps {
 }
 
 const RecentActivityStats: React.FC<RecentActivityStatsProps> = ({ stats }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const getMedal = (rank: number) => {
     if (rank === 1) return '🥇';
     if (rank === 2) return '🥈';
@@ -16,13 +19,11 @@ const RecentActivityStats: React.FC<RecentActivityStatsProps> = ({ stats }) => {
   };
 
   return (
-    <View
-      style={{ padding: '1%', marginTop: 10, backgroundColor: MyColors.gray100, borderRadius: 10 }}
-    >
-      <Text style={{ fontSize: 16, fontWeight: 'bold', color: MyColors.gray900, marginBottom: 5 }}>
+    <View style={styles.container}>
+      <Text style={styles.heading}>
         This activity compared to this year&apos;s {stats.totalActivities} similar activities:
       </Text>
-      <Text style={{ fontSize: 14, color: MyColors.gray800 }}>
+      <Text style={styles.body}>
         - Distance: Longer than {stats.distancePercentile.toFixed(0)}% of activities.{' '}
         {stats.distanceRank ? (
           <Text>
@@ -30,7 +31,7 @@ const RecentActivityStats: React.FC<RecentActivityStatsProps> = ({ stats }) => {
           </Text>
         ) : null}
       </Text>
-      <Text style={{ fontSize: 14, color: MyColors.gray800 }}>
+      <Text style={styles.body}>
         - Elevation Gain: More than {stats.elevationGainPercentile.toFixed(0)}% of activities.{' '}
         {stats.elevationGainRank ? (
           <Text>
@@ -38,7 +39,7 @@ const RecentActivityStats: React.FC<RecentActivityStatsProps> = ({ stats }) => {
           </Text>
         ) : null}
       </Text>
-      <Text style={{ fontSize: 14, color: MyColors.gray800 }}>
+      <Text style={styles.body}>
         - Speed: Faster than {stats.speedPercentile.toFixed(0)}% of activities.{' '}
         {stats.speedRank ? (
           <Text>
@@ -49,5 +50,25 @@ const RecentActivityStats: React.FC<RecentActivityStatsProps> = ({ stats }) => {
     </View>
   );
 };
+
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    container: {
+      padding: '1%',
+      marginTop: 10,
+      backgroundColor: theme.surfaceSunken,
+      borderRadius: 10
+    },
+    heading: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.textStrong,
+      marginBottom: 5
+    },
+    body: {
+      fontSize: 14,
+      color: theme.text
+    }
+  });
 
 export default RecentActivityStats;

@@ -1,6 +1,6 @@
-import React from 'react';
+import { ResolvedTheme, useTheme } from '@/theme';
+import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as MyColors from '@/constants/colors';
 import { Activity, calculateSpeedKmh, seconds_to_label } from '@/shared';
 import { ActivityStats } from '@/features/stats';
 
@@ -22,6 +22,9 @@ export function LastActivitySummary({
   allActivities = [],
   onActivityChange
 }: LastActivitySummaryProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   if (!activity) {
     return <></>;
   }
@@ -289,140 +292,141 @@ export function LastActivitySummary({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginVertical: 10,
-    paddingHorizontal: 16,
-    width: '100%'
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingHorizontal: 8
-  },
-  stepperButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: MyColors.deepOrange600,
-    minWidth: 40,
-    alignItems: 'center'
-  },
-  stepperButtonDisabled: {
-    backgroundColor: MyColors.gray100,
-    opacity: 0.5
-  },
-  stepperIcon: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold'
-  },
-  stepperIconDisabled: {
-    color: MyColors.gray100
-  },
-  stepperInfo: {
-    alignItems: 'center',
-    flex: 1
-  },
-  stepperTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: MyColors.deepOrange600
-  },
-  stepperCounter: {
-    fontSize: 12,
-    color: MyColors.blueGrey300,
-    marginTop: 2
-  },
-  summaryTable: {
-    borderWidth: 1,
-    borderColor: MyColors.gray100,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 1
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    container: {
+      marginVertical: 10,
+      paddingHorizontal: 16,
+      width: '100%'
+    },
+    stepperContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+      paddingHorizontal: 8
+    },
+    stepperButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.primary,
+      minWidth: 40,
+      alignItems: 'center'
+    },
+    stepperButtonDisabled: {
+      backgroundColor: theme.surfaceSunken,
+      opacity: 0.5
+    },
+    stepperIcon: {
+      fontSize: 16,
+      color: theme.onPrimary,
+      fontWeight: 'bold'
+    },
+    stepperIconDisabled: {
+      color: theme.surfaceSunken
+    },
+    stepperInfo: {
+      alignItems: 'center',
+      flex: 1
+    },
+    stepperTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.primary
+    },
+    stepperCounter: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2
+    },
+    summaryTable: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      backgroundColor: theme.surface,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: 1
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 2
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 2
-      },
-      android: {
-        elevation: 2
-      },
-      web: {
-        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-      }
-    }),
-    width: '100%'
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: MyColors.gray100
-  },
-  summaryCellLabel: {
-    fontWeight: 'bold',
-    flex: 1,
-    color: MyColors.blueGrey700,
-    fontSize: 14
-  },
-  summaryCell: {
-    flex: 1,
-    textAlign: 'right',
-    color: '#333',
-    fontSize: 14
-  },
-  compactRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 12
-  },
-  leftColumn: {
-    flex: 1,
-    paddingRight: 8
-  },
-  rightColumn: {
-    flex: 1,
-    paddingLeft: 8
-  },
-  compactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6
-  },
-  compactIcon: {
-    fontSize: 16,
-    marginRight: 8,
-    width: 20
-  },
-  compactText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333'
-  },
-  statsSeparator: {
-    backgroundColor: MyColors.gray100,
-    borderTopWidth: 2,
-    borderTopColor: MyColors.deepOrange600,
-    marginTop: 5
-  },
-  statsHeader: {
-    fontWeight: 'bold',
-    color: MyColors.deepOrange600,
-    fontSize: 16
-  },
-  statsSubHeader: {
-    fontSize: 12,
-    color: MyColors.blueGrey300,
-    fontStyle: 'italic'
-  }
-});
+        android: {
+          elevation: 2
+        },
+        web: {
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+        }
+      }),
+      width: '100%'
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border
+    },
+    summaryCellLabel: {
+      fontWeight: 'bold',
+      flex: 1,
+      color: theme.text,
+      fontSize: 14
+    },
+    summaryCell: {
+      flex: 1,
+      textAlign: 'right',
+      color: theme.text,
+      fontSize: 14
+    },
+    compactRow: {
+      flexDirection: 'row',
+      paddingVertical: 12,
+      paddingHorizontal: 12
+    },
+    leftColumn: {
+      flex: 1,
+      paddingRight: 8
+    },
+    rightColumn: {
+      flex: 1,
+      paddingLeft: 8
+    },
+    compactItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 6
+    },
+    compactIcon: {
+      fontSize: 16,
+      marginRight: 8,
+      width: 20
+    },
+    compactText: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.text
+    },
+    statsSeparator: {
+      backgroundColor: theme.surfaceSunken,
+      borderTopWidth: 2,
+      borderTopColor: theme.primary,
+      marginTop: 5
+    },
+    statsHeader: {
+      fontWeight: 'bold',
+      color: theme.primary,
+      fontSize: 16
+    },
+    statsSubHeader: {
+      fontSize: 12,
+      color: theme.textMuted,
+      fontStyle: 'italic'
+    }
+  });

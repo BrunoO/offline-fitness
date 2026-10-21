@@ -1,5 +1,5 @@
-import * as MyColors from '@/constants/colors';
-import React from 'react';
+import { ResolvedTheme, useTheme } from '@/theme';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 export interface ChipMultiSelectProps {
@@ -17,6 +17,9 @@ export function ChipMultiSelect({
   includeAll = true,
   containerStyle
 }: ChipMultiSelectProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const selectedSet: Set<string> =
     selectedItems instanceof Set ? selectedItems : new Set(selectedItems);
 
@@ -36,9 +39,9 @@ export function ChipMultiSelect({
           accessibilityRole="button"
           accessibilityLabel="Show all"
           onPress={clearAll}
-          style={[styles.chip, selectedSet.size === 0 && styles.chipSelected]}
+          style={[styles.chip, selectedSet.size === 0 ? styles.chipSelected : null]}
         >
-          <Text style={[styles.chipText, selectedSet.size === 0 && styles.chipTextSelected]}>
+          <Text style={[styles.chipText, selectedSet.size === 0 ? styles.chipTextSelected : null]}>
             All
           </Text>
         </TouchableOpacity>
@@ -51,9 +54,9 @@ export function ChipMultiSelect({
             accessibilityRole="button"
             accessibilityLabel={`Toggle ${item}`}
             onPress={() => toggle(item)}
-            style={[styles.chip, isOn && styles.chipSelected]}
+            style={[styles.chip, isOn ? styles.chipSelected : null]}
           >
-            <Text style={[styles.chipText, isOn && styles.chipTextSelected]}>{item}</Text>
+            <Text style={[styles.chipText, isOn ? styles.chipTextSelected : null]}>{item}</Text>
           </TouchableOpacity>
         );
       })}
@@ -61,32 +64,33 @@ export function ChipMultiSelect({
   );
 }
 
-const styles = StyleSheet.create({
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    rowGap: 6,
-    justifyContent: 'center',
-    marginBottom: 8
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    backgroundColor: MyColors.blueGrey50
-  },
-  chipSelected: {
-    backgroundColor: MyColors.deepOrange600
-  },
-  chipText: {
-    color: '#333',
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  chipTextSelected: {
-    color: '#fff'
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      rowGap: 6,
+      justifyContent: 'center',
+      marginBottom: 8
+    },
+    chip: {
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 16,
+      backgroundColor: theme.surfaceMuted
+    },
+    chipSelected: {
+      backgroundColor: theme.primary
+    },
+    chipText: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    chipTextSelected: {
+      color: theme.onPrimary
+    }
+  });
 
 export default ChipMultiSelect;

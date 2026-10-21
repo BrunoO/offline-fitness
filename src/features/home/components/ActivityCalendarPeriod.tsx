@@ -1,4 +1,4 @@
-import * as MyColors from '@/constants/colors';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { evaluateGoal } from '@/features/stats/services/GoalService';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
 import { Activity, RootDrawerParamList } from '@/shared';
@@ -10,7 +10,7 @@ import {
 import { activityIsoWeekKey, isoWeekKeyFromDateString } from '@/shared/utils/isoWeek';
 import { getISOWeekNumber } from '@/shared/utils/utils';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 
@@ -47,6 +47,8 @@ export function ActivityCalendarPeriod({
   selectedDate,
   navigation
 }: ActivityCalendarPeriodProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { weeklyGoal } = useSettings();
 
   // Get the current week number for the selected date - memoized for performance
@@ -109,7 +111,7 @@ export function ActivityCalendarPeriod({
   const sortedDates = Object.keys(activitiesByDate).sort();
   const streaks: string[][] = [];
   let currentStreak: string[] = [];
-  const baseColor = MyColors.deepOrange600;
+  const baseColor = theme.primary;
 
   // Build streaks array (DST-safe whole-day math on athlete-local dates)
   sortedDates.forEach((date, index) => {
@@ -147,10 +149,10 @@ export function ActivityCalendarPeriod({
   streaks.forEach(streak => {
     streak.forEach(streakDate => {
       const goalAchieved = getGoalAchievement(streakDate);
-      const streakColor = goalAchieved ? MyColors.lightGreen500 : baseColor + '60';
+      const streakColor = goalAchieved ? theme.success : baseColor + '60';
       marks[streakDate] = {
         color: streakColor,
-        textColor: '#FFFFFF'
+        textColor: theme.onPrimary
       };
     });
   });
@@ -161,13 +163,13 @@ export function ActivityCalendarPeriod({
       ...marks[today],
       today: true,
       marked: true,
-      dotColor: 'white'
+      dotColor: theme.textOnSurface
     };
   } else {
     marks[today] = {
       today: true,
       marked: true,
-      dotColor: MyColors.deepOrange600
+      dotColor: theme.primary
     };
   }
 
@@ -176,14 +178,14 @@ export function ActivityCalendarPeriod({
     marks[selectedDate] = {
       ...marks[selectedDate],
       selected: true,
-      selectedColor: MyColors.lightGreen500,
-      selectedTextColor: MyColors.grey900
+      selectedColor: theme.success,
+      selectedTextColor: theme.textStrong
     };
   } else {
     marks[selectedDate] = {
       selected: true,
-      selectedColor: MyColors.lightGreen500,
-      selectedTextColor: MyColors.grey900
+      selectedColor: theme.success,
+      selectedTextColor: theme.textStrong
     };
   }
 
@@ -208,16 +210,16 @@ export function ActivityCalendarPeriod({
       markingType="period"
       firstDay={1}
       theme={{
-        todayTextColor: MyColors.grey900,
-        arrowColor: MyColors.deepOrange600,
+        todayTextColor: theme.textStrong,
+        arrowColor: theme.primary,
         calendarBackground: 'transparent',
-        textSectionTitleColor: MyColors.grey900,
-        dayTextColor: MyColors.grey900,
-        monthTextColor: MyColors.grey900,
-        indicatorColor: MyColors.deepOrange600,
-        selectedDayBackgroundColor: MyColors.lightGreen500,
-        selectedDayTextColor: '#FFFFFF',
-        todayBackgroundColor: MyColors.blueGrey300 //MyColors.deepOrange600 + '40'
+        textSectionTitleColor: theme.textStrong,
+        dayTextColor: theme.textStrong,
+        monthTextColor: theme.textStrong,
+        indicatorColor: theme.primary,
+        selectedDayBackgroundColor: theme.success,
+        selectedDayTextColor: theme.onPrimary,
+        todayBackgroundColor: theme.surfaceMuted //theme.primary + '40'
       }}
       hideExtraDays={false}
       showWeekNumbers={false}
@@ -239,30 +241,31 @@ export function ActivityCalendarPeriod({
   );
 }
 
-const styles = StyleSheet.create({
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    backgroundColor: 'transparent'
-  },
-  monthText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: MyColors.grey900
-  },
-  weekNumberContainer: {
-    backgroundColor: MyColors.deepOrange600,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginLeft: 8
-  },
-  weekNumberLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF'
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    calendarHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      backgroundColor: 'transparent'
+    },
+    monthText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    weekNumberContainer: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      marginLeft: 8
+    },
+    weekNumberLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.onPrimary
+    }
+  });

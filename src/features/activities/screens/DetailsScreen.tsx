@@ -12,7 +12,8 @@ import {
 } from '@/shared';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
-import React, { JSX, useLayoutEffect, useState } from 'react';
+import { useTheme } from '@/theme';
+import React, { JSX, useLayoutEffect, useMemo, useState } from 'react';
 import { StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,44 +26,45 @@ configureReanimatedLogger({
   strict: false //TMP to remove the warning
 });
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 20
-  },
-  listContainer: {
-    flex: 1,
-    width: '100%'
-  },
-  list: {
-    flex: 1,
-    width: '100%'
-  },
-  mapContainer: {
-    flex: 2
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  searchInput: {
-    flex: 1,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8
-  },
-  clearButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#f0f0f0'
-  }
-});
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      paddingHorizontal: 20,
+      paddingTop: 0,
+      paddingBottom: 20
+    },
+    listContainer: {
+      flex: 1,
+      width: '100%'
+    },
+    list: {
+      flex: 1,
+      width: '100%'
+    },
+    mapContainer: {
+      flex: 2
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12
+    },
+    searchInput: {
+      flex: 1,
+      borderColor: theme.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginRight: 8
+    },
+    clearButton: {
+      padding: 8,
+      borderRadius: 6,
+      backgroundColor: theme.surfaceSunken
+    }
+  });
 
 /**
  * A screen for displaying a list of activities and a map of the selected activity.
@@ -71,6 +73,8 @@ const styles = StyleSheet.create({
  * @returns A React component.
  */
 export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [hideNoStream, setHideNoStream] = useState<boolean>(false);
@@ -160,7 +164,7 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
           <MaterialCommunityIcons
             name="map-check-outline"
             size={20}
-            color="#666"
+            color={theme.textMuted}
             style={{ marginRight: 8 }}
           />
           <Switch
@@ -183,7 +187,7 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
               accessibilityLabel="Clear search"
               accessibilityRole="button"
             >
-              <Ionicons name="close" size={20} color="#666" />
+              <Ionicons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           ) : null}
         </View>

@@ -1,10 +1,10 @@
 import { APP_CONFIG } from '@/constants';
-import { blueGrey300, gray100, gray800 } from '@/constants/colors';
 import { compareActivitiesByUtcDesc, simpleLogger } from '@/shared';
+import { useTheme } from '@/theme';
 import * as Storage from '@/shared/services/storage';
 import { useActivitiesDataContext } from '@/features/activities';
 import React from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RestoreSummary, SyncProgress, pullBackupNow, pushBackupNow } from '../services/backupSync';
 import { useWebDavBackup, validateProfile } from '../services/webdavAuth';
 
@@ -21,7 +21,7 @@ function formatLastSync(isoString: string): string {
  * "Restore" plus disconnect. No automatic syncing happens.
  */
 export function BackupSection() {
-  const colorScheme = useColorScheme();
+  const theme = useTheme();
   const {
     isConfigured,
     username,
@@ -182,8 +182,8 @@ export function BackupSection() {
     );
   };
 
-  const mutedColor = colorScheme === 'dark' ? blueGrey300 : gray800;
-  const textColor = colorScheme === 'dark' ? gray100 : gray800;
+  const mutedColor = theme.textMuted;
+  const textColor = theme.text;
   const inputStyle = {
     borderWidth: 1,
     borderColor: mutedColor,

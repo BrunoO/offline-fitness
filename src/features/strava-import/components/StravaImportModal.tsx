@@ -1,8 +1,8 @@
-import * as MyColors from '@/constants/colors';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { useActivitiesSyncContext } from '@/features/activities';
 import { simpleLogger } from '@/shared';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -78,6 +78,8 @@ function phaseLabel(progress: ImportProgress | null): string {
 }
 
 export function StravaImportModal({ visible, onClose }: StravaImportModalProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { reloadActivitiesFromLocalStorage } = useActivitiesSyncContext();
   const [stage, setStage] = useState<Stage>('idle');
   const [progress, setProgress] = useState<ImportProgress | null>(null);
@@ -206,7 +208,7 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
 
             {stage === 'running' ? (
               <>
-                <ActivityIndicator size="large" color={MyColors.deepOrange600} />
+                <ActivityIndicator size="large" color={theme.primary} />
                 <Text style={styles.body}>{phaseLabel(progress)}</Text>
                 <View style={styles.progressBarContainer}>
                   <View style={[styles.progressBar, { width: `${progressRatio * 100}%` }]} />
@@ -334,119 +336,120 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20
-  },
-  card: {
-    width: '100%',
-    maxWidth: 460,
-    maxHeight: '85%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4
-      },
-      android: { elevation: 5 },
-      web: { boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }
-    })
-  },
-  scrollContent: {
-    paddingBottom: 12
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: MyColors.deepOrange600,
-    marginBottom: 12,
-    textAlign: 'center'
-  },
-  body: {
-    fontSize: 14,
-    color: MyColors.grey900,
-    lineHeight: 20,
-    marginBottom: 10,
-    textAlign: 'center'
-  },
-  note: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 17,
-    marginTop: 8,
-    textAlign: 'center'
-  },
-  link: {
-    fontSize: 14,
-    color: MyColors.teal700,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 4
-  },
-  statsBlock: {
-    backgroundColor: MyColors.blueGrey50,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 4
-  },
-  statLine: {
-    fontSize: 14,
-    color: MyColors.grey900,
-    marginBottom: 4
-  },
-  warningText: {
-    color: '#D32F2F'
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginTop: 12
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: MyColors.lightGreen500,
-    borderRadius: 4
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 8
-  },
-  button: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minHeight: 42,
-    justifyContent: 'center'
-  },
-  primaryButton: {
-    backgroundColor: MyColors.deepOrange600
-  },
-  primaryButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    textAlign: 'center'
-  },
-  secondaryButton: {
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#E0E0E0'
-  },
-  secondaryButtonText: {
-    color: '#455A64',
-    fontWeight: '500',
-    textAlign: 'center'
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: theme.scrim,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20
+    },
+    card: {
+      width: '100%',
+      maxWidth: 460,
+      maxHeight: '85%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 20,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4
+        },
+        android: { elevation: 5 },
+        web: { boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }
+      })
+    },
+    scrollContent: {
+      paddingBottom: 12
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.primary,
+      marginBottom: 12,
+      textAlign: 'center'
+    },
+    body: {
+      fontSize: 14,
+      color: theme.text,
+      lineHeight: 20,
+      marginBottom: 10,
+      textAlign: 'center'
+    },
+    note: {
+      fontSize: 12,
+      color: theme.textMuted,
+      lineHeight: 17,
+      marginTop: 8,
+      textAlign: 'center'
+    },
+    link: {
+      fontSize: 14,
+      color: theme.info,
+      fontWeight: '600',
+      textAlign: 'center',
+      marginBottom: 4
+    },
+    statsBlock: {
+      backgroundColor: theme.surfaceMuted,
+      borderRadius: 8,
+      padding: 12,
+      marginTop: 4
+    },
+    statLine: {
+      fontSize: 14,
+      color: theme.text,
+      marginBottom: 4
+    },
+    warningText: {
+      color: theme.danger
+    },
+    progressBarContainer: {
+      width: '100%',
+      height: 8,
+      backgroundColor: theme.border,
+      borderRadius: 4,
+      overflow: 'hidden',
+      marginTop: 12
+    },
+    progressBar: {
+      height: '100%',
+      backgroundColor: theme.success,
+      borderRadius: 4
+    },
+    actions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+      marginTop: 8
+    },
+    button: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 8,
+      minHeight: 42,
+      justifyContent: 'center'
+    },
+    primaryButton: {
+      backgroundColor: theme.primary
+    },
+    primaryButtonText: {
+      color: theme.onPrimary,
+      fontWeight: '600',
+      textAlign: 'center'
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceSunken,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    secondaryButtonText: {
+      color: theme.textMuted,
+      fontWeight: '500',
+      textAlign: 'center'
+    }
+  });

@@ -2,7 +2,7 @@ import { getActivityStreams } from '@/features/activities/services/fetchAndStore
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import React, { JSX, useEffect, useState } from 'react';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Modal,
@@ -29,86 +29,78 @@ import {
 } from '@/shared';
 import { exportData } from '@/shared/services/exportData';
 import { findSimilarActivitiesByTrack } from '@/shared/services/trackComparison';
+import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
 import {
   VictoryAxis,
   VictoryChart,
   VictoryLine,
   VictoryScatter,
-  VictoryTheme,
   VictoryZoomContainer
 } from 'victory-native';
 
-// Color constants for consistent styling
-const COLORS = {
-  TRACK_SIMILAR: 'lightgreen',
-  CURRENT_ACTIVITY: 'red',
-  SIMILAR_ACTIVITY: '#00bcd4',
-  TRENDLINE_ALL: 'black',
-  TRENDLINE_TRACK: 'lightgreen'
-} as const;
-
-const styles = StyleSheet.create({
-  similarActivitiesContainer: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8
-  },
-  similarActivityItem: {
-    marginVertical: 10,
-    padding: 10,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.22,
-        shadowRadius: 2.22
-      },
-      android: {
-        elevation: 3
-      },
-      web: {
-        boxShadow: '0 1px 3px rgba(0,0,0,0.22)'
-      }
-    })
-  },
-  similarActivityTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10
-  },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#e0f2f1',
-    borderRadius: 16,
-    marginLeft: 8
-  },
-  chipText: {
-    fontSize: 12,
-    color: '#00695c',
-    fontWeight: '600'
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'flex-end'
-  },
-  modalCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12
-  },
-  modalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    similarActivitiesContainer: {
+      marginTop: 20,
+      padding: 10,
+      backgroundColor: theme.surfaceSunken,
+      borderRadius: 8
+    },
+    similarActivityItem: {
+      marginVertical: 10,
+      padding: 10,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.22,
+          shadowRadius: 2.22
+        },
+        android: {
+          elevation: 3
+        },
+        web: {
+          boxShadow: '0 1px 3px rgba(0,0,0,0.22)'
+        }
+      })
+    },
+    similarActivityTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 10
+    },
+    chip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: theme.primarySoft,
+      borderRadius: 16,
+      marginLeft: 8
+    },
+    chipText: {
+      fontSize: 12,
+      color: theme.primary,
+      fontWeight: '600'
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: theme.scrim,
+      justifyContent: 'flex-end'
+    },
+    modalCard: {
+      backgroundColor: theme.surface,
+      padding: 16,
+      borderTopLeftRadius: 12,
+      borderTopRightRadius: 12
+    },
+    modalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8
+    }
+  });
 
 /**
  * Formats a time value in hours to a string in the format "h:mm".
@@ -141,6 +133,8 @@ function SimilarActivitiesHeader({
   setIsTrackModalVisible: (visible: boolean) => void;
   onExport: () => void;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <View
       style={{
@@ -151,22 +145,18 @@ function SimilarActivitiesHeader({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <MaterialCommunityIcons
-            name="alpha-s-box-outline"
-            size={24}
-            color={COLORS.TRACK_SIMILAR}
-          />
+          <MaterialCommunityIcons name="alpha-s-box-outline" size={24} color={theme.success} />
           <Text
             style={[
               styles.similarActivityTitle,
-              { marginLeft: 6, marginBottom: 0, color: COLORS.TRACK_SIMILAR }
+              { marginLeft: 6, marginBottom: 0, color: theme.success }
             ]}
           >
             {similarActivities.length}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <MaterialCommunityIcons name="alpha-t-circle-outline" size={24} color="#666" />
+          <MaterialCommunityIcons name="alpha-t-circle-outline" size={24} color={theme.textMuted} />
           <Text style={[styles.similarActivityTitle, { marginLeft: 6, marginBottom: 0 }]}>
             {trackSimilarCount}
           </Text>
@@ -196,7 +186,7 @@ function SimilarActivitiesHeader({
         accessibilityLabel="Export similar activities"
         style={{ padding: 6 }}
       >
-        <MaterialCommunityIcons name="application-export" size={24} color="#666" />
+        <MaterialCommunityIcons name="application-export" size={24} color={theme.textMuted} />
       </TouchableOpacity>
     </View>
   );
@@ -216,6 +206,8 @@ function SimilarActivitiesList({
   trackSimilarityThreshold: number;
   onActivityPress: (activity: Activity | null) => void;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <ScrollView
       horizontal
@@ -238,7 +230,7 @@ function SimilarActivitiesList({
             <View
               style={[
                 styles.similarActivityItem,
-                isSimilarByTrack && { backgroundColor: COLORS.TRACK_SIMILAR }
+                isSimilarByTrack ? { backgroundColor: theme.success } : null
               ]}
             >
               <Text>{activity.name}</Text>
@@ -279,11 +271,13 @@ function SpeedTrendChart({
   trackTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
 }): JSX.Element {
+  const theme = useTheme();
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (similarActivities.length === 0) return <></>;
 
   return (
     <VictoryChart
-      theme={VictoryTheme.material}
+      theme={chartTheme}
       width={mapWidth}
       minDomain={{ y: 0 }}
       containerComponent={<VictoryZoomContainer zoomDimension="x" allowZoom allowPan />}
@@ -313,7 +307,7 @@ function SpeedTrendChart({
           data: {
             fill: ({ datum }) => {
               if (datum.activity.id === item.id) {
-                return COLORS.CURRENT_ACTIVITY;
+                return theme.danger;
               }
               if (
                 similarActivitiesByTrack.some(
@@ -321,9 +315,9 @@ function SpeedTrendChart({
                     a.activity.id === datum.activity.id && a.similarity >= trackSimilarityThreshold
                 )
               ) {
-                return COLORS.TRACK_SIMILAR;
+                return theme.success;
               }
-              return COLORS.SIMILAR_ACTIVITY;
+              return theme.info;
             }
           }
         }}
@@ -332,7 +326,7 @@ function SpeedTrendChart({
         <VictoryLine
           data={trendLineData}
           style={{
-            data: { stroke: COLORS.TRENDLINE_ALL, strokeWidth: 2, strokeDasharray: '4' }
+            data: { stroke: theme.text, strokeWidth: 2, strokeDasharray: '4' }
           }}
         />
       ) : null}
@@ -340,7 +334,7 @@ function SpeedTrendChart({
         <VictoryLine
           data={trackTrendLineData}
           style={{
-            data: { stroke: COLORS.TRENDLINE_TRACK, strokeWidth: 2, strokeDasharray: '2' }
+            data: { stroke: theme.success, strokeWidth: 2, strokeDasharray: '2' }
           }}
         />
       ) : null}
@@ -358,12 +352,14 @@ function AltitudeChart({
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
 }): JSX.Element {
+  const theme = useTheme();
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!altitudeDataXY) {
     return <Text>No altitude data available</Text>;
   }
 
   return (
-    <VictoryChart theme={VictoryTheme.material} width={mapWidth}>
+    <VictoryChart theme={chartTheme} width={mapWidth}>
       <VictoryAxis
         label="Time (h:min)"
         tickFormat={formatTime}
@@ -381,7 +377,7 @@ function AltitudeChart({
       <VictoryLine
         data={altitudeDataXY}
         style={{
-          data: { stroke: '#c43a31' }
+          data: { stroke: theme.danger }
         }}
       />
     </VictoryChart>
@@ -398,12 +394,14 @@ function ElevationGainChart({
   elevationGain: { x: number; y: number }[] | undefined;
   mapWidth: number;
 }): JSX.Element {
+  const theme = useTheme();
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!elevationGain) {
     return <Text>No elevation gain data available</Text>;
   }
 
   return (
-    <VictoryChart theme={VictoryTheme.material} width={mapWidth}>
+    <VictoryChart theme={chartTheme} width={mapWidth}>
       <VictoryAxis
         label="Time (h:min)"
         tickFormat={formatTime}
@@ -421,7 +419,7 @@ function ElevationGainChart({
       <VictoryLine
         data={elevationGain}
         style={{
-          data: { stroke: '#2196F3' }
+          data: { stroke: theme.info }
         }}
       />
     </VictoryChart>
@@ -432,6 +430,7 @@ function ElevationGainChart({
  * Component for displaying activity details
  */
 function ActivityDetails({ item }: { item: Activity }): JSX.Element {
+  const theme = useTheme();
   return (
     <View style={{ padding: 10 }}>
       <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Activity Details:</Text>
@@ -445,7 +444,7 @@ function ActivityDetails({ item }: { item: Activity }): JSX.Element {
               flexDirection: 'row',
               marginVertical: 2,
               borderBottomWidth: 1,
-              borderBottomColor: '#eee',
+              borderBottomColor: theme.border,
               paddingBottom: 5
             }}
           >
@@ -475,6 +474,8 @@ function IoUThresholdModal({
   onClose: () => void;
   onSlidingComplete: (value: number) => void;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [displayValue, setDisplayValue] = useState(iouThreshold);
 
   // Sync display value when modal opens with current threshold
@@ -495,9 +496,9 @@ function IoUThresholdModal({
             maximumValue={0.95}
             step={0.05}
             value={displayValue}
-            minimumTrackTintColor="#00695c"
-            maximumTrackTintColor="#b2dfdb"
-            thumbTintColor="#00897b"
+            minimumTrackTintColor={theme.primary}
+            maximumTrackTintColor={theme.surfaceMuted}
+            thumbTintColor={theme.primaryPressed}
             onValueChange={setDisplayValue}
             onSlidingComplete={onSlidingComplete}
             accessibilityLabel="IoU threshold slider"
@@ -525,6 +526,8 @@ function TrackSimilarityModal({
   onClose: () => void;
   onValueChange: (value: number) => void;
 }): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <Modal transparent animationType="slide" visible={isVisible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
@@ -538,9 +541,9 @@ function TrackSimilarityModal({
             maximumValue={1}
             step={0.05}
             value={trackSimilarityThreshold}
-            minimumTrackTintColor="#00695c"
-            maximumTrackTintColor="#b2dfdb"
-            thumbTintColor="#00897b"
+            minimumTrackTintColor={theme.primary}
+            maximumTrackTintColor={theme.surfaceMuted}
+            thumbTintColor={theme.primaryPressed}
             onValueChange={onValueChange}
             accessibilityLabel="Track similarity threshold slider"
           />
@@ -580,6 +583,8 @@ export function ActivityAnalysisView({
   const [trendLineData, setTrendLineData] = useState<{ x: Date; y: number }[]>([]);
   const [trackTrendLineData, setTrackTrendLineData] = useState<{ x: Date; y: number }[]>([]);
   const [exportProgress, setExportProgress] = useState(0);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const trackSimilarCount = similarActivitiesByTrack.filter(
     a => a.similarity >= trackSimilarityThreshold
   ).length;

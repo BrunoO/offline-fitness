@@ -1,4 +1,4 @@
-import * as MyColors from '@/constants/colors';
+import { ResolvedTheme, useTheme } from '@/theme';
 import {
   LastActivitySummary,
   countStreamsStatus,
@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useFocusEffect } from '@react-navigation/native';
 import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityCalendarPeriod } from '../components/ActivityCalendarPeriod';
@@ -42,6 +42,8 @@ type HomeScreenProps = {
  * @returns A React component.
  */
 export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const {
     globalActivities,
@@ -420,7 +422,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
           <RefreshControl
             refreshing={fetchingData}
             onRefresh={handleRefresh}
-            tintColor={MyColors.deepOrange600}
+            tintColor={theme.primary}
           />
         }
       >
@@ -439,7 +441,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
                   }}
                   style={styles.actionButton}
                 >
-                  <Ionicons name="list" size={18} color={MyColors.deepOrange600} />
+                  <Ionicons name="list" size={18} color={theme.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -447,7 +449,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Streams</Text>
               <View style={styles.infoValueContainer}>
-                <Text style={[styles.infoValue, { color: MyColors.lightGreen500 }]}>
+                <Text style={[styles.infoValue, { color: theme.success }]}>
                   {streamStatus.downloadedStreams} /{' '}
                   {totalActivitiesStored > 0
                     ? totalActivitiesStored - streamStatus.missingStreams
@@ -464,7 +466,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
                   onPress={() => setImportVisible(true)}
                   style={styles.actionButton}
                 >
-                  <Ionicons name="cloud-upload-outline" size={18} color={MyColors.deepOrange600} />
+                  <Ionicons name="cloud-upload-outline" size={18} color={theme.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -640,166 +642,167 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  section: {
-    marginBottom: 24
-  },
-  sectionHeader: {
-    marginBottom: 12
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: MyColors.deepOrange600
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-    fontStyle: 'italic'
-  },
-  statusCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: MyColors.lightGreen500
-  },
-  errorCard: {
-    borderLeftColor: '#FF5722',
-    backgroundColor: '#FFF3E0'
-  },
-  connectionText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500'
-  },
-  infoCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0'
-  },
-  infoLabel: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500'
-  },
-  infoValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333'
-  },
-  actionButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#F5F5F5'
-  },
-  calendarContainer: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 8,
-    overflow: 'hidden'
-  },
-  mapContainer: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 8,
-    minHeight: 200
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-    fontStyle: 'italic'
-  },
-  noDataContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200
-  },
-  noDataText: {
-    fontSize: 16,
-    color: '#999',
-    fontStyle: 'italic'
-  },
-  footerCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8
-  },
-  footerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16
-  },
-  footerText: {
-    alignItems: 'center'
-  },
-  appTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: MyColors.deepOrange600,
-    marginBottom: 4
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#666'
-  },
-  errorContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFCDD2'
-  },
-  errorTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#D32F2F',
-    marginBottom: 4
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#D32F2F',
-    marginBottom: 8,
-    lineHeight: 18
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FFCDD2'
-  },
-  retryText: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginLeft: 4
-  }
-});
+const createStyles = (theme: ResolvedTheme) =>
+  StyleSheet.create({
+    section: {
+      marginBottom: 24
+    },
+    sectionHeader: {
+      marginBottom: 12
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.primary
+    },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: theme.textMuted,
+      marginTop: 4,
+      fontStyle: 'italic'
+    },
+    statusCard: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 16,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.success
+    },
+    errorCard: {
+      borderLeftColor: theme.dangerPressed,
+      backgroundColor: theme.dangerSoft
+    },
+    connectionText: {
+      fontSize: 16,
+      color: theme.text,
+      fontWeight: '500'
+    },
+    infoCard: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 16
+    },
+    infoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border
+    },
+    infoLabel: {
+      fontSize: 16,
+      color: theme.text,
+      fontWeight: '500'
+    },
+    infoValueContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    infoValue: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text
+    },
+    actionButton: {
+      padding: 8,
+      borderRadius: 6,
+      backgroundColor: theme.surfaceSunken
+    },
+    calendarContainer: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 8,
+      overflow: 'hidden'
+    },
+    mapContainer: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 8,
+      minHeight: 200
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: 200
+    },
+    loadingText: {
+      fontSize: 16,
+      color: theme.textMuted,
+      fontStyle: 'italic'
+    },
+    noDataContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: 200
+    },
+    noDataText: {
+      fontSize: 16,
+      color: theme.textSubtle,
+      fontStyle: 'italic'
+    },
+    footerCard: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 8
+    },
+    footerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16
+    },
+    footerText: {
+      alignItems: 'center'
+    },
+    appTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.primary,
+      marginBottom: 4
+    },
+    versionText: {
+      fontSize: 12,
+      color: theme.textMuted
+    },
+    errorContainer: {
+      marginTop: 12,
+      padding: 12,
+      backgroundColor: theme.dangerSoft,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.dangerBorder
+    },
+    errorTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.danger,
+      marginBottom: 4
+    },
+    errorText: {
+      fontSize: 13,
+      color: theme.danger,
+      marginBottom: 8,
+      lineHeight: 18
+    },
+    retryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: theme.surface,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: theme.dangerBorder
+    },
+    retryText: {
+      fontSize: 13,
+      fontWeight: '500',
+      marginLeft: 4
+    }
+  });

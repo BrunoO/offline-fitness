@@ -22,7 +22,8 @@ import MapView, {
 } from 'react-native-maps';
 
 import { getActivityStreams, useActivitiesDataContext } from '@/features/activities';
-import React, { JSX, useEffect, useState } from 'react';
+import { useTheme } from '@/theme';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -62,6 +63,8 @@ function sampleCoordinates<T>(coords: T[], maxPoints: number): T[] {
  * @returns A React component.
  */
 export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { globalActivities: allActivities, myActivitiesDiscovered: activityTypes } =
     useActivitiesDataContext();
   const insets = useSafeAreaInsets();
@@ -374,7 +377,7 @@ export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element
                   opacity={0.7}
                   radius={20}
                   gradient={{
-                    colors: ['#00FF00', '#FFFF00', '#FF0000'],
+                    colors: theme.mapTrack,
                     startPoints: [0.1, 0.5, 1],
                     colorMapSize: 256
                   }}
@@ -476,53 +479,54 @@ export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element
   );
 }
 
-const styles = StyleSheet.create({
-  dateFilterOverlayContainer: {
-    position: 'absolute',
-    bottom: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '80%',
-    marginVertical: 5,
-    marginRight: 20,
-    opacity: 0.75
-  },
-  mapTextOverlayContainer: {
-    position: 'absolute',
-    top: '8%',
-    left: '3%'
-  },
-  mapActivitiesFilterOverlayContainer: {
-    position: 'absolute',
-    top: '1%',
-    left: '3%'
-  },
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    dateFilterOverlayContainer: {
+      position: 'absolute',
+      bottom: 0,
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '80%',
+      marginVertical: 5,
+      marginRight: 20,
+      opacity: 0.75
+    },
+    mapTextOverlayContainer: {
+      position: 'absolute',
+      top: '8%',
+      left: '3%'
+    },
+    mapActivitiesFilterOverlayContainer: {
+      position: 'absolute',
+      top: '1%',
+      left: '3%'
+    },
 
-  mapTextOverlay: {
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 5,
-    opacity: 0.75,
-    fontWeight: 'bold',
-    color: 'black'
-  },
-  mapButtonsOverlayContainer: {
-    position: 'absolute',
-    top: '25%',
-    alignSelf: 'flex-end',
-    paddingRight: '3%',
-    flexDirection: 'column'
-  },
-  iconButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    opacity: 0.5,
-    padding: 10,
-    borderRadius: 5
-  },
-  iconLabel: {
-    color: 'white',
-    marginLeft: 8
-  }
-});
+    mapTextOverlay: {
+      backgroundColor: theme.surface,
+      padding: 10,
+      borderRadius: 5,
+      opacity: 0.75,
+      fontWeight: 'bold',
+      color: theme.text
+    },
+    mapButtonsOverlayContainer: {
+      position: 'absolute',
+      top: '25%',
+      alignSelf: 'flex-end',
+      paddingRight: '3%',
+      flexDirection: 'column'
+    },
+    iconButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      opacity: 0.5,
+      padding: 10,
+      borderRadius: 5
+    },
+    iconLabel: {
+      color: theme.textOnSurface,
+      marginLeft: 8
+    }
+  });
