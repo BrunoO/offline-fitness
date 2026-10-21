@@ -24,16 +24,10 @@ import {
 } from '../types/import.types';
 import { deviceTimezoneLabel, repairDistanceUnit, rowToActivity } from './activityMapper';
 import { mapActivityType, parseActivitiesCsv } from './csvParser';
+import { createFileByteSource } from './expoByteSource';
 import { parseGpx, toStreamSet } from './gpxParser';
 import { decodeUtf8 } from './textDecode';
-import {
-  createFileByteSource,
-  gunzipEntry,
-  isGzip,
-  isZip,
-  readZipEntries,
-  readZipEntry
-} from './zipReader';
+import { gunzipEntry, isGzip, isZip, readZipEntries, readZipEntry } from './zipReader';
 
 /**
  * Imports a Strava export archive ("Download your account" .zip).

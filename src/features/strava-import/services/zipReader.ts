@@ -1,9 +1,13 @@
-import { File, FileMode } from 'expo-file-system';
 import { inflateRaw, ungzip } from 'pako';
 import { ByteSource, ZipEntryInfo } from '../types/import.types';
 
 /**
  * Minimal random-access ZIP reader.
+ *
+ * Part of the portable import core: this file has no expo or react-native
+ * imports, so the same reader runs on a desktop tool (see
+ * `docs/desktop-import-plan.md`, Phase 0). The expo-backed byte source lives
+ * in `expoByteSource.ts`.
  *
  * Why not `JSZip.loadAsync(await file.bytes())`: a Strava export is ~1 GB worth
  * of text that compresses to tens of MB, and inflating the whole archive in one
@@ -58,43 +62,7 @@ function decodeName(bytes: Uint8Array): string {
   return out;
 }
 
-/**
- * Byte source backed by an expo-file-system file, seeking with a single handle.
- * Seeking per read keeps native calls at two per entry (header + payload).
- */
-export function createFileByteSource(file: File): ByteSource {
-  const handle = file.open(FileMode.ReadOnly);
-  const size = file.size;
-
-  const read = async (offset: number, length: number): Promise<Uint8Array> => {
-    const clampedLength = Math.max(0, Math.min(length, size - offset));
-    if (clampedLength === 0) return new Uint8Array(0);
-    handle.offset = offset;
-    const buffer = new Uint8Array(clampedLength);
-    let filled = 0;
-    while (filled < clampedLength) {
-      const chunk = handle.readBytes(clampedLength - filled);
-      if (chunk.length === 0) break;
-      buffer.set(chunk, filled);
-      filled += chunk.length;
-    }
-    return filled === clampedLength ? buffer : buffer.subarray(0, filled);
-  };
-
-  return {
-    size,
-    read,
-    close: () => {
-      try {
-        handle.close();
-      } catch {
-        // Already closed; nothing to do.
-      }
-    }
-  };
-}
-
-/** In-memory byte source, used by tests. */
+/** In-memory byte source, used by tests (and available to any other runtime). */
 export function createMemoryByteSource(bytes: Uint8Array): ByteSource {
   return {
     size: bytes.length,

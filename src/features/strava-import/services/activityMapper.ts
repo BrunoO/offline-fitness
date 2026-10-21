@@ -1,5 +1,13 @@
-import { Activity, week_of_year } from '@/shared';
+import { Activity } from '@/shared/types/types';
+import { week_of_year } from '@/shared/utils/utils';
 import { ExportedActivityRow } from '../types/import.types';
+
+/**
+ * Part of the portable import core: `week_of_year` and the `Activity` type come
+ * from their defining modules rather than the `@/shared` barrel, because the
+ * barrel re-exports React Native components and would drag the platform into
+ * any runtime that loads this file (see `docs/desktop-import-plan.md`).
+ */
 
 /**
  * Mapping from archive rows to the app's canonical `Activity` shape.

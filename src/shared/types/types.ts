@@ -1,4 +1,8 @@
-import { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
+// Type-only import: this module must stay a runtime leaf so the archive-import
+// core (which reaches it through `week_of_year` in `utils.ts`) stays loadable
+// outside React Native. See `docs/desktop-import-plan.md` and the guard in
+// `__tests__/stravaImport/importCorePortability.spec.ts`.
+import type { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
 
 export type Activity = {
   average_speed: number;

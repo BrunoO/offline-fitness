@@ -1,4 +1,4 @@
-import { Activity, LatLng } from '@/shared';
+import { Activity, LatLng } from '@/shared/types/types';
 import { activityUtcMs } from './activityDates';
 
 /**
