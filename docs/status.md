@@ -130,6 +130,12 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Dead permissions removed from `app.json`, version synced to 1.2.0** — cleanup from the config review:
+  - Dropped `NOTIFICATIONS` (no `expo-notifications` dependency), `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE` (no-ops since Android 10/13; the app uses scoped storage). Kept `INTERNET` and all three location permissions — the latter deliberately, for the upcoming GPS-track capture.
+  - `expo.version` was `1.1.0` while `package.json` said `1.2.0` — the phone showed the stale `versionName`. Synced to `1.2.0`; `app.json` `expo.version` is the single source of truth for the app version, `package.json` `version` is npm metadata kept in step manually.
+  - `AGENTS.md` "Version Management" corrected: it claimed the version lives in `package.json` and is managed by `increment-version.cjs`, and that build numbers in `app.json` must not be touched — in fact `increment-version.cjs` only manages `versionCode` (in `app.json` + the gitignored `.version-code`), and `expo.version` is the app version.
+  - Verified with `npx expo config --type public`: reduced permission list resolves, `.env` package id still injected. The reduced permissions take effect at the next `expo prebuild`.
+
 - **`android:dev:uninstall` now targets the real application id** — the script used `${ANDROID_PACKAGE:-com.example.offlinefitness}`, which reads the **shell** environment, while `ANDROID_PACKAGE` lives in `.env` (loaded by the Expo CLI, not by ad-hoc shell commands). The fallback therefore always won and the script cleared/uninstalled the placeholder id instead of the actual app. New `scripts/android-package.cjs` parses `ANDROID_PACKAGE` from `.env` (comments skipped, surrounding quotes stripped) and falls back to the placeholder committed in `app.json`; the npm script calls it via `$(node scripts/android-package.cjs)`.
 
 - **Strava import: reading the archive in place broke real archives (`Bad file descriptor`) — the copy is back, and a dead archive now stops the run** — the phone run failed on track after track with `java.io.IOException: Bad file descriptor` raised from `FileChannelImpl.position0`, i.e. `setOffset` on a `FileChannel` whose descriptor had already been released.
