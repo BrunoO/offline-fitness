@@ -36,3 +36,6 @@ build.log
 todo.txt
 .claude/
 path/
+
+# Local Strava export archives (personal data; also used as tool smoke-test input)
+testdata/
