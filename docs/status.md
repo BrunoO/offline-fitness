@@ -130,6 +130,16 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Dropped the unused `ACCESS_BACKGROUND_LOCATION` declaration** — the README privacy audit
+  flagged it: the permission sat in `app.json`'s Android list while nothing ever asked for
+  it. `useLocationPermission` requests foreground location only, and only when the map
+  should show the blue dot. A "no tracking" app declaring background location is dead
+  weight in the permission list and a store-review red flag. `expo-location` does not add
+  the declaration itself, so the manifest entry came solely from `app.json` — the one line
+  to re-add when the track recorder (roadmap item 4) actually asks for the permission.
+  Takes effect at the next `expo prebuild` / `build:local`. The README Fine print note that
+  called the declaration out is removed with the fix.
+
 - **Exported zip chunks are now deleted once shared** — a side-find of auditing the README's
   privacy claims. `exportData` wrote `strava_export*.zip` into the app document directory,
   opened the share sheet per chunk, and never touched the files again: a full export left

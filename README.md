@@ -124,10 +124,6 @@ Behaviours of the app (or the OS around it) that can surprise you:
 - **Plain HTTP to the WebDAV server is allowed, on purpose.** `usesCleartextTraffic` is
   enabled so self-hosted servers on a LAN without certificates work. Prefer HTTPS or a
   VPN where you can, and use a scoped app password.
-- **`ACCESS_BACKGROUND_LOCATION` is declared but never requested.** It sits in the
-  manifest for the roadmap's track recorder; today the app asks for foreground location
-  only, and only for the map's blue dot. Users reading the permission list should know it
-  is currently dead weight.
 - **The screen stays awake during an archive import.** A long import deliberately holds the
   wake lock so Android does not suspend the work mid-archive.
 
