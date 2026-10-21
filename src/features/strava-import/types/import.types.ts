@@ -53,7 +53,7 @@ export interface ImportProgress {
  * the wall clock of the whole call, so whatever is left over is stall time.
  */
 export interface ImportTimings {
-  /** Copying the picked archive into the app cache (0 when reused). */
+  /** Copying the archive, only when it cannot be read in place. */
   copyArchive: number;
   /** Reading the ZIP central directory. */
   readDirectory: number;
@@ -97,9 +97,59 @@ export interface ImportSummary {
   timings: ImportTimings;
 }
 
+/**
+ * Sub-step the import is inside right now.
+ *
+ * A progress bar only advances when a whole track is finished, so one slow call
+ * is indistinguishable from a hung app. These are fine-grained enough to name
+ * the call that is taking the time.
+ */
+export type ImportStep =
+  | 'idle'
+  | 'copying'
+  | 'reading-directory'
+  | 'parsing-csv'
+  | 'saving-activities'
+  | 'checking-track'
+  | 'reading-track'
+  | 'parsing-track'
+  | 'writing-stream'
+  | 'saving-activity'
+  | 'backfilling';
+
+/**
+ * A mutable view of what the import is doing, written by the importer and
+ * polled by the UI on a timer.
+ *
+ * Deliberately a plain object the importer mutates rather than a stream of
+ * events: at five steps per track an event per step would be 10,000 React
+ * renders, which is the cost this is supposed to expose, not add.
+ */
+export interface ImportLiveState {
+  step: ImportStep;
+  /** `Date.now()` when the current step started. */
+  stepStartedAt: number;
+  phase: 'idle' | 'activities' | 'streams';
+  index: number;
+  total: number;
+  /** Activity the step belongs to, when it belongs to one. */
+  activityId?: string;
+  /** Uncompressed size of the track being read, when known. */
+  entryBytes?: number;
+  /** Slowest completed track so far. */
+  slowest?: { activityId: string; ms: number };
+  /** Timings accumulated so far; the same object the summary carries. */
+  timings: ImportTimings;
+}
+
 export interface ImportOptions {
   onProgress?: (progress: ImportProgress) => void;
   shouldCancel?: () => boolean;
+  /**
+   * Called once with the live-state object the importer then keeps updating.
+   * Poll it (e.g. every 500 ms) instead of re-rendering per step.
+   */
+  onLiveState?: (state: ImportLiveState) => void;
 }
 
 /** Parsed row of `activities.csv`, before it becomes an app `Activity`. */

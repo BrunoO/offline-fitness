@@ -19,6 +19,14 @@ const mockVirtualFiles = new Map<string, VirtualFileEntry>();
 const mockVirtualDirectories = new Set<string>();
 /** Counts archive copies, so a test can prove a copy was skipped. */
 const mockCopyCount = { count: 0 };
+/** URIs whose `open()` throws, standing in for a provider that hands out a pipe. */
+const mockUnseekable = new Set<string>();
+/** The live-state object the importer mutates, shared with the mock. */
+const mockLiveState: {
+  state: import('@/features/strava-import/types/import.types').ImportLiveState | null;
+} = { state: null };
+/** Sub-step recorded at each stream/flag write, to prove the live granularity. */
+const mockStepLog: string[] = [];
 
 jest.mock('expo-file-system', () => {
   class VirtualDirectory {
@@ -77,6 +85,7 @@ jest.mock('expo-file-system', () => {
     }
 
     write(content: string) {
+      mockStepLog.push(mockLiveState.state?.step ?? 'none');
       mockVirtualFiles.set(this.uri, { bytes: new TextEncoder().encode(String(content)) });
     }
 
@@ -87,6 +96,9 @@ jest.mock('expo-file-system', () => {
     }
 
     open() {
+      if (mockUnseekable.has(this.uri)) {
+        throw new Error('File descriptor is not seekable');
+      }
       const entry = mockVirtualFiles.get(this.uri);
       if (!entry) throw new Error(`File not found: ${this.uri}`);
       const state = { offset: 0 };
@@ -213,48 +225,64 @@ describe('importStravaExport', () => {
     expect(summary.timezone.length).toBeGreaterThan(0);
   });
 
-  it('deletes the cached copy of the archive', () => {
-    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
-  });
-
-  it('keeps and reuses the copy when a run is interrupted', async () => {
+  it('reads the picked archive in place, without copying it', async () => {
     mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
-
-    // Cancelled before pass 1 writes anything: the archive copy is kept.
-    const interrupted = await importStravaExport(pickedFile(), { shouldCancel: () => true });
-    expect(interrupted.cancelled).toBe(true);
-    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(true);
-
-    // The next attempt picks the same file up without copying ~1 GB again.
     const copiesBefore = mockCopyCount.count;
-    const resumed = await importStravaExport(pickedFile());
-    expect(mockCopyCount.count).toBe(copiesBefore);
-    expect(resumed.cancelled).toBe(false);
-    expect(resumed.activitiesImported).toBe(2);
 
-    // A finished run leaves no copy behind.
+    const result = await importStravaExport(pickedFile());
+
+    expect(result.failedFiles).toBe(0);
+    expect(mockCopyCount.count).toBe(copiesBefore);
     expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
   });
 
-  it('copies again when a different archive is picked', async () => {
-    // Leave the previous archive cached, then pick a file of another size.
-    await importStravaExport(pickedFile(), { shouldCancel: () => true });
-    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(true);
-
-    const other = new JSZip();
-    other.file('activities.csv', CSV);
-    other.file('activities/100.gpx', GPX);
-    other.file('activities/extra.gpx', GPX);
-    const otherBytes = await other.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
-    mockVirtualFiles.set('file:///picked/export_other.zip', { bytes: otherBytes });
-
+  it('falls back to a copy when the picked file cannot be read in place', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    mockUnseekable.add(PICKED_PATH);
     const copiesBefore = mockCopyCount.count;
-    const result = await importStravaExport(new File('file:///picked/', 'export_other.zip'));
 
-    expect(mockCopyCount.count).toBe(copiesBefore + 1);
-    expect(result.failedFiles).toBe(0);
-    expect(result.activitiesImported).toBe(2);
-    expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+    try {
+      const result = await importStravaExport(pickedFile());
+      expect(result.failedFiles).toBe(0);
+      expect(mockCopyCount.count).toBe(copiesBefore + 1);
+      // The copy is a means to an end; it does not outlive the run.
+      expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+    } finally {
+      mockUnseekable.delete(PICKED_PATH);
+    }
+  });
+
+  it('drops the fallback copy even when the run is interrupted', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    mockUnseekable.add(PICKED_PATH);
+
+    try {
+      const interrupted = await importStravaExport(pickedFile(), { shouldCancel: () => true });
+      expect(interrupted.cancelled).toBe(true);
+      expect(mockVirtualFiles.has(ARCHIVE_PATH)).toBe(false);
+    } finally {
+      mockUnseekable.delete(PICKED_PATH);
+    }
+  });
+
+  it('reports the step it is inside while it runs', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchive() });
+    // A fresh track, so this run really writes a stream file.
+    mockVirtualFiles.delete('file:///documents/streams/100.json');
+    mockStepLog.length = 0;
+
+    const result = await importStravaExport(pickedFile(), {
+      onLiveState: state => {
+        mockLiveState.state = state;
+      }
+    });
+
+    // The stream write happened while the live state named that step, so a slow
+    // write would have been attributable instead of just "no progress".
+    expect(mockStepLog).toContain('writing-stream');
+    // The run finishes idle and the live view shares the summary's timings.
+    expect(mockLiveState.state?.step).toBe('idle');
+    expect(mockLiveState.state?.timings).toBe(result.timings);
   });
 
   it('reports a timing breakdown', () => {

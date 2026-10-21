@@ -15,8 +15,11 @@ import {
 import { Directory, File, Paths } from 'expo-file-system';
 import {
   ActivityStreamLike,
+  ByteSource,
   ExportedActivityRow,
+  ImportLiveState,
   ImportOptions,
+  ImportStep,
   ImportSummary,
   ImportTimings,
   ZipEntryInfo
@@ -54,9 +57,11 @@ import {
 const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
 
 const CACHE_ARCHIVE_NAME = 'strava-export-import.zip';
-const CACHE_STAMP_NAME = `${CACHE_ARCHIVE_NAME}.key`;
 const ACTIVITY_BATCH_SIZE = 100;
 const YIELD_EVERY = 25;
+
+/** A track slower than this is logged with its id, so a bad file names itself. */
+const SLOW_TRACK_MS = 3000;
 
 /** Track formats present in exports that this importer does not parse yet. */
 const UNSUPPORTED_TRACK_EXTENSIONS = ['.fit', '.fit.gz', '.tcx', '.tcx.gz'];
@@ -120,44 +125,72 @@ function yieldToUi(): Promise<void> {
 }
 
 /**
- * Copies the picked archive into the app cache, reusing a copy left by an
- * interrupted run.
+ * Records the sub-step the import is inside, for the live view.
  *
- * A full export is ~1 GB, so the copy takes tens of seconds, and it used to be
- * thrown away at the end of every attempt — an import stopped at track 1,500
- * paid for the whole copy again. The copy is keyed by the picked file's name
- * and size and dropped when a run completes, so a retry resumes for free while
- * a finished import leaves no gigabyte behind.
+ * One field assignment per step: the UI polls this object on a timer, so
+ * describing the work never costs a render.
  */
-async function prepareArchiveCopy(pickedFile: File, timings: ImportTimings): Promise<File> {
-  const cached = new File(Paths.cache, CACHE_ARCHIVE_NAME);
-  const stamp = new File(Paths.cache, CACHE_STAMP_NAME);
-  const key = `${pickedFile.name}:${pickedFile.size}`;
-
-  const reusable =
-    cached.exists &&
-    stamp.exists &&
-    cached.size === pickedFile.size &&
-    (await stamp.text()) === key;
-  if (reusable) {
-    simpleLogger.log('Reusing the cached copy of the Strava export');
-    return cached;
-  }
-
-  if (cached.exists) cached.delete();
-  const startedAt = Date.now();
-  await pickedFile.copy(cached, { overwrite: true });
-  timings.copyArchive += Date.now() - startedAt;
-  stamp.write(key);
-  return cached;
+function mark(
+  live: ImportLiveState | undefined,
+  step: ImportStep,
+  patch?: Partial<ImportLiveState>
+): void {
+  if (!live) return;
+  live.step = step;
+  live.stepStartedAt = Date.now();
+  if (patch) Object.assign(live, patch);
 }
 
-/** Drops the cached archive once a run has finished with it. */
+/**
+ * Opens the picked archive for random access, reading it where it is.
+ *
+ * Android hands the picker result over as a `content://` URI, and the native
+ * handle reads it through the provider's file descriptor with real random
+ * access (`FileChannel.position`), so a copy into the app cache is not needed.
+ * It used to run on every attempt anyway — a second copy of a ~1 GB archive
+ * written to a device that already holds the original, on the same storage the
+ * stream cache and AsyncStorage are writing to, which is exactly the resource a
+ * slow import runs out of.
+ *
+ * A provider that hands out a pipe instead of a seekable descriptor cannot be
+ * read this way, so the copy stays as a fallback.
+ */
+async function openArchive(
+  pickedFile: File,
+  timings: ImportTimings,
+  live: ImportLiveState | undefined
+): Promise<{ source: ByteSource; copy: File | null }> {
+  // A previous version cached the archive between runs and could leave a
+  // ~1 GB file behind; reclaim it before adding any work of our own.
+  deleteArchiveCopy();
+
+  let direct: ByteSource | undefined;
+  try {
+    direct = createFileByteSource(pickedFile);
+    // Proves the descriptor is seekable before the reader depends on it.
+    await direct.read(0, 4);
+    return { source: direct, copy: null };
+  } catch (error) {
+    simpleLogger.log('Reading the picked archive in place failed; copying it first', error);
+    direct?.close?.();
+  }
+
+  mark(live, 'copying');
+  const copy = new File(Paths.cache, CACHE_ARCHIVE_NAME);
+  if (copy.exists) copy.delete();
+  const startedAt = Date.now();
+  await pickedFile.copy(copy, { overwrite: true });
+  timings.copyArchive += Date.now() - startedAt;
+  return { source: createFileByteSource(copy), copy };
+}
+
+/** Drops the fallback copy; it is never worth keeping next to the original. */
 function deleteArchiveCopy(): void {
   try {
     const cached = new File(Paths.cache, CACHE_ARCHIVE_NAME);
-    const stamp = new File(Paths.cache, CACHE_STAMP_NAME);
     if (cached.exists) cached.delete();
+    // Stamp written by the version that cached the copy between runs.
+    const stamp = new File(Paths.cache, `${CACHE_ARCHIVE_NAME}.key`);
     if (stamp.exists) stamp.delete();
   } catch {
     // Best effort: the cache is reclaimable by the OS anyway.
@@ -263,33 +296,44 @@ export async function importStravaExport(
   pickedFile: File,
   options: ImportOptions = {}
 ): Promise<ImportSummary> {
-  const { onProgress, shouldCancel } = options;
+  const { onProgress, shouldCancel, onLiveState } = options;
   const timezone = deviceTimezoneLabel();
   const summary = emptySummary(timezone);
   const timings = summary.timings;
   const warnings: string[] = [];
+  /** Tracks that took seconds, reported together at the end. */
+  const slowTracks: string[] = [];
   const startedAt = Date.now();
-  let completed = false;
+
+  // Handed to the UI, which polls it: the importer only ever assigns fields.
+  const live: ImportLiveState = {
+    step: 'idle',
+    stepStartedAt: startedAt,
+    phase: 'idle',
+    index: 0,
+    total: 0,
+    timings
+  };
+  onLiveState?.(live);
 
   if (!streamsFolder.exists) {
     streamsFolder.create({ intermediates: true });
   }
 
-  let byteSource: ReturnType<typeof createFileByteSource> | undefined;
+  let byteSource: ByteSource | undefined;
+  let copy: File | null = null;
 
   try {
     onProgress?.({ phase: 'opening', processed: 0, total: 0 });
 
-    // The picker returns a content:// URI on Android; copying into the cache
-    // gives a plain file we can seek at will.
-    const cached = await prepareArchiveCopy(pickedFile, timings);
-
-    byteSource = createFileByteSource(cached);
-    const head = await byteSource.read(0, 4);
-    if (!isZip(head)) {
+    const opened = await openArchive(pickedFile, timings, live);
+    byteSource = opened.source;
+    copy = opened.copy;
+    if (!isZip(await byteSource.read(0, 4))) {
       throw new Error('The selected file is not a ZIP archive');
     }
 
+    mark(live, 'reading-directory');
     const directoryStartedAt = Date.now();
     const entries = await readZipEntries(byteSource);
     timings.readDirectory += Date.now() - directoryStartedAt;
@@ -299,6 +343,7 @@ export async function importStravaExport(
       throw new Error('activities.csv was not found in the archive — is this a Strava export?');
     }
 
+    mark(live, 'parsing-csv');
     const csvStartedAt = Date.now();
     const parsed = parseActivitiesCsv(decodeUtf8(await readZipEntry(byteSource, csvEntry)));
     timings.parseCsv += Date.now() - csvStartedAt;
@@ -346,9 +391,15 @@ export async function importStravaExport(
       if (shouldCancel?.()) {
         summary.cancelled = true;
         timings.writeActivities += Date.now() - activitiesStartedAt;
+        mark(live, 'idle');
         return summary;
       }
       const batch = activities.slice(start, start + ACTIVITY_BATCH_SIZE);
+      mark(live, 'saving-activities', {
+        phase: 'activities',
+        index: start,
+        total: activities.length
+      });
       await storeMultiActivities(batch);
       summary.activitiesImported += batch.length;
       onProgress?.({
@@ -384,11 +435,19 @@ export async function importStravaExport(
 
       const activity = ordered[index];
       const row = rowsById.get(activity.id);
+      const trackStartedAt = Date.now();
       onProgress?.({
         phase: 'streams',
         processed: index,
         total: ordered.length,
         currentActivityId: activity.id
+      });
+      mark(live, 'checking-track', {
+        phase: 'streams',
+        index,
+        total: ordered.length,
+        activityId: activity.id,
+        entryBytes: undefined
       });
 
       const streamName = `${activity.id}.json`;
@@ -399,6 +458,7 @@ export async function importStravaExport(
         // older import, or a re-import that overwrote them). Restore them
         // from the stored stream when they are missing.
         if (lacksTrackFields(activity)) {
+          mark(live, 'backfilling');
           await backfillTrackFields(activity, new File(streamsFolder, streamName));
         }
         continue;
@@ -429,10 +489,12 @@ export async function importStravaExport(
       }
 
       try {
+        mark(live, 'reading-track', { entryBytes: entry.uncompressedSize });
         const readStartedAt = Date.now();
         const raw = await readZipEntry(byteSource, entry);
         timings.readTracks += Date.now() - readStartedAt;
 
+        mark(live, 'parsing-track');
         const parseStartedAt = Date.now();
         const gpx = parseGpx(decodeUtf8(isGzip(raw) ? gunzipEntry(raw) : raw));
 
@@ -454,6 +516,7 @@ export async function importStravaExport(
         const payload = JSON.stringify(converted.stream);
         timings.parseTracks += Date.now() - parseStartedAt;
 
+        mark(live, 'writing-stream');
         const streamStartedAt = Date.now();
         new File(streamsFolder, streamName).write(payload);
         timings.writeStreams += Date.now() - streamStartedAt;
@@ -468,6 +531,7 @@ export async function importStravaExport(
         if (boundingBox) activity.bounding_box = boundingBox;
         pendingActivityWrites.push(activity);
         if (pendingActivityWrites.length >= ACTIVITY_BATCH_SIZE) {
+          mark(live, 'saving-activity');
           await flushActivityWrites();
         }
 
@@ -480,14 +544,27 @@ export async function importStravaExport(
         writeNoStreamFlag(activity.id, flagged);
       }
 
+      // A track that takes seconds is the thing worth knowing about, and its id
+      // and size make it findable in the archive afterwards.
+      const trackMs = Date.now() - trackStartedAt;
+      if (trackMs >= SLOW_TRACK_MS) {
+        const report = `track ${activity.id}: ${trackMs} ms for ${Math.round(entry.uncompressedSize / 1024)} KB`;
+        slowTracks.push(report);
+        simpleLogger.warn(`Slow ${report}`);
+        if (!live?.slowest || trackMs > live.slowest.ms) {
+          live.slowest = { activityId: activity.id, ms: trackMs };
+        }
+      }
+
       if (index % YIELD_EVERY === 0) await yieldToUi();
     }
 
+    mark(live, 'saving-activity');
     await flushActivityWrites();
     onProgress?.({ phase: 'done', processed: ordered.length, total: ordered.length });
+    mark(live, 'idle');
 
     timings.total = Date.now() - startedAt;
-    completed = true;
 
     simpleLogger.log('Strava export import finished', {
       activities: summary.activitiesImported,
@@ -500,6 +577,9 @@ export async function importStravaExport(
       timezone: summary.timezone,
       timings
     });
+    if (slowTracks.length > 0) {
+      simpleLogger.warn(`Slow tracks (${slowTracks.length})`, slowTracks.slice(0, 20));
+    }
     if (warnings.length > 0) {
       simpleLogger.warn('Strava export import warnings', warnings.slice(0, 20));
     }
@@ -508,8 +588,7 @@ export async function importStravaExport(
   } finally {
     timings.total = Date.now() - startedAt;
     byteSource?.close?.();
-    // A completed run does not need the copy; an interrupted one keeps it so
-    // the next attempt does not pay for a ~1 GB copy again.
-    if (completed) deleteArchiveCopy();
+    // Only the fallback path creates a copy, and it is never worth keeping.
+    if (copy) deleteArchiveCopy();
   }
 }

@@ -2,7 +2,7 @@ import { ResolvedTheme, useTheme } from '@/theme';
 import { useActivitiesSyncContext } from '@/features/activities';
 import { simpleLogger } from '@/shared';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -14,7 +14,12 @@ import {
   Text,
   View
 } from 'react-native';
-import { ImportProgress, ImportSummary } from '../types/import.types';
+import {
+  ImportLiveState,
+  ImportProgress,
+  ImportSummary,
+  ImportTimings
+} from '../types/import.types';
 import { importStravaExport, pickStravaExportFile } from '../services/importStravaExport';
 
 /**
@@ -47,6 +52,9 @@ const KEEP_AWAKE_TAG = 'strava-import';
  */
 const PROGRESS_INTERVAL_MS = 250;
 
+/** How often the running screen samples the importer's live state. */
+const LIVE_POLL_MS = 500;
+
 function formatNumber(value: number, singular: string, plural: string): string {
   return `${value} ${value === 1 ? singular : plural}`;
 }
@@ -77,6 +85,54 @@ function phaseLabel(progress: ImportProgress | null): string {
   }
 }
 
+/**
+ * What the importer is doing at this instant.
+ *
+ * The progress bar only moves when a whole track is finished, so one slow call
+ * looks exactly like a frozen app. This names the call and how long it has been
+ * running, which is the difference between "it is stuck" and "it is writing
+ * track 1,204".
+ */
+function stepLabel(live: LiveView): string {
+  const id = live.activityId ?? '';
+  switch (live.step) {
+    case 'copying':
+      return 'Copying the archive (it cannot be read in place)…';
+    case 'reading-directory':
+      return 'Reading the archive index…';
+    case 'parsing-csv':
+      return 'Reading activities.csv…';
+    case 'saving-activities':
+      return `Saving activities ${live.index}/${live.total}…`;
+    case 'checking-track':
+      return `Checking track ${id}…`;
+    case 'reading-track':
+      return `Reading track ${id}${live.entryBytes ? ` (${Math.round(live.entryBytes / 1024)} KB)` : ''}…`;
+    case 'parsing-track':
+      return `Parsing track ${id}…`;
+    case 'writing-stream':
+      return `Writing stream ${id}…`;
+    case 'saving-activity':
+      return 'Saving activity records…';
+    case 'backfilling':
+      return `Restoring map fields for ${id}…`;
+    default:
+      return 'Starting…';
+  }
+}
+
+/** Snapshot of the importer's live state, polled rather than pushed. */
+interface LiveView {
+  step: ImportLiveState['step'];
+  elapsed: number;
+  index: number;
+  total: number;
+  activityId?: string;
+  entryBytes?: number;
+  slowest?: { activityId: string; ms: number };
+  timings: ImportTimings;
+}
+
 export function StravaImportModal({ visible, onClose }: StravaImportModalProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -88,6 +144,31 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
   const cancelledRef = useRef(false);
   const lastProgressAtRef = useRef(0);
   const lastPhaseRef = useRef<ImportProgress['phase'] | null>(null);
+  const liveRef = useRef<ImportLiveState | null>(null);
+  const [liveView, setLiveView] = useState<LiveView | null>(null);
+
+  /**
+   * The importer mutates a plain object as it moves between steps; sampling it
+   * keeps the step and its age on screen without a render per step.
+   */
+  useEffect(() => {
+    if (stage !== 'running') return;
+    const timer = setInterval(() => {
+      const live = liveRef.current;
+      if (!live) return;
+      setLiveView({
+        step: live.step,
+        elapsed: Date.now() - live.stepStartedAt,
+        index: live.index,
+        total: live.total,
+        activityId: live.activityId,
+        entryBytes: live.entryBytes,
+        slowest: live.slowest,
+        timings: { ...live.timings }
+      });
+    }, LIVE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [stage]);
 
   /** Throttled progress sink: 2,000 setState calls would fight the import. */
   const handleProgress = useCallback((next: ImportProgress) => {
@@ -111,6 +192,8 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
     cancelledRef.current = false;
     lastPhaseRef.current = null;
     lastProgressAtRef.current = 0;
+    liveRef.current = null;
+    setLiveView(null);
   }, []);
 
   const close = useCallback(() => {
@@ -149,7 +232,10 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
 
       const result = await importStravaExport(picked, {
         onProgress: handleProgress,
-        shouldCancel: () => cancelledRef.current
+        shouldCancel: () => cancelledRef.current,
+        onLiveState: state => {
+          liveRef.current = state;
+        }
       });
 
       setSummary(result);
@@ -213,10 +299,24 @@ export function StravaImportModal({ visible, onClose }: StravaImportModalProps):
                 <View style={styles.progressBarContainer}>
                   <View style={[styles.progressBar, { width: `${progressRatio * 100}%` }]} />
                 </View>
+                {liveView ? (
+                  <>
+                    <Text style={styles.note}>
+                      {`${stepLabel(liveView)} ${formatDuration(liveView.elapsed)} in this step`}
+                    </Text>
+                    <Text style={styles.note}>
+                      {`read ${formatDuration(liveView.timings.readTracks)} · parse ${formatDuration(liveView.timings.parseTracks)} · stream writes ${formatDuration(liveView.timings.writeStreams)} · activity writes ${formatDuration(liveView.timings.writeTrackFields)}`}
+                    </Text>
+                    {liveView.slowest ? (
+                      <Text style={styles.note}>
+                        {`Slowest track so far: ${liveView.slowest.activityId} — ${formatDuration(liveView.slowest.ms)}`}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : null}
                 <Text style={styles.note}>
-                  The screen stays awake while this runs. A full archive takes a few minutes;
-                  imported activities are saved as they are read, so stopping early keeps what is
-                  already done and the next attempt resumes without copying the archive again.
+                  The screen stays awake while this runs. Imported activities are saved as they are
+                  read, so stopping early keeps what is already done.
                 </Text>
               </>
             ) : null}
