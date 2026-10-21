@@ -21,7 +21,7 @@
     "publish:apk": "node publish-apk.cjs",
     "android:dev:prebuild": "npx expo prebuild --platform android --no-install",
     "android:dev:install": "cd android && ./gradlew installDebug",
-    "android:dev:uninstall": "adb shell pm clear ${ANDROID_PACKAGE:-com.example.offlinefitness} || true && adb shell pm uninstall ${ANDROID_PACKAGE:-com.example.offlinefitness} || true",
+    "android:dev:uninstall": "adb shell pm clear $(node scripts/android-package.cjs) || true && adb shell pm uninstall $(node scripts/android-package.cjs) || true",
     "android:metro:clear": "rm -rf node_modules/.cache/metro .expo || true",
     "start:metro:8081": "npx expo start --dev-client --reset-cache --clear --port 8081",
     "android:dev": "npm run android:dev:prebuild && npm run android:dev:install && npm run start:metro:8081",
