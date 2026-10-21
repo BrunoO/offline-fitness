@@ -44,4 +44,16 @@ describe('mergeActivities', () => {
     const result = mergeActivities(['Ride', 'EBikeRide'], activities, true);
     expect(result.myActivitiesMerged).toEqual(['Ride']);
   });
+
+  // Strava returns 'Workout' for Yoga activities since 2025-08-20; the archive
+  // importer keeps both raw types, so the merge folds Workout into Yoga.
+  it('folds Workout into Yoga', () => {
+    const activities = [
+      makeTestActivity({ id: '1', type: 'Workout' }),
+      makeTestActivity({ id: '2', type: 'Yoga' })
+    ];
+    const result = mergeActivities(['Workout', 'Yoga'], activities, true);
+    expect(result.myActivitiesMerged).toEqual(['Yoga']);
+    expect(result.activitiesMerged.map(a => a.type)).toEqual(['Yoga', 'Yoga']);
+  });
 });

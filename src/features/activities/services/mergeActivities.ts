@@ -11,7 +11,8 @@ export interface MergeActivitiesResult<TActivity> {
  */
 const MERGED_ACTIVITY_TYPES: Record<string, string> = {
   EBikeRide: 'Ride',
-  Hike: 'Walk'
+  Hike: 'Walk',
+  Workout: 'Yoga' // Strava has returned 'Workout' for Yoga activities since 2025-08-20; the archive importer keeps both raw types, so fold Workout here
 };
 
 export function mergeActivities<TActivity extends { type: string }>(
