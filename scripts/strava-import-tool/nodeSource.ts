@@ -4,11 +4,11 @@ import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 /**
  * `ByteSource` over a plain file, for the desktop import tool.
  *
- * The phone's implementation (`expoByteSource.ts`) uses a single expo
- * `FileHandle` because native round trips are expensive; here the same
- * positional-read shape uses `fs.readSync(fd, ..., position)` — a pread, so
- * concurrent workers sharing this source cannot corrupt each other's offsets,
- * which the handle-offset version needed an open-per-read to avoid.
+ * The phone side has no counterpart any more (its expo-backed byte source was
+ * retired with the in-app archive importer in Phase 5): this file and the
+ * test-only `createMemoryByteSource` in the ZIP reader are the two
+ * implementations left. Positional reads (`pread`) let concurrent workers
+ * share one source without corrupting each other's offsets.
  */
 
 const READ_CHUNK = 512 * 1024;

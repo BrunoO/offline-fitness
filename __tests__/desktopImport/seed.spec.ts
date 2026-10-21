@@ -522,7 +522,7 @@ describe('seedCollection swim canonicalisation', () => {
       'activities.csv',
       [
         CSV_HEADER,
-        '777,"Jan 14, 2024, 10:00:00",Drift,Inconnu,activities/777.gpx,1000,1200,900,0.75,0,0,0,0'
+        '777,"Jan 14, 2024, 10:00:00",Drift,Inconnu,activities/777.gpx,1000,1200,900,0.75,250,0,0,0'
       ].join('\n')
     );
     zip.file('activities/777.gpx', swimmingGpx);
@@ -540,6 +540,7 @@ describe('seedCollection swim canonicalisation', () => {
     expect(activity.type).toBe('Swim');
     expect(activity.elapsed_time).toBe(1200);
     expect(activity.moving_time).toBe(1200); // not the CSV's 1000
+    expect(activity.total_elevation_gain).toBe(0); // not the CSV's 250
   });
 });
 

@@ -471,10 +471,10 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
       const activity = rowToActivity(row, zone);
 
       // The CSV type is localized; when it could not be mapped, the GPX
-      // `<type>` (always English) is authoritative — same rule and same
-      // effect as the phone importer. Applied after construction because the
-      // fallback can flip the record to a Swim, whose canonical moving time
-      // must then be re-applied (`rowToActivity` only saw the CSV type).
+      // `<type>` (always English) is authoritative. Applied after construction
+      // because the fallback can flip the record to a Swim, whose canonical
+      // fields must then be re-applied (`rowToActivity` only saw the CSV type
+      // when it decided the gain).
       if (!row.type) {
         const fromGpx = mapActivityType(undefined, gpxType);
         if (fromGpx) {

@@ -120,10 +120,26 @@ describe('applySwimMovingTime', () => {
     expect(activity.moving_time).toBe(activity.elapsed_time);
   });
 
+  it('zeroes elevation gain on the fallback path too (the second half of the rule)', () => {
+    // `rowToActivity` zeroes the gain only when the CSV type is already Swim;
+    // a record flipped by the GPX fallback arrives with the CSV gain, and the
+    // startup backfill would zero it on the phone — the 200-swim churn one
+    // field over, caught here before it can ping-pong.
+    const activity = rowToActivity(
+      makeRow({ type: 'Workout', elevationGain: 250 }),
+      'Europe/Paris'
+    );
+    expect(activity.total_elevation_gain).toBe(250);
+    activity.type = 'Swim';
+    applySwimMovingTime(activity);
+    expect(activity.total_elevation_gain).toBe(0);
+  });
+
   it('is a no-op for other types (safe to call unconditionally)', () => {
     const activity = rowToActivity(makeRow({ type: 'Run' }), 'Europe/Paris');
     applySwimMovingTime(activity);
     expect(activity.moving_time).toBe(3000);
+    expect(activity.total_elevation_gain).toBe(250);
   });
 
   it('is idempotent — re-applying changes nothing (and no key moves)', () => {

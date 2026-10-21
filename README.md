@@ -81,8 +81,10 @@ echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
 Notes:
 
 - Both steps 3 and 4 are **idempotent and resumable**: the tool skips whatever the server
-  already holds (byte-for-byte, via md5), and a restore only fills gaps — it never overwrites
-  or deletes what the phone has. Interrupt a run at any point; re-running resumes.
+  already holds (byte-for-byte, via md5). A restore fills gaps for activity records without
+  touching what the phone has — but it does re-download any stream file whose bytes differ
+  from the index (stale or corrupt copies heal instead of persisting). Interrupt a run at any
+  point; re-running resumes.
 - Set up the WebDAV backup first: drawer → **Settings** → Backup. `--root`, `--user` and
   `--profile` are exactly what that screen shows; a mismatch with the folder's owner is
   refused before anything uploads.

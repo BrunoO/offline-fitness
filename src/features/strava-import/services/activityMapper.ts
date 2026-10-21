@@ -91,9 +91,10 @@ export function utcToLocalParts(utcMs: number, zone: string): LocalParts {
  * Builds the stored activity record from a CSV row, in the given IANA zone.
  * `start_latlng`/`end_latlng` are filled in once the track is read.
  *
- * The swim `moving_time := elapsed_time` rule (see `applySwimMovingTime`) is
- * applied here so the single archive writer stores the canonical record, and
- * the backup push's hash of the loaded version matches the file on the server.
+ * The swim canonicalisation (see `applySwimMovingTime`: meaningless moving time
+ * replaced, gain forced to 0) is applied here so the single archive writer
+ * stores the canonical record, and the backup push's hash of the loaded
+ * version matches the file on the server.
  */
 export function rowToActivity(row: ExportedActivityRow, timezone: string): Activity {
   const local = utcToLocalParts(row.startUtcMs, timezone);
@@ -133,21 +134,25 @@ export function rowToActivity(row: ExportedActivityRow, timezone: string): Activ
 }
 
 /**
- * Strava does not compute moving time for swimming uploads, so the archive's
- * `Moving Time` for a swim is meaningless and `elapsed_time` is the better
- * approximation — the same rule `loadAllActivities` applies at read time for
- * records written before this existed.
+ * Strava computes neither moving time nor elevation gain for swimming uploads,
+ * so the archive's `Moving Time` for a swim is meaningless (`elapsed_time`
+ * approximates better) and its elevation gain is noise forced to 0 — the same
+ * rules `loadAllActivities` and the startup backfill apply at read time for
+ * records written before they existed.
  *
  * Callers must apply it wherever a record's type can become `Swim` *after*
- * `rowToActivity` ran — the GPX `<type>` fallback in both importers — so the
- * stored record is canonical on every path and the backup push hashes the
- * exact bytes that are on the server instead of re-uploading its read-time
- * version every sync (the 200-swim sync churn).
+ * `rowToActivity` ran — the GPX `<type>` fallback only sees the CSV type when
+ * it decides the gain — or the stored record diverges from the backup push's
+ * hash of it on every sync. That is the 200-swim churn one field over: the
+ * moving-time half was fixed first, and the gain half hid behind it because
+ * no archive in the test set had a fallback Swim with non-zero gain.
  */
 export function applySwimMovingTime(activity: Activity): void {
-  if (activity.type === 'Swim') {
-    activity.moving_time = activity.elapsed_time;
-  }
+  if (activity.type !== 'Swim') return;
+  // In-place assignments only: both keys exist in the `rowToActivity`
+  // literal, so key order — and every writer's md5 — is unchanged.
+  activity.moving_time = activity.elapsed_time;
+  activity.total_elevation_gain = 0;
 }
 
 /**
