@@ -38,10 +38,10 @@ Usage:
   --profile   The athlete label chosen on the phone. A mismatch is refused by both
               the tool and the phone (collection ownership), so pick it from the
               phone's Backup screen rather than typing it again here.
-  --tz        IANA timezone the PHONE lives in (e.g. Europe/Paris). The archive
-              stores no timezone; local dates — the calendar, streaks and weekly
-              buckets — are derived from this zone, so a wrong value silently
-              moves activities across days.
+  --tz        IANA zone used for activities with no GPS fix (manual entries, swims, .fit) —
+              use the phone's zone (e.g. Europe/Paris). Activities WITH a track get their
+              zone from the GPS start automatically, so holiday rides land in the day and
+              hour they actually happened; the report lists every zone used.
   --password-stdin  Read the password from stdin. Or set STRAVA_IMPORT_PASSWORD.
               Never a flag: argv leaks to every local process through ps.
   --concurrency  Parallel uploads, 1..32 (default 8).

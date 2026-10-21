@@ -20,14 +20,13 @@ import {
   readZipEntries,
   readZipEntry
 } from '@/features/strava-import/services/zipReader';
-import { ExportedActivityRow, ZipEntryInfo } from '@/features/strava-import/types/import.types';
+import { ExportedActivityRow, StreamConversionResult, ZipEntryInfo } from '@/features/strava-import/types/import.types';
 import { encodeStreamSet } from '@/shared/services/streamCodec';
-import { Activity } from '@/shared/types/types';
-import { compareActivitiesByUtcDesc } from '@/shared/utils/activityDates';
 import { DavClient } from './client';
 import { createNodeByteSource, NodeByteSource } from './nodeSource';
 import { RemoteSyncState, md5Hex, recordName } from './state';
 import { applyTimezone } from './timezone';
+import { ZoneLookup } from './zoneLookup';
 
 /**
  * Turns a Strava data-export ZIP into a WebDAV backup collection — the same
@@ -56,6 +55,10 @@ import { applyTimezone } from './timezone';
  *   rewrite — otherwise a re-import would resurrect what the athlete deleted.
  * - No `.nostreamflag` files: the app's push never uploads flags
  *   (`backupSync.ts` streams loop filters `.json`), so the tool must not either.
+ * - Since Phase 4, each record's local fields are derived in the zone of its
+ *   track's GPS start (`lookupZone`), falling back to `--tz` when there is no
+ *   usable fix — see `docs/desktop-import-plan.md`, Phase 4. With `lookupZone`
+ *   absent the output is byte-identical to the pre-Phase-4 tool.
  */
 
 const DEFAULT_CONCURRENCY = 8;
@@ -75,11 +78,22 @@ export interface CollectionMarker {
 export interface SeedOptions {
   /** Path of the Strava export ZIP. */
   archivePath: string;
-  /** IANA zone the athlete's phone uses; pins this process and labels every record. */
+  /**
+   * Fallback IANA zone: used for records with no usable GPS start (manual
+   * entries, swims, `.fit` tracks, unreadable archives) and as the zone this
+   * process pins while mapping. Travel activities with a GPS fix get their
+   * zone from `lookupZone` instead.
+   */
   timezone: string;
   config: WebDavConfig;
   /** Injectable transport (`createLiveDavClient` for real servers, fakes in tests). */
   client: DavClient;
+  /**
+   * GPS start -> IANA zone (`createGeoZoneLookup` for production; fakes in
+   * tests). Absent means every record keeps the `timezone` fallback — the
+   * pre-Phase-4 behavior, byte-identical.
+   */
+  lookupZone?: ZoneLookup;
   /** Parallel PUTs. Conversion is CPU-bound, upload network-bound; 8 is a good LAN default. */
   concurrency?: number;
   /** Convert and report with zero network access and zero remote writes. */
@@ -116,6 +130,13 @@ export interface SeedSummary {
   streamsSkipped: number;
   /** Bytes PUT (skips are not counted — those bytes were already on the server). */
   bytesUploaded: number;
+  /**
+   * Records grouped by the zone their local fields were derived in. This is
+   * the travel audit surface: everything under `timezone` is home-bucketed
+   * as before; any other zone names activities whose wall clock and calendar
+   * day now follow where they actually happened.
+   */
+  zones: Record<string, number>;
   /** Non-fatal problems, in the same vocabulary as the phone's import summary. */
   warnings: string[];
   timings: SeedTimings;
@@ -222,6 +243,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     streamsUploaded: 0,
     streamsSkipped: 0,
     bytesUploaded: 0,
+    zones: {},
     warnings,
     timings: { archive: 0, transfer: 0, total: 0 }
   };
@@ -253,15 +275,12 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
       tracksByName.set(baseNameOf(entry.name), entry);
     });
 
-    const activities = parsed.rows.map(row => rowToActivity(row, timezone));
-    const rowsById = new Map<string, ExportedActivityRow>();
-    parsed.rows.forEach(row => rowsById.set(row.id, row));
-    summary.activitiesParsed = activities.length;
-
-    // Newest first, like pass 2 of the phone import: an interrupted run fills
-    // the history the app shows first, and the re-run resumes from the remote
-    // state instead of redoing anything.
-    const queue = [...activities].sort(compareActivitiesByUtcDesc);
+    const queue = [...parsed.rows]
+      // Newest first, like pass 2 of the phone import: an interrupted run fills
+      // the history the app shows first, and the re-run resumes from the remote
+      // state instead of redoing anything.
+      .sort((a, b) => b.startUtcMs - a.startUtcMs);
+    summary.activitiesParsed = queue.length;
     summary.timings.archive = Date.now() - startedAt;
 
     // ---- remote: claim the folder, load the index to skip against ----
@@ -290,17 +309,25 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     let fatalError: Error | undefined;
     const total = queue.length;
 
-    const processActivity = async (activity: Activity): Promise<void> => {
-      const id = activity.id;
+    const processRow = async (row: ExportedActivityRow): Promise<void> => {
+      const id = row.id;
       if (tombstoned.has(id)) {
         summary.activitiesTombstoned++;
         return;
       }
 
-      const row = rowsById.get(id);
+      // The track is read BEFORE the record is built: the record's local
+      // fields (date, time, week, utc_offset) are derived in a zone, and the
+      // zone comes from the track's first GPS fix when there is one. What the
+      // track yields is captured here and applied to the record below — in
+      // the same mutation order the phone importer uses, so home-zone records
+      // stay byte-identical to what Phase 1–3 uploaded.
+      let converted: StreamConversionResult | undefined;
+      let firstFix: { lat: number; lon: number } | undefined;
+      let gpxType: string | undefined;
       let streamBytes: Uint8Array | undefined;
 
-      if (!row || row.fileName.length === 0) {
+      if (row.fileName.length === 0) {
         summary.activitiesWithoutTrack++;
       } else if (isUnsupportedTrack(row.fileName)) {
         summary.unsupportedTracks++;
@@ -318,26 +345,14 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
             const raw = await readZipEntry(source, entry);
             consecutiveReadFailures = 0;
             const gpx = parseGpx(decodeUtf8(isGzip(raw) ? gunzipEntry(raw) : raw));
-            // The CSV type is localized; when it could not be mapped, the GPX
-            // `<type>` (always English) is authoritative — same rule and same
-            // mutation point as the phone importer, so the records match.
-            if (!row.type) {
-              const fromGpx = mapActivityType(undefined, gpx.type);
-              if (fromGpx) activity.type = fromGpx;
-              applySwimMovingTime(activity); // swim discovered only here (see phone importer)
+            if (gpx.points.length > 0) {
+              firstFix = gpx.points[0];
             }
-            const converted = toStreamSet(gpx.points);
+            gpxType = gpx.type;
+            converted = toStreamSet(gpx.points);
             if (!converted) {
               summary.streamsWithoutTrack++;
             } else {
-              // Assignment order matters for md5: `rowToActivity` keeps the
-              // start/end placeholders in their literal positions, and
-              // `bounding_box` — not in the literal — is appended last, exactly
-              // as the phone's pass-2 record serialises.
-              activity.start_latlng = converted.startLatLng;
-              activity.end_latlng = converted.endLatLng;
-              const boundingBox = trackBoundingBox(converted.stream.latlng?.data ?? []);
-              if (boundingBox) activity.bounding_box = boundingBox;
               streamBytes = encodeStreamSet(converted.stream);
             }
           } catch (error) {
@@ -353,6 +368,44 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
             }
           }
         }
+      }
+
+      // Zone: the GPS start's own when the track has a fix and a lookup is
+      // wired (a Porto holiday rides on Lisbon time), else `--tz` — the same
+      // fallback the pre-Phase-4 tool used for everything.
+      let zone = timezone;
+      if (firstFix && options.lookupZone) {
+        const found = options.lookupZone(firstFix.lat, firstFix.lon);
+        if (found) {
+          zone = found;
+        }
+      }
+      summary.zones[zone] = (summary.zones[zone] ?? 0) + 1;
+
+      const activity = rowToActivity(row, zone);
+
+      // The CSV type is localized; when it could not be mapped, the GPX
+      // `<type>` (always English) is authoritative — same rule and same
+      // effect as the phone importer. Applied after construction because the
+      // fallback can flip the record to a Swim, whose canonical moving time
+      // must then be re-applied (`rowToActivity` only saw the CSV type).
+      if (!row.type) {
+        const fromGpx = mapActivityType(undefined, gpxType);
+        if (fromGpx) {
+          activity.type = fromGpx;
+        }
+        applySwimMovingTime(activity);
+      }
+
+      if (converted) {
+        // Assignment order matters for md5: `rowToActivity` keeps the
+        // start/end placeholders in their literal positions, and
+        // `bounding_box` — not in the literal — is appended last, exactly
+        // as the phone's pass-2 record serialises.
+        activity.start_latlng = converted.startLatLng;
+        activity.end_latlng = converted.endLatLng;
+        const boundingBox = trackBoundingBox(converted.stream.latlng?.data ?? []);
+        if (boundingBox) activity.bounding_box = boundingBox;
       }
 
       if (streamBytes) {
@@ -392,16 +445,16 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     const worker = async (): Promise<void> => {
       for (;;) {
         if (fatalError) return;
-        const activity = queue.shift();
-        if (!activity) return;
+        const row = queue.shift();
+        if (!row) return;
         try {
-          await processActivity(activity);
+          await processRow(row);
         } catch (error) {
           fatalError = error instanceof Error ? error : new Error(String(error));
           return;
         }
         done++;
-        options.onProgress?.({ done, total, currentActivityId: activity.id });
+        options.onProgress?.({ done, total, currentActivityId: row.id });
       }
     };
 

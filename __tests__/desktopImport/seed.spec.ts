@@ -249,6 +249,94 @@ describe('seedCollection dry runs', () => {
   });
 });
 
+describe('seedCollection travel zones (Phase 4)', () => {
+  // The fixture tracks start near Grenoble (48.86, 2.35); the fake lookup
+  // claims that point belongs to the Azores, and everything else resolves to
+  // "unknown" (falling back to --tz). A synthetic lookup keeps the test
+  // independent of the geo-tz database the production CLI wires.
+  const azoresAtGrenoble = (lat: number, lon: number): string | undefined =>
+    lat > 48 && lat < 49 && lon > 2 && lon < 3 ? 'Atlantic/Azores' : undefined;
+
+  it('derives local fields from the zone of the GPS start, not the fallback', async () => {
+    const fake = createFakeClient();
+    const archivePath = await writeArchiveFixture();
+    const summary = await seedCollection({
+      archivePath,
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: fake.client,
+      lookupZone: azoresAtGrenoble
+    });
+
+    // Azores sits at UTC-1 in January: activity 123 (10:00 UTC) is 09:00
+    // local — an hour earlier than the machine zone would file it — and the
+    // record says which zone it was bucketed in.
+    const activity = JSON.parse(fake.store.get('activities/123.json') as string);
+    expect(activity.timezone).toBe('Atlantic/Azores');
+    expect(activity.local_date).toBe('2024-01-14');
+    expect(activity.local_time).toBe('09:00:00');
+    expect(activity.utc_offset).toBe(-3600);
+
+    // The manual (456) and .fit (789) rows have no fix: fallback zone. The
+    // zone report makes the split auditable — this is the travel summary.
+    expect(summary.zones['Atlantic/Azores']).toBe(2); // 123 and 999 share the track
+    expect(summary.zones[machineZone]).toBe(2);
+  });
+
+  it('a far-enough zone can move an activity to a different calendar day', async () => {
+    const fake = createFakeClient();
+    const archivePath = await writeArchiveFixture();
+    await seedCollection({
+      archivePath,
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: fake.client,
+      // UTC-12: 10:00 UTC on Jan 14 is 22:00 on Jan 13 — the day-crossing the
+      // Colorado thought-experiment, made mechanical.
+      lookupZone: () => 'Etc/GMT+12'
+    });
+
+    const activity = JSON.parse(fake.store.get('activities/123.json') as string);
+    expect(activity.local_date).toBe('2024-01-13');
+    expect(activity.local_time).toBe('22:00:00');
+    expect(activity.start_day).toBe(13);
+    expect(activity.utc_offset).toBe(-43200);
+  });
+
+  it('without a lookup, every record keeps the fallback zone (pre-Phase-4 bytes)', async () => {
+    const withLookup = createFakeClient();
+    const lookupSummary = await seedCollection({
+      archivePath: await writeArchiveFixture(),
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: withLookup.client,
+      lookupZone: azoresAtGrenoble
+    });
+    const plain = createFakeClient();
+    const plainSummary = await seedCollection({
+      archivePath: await writeArchiveFixture(),
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: plain.client
+    });
+
+    // The wiring itself: with the lookup, the GPS-clustered tracks change;
+    // the GPS-less rows must stay byte-identical either way.
+    expect(withLookup.store.get('activities/123.json')).not.toBe(
+      plain.store.get('activities/123.json')
+    );
+    expect(withLookup.store.get('activities/456.json')).toBe(
+      plain.store.get('activities/456.json')
+    );
+    // And without a lookup, the zone report collapses to the single fallback —
+    // the exact pre-Phase-4 output, so existing collections stay byte-stable.
+    expect(Object.keys(lookupSummary.zones).sort()).toEqual(
+      [machineZone, 'Atlantic/Azores'].sort()
+    );
+    expect(Object.keys(plainSummary.zones)).toEqual([machineZone]);
+  });
+});
+
 describe('seedCollection swim canonicalisation', () => {
   it('uploads swims with moving_time = elapsed_time, even via the GPX type fallback', async () => {
     // 'Inconnu' does not map to a type; the GPX <type> makes it a Swim after

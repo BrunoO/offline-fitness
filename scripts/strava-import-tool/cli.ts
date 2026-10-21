@@ -4,6 +4,7 @@ import { WebDavConfig, testDavConnection } from '@/features/backup/services/webd
 import { USAGE, buildConfig, parseArgs, resolvePasswordSource } from './args';
 import { createLiveDavClient } from './client';
 import { SeedSummary, inspectCollection, seedCollection } from './seed';
+import { createGeoZoneLookup } from './zoneLookup';
 
 /**
  * `strava-import` — the desktop ingestion tool from `docs/desktop-import-plan.md`.
@@ -66,6 +67,11 @@ function reportStatus(config: WebDavConfig): Promise<void> {
 }
 
 function reportSeed(summary: SeedSummary, dryRun: boolean): void {
+  const zoneCounts = Object.entries(summary.zones).sort(([, a], [, b]) => b - a);
+  const zoneReport =
+    zoneCounts.length <= 1
+      ? `Zones:      all ${zoneCounts[0]?.[1] ?? 0} in ${zoneCounts[0]?.[0] ?? '—'}`
+      : `Zones:      ${zoneCounts.map(([zone, count]) => `${zone} ×${count}`).join(', ')}`;
   const lines = [
     `Activities: ${summary.activitiesParsed} parsed — ` +
       `${summary.activitiesUploaded} uploaded, ${summary.activitiesSkipped} already present` +
@@ -78,7 +84,8 @@ function reportSeed(summary: SeedSummary, dryRun: boolean): void {
       summary.timings.archive
     )}, transfer ${formatDuration(summary.timings.transfer)}, total ${formatDuration(
       summary.timings.total
-    )}`
+    )}`,
+    zoneReport
   ];
   if (dryRun) {
     lines.unshift('DRY RUN — converted and hashed locally; the counts are what a real run would upload.');
@@ -114,7 +121,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`Archive:    ${options.archivePath}`);
-  console.log(`Timezone:   ${options.timezone}  (the phone's zone — local dates are derived from it)`);
+  console.log(`Timezone:   ${options.timezone}  (fallback for GPS-less rows; tracks derive their own zone)`);
   if (!options.dryRun) {
     // Fail fast on a wrong URL/credential rather than mid-upload.
     await testDavConnection({ ...config, baseUrl: config.rootUrl });
@@ -126,6 +133,10 @@ async function main(): Promise<void> {
     timezone: options.timezone as string,
     config,
     client: createLiveDavClient(config),
+    // Records with a GPS start are bucketed in the zone of that point (a
+    // Porto holiday rides on Lisbon time); everything else falls back to
+    // --tz. See docs/desktop-import-plan.md, Phase 4.
+    lookupZone: createGeoZoneLookup(),
     concurrency: options.concurrency,
     dryRun: options.dryRun,
     onProgress: progress => {

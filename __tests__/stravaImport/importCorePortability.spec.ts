@@ -46,6 +46,7 @@ const CORE_FILES = new Set([
   'scripts/strava-import-tool/state.ts',
   'scripts/strava-import-tool/timezone.ts',
   'scripts/strava-import-tool/nodeSource.ts',
+  'scripts/strava-import-tool/zoneLookup.ts',
   'scripts/strava-import-tool/client.ts',
   'scripts/strava-import-tool/args.ts',
   'scripts/strava-import-tool/seed.ts',
@@ -58,6 +59,15 @@ const CORE_FILES = new Set([
  * compatibility is the whole point of the seam.
  */
 const PURE_PACKAGES = new Set(['papaparse', 'pako']);
+
+/**
+ * Desktop-only packages: allowed under `scripts/` and refused anywhere under
+ * `src/`, because the phone must never resolve them. `geo-tz` ships ~71 MB of
+ * boundary data; importing it from app code would try to bundle that into the
+ * APK, and the whole reason zones are derived on the desktop is that the
+ * phone has no business loading them.
+ */
+const DESKTOP_PACKAGES = new Set(['geo-tz']);
 
 interface ImportStatement {
   typeOnly: boolean;
@@ -124,7 +134,9 @@ describe('portable import core (desktop tool, Phase 0)', () => {
           const packageName = statement.specifier.startsWith('@')
             ? statement.specifier.split('/').slice(0, 2).join('/')
             : statement.specifier.split('/')[0];
-          return PURE_PACKAGES.has(packageName) ? null : `package '${statement.specifier}'`;
+          if (PURE_PACKAGES.has(packageName)) return null;
+          if (DESKTOP_PACKAGES.has(packageName) && relative.startsWith('scripts/')) return null;
+          return `package '${statement.specifier}'`;
         }
         return CORE_FILES.has(resolved) ? null : `'${statement.specifier}' (→ ${resolved})`;
       })

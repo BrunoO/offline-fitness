@@ -1,6 +1,6 @@
 # Desktop Strava Import Tool — Implementation Plan
 
-**Status:** Phases 0, 1 and 2 complete (portable core, desktop CLI, concurrent/batched phone sync). Phase 3 (verification) not started.
+**Status:** Phases 0–2 and 4 complete (portable core, desktop CLI, concurrent/batched phone sync, GPS-derived travel zones). Phase 3 (verification) on hold; Phases 5–6 (retire the phone archive import + rollout) pending.
 
 **Goal:** convert a Strava data-export ZIP into a WebDAV backup collection **on a computer**, so the
 phone never runs the import. The phone only ever runs *Restore* to fill itself.
@@ -19,7 +19,7 @@ Target: `<account root>/offline-fitness/<profile>/`
 | File | Requirement |
 | --- | --- |
 | `collection.json` | `{appId: "offline-fitness", profile, schemaVersion: 2, createdAt}`. **The version is mandatory**: push and restore both call `assertCollectionOwnership` (`backupSync.ts`), which now refuses any marker whose `schemaVersion` differs from `APP_CONFIG.BACKUP_SCHEMA_VERSION`. Write it first, so a half-finished run can't be mistaken for a valid collection. |
-| `activities/<id>.json` | UTF-8 JSON, key order exactly as `rowToActivity` (`activityMapper.ts`). |
+| `activities/<id>.json` | UTF-8 JSON, key order exactly as `rowToActivity` (`activityMapper.ts`); local fields derived per activity in the zone of its GPS start (Phase 4), `--tz` as fallback. |
 | `streams/<id>.json` | The **binary `'OF'` v1 payload** (`streamCodec.ts` `encodeStreamSet`), 16 B/point. The `.json` extension is intentional — listings, deletion helpers and the WebDAV keys all depend on it. |
 | `streams/<id>.nostreamflag` | **Do not write.** The app's push never uploads flags (`backupSync.ts:306`); writing them remotely creates files a later phone push drops from the index. |
 | `sync-state.json` | `{syncedAt, activityMd5, streamMd5, deletedAt}`. Written **last**: the md5 key sets *are* the file list the phone restores from, so an early write would advertise files that do not exist yet. Merge `deletedAt` from the remote copy and skip tombstoned ids, or a re-run resurrects activities the user deleted. |
@@ -130,12 +130,62 @@ restore still costs ~4,148 requests + 2,026 file writes. Shipped in `backupSync.
    that measurement honest. If restore is still slow now, the remaining bottleneck is the phone's
    raw per-file write cost, and the pack becomes the next candidate.
 
-### Phase 3 — integrity verification (~0.5 day)
+### Phase 3 — integrity verification (~0.5 day) — ON HOLD
 `strava-import verify` re-hashes local inputs against remote `sync-state.json`, and — the important
 direction — the **phone's restore should hash what it downloaded** and report mismatches instead of
 silently writing corrupt files. Today a login-portal HTML page served with status 200 would be written
 as a stream and only fail later at read time; the marker check already blocks that case for *foreign*
 folders, but hash-on-restore closes it for truncated downloads too.
+
+### Phase 4 — travel timezones: GPS-derived per-activity zone ✅ done
+Added after the first real seed + restore surfaced the question: the archive stores one UTC instant
+and no zone (verified against `testdata/export_6466806.zip`: 103 columns, none of them a timezone,
+`Heure de début` empty on all 2,136 rows), yet the app buckets by local calendar day. Measured impact
+on this archive: 46 activities start >250 km from home (Porto ×10, Karlsruhe ×10, Paris ×8,
+Oxford ×8, plus Greece/Naples/Nantes/Toulouse spots); none would move day under their true zone, but
+their wall-clock display is off by the zone difference, and future travel (US, say) can cross day
+boundaries.
+
+- `rowToActivity` now takes the zone and derives local fields through `utcToLocalParts`
+  (`Intl.formatToParts`, formatter-cached) instead of `Date` local methods — the device zone becomes
+  an input, not an ambient dependency. The phone importer passes `deviceTimezoneLabel()` and gets
+  byte-identical records; the golden unit tests pin Paris winter/summer/DST-switch values.
+- The tool passes the zone of each track's **first GPS fix** (`zoneLookup.ts` → `geo-tz`, pinned dev
+  dependency, ~71 MB of boundary data that must never enter the app — enforced by the portability
+  guard's `DESKTOP_PACKAGES` rule, scripts-only); anything without a usable fix falls back to `--tz`.
+- `summary.zones` + CLI `Zones:` line = the travel audit surface; geo-tz version bumps are data
+  migrations (border changes can re-bucket travel records once).
+- With `lookupZone` absent the tool's bytes are exactly the pre-Phase-4 output — the idempotent
+  re-run test proves it.
+
+### Phase 5 — retire the phone-side archive import (~1 day) — pending
+The phone never needs the 1 GB archive again: the tool plus *Restore* is the ingestion path, and
+deleting the phone importer is what makes option-2 zones cheap (no geo DB on Android; one archive
+writer means no tool-vs-phone zone divergence to guard against).
+- Delete: `StravaImportModal`, `importStravaExport.ts` (orchestrator, picker, keep-awake wiring), the
+  drawer/home entry points, and the app-side half of the `.nostreamflag` machinery (after Phase 5 no
+  local writer ever creates flags — pull/restore never had them, so they go dead; check
+  `getNoStreamFlagIds` consumers before deleting).
+- Keep: the pure core in `src/` (the tool imports it; the guard keeps it honest) — relocating it to
+  `scripts/` is optional later cleanup, not churn mixed into this.
+- `schemaVersion` stays 2: record *content* changes, the folder layout does not.
+- Docs in the same commit: AGENTS.md (it declares archive import the only ingestion path), README
+  "Getting the data in" + Fine print, architecture (mermaid edge + section 6), the guard list.
+- Migration hazard this ordering avoids: the phone importer writing device-zoned travel records
+  alongside a zone-aware tool is the swim ping-pong again. After Phase 5 there is exactly one
+  archive writer, so there is nothing to diverge.
+
+### Phase 6 — rollout runbook (~0.5 day, mostly waiting) — pending
+The wipe-before-push ordering is the migration lesson (swim churn) applied: phone copies of travel
+records are stale after re-seeding, and *push* is local-wins — pushing first would overwrite the
+server's corrected records forever.
+1. Run the zone-aware tool on the real archive → expect ~33 records uploaded (measured by dry-run:
+   Lisbon ×10, Berlin ×10, London ×8, Zurich ×3, Athens ×1, Rome ×1 — home and Paris-trip records
+   keep their exact bytes and skip), ~2,102 skipped.
+2. Phone: drawer → remove all activities (deliberately tombstone-free; the server is untouched).
+3. Restore.
+4. Spot-check a Porto or Oxford activity: wall clock reads location-local, calendar day unchanged.
+5. Sync (push) → expect **0 uploaded**. That closes the loop: phone == server == tool output.
 
 ---
 

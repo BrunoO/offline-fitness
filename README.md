@@ -78,12 +78,16 @@ has to fill itself with *Restore*:
 # Preview without any network access:
 npm run tool:seed -- import --archive export.zip \
   --root https://host/remote.php/dav/files/<user>/ \
-  --user <user> --profile <label> --tz <phone timezone, e.g. Europe/Paris> --dry-run
+  --user <user> --profile <label> --tz <home timezone, e.g. Europe/Paris> --dry-run
 
 # Upload (password on stdin — the tool refuses it as a flag, and there is STRAVA_IMPORT_PASSWORD):
 echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
   --root ... --user ... --profile ... --tz ... --password-stdin
 ```
+
+The archive carries no timezones, so the tool derives each activity's zone from its GPS start — a
+holiday in Porto is bucketed in Lisbon time — and uses `--tz` only for records without a usable track
+(manual entries, swims, `.fit` files). The final report lists every zone used.
 
 `--root`, `--user` and `--profile` are exactly what the phone's Settings → WebDAV Backup shows;
 a mismatch is refused before anything uploads. The run is idempotent and resumable — re-running

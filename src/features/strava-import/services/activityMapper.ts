@@ -15,13 +15,15 @@ import { ExportedActivityRow } from '../types/import.types';
  * `activities.csv` stores the start instant in UTC (verified: it matches the
  * `Z` timestamps inside each activity's GPX to the second), while the app
  * buckets activities by athlete-local calendar date. The archive carries no
- * timezone column, so the device timezone is used — the same assumption the
- * rest of the app makes when it renders "today" for the current user.
+ * timezone column, so the caller supplies the zone per activity: the phone
+ * importer passes the device zone (the athlete is where their phone is), and
+ * the desktop tool passes the zone derived from the track's GPS start — which
+ * puts holiday rides in the zone they actually happened in.
  */
 
 const pad = (value: number, length = 2): string => String(value).padStart(length, '0');
 
-/** IANA zone name of the device, when the JS engine exposes it. */
+/** IANA zone name of the device, when the JS runtime exposes it. */
 export function deviceTimezoneLabel(): string {
   try {
     const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -41,23 +43,63 @@ interface LocalParts {
   utcOffsetSeconds: number;
 }
 
-/** Athlete-local wall clock of a UTC instant, in the device timezone. */
-function localPartsFromUtcMs(utcMs: number): LocalParts {
-  const date = new Date(utcMs);
-  return {
-    year: date.getFullYear(),
-    month: date.getMonth() + 1,
-    day: date.getDate(),
-    hour: date.getHours(),
-    minute: date.getMinutes(),
-    second: date.getSeconds(),
-    // getTimezoneOffset is minutes *behind* UTC (Paris in summer = -120).
-    utcOffsetSeconds: -date.getTimezoneOffset() * 60
-  };
+// Intl.DateTimeFormat construction is comparatively expensive; archives run
+// one lookup per activity (thousands) and the zone set is tiny.
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function zoneFormatter(zone: string): Intl.DateTimeFormat {
+  let formatter = zoneFormatters.get(zone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+    zoneFormatters.set(zone, formatter);
+  }
+  return formatter;
 }
 
 /**
- * Builds the stored activity record from a CSV row.
+ * Wall-clock parts of a UTC instant in an explicit IANA zone.
+ *
+ * Deliberately not the `Date` local methods: those read the *process* zone,
+ * which is right for the phone (device zone == the zone records are derived
+ * in) and wrong for the desktop tool, where the laptop's zone is nobody's
+ * source of truth. `Intl` with an explicit zone gives every writer — and a
+ * future rebuild of the same archive — the same parts, DST included.
+ */
+export function utcToLocalParts(utcMs: number, zone: string): LocalParts {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = zoneFormatter(zone).formatToParts(new Date(utcMs));
+  } catch {
+    // An unknown zone fails at formatter construction; report it as such.
+    throw new Error(`Unknown IANA timezone "${zone}". Use a zone like "Europe/Paris" or "UTC".`);
+  }
+  const value = (type: string): number =>
+    Number(parts.find(part => part.type === type)?.value ?? '0');
+  const year = value('year');
+  const month = value('month');
+  const day = value('day');
+  const hour = value('hour');
+  const minute = value('minute');
+  const second = value('second');
+  // The zone's offset is the gap between the wall clock read as if it were
+  // UTC and the true instant; whole minutes only (sub-minute LMT zones
+  // before 1972 would round, matching the app's integer seconds field).
+  const wallAsUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const utcOffsetSeconds = Math.round((wallAsUtcMs - utcMs) / 1000);
+  return { year, month, day, hour, minute, second, utcOffsetSeconds };
+}
+
+/**
+ * Builds the stored activity record from a CSV row, in the given IANA zone.
  * `start_latlng`/`end_latlng` are filled in once the track is read.
  *
  * The swim `moving_time := elapsed_time` rule (see `applySwimMovingTime`) is
@@ -66,7 +108,7 @@ function localPartsFromUtcMs(utcMs: number): LocalParts {
  * version matches the file on the server.
  */
 export function rowToActivity(row: ExportedActivityRow, timezone: string): Activity {
-  const local = localPartsFromUtcMs(row.startUtcMs);
+  const local = utcToLocalParts(row.startUtcMs, timezone);
   const localDate = `${local.year}-${pad(local.month)}-${pad(local.day)}`;
   const localTime = `${pad(local.hour)}:${pad(local.minute)}:${pad(local.second)}`;
 
