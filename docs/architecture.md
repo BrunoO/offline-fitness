@@ -281,8 +281,8 @@ src/theme/
 - **Colour scheme**: follows the device setting through `useColorScheme()` inside `ThemeProvider`. `app.json` currently pins `userInterfaceStyle` to `"light"`, so the app does not yet follow the system theme.
 - **Charts**: `createChartTheme(theme)` derives the Victory axis, grid, tick-label and legend colours from the same tokens, so charts no longer keep Material's own greys and blue accents.
 - **Navigation**: `createNavigationTheme(theme)` feeds the same tokens to React Navigation, so the drawer and the bottom tab bar take their active/inactive tints from the active palette.
-- **Adding a palette**: define it in `palettes.ts` and add its id to `PALETTE_ORDER`. `__tests__/theme/theme.spec.ts` checks every registered palette against the accessibility floor (4.5:1 for text and labels, 3:1 for chart fills).
-- **The picker** is not wired up yet: the selected palette id is persisted (`paletteId` in AsyncStorage) but nothing changes it at runtime, so the app always starts on the default palette.
+- **Adding a palette**: define it in `palettes.ts` and add its id to `PALETTE_ORDER`. It then appears in the picker automatically. `__tests__/theme/theme.spec.ts` checks every registered palette against the accessibility floor (4.5:1 for text and labels, 3:1 for chart fills) and that the palette the app starts on meets it.
+- **The picker**: `PalettePicker` (`src/theme/PalettePicker.tsx`) lists the registered palettes, applies the choice immediately and lets the provider persist it (`paletteId` in AsyncStorage). It is surfaced in the Stats settings modal under **Appearance**. Each row previews the palette it stands for — the swatch is the brand accent and the dots are the first entries of its chart series, in the colour scheme currently in use.
 
 If dark theme appears not to work, ensure:
 

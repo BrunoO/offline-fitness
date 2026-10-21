@@ -4,6 +4,8 @@
 export { createChartTheme } from './chartTheme';
 export type { ChartTheme } from './chartTheme';
 export { createNavigationTheme } from './navigationTheme';
+export { PalettePicker } from './PalettePicker';
+export type { PalettePickerProps } from './PalettePicker';
 export {
   DEFAULT_PALETTE_ID,
   getPalette,

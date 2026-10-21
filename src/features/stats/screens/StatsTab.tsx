@@ -1,5 +1,5 @@
 import { useActivitiesContext } from '@/features/activities';
-import { ResolvedTheme, useTheme } from '@/theme';
+import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import { IconButton, StatsTabParamList, StatsTabScreenProps } from '@/shared';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -429,6 +429,15 @@ const SettingsModal = ({
                   thumbColor={tempMergeSimilarActivities ? theme.onPrimary : theme.surfaceSunken}
                 />
               </View>
+            </View>
+
+            {/* Appearance */}
+            <View style={styles.settingSection}>
+              <Text style={styles.settingLabel}>Appearance</Text>
+              <Text style={styles.settingValue}>
+                Pick the colour theme. It applies straight away and is remembered.
+              </Text>
+              <PalettePicker />
             </View>
 
             {/* Weekly Goal */}
