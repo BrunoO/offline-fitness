@@ -163,7 +163,7 @@ export function computeDayStreaks(activities: Activity[]): StreakResult {
   for (const a of activities) {
     daySet.add(activityLocalDate(a));
   }
-  const days = Array.from(daySet).sort(); // ascending
+  const days = Array.from(daySet).sort((a, b) => a.localeCompare(b)); // ascending
   // Whole-day numbers (DST-safe integer math, no device-TZ Date involved).
   const dayNumbers = days.map(localDateToDayNumber);
 
@@ -201,7 +201,7 @@ export function computeWeekStreaks(activities: Activity[]): StreakResult {
   for (const a of activities) {
     weekSet.add(activityIsoWeekKey(a));
   }
-  const weeks = Array.from(weekSet).sort(); // e.g., 2025-W01, 2025-W02
+  const weeks = Array.from(weekSet).sort((a, b) => a.localeCompare(b)); // e.g., 2025-W01, 2025-W02
 
   let best = 1;
   let current = 1;
@@ -256,7 +256,7 @@ export function computeWeeklyGoalStreaks(
   const metWeeks = Array.from(weekToActivities.entries())
     .filter(([, acts]) => Boolean(evaluateGoal(weeklyGoalExpression, { activities: acts })))
     .map(([key]) => key)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 
   if (metWeeks.length === 0) return { current: 0, best: 0 };
 

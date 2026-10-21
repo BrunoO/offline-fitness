@@ -194,7 +194,9 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     }
 
     // Reuse weeklyData and only look at the most recent week
-    const activityTypes = Array.from(new Set(globalActivities.map(a => a.type))).sort() as string[];
+    const activityTypes = Array.from(new Set(globalActivities.map(a => a.type))).sort(
+      (a, b) => a.localeCompare(b)
+    ) as string[];
     const weeks = weeklyData(activityTypes, globalActivities, 1, useElapsedTime);
     if (weeks.length === 0) {
       setWeeklySummary({ totalHours: 0, totalDistanceKm: 0, totalElevationM: 0 });
@@ -266,7 +268,9 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
     }
 
     // Compute longest recent week by total distance
-    const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort() as string[];
+    const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort(
+      (a, b) => a.localeCompare(b)
+    ) as string[];
     const weeks = weeklyData(activityTypes, recentActivities, numberRecentWeeks, useElapsedTime);
 
     let longestWeekKm = 0;
@@ -367,7 +371,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
       }
     };
 
-    fetchData();
+    void fetchData();
 
     return () => {
       isMounted = false;
@@ -391,7 +395,7 @@ export function HomeScreen({ navigation }: HomeScreenProps): React.JSX.Element {
       }
     };
 
-    updateStreamStatus();
+    void updateStreamStatus();
     const interval = setInterval(updateStreamStatus, 120 * 1000);
 
     return () => {

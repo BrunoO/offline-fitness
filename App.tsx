@@ -1,7 +1,8 @@
-import 'react-native-gesture-handler'; // mandatory before everything else ???
-// https://reactnavigation.org/docs/drawer-navigator#installation
+// eslint-disable-next-line import/no-duplicates -- Sonar S3863 agrees; the pattern is deliberate (see AGENTS.md "Import Hygiene")
+import 'react-native-gesture-handler'; // NOSONAR - side-effect import must precede all other imports, separate from the named import below // https://reactnavigation.org/docs/drawer-navigator#installation
 
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+// eslint-disable-next-line import/no-duplicates -- paired with the side-effect import above
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // NOSONAR - paired with the side-effect import above
 import {
   ActivitiesProvider,
   calculateAndStoreMissingBoundingBoxes,
@@ -22,7 +23,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 // Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+// (only rejects if the splash was already hidden; startup order makes that impossible)
+void SplashScreen.preventAutoHideAsync();
 
 // Set the animation options. This is optional.
 SplashScreen.setOptions({
@@ -56,14 +58,17 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    SplashScreen.hideAsync();
+    void SplashScreen.hideAsync();
     simpleLogger.log('✨ App UI loaded and ready');
   }, []);
 
   useEffect(() => {
     if (backfillComplete) {
       // Activities come from a Strava archive import; no network call is needed.
-      reloadActivitiesFromLocalStorage();
+      // A storage failure here must not pass as unhandled rejection.
+      reloadActivitiesFromLocalStorage().catch(error =>
+        simpleLogger.error('Failed to reload activities from local storage', error)
+      );
     }
   }, [backfillComplete, reloadActivitiesFromLocalStorage]);
 

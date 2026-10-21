@@ -3,7 +3,7 @@ import {
   loadRawStreamForActivity,
   useActivitiesDataContext
 } from '@/features/activities';
-import { Activity, activityToString, isNoGpsActivity } from '@/shared';
+import { Activity, activityToString, isNoGpsActivity, simpleLogger } from '@/shared';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { createChartTheme, useTheme } from '@/theme';
@@ -48,7 +48,7 @@ export default function MapsScreen(): JSX.Element {
       setData(fetchedData);
     };
 
-    fetchData();
+    fetchData().catch(error => simpleLogger.error('Failed to load stream data for the map', error));
   }, [allActivities, indexActivity]);
 
   if (data.length < dataToGet) {

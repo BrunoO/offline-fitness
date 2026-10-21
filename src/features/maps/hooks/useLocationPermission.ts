@@ -34,7 +34,7 @@ export function useLocationPermission(): boolean {
       }
     };
 
-    ensurePermissionAsync();
+    void ensurePermissionAsync();
 
     return () => {
       isMounted = false;

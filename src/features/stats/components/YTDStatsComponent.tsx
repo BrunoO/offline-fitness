@@ -47,7 +47,7 @@ const YTDStatsComponent: React.FC = () => {
   const availableTypes = (() => {
     const s = new Set<string>();
     for (const a of processedActivities) if (a.type) s.add(a.type);
-    return Array.from(s).sort();
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
   })();
 
   const filteredActivities =

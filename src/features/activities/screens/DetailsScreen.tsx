@@ -104,7 +104,9 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
 
   const onDeleteActivity = (activity: Activity) => {
     deleteActivity(activity);
-    deleteStreamFiles(activity.id);
+    deleteStreamFiles(activity.id).catch(error =>
+      simpleLogger.error('Failed to delete stream files for deleted activity', error)
+    );
   };
 
   const keyExtractor = (item: Activity) => item.id;
@@ -123,7 +125,9 @@ export function DetailsScreen({ navigation, route }: DetailsScreenProps): JSX.El
       const ids = await getNoStreamIds(allActivities);
       setNoStreamIds(ids);
     };
-    loadNoStreamIds();
+    loadNoStreamIds().catch(error =>
+      simpleLogger.error('Failed to load no-stream activity ids', error)
+    );
   }, [hideNoStream, allActivities]);
 
   const query = searchQuery.trim().toLowerCase();

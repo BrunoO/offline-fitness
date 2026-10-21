@@ -137,7 +137,9 @@ export function RecentMonthsScreen(): JSX.Element {
   const { numberRecentMonths, useElapsedTime } = useSettings();
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
-  const activityTypes = Array.from(myActivitiesDiscovered).sort() as string[];
+  const activityTypes = Array.from(myActivitiesDiscovered).sort(
+    (a, b) => a.localeCompare(b)
+  ) as string[];
   const { myActivitiesToUse, allActivitiesToUse } = useProcessedActivities(
     activityTypes,
     globalActivities

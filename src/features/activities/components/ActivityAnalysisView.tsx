@@ -657,7 +657,7 @@ export function ActivityAnalysisView({
       }
     };
 
-    loadStream();
+    void loadStream();
 
     return () => {
       isMounted = false;
@@ -689,7 +689,8 @@ export function ActivityAnalysisView({
   };
 
   const handleExport = () => {
-    exportData(setExportProgress, [item, ...similarActivities]);
+    // exportData wraps its whole body in try/catch and logs internally; it never rejects.
+    void exportData(setExportProgress, [item, ...similarActivities]);
   };
 
   return (

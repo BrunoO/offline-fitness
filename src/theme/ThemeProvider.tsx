@@ -52,7 +52,7 @@ export function ThemeProvider({ children }: PropsWithChildren): React.JSX.Elemen
         // Storage is unavailable — keep the default palette.
       }
     };
-    loadPalette();
+    void loadPalette();
     return () => {
       cancelled = true;
     };

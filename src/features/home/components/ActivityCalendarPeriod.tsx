@@ -108,7 +108,7 @@ export function ActivityCalendarPeriod({
   });
 
   // Create period marks for activity streaks with optimized processing
-  const sortedDates = Object.keys(activitiesByDate).sort();
+  const sortedDates = Object.keys(activitiesByDate).sort((a, b) => a.localeCompare(b));
   const streaks: string[][] = [];
   let currentStreak: string[] = [];
   const baseColor = theme.primary;

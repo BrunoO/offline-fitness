@@ -56,7 +56,11 @@ export const SettingsProvider: React.FC<PropsWithChildren> = ({ children }) => {
       }
       setIsLoading(false);
     };
-    loadSettings();
+    loadSettings().catch(error => {
+      simpleLogger.error('Failed to load stored settings', error);
+      // Without this the provider would stay in the loading state forever.
+      setIsLoading(false);
+    });
   }, []);
 
   useEffect(() => {

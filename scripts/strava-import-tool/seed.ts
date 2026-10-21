@@ -11,7 +11,11 @@ import {
   isUnsupportedTrack,
   normalizeEntryPath
 } from '@/features/strava-import/services/entryNames';
-import { parseGpx, toStreamSet, trackBoundingBox } from '@/features/strava-import/services/gpxParser';
+import {
+  parseGpx,
+  toStreamSet,
+  trackBoundingBox
+} from '@/features/strava-import/services/gpxParser';
 import { decodeUtf8 } from '@/features/strava-import/services/textDecode';
 import {
   gunzipEntry,
@@ -20,7 +24,11 @@ import {
   readZipEntries,
   readZipEntry
 } from '@/features/strava-import/services/zipReader';
-import { ExportedActivityRow, StreamConversionResult, ZipEntryInfo } from '@/features/strava-import/types/import.types';
+import {
+  ExportedActivityRow,
+  StreamConversionResult,
+  ZipEntryInfo
+} from '@/features/strava-import/types/import.types';
 import { encodeStreamSet } from '@/shared/services/streamCodec';
 import { DavClient } from './client';
 import { createNodeByteSource, NodeByteSource } from './nodeSource';
@@ -554,7 +562,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
         // best effort here — the run's own PUTs will surface a sick server,
         // and the final write below is authoritative). Skipped entirely when
         // nothing changed, so all-skip runs do zero interim writes.
-        if (!dryRun && done % checkpointEvery === 0) writeState(false);
+        if (!dryRun && done % checkpointEvery === 0) void writeState(false);
         options.onProgress?.({ done, total, currentActivityId: row.id });
       }
     };

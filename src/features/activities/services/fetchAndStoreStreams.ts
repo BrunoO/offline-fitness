@@ -177,7 +177,7 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
     const latestTime = parseInt(latest.name.split('.')[0], 10);
     const fileTime = parseInt(file.name.split('.')[0], 10);
     return fileTime > latestTime ? file : latest;
-  });
+  }, jsonFiles[0]);
 
   try {
     const stream = await readStreamFile<StreamSet>(mostRecentFile as File);
