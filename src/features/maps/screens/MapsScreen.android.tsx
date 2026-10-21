@@ -26,6 +26,8 @@ import React, { JSX, useEffect, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useLocationPermission } from '../hooks/useLocationPermission';
+
 /**
  * Checks if a lat/lng is inside a region.
  * @param latitude The latitude of the point.
@@ -63,6 +65,7 @@ export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element
   const { globalActivities: allActivities, myActivitiesDiscovered: activityTypes } =
     useActivitiesDataContext();
   const insets = useSafeAreaInsets();
+  const isLocationGranted = useLocationPermission();
   const activityTypesWithDistance = Array.from(activityTypes).filter(a => !isNoGpsActivity(a));
   const activitiesWithDistance = allActivities.filter(a => !isNoGpsActivity(a.type));
 
@@ -333,10 +336,10 @@ export default function MapsScreen({ navigation }: MapsScreenProps): JSX.Element
             style={{ flex: 1 }}
             provider={PROVIDER_GOOGLE}
             ref={mapRef}
-            showsMyLocationButton={true}
+            showsMyLocationButton={isLocationGranted}
             zoomControlEnabled={true}
             showsCompass={true}
-            showsUserLocation={true}
+            showsUserLocation={isLocationGranted}
             showsScale={true}
             loadingEnabled={false}
             loadingIndicatorColor={'green'}
