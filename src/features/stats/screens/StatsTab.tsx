@@ -534,6 +534,7 @@ export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>)
   React.useLayoutEffect(() => {
     navigation?.setOptions({
       headerRight: () => (
+        // NOSONAR - React Navigation render prop; must close over isSettingsVisible
         <View style={{ marginRight: 10 }}>
           <IconButton icon="settings" onPress={() => setIsSettingsVisible(true)} />
         </View>

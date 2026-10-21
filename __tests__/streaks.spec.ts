@@ -73,27 +73,19 @@ describe('streaks', () => {
     expect(res.best).toBeGreaterThanOrEqual(2);
   });
 
-  it('counts 35 consecutive ISO weeks meeting the weekly goal', () => {
-    const weeks = lastWeeksFrom(new Date(), 35);
-    const activities = weeks.map((week, index) =>
-      makeActivity(index + 1, week.weekIsoDate.toISOString())
-    );
+  it.each([35, 52, 60])(
+    'counts %i consecutive ISO weeks meeting the weekly goal',
+    (count: number) => {
+      const weeks = lastWeeksFrom(new Date(), count);
+      const activities = weeks.map((week, index) =>
+        makeActivity(index + 1, week.weekIsoDate.toISOString())
+      );
 
-    const res = computeWeeklyGoalStreaks(activities, 'sum("distance") > 0');
-    expect(res.current).toBe(35);
-    expect(res.best).toBe(35);
-  });
-
-  it('counts 52 consecutive ISO weeks across a year boundary', () => {
-    const weeks = lastWeeksFrom(new Date(), 52);
-    const activities = weeks.map((week, index) =>
-      makeActivity(index + 1, week.weekIsoDate.toISOString())
-    );
-
-    const res = computeWeeklyGoalStreaks(activities, 'sum("distance") > 0');
-    expect(res.current).toBe(52);
-    expect(res.best).toBe(52);
-  });
+      const res = computeWeeklyGoalStreaks(activities, 'sum("distance") > 0');
+      expect(res.current).toBe(count);
+      expect(res.best).toBe(count);
+    }
+  );
 
   it('resets weekly goal streak when a week with activity fails the goal', () => {
     const weeks = lastWeeksFrom(new Date(), 5);
@@ -118,17 +110,6 @@ describe('streaks', () => {
     const res = computeWeeklyGoalStreaks(activities, 'sum("distance") > 0');
     expect(res.current).toBe(2);
     expect(res.best).toBe(2);
-  });
-
-  it('detects discontinuities between consecutive lastWeeksFrom identifiers', () => {
-    const weeks = lastWeeksFrom(new Date(), 60);
-    const activities = weeks.map((week, index) =>
-      makeActivity(index + 1, week.weekIsoDate.toISOString())
-    );
-
-    const res = computeWeeklyGoalStreaks(activities, 'sum("distance") > 0');
-    expect(res.current).toBe(60);
-    expect(res.best).toBe(60);
   });
 
   it('logs streak gap diagnostics when an ISO week breaks the run', () => {

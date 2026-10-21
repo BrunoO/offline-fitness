@@ -219,7 +219,7 @@ const YTDStatsComponent: React.FC = () => {
             }
           }
 
-          return quarters.map((quarter, index) => {
+          return quarters.map(quarter => {
             // Create horizontal filled area using VictoryArea with baseline
             const quarterStart = quarter.start;
             const quarterEnd = quarter.end;
@@ -234,7 +234,7 @@ const YTDStatsComponent: React.FC = () => {
 
             return (
               <VictoryArea
-                key={`quarter-bg-${index}`}
+                key={`quarter-bg-${quarter.start}`}
                 data={areaData}
                 style={{
                   data: {

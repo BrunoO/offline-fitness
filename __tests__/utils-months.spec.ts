@@ -9,16 +9,12 @@ describe('isMonthBetweens', () => {
     Jan23 = new Date(2023, 0, 1);
     May23 = new Date(2023, 4, 1);
   });
-  it('should match inside interval', () => {
-    let result = Utils.isMonthBetween(2023, 2, Jan23, May23);
-    expect(result).toBe(true);
-  });
-  it('should match beginning of interval', () => {
-    let result = Utils.isMonthBetween(2023, 0, Jan23, May23);
-    expect(result).toBe(true);
-  });
-  it('should match end of interval', () => {
-    let result = Utils.isMonthBetween(2023, 4, Jan23, May23);
+  it.each([
+    { case: 'inside interval', year: 2023, month: 2 },
+    { case: 'beginning of interval', year: 2023, month: 0 },
+    { case: 'end of interval', year: 2023, month: 4 }
+  ])('should match $case', ({ year, month }) => {
+    const result = Utils.isMonthBetween(year, month, Jan23, May23);
     expect(result).toBe(true);
   });
   it('should not match before interval', () => {

@@ -56,20 +56,15 @@ const mockActivities: Activity[] = [
 
 describe('GoalService', () => {
   describe('evaluateGoal', () => {
-    it('should evaluate a simple expression', () => {
-      const result = evaluateGoal('count() > 1', { activities: mockActivities });
-      expect(result).toBe(true);
-    });
-
-    it('should evaluate an expression with a sum', () => {
-      const result = evaluateGoal('sum("elapsed_time") > 3600', { activities: mockActivities });
-      expect(result).toBe(true);
-    });
-
-    it('should evaluate an expression with a filtered sum', () => {
-      const result = evaluateGoal('sum("elapsed_time", "type == \'Yoga\'") >= 3600', {
-        activities: mockActivities
-      });
+    it.each([
+      { label: 'a simple expression', expression: 'count() > 1' },
+      { label: 'an expression with a sum', expression: 'sum("elapsed_time") > 3600' },
+      {
+        label: 'an expression with a filtered sum',
+        expression: 'sum("elapsed_time", "type == \'Yoga\'") >= 3600'
+      }
+    ])('should evaluate $label', ({ expression }) => {
+      const result = evaluateGoal(expression, { activities: mockActivities });
       expect(result).toBe(true);
     });
   });

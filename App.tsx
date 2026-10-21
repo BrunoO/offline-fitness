@@ -76,7 +76,9 @@ function AppContent() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer theme={navigationTheme}>
         <Drawer.Navigator
-          drawerContent={props => <CustomDrawerContent {...props} onOpenSettings={openSettings} />}
+          drawerContent={(
+            props // NOSONAR - React Navigation render prop; must close over openSettings
+          ) => <CustomDrawerContent {...props} onOpenSettings={openSettings} />}
         >
           <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
             {props => <HomeScreen {...props} />}

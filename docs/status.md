@@ -753,3 +753,13 @@ A comprehensive code review was performed, covering technical debt, architecture
   - `String.fromCharCode` -> `fromCodePoint` in byte-chunk decoders (identical for 0-255), `charCodeAt` -> `codePointAt` in BOM/slash scans.
   - `&&`-chains -> optional chaining (compressStreamSet, trackComparison guards); ternary defaults -> `??` (utils.getCurrentWeekNumber, fetchStreamContent); `aliases.includes` -> Set `.has`.
   - Intentionally NOT "fixed": `webdavTransport` text->bytes `charCodeAt & 0xff` (deliberate UTF-16-unit truncation; `codePointAt` would change astral chars) -> NOSONAR comment; `streamCodec` `1 << 0` bit flag (S7767 false positive) -> `0b001` binary literals; `zipReader` `0x1_0000_0000` -> `2 ** 32`.
+
+## Readability & Deprecated-API Batch (Sweep 5) - 2026-10-21
+
+- **S4165 redundant assignments (4)**: `streaks.ts` - three hand-rolled run-length loops replaced by one shared `longestAndFinalRun(items, contiguous)` helper (index-based runs; same results, verified by streaks specs); `MapsScreen.android` - the map-type switch became a `NEXT_MAP_TYPE` lookup const (repo's "maps over enums" style).
+- **S1874 deprecated APIs (7)**: `MapsScreen.web` `SafeAreaView` -> `react-native-safe-area-context` (the package AGENTS.md mandates; on web the old core component was a no-op anyway, so no layout change); both `DateTimePicker`s -> `onValueChange` + `onDismiss`, preserving the old close-the-overlay-on-cancel behaviour that the generic `onChange` provided.
+- **S6479 index keys (4)**: Polyline list keyed by `activity.id`; YTD quarter bands by `quarter.start`; table rows by their first cell and highlighted cells by the existing `positionKey`.
+- **S3358 nested ternaries (5)**: `webdavTransport` content-type chain -> `contentTypeForBody()`; HomeScreen achievement strings -> module-level `achievementLabel()` helper; the map loading/empty ternary chain and the heatmap/polyline chain flattened to sibling conditions (same branches, same order).
+- **S1479 47-case switch (1)**: `LastActivitySummary` emoji switch -> extracted `ACTIVITY_ICONS` lookup map (also moves the function out of the component body; 55 keys + fallback transcribed programmatically to keep the ZWJ emoji exact).
+- **S5976 parameterized tests (3)**: GoalService evaluate trio, streaks 35/52/60-week trio, utils-months match trio -> `it.each`.
+- **S6478 (3)** - NOT "fixed": `App.tsx` drawerContent and the two `headerRight` callbacks are React Navigation's documented render-prop pattern with legitimate closure needs; annotated NOSONAR with rationale (same policy as the gesture-handler import).

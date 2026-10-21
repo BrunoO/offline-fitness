@@ -49,6 +49,12 @@ const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
  * @param navigation The navigation object.
  * @returns A React component.
  */
+/** Formats an achievement with its optional activity name; 'N/A' when unrecorded. */
+function achievementLabel(valueText: string | null, name?: string | null): string {
+  if (valueText === null) return 'N/A';
+  return name ? `${valueText} (${name})` : valueText;
+}
+
 export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -426,6 +432,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   React.useLayoutEffect(() => {
     navigation?.setOptions({
       headerRight: () => (
+        // NOSONAR - React Navigation render prop; must close over backupFreshness
         <View style={{ marginRight: 10 }}>
           {/* The label itself carries the age ("Synced 3 weeks ago"); colour
               only lifts it out of the muted tier. theme.warning is not used
@@ -586,33 +593,33 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
             <View style={styles.infoRow}>
               <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
                 Longest activity{' '}
-                {recentAchievements.longestDistanceKm > 0
-                  ? `${recentAchievements.longestDistanceKm.toFixed(1)} km${
-                      recentAchievements.longestDistanceName
-                        ? ` (${recentAchievements.longestDistanceName})`
-                        : ''
-                    }`
-                  : 'N/A'}
+                {achievementLabel(
+                  recentAchievements.longestDistanceKm > 0
+                    ? `${recentAchievements.longestDistanceKm.toFixed(1)} km`
+                    : null,
+                  recentAchievements.longestDistanceName
+                )}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
                 Biggest climb{' '}
-                {recentAchievements.biggestClimbM > 0
-                  ? `${recentAchievements.biggestClimbM.toFixed(0)} m${
-                      recentAchievements.biggestClimbName
-                        ? ` (${recentAchievements.biggestClimbName})`
-                        : ''
-                    }`
-                  : 'N/A'}
+                {achievementLabel(
+                  recentAchievements.biggestClimbM > 0
+                    ? `${recentAchievements.biggestClimbM.toFixed(0)} m`
+                    : null,
+                  recentAchievements.biggestClimbName
+                )}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
                 Longest week{' '}
-                {recentAchievements.longestWeekKm > 0
-                  ? `${recentAchievements.longestWeekKm.toFixed(1)} km`
-                  : 'N/A'}
+                {achievementLabel(
+                  recentAchievements.longestWeekKm > 0
+                    ? `${recentAchievements.longestWeekKm.toFixed(1)} km`
+                    : null
+                )}
               </Text>
             </View>
           </View>
@@ -627,13 +634,15 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading map...</Text>
               </View>
-            ) : homeScreenStream?.stream ? (
+            ) : null}
+            {!isLoadingStream && homeScreenStream?.stream ? (
               <MiniMapComponent key={mapRefreshKey} stream={homeScreenStream.stream} />
-            ) : (
+            ) : null}
+            {!isLoadingStream && !homeScreenStream?.stream ? (
               <View style={styles.noDataContainer}>
                 <Text style={styles.noDataText}>No map data available</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
         {/* End of Activity Map Section */}

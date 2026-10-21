@@ -152,6 +152,32 @@ function logWeeklyGoalStreakDiagnostics(
 }
 
 /**
+ * For items in ascending order, the length of the trailing contiguous run
+ * (`current`) and the longest run (`best`). Index-based runs instead of a
+ * per-iteration accumulator: same result as a run-length loop, without the
+ * re-assign-the-same-value patterns Sonar flags (S4165).
+ */
+function longestAndFinalRun<T>(
+  items: T[],
+  contiguous: (prev: T, next: T) => boolean
+): { current: number; best: number } {
+  let best = 1;
+  let runStart = 0;
+  for (let i = 1; i < items.length; i++) {
+    if (!contiguous(items[i - 1], items[i])) {
+      const runLength = i - runStart;
+      if (runLength > best) {
+        best = runLength;
+      }
+      runStart = i;
+    }
+  }
+  const current = items.length - runStart;
+  best = Math.max(best, current);
+  return { current, best };
+}
+
+/**
  * Calculates current and best streaks of consecutive active days.
  * - Uses local date to group activities by day.
  * - current streak is set to 0 if the last activity day is older than yesterday.
@@ -167,19 +193,7 @@ export function computeDayStreaks(activities: Activity[]): StreakResult {
   // Whole-day numbers (DST-safe integer math, no device-TZ Date involved).
   const dayNumbers = days.map(localDateToDayNumber);
 
-  let best = 1;
-  let current = 1;
-  // Determine if the last day is today or contiguous from yesterday for current streak
-  for (let i = 1; i < dayNumbers.length; i++) {
-    const diffDays = dayNumbers[i] - dayNumbers[i - 1];
-    if (diffDays === 1) {
-      current += 1;
-    } else if (diffDays > 1) {
-      best = Math.max(best, current);
-      current = 1;
-    }
-  }
-  best = Math.max(best, current);
+  const { current, best } = longestAndFinalRun(dayNumbers, (prev, next) => next - prev === 1);
 
   // If the last recorded day is not today or yesterday, current streak should be 0 or 1 based on last day proximity
   const last = dayNumbers.at(-1)!;
@@ -203,18 +217,7 @@ export function computeWeekStreaks(activities: Activity[]): StreakResult {
   }
   const weeks = Array.from(weekSet).sort((a, b) => a.localeCompare(b)); // e.g., 2025-W01, 2025-W02
 
-  let best = 1;
-  let current = 1;
-
-  for (let i = 1; i < weeks.length; i++) {
-    if (isContiguousIsoWeek(weeks[i - 1], weeks[i])) {
-      current += 1;
-    } else {
-      best = Math.max(best, current);
-      current = 1;
-    }
-  }
-  best = Math.max(best, current);
+  const { current, best } = longestAndFinalRun(weeks, isContiguousIsoWeek);
 
   // Determine if current week contains activity
   const now = new Date();
@@ -260,16 +263,7 @@ export function computeWeeklyGoalStreaks(
 
   if (metWeeks.length === 0) return { current: 0, best: 0 };
 
-  let best = 1;
-  let current = 1;
-  for (let i = 1; i < metWeeks.length; i++) {
-    if (isContiguousIsoWeek(metWeeks[i - 1], metWeeks[i])) current += 1;
-    else {
-      best = Math.max(best, current);
-      current = 1;
-    }
-  }
-  best = Math.max(best, current);
+  const { current, best } = longestAndFinalRun(metWeeks, isContiguousIsoWeek);
 
   // Determine current streak recency
   const now = new Date();

@@ -67,6 +67,12 @@ export function davUrl(baseUrl: string, ...segments: string[]): string {
  * "already exists" MKCOL or an "already gone" DELETE on every sync is not a
  * failure, and logging it red buries the genuine ones in the LogScreen.
  */
+/** Content-Type for a request body: JSON for strings, raw bytes for binaries, none when empty. */
+function contentTypeForBody(body: string | Uint8Array | undefined): string | undefined {
+  if (body === undefined) return undefined;
+  return typeof body === 'string' ? 'application/json; charset=utf-8' : 'application/octet-stream';
+}
+
 async function davRequest(
   config: WebDavConfig,
   url: string,
@@ -77,12 +83,7 @@ async function davRequest(
 ): Promise<{ status: number; text: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const contentType =
-    body === undefined
-      ? undefined
-      : typeof body === 'string'
-        ? 'application/json; charset=utf-8'
-        : 'application/octet-stream';
+  const contentType = contentTypeForBody(body);
   try {
     const response = await fetch(url, {
       method,

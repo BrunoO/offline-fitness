@@ -5,7 +5,8 @@ import {
 } from '@/features/activities';
 import { Activity, activityToString, isNoGpsActivity, simpleLogger } from '@/shared';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChartTheme, useTheme } from '@/theme';
 import { VictoryAxis, VictoryChart, VictoryLine } from 'victory-native';
 import MiniMapComponent from '../components/MiniMapComponent';

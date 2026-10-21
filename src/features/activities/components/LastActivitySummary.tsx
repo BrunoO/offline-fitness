@@ -11,6 +11,68 @@ interface LastActivitySummaryProps {
   onActivityChange?: (activity: Activity) => void;
 }
 
+/** Activity type (lower-cased) -> emoji. Lookup instead of a 47-case switch (S1479). */
+const ACTIVITY_ICONS: Record<string, string> = {
+  run: '🏃‍♂️',
+  running: '🏃‍♂️',
+  ride: '🚲',
+  ebikeride: '🚲',
+  cycling: '🚲',
+  walk: '🚶‍♂️',
+  walking: '🚶‍♂️',
+  swim: '🏊‍♂️',
+  swimming: '🏊‍♂️',
+  hike: '🥾',
+  hiking: '🥾',
+  yoga: '🧘‍♀️',
+  weighttraining: '🏋️‍♂️',
+  'weight training': '🏋️‍♂️',
+  crossfit: '💪',
+  elliptical: '🔄',
+  'stair stepper': '🪜',
+  stairs: '🪜',
+  rowing: '🚣‍♂️',
+  kayaking: '🛶',
+  snowboarding: '🏂',
+  skiing: '⛷️',
+  'ice skating': '⛸️',
+  'inline skating': '🛼',
+  'rock climbing': '🧗‍♂️',
+  tennis: '🎾',
+  basketball: '🏀',
+  soccer: '⚽',
+  golf: '⛳',
+  baseball: '⚾',
+  volleyball: '🏐',
+  badminton: '🏸',
+  'table tennis': '🏓',
+  squash: '🏏',
+  racquetball: '🎾',
+  handball: '🤾‍♂️',
+  rugby: '🏉',
+  'american football': '🏈',
+  'australian football': '🏉',
+  cricket: '🏏',
+  hockey: '🏒',
+  lacrosse: '🥍',
+  'water polo': '🤽‍♂️',
+  surfing: '🏄‍♂️',
+  windsurfing: '🏄‍♂️',
+  kitesurfing: '🏄‍♂️',
+  sailing: '⛵',
+  'stand up paddling': '🏄‍♂️',
+  workout: '🏋️‍♀️',
+  'virtual ride': '🚲',
+  'virtual run': '🏃‍♂️',
+  'ebike ride': '🚲',
+  velomobile: '🚲',
+  handcycle: '🚲',
+  wheelchair: '♿'
+};
+
+/** Activity emoji by type; runners is the safe default for unknown types. */
+const getActivityIcon = (activityType: string): string =>
+  ACTIVITY_ICONS[activityType.toLowerCase()] ?? '🏃‍♂️';
 /**
  * A component that displays the last activity information in a summary table format.
  * @param props The component props.
@@ -28,116 +90,6 @@ export function LastActivitySummary({
   if (!activity) {
     return <></>;
   }
-
-  // Get activity-specific icon based on type
-  const getActivityIcon = (activityType: string): string => {
-    switch (activityType.toLowerCase()) {
-      case 'run':
-      case 'running':
-        return '🏃‍♂️';
-      case 'ride':
-      case 'ebikeride':
-      case 'cycling':
-        return '🚲';
-      case 'walk':
-      case 'walking':
-        return '🚶‍♂️';
-      case 'swim':
-      case 'swimming':
-        return '🏊‍♂️';
-      case 'hike':
-      case 'hiking':
-        return '🥾';
-      case 'yoga':
-        return '🧘‍♀️';
-      case 'weighttraining':
-      case 'weight training':
-        return '🏋️‍♂️';
-      case 'crossfit':
-        return '💪';
-      case 'elliptical':
-        return '🔄';
-      case 'stair stepper':
-      case 'stairs':
-        return '🪜';
-      case 'rowing':
-        return '🚣‍♂️';
-      case 'kayaking':
-        return '🛶';
-      case 'snowboarding':
-        return '🏂';
-      case 'skiing':
-        return '⛷️';
-      case 'ice skating':
-        return '⛸️';
-      case 'inline skating':
-        return '🛼';
-      case 'rock climbing':
-        return '🧗‍♂️';
-      case 'tennis':
-        return '🎾';
-      case 'basketball':
-        return '🏀';
-      case 'soccer':
-        return '⚽';
-      case 'golf':
-        return '⛳';
-      case 'baseball':
-        return '⚾';
-      case 'volleyball':
-        return '🏐';
-      case 'badminton':
-        return '🏸';
-      case 'table tennis':
-        return '🏓';
-      case 'squash':
-        return '🏏';
-      case 'racquetball':
-        return '🎾';
-      case 'handball':
-        return '🤾‍♂️';
-      case 'rugby':
-        return '🏉';
-      case 'american football':
-        return '🏈';
-      case 'australian football':
-        return '🏉';
-      case 'cricket':
-        return '🏏';
-      case 'hockey':
-        return '🏒';
-      case 'lacrosse':
-        return '🥍';
-      case 'water polo':
-        return '🤽‍♂️';
-      case 'surfing':
-        return '🏄‍♂️';
-      case 'windsurfing':
-        return '🏄‍♂️';
-      case 'kitesurfing':
-        return '🏄‍♂️';
-      case 'sailing':
-        return '⛵';
-      case 'stand up paddling':
-        return '🏄‍♂️';
-      case 'workout':
-        return '🏋️‍♀️';
-      case 'virtual ride':
-        return '🚲';
-      case 'virtual run':
-        return '🏃‍♂️';
-      case 'ebike ride':
-        return '🚲';
-      case 'velomobile':
-        return '🚲';
-      case 'handcycle':
-        return '🚲';
-      case 'wheelchair':
-        return '♿';
-      default:
-        return '🏃‍♂️'; // Default fallback
-    }
-  };
 
   // Find current activity index in the list
   const currentIndex = allActivities.findIndex(a => a.id === activity.id);

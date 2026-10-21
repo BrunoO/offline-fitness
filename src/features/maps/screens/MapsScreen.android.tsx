@@ -29,6 +29,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLocationPermission } from '../hooks/useLocationPermission';
 
+/** Map-style cycle for the header toggle; styles outside the cycle fall back to standard. */
+const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
+  standard: 'satellite',
+  satellite: 'hybrid',
+  hybrid: 'terrain',
+  terrain: 'standard'
+};
+
 /**
  * Checks if a lat/lng is inside a region.
  * @param latitude The latitude of the point.
@@ -123,22 +131,7 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   const [mapType, setMapType] = useState<MapType>('standard');
 
   const toggleMapType = () => {
-    let newType: MapType = 'standard';
-    switch (mapType) {
-      case 'standard':
-        newType = 'satellite';
-        break;
-      case 'satellite':
-        newType = 'hybrid';
-        break;
-      case 'hybrid':
-        newType = 'terrain';
-        break;
-      case 'terrain':
-        newType = 'standard';
-        break;
-    }
-    setMapType(newType);
+    setMapType(NEXT_MAP_TYPE[mapType] ?? 'standard');
   };
 
   useEffect(() => {
@@ -376,30 +369,29 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
                 )
             )}
 
-            {!isLoading ? (
-              showHeatmap && heatmapData.length > 0 ? (
-                <Heatmap
-                  points={heatmapData}
-                  opacity={0.7}
-                  radius={20}
-                  gradient={{
-                    colors: theme.mapTrack,
-                    startPoints: [0.1, 0.5, 1],
-                    colorMapSize: 256
-                  }}
-                />
-              ) : (
-                loadedStreams.map(({ streamSet }, index) => (
+            {!isLoading && showHeatmap && heatmapData.length > 0 ? (
+              <Heatmap
+                points={heatmapData}
+                opacity={0.7}
+                radius={20}
+                gradient={{
+                  colors: theme.mapTrack,
+                  startPoints: [0.1, 0.5, 1],
+                  colorMapSize: 256
+                }}
+              />
+            ) : null}
+            {!isLoading && (!showHeatmap || heatmapData.length === 0)
+              ? loadedStreams.map(({ activity, streamSet }, index) => (
                   <Polyline
-                    key={index}
+                    key={activity.id}
                     coordinates={streamSet.coordinates}
                     strokeWidth={2}
                     strokeColor={`hsl(${(index * 30) % 360}, 100%, 50%)`}
                     fillColor="rgba(255,0,0,0.5)"
                   />
                 ))
-              )
-            ) : null}
+              : null}
           </MapView>
         )}
         <View style={styles.mapButtonsOverlayContainer}>
@@ -460,11 +452,11 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
           display="default"
           minimumDate={minDate}
           maximumDate={maxDate}
-          onChange={(event, selectedDate) => {
-            const currentDate = selectedDate || startDate;
-            setStartDate(currentDate);
+          onValueChange={(_event, date) => {
+            setStartDate(date);
             setShowStartDatePicker(false);
           }}
+          onDismiss={() => setShowStartDatePicker(false)}
         />
       ) : null}
       {showEndDatePicker ? (
@@ -474,11 +466,11 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
           display="default"
           minimumDate={minDate}
           maximumDate={maxDate}
-          onChange={(event, selectedDate) => {
-            const currentDate = selectedDate || endDate;
-            setEndDate(currentDate);
+          onValueChange={(_event, date) => {
+            setEndDate(date);
             setShowEndDatePicker(false);
           }}
+          onDismiss={() => setShowEndDatePicker(false)}
         />
       ) : null}
     </View>

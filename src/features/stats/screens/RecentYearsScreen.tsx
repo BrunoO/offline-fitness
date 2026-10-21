@@ -459,7 +459,7 @@ function DataTable({
           <Table borderStyle={{ borderWidth: 1, borderColor: theme.border }}>
             {data.map((rowData: string[], rowIndex) => (
               <Row
-                key={rowIndex}
+                key={String(rowData[0])}
                 data={rowData.map((cellValue: string, colIndex) => {
                   const positionKey = `${rowIndex},${colIndex}`;
                   const isMaxValue = maxPositions.has(positionKey);
@@ -467,7 +467,7 @@ function DataTable({
                   if (isMaxValue) {
                     // Return a styled text component for max values
                     return (
-                      <Text key={colIndex} style={styles.maxValueText}>
+                      <Text key={positionKey} style={styles.maxValueText}>
                         {cellValue}
                       </Text>
                     );
