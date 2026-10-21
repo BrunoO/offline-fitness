@@ -85,9 +85,9 @@ echo '<app-password>' | npm run tool:seed -- import --archive export.zip \
   --root ... --user ... --profile ... --tz ... --password-stdin
 ```
 
-`--root`, `--user` and `--profile` are exactly what the phone's Backup screen shows; a mismatch
-is refused before anything uploads. The run is idempotent and resumable — re-running skips what
-the server already has. Then on the phone: drawer → **Backup** → **Restore**.
+`--root`, `--user` and `--profile` are exactly what the phone's Settings → WebDAV Backup shows;
+a mismatch is refused before anything uploads. The run is idempotent and resumable — re-running
+skips what the server already has. Then on the phone: drawer → **Settings** → **Restore**.
 
 `npm run tool:seed -- status ...` reports what a collection currently holds, and
 `docs/desktop-import-plan.md` describes the layout contract.
@@ -205,7 +205,7 @@ a key used from a mobile app, so protect it with Cloud console restrictions inst
 The key is needed for the map view only, and a key-free map provider is the expected
 direction — everything else in the app works without any key at all.
 
-The WebDAV backup is configured in the app itself: drawer → **Backup** → server URL (the
+The WebDAV backup is configured in the app itself: drawer → **Settings** → server URL (the
 full collection root, e.g. `https://host/remote.php/dav/files/<user>/`), username and
 password.
 

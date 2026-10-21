@@ -1,5 +1,5 @@
 import { useActivitiesContext } from '@/features/activities';
-import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { IconButton, StatsTabParamList, StatsTabScreenProps } from '@/shared';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -431,14 +431,10 @@ const SettingsModal = ({
               </View>
             </View>
 
-            {/* Appearance */}
-            <View style={styles.settingSection}>
-              <Text style={styles.settingLabel}>Appearance</Text>
-              <Text style={styles.settingValue}>
-                Pick the colour theme. It applies straight away and is remembered.
-              </Text>
-              <PalettePicker />
-            </View>
+            {/* Appearance moved to the app's Settings (drawer → Settings): the
+                palette is app-wide, and it applied straight away inside this
+                modal's staged Save/Cancel controls, so Cancel silently did not
+                revert it. */}
 
             {/* Weekly Goal */}
             <View style={styles.settingSection}>

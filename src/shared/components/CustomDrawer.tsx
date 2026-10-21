@@ -1,4 +1,3 @@
-import { BackupSection } from '@/features/backup';
 import { StravaImportModal } from '@/features/strava-import';
 import { ProgressOverlay } from '@/features/stats';
 import { exportData, removeAllActivities, simpleLogger } from '@/shared';
@@ -45,7 +44,12 @@ export function getDrawerIconOptions(iconName: IoniconName) {
  * @param props The component props.
  * @returns A React component.
  */
-export function CustomDrawerContent(props: DrawerContentComponentProps): JSX.Element {
+type CustomDrawerContentProps = DrawerContentComponentProps & {
+  /** Opens the app's global settings (palette, WebDAV backup). */
+  onOpenSettings: () => void;
+};
+
+export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Element {
   const { setTotalActivitiesStored, setGlobalActivities } = useActivitiesContext();
 
   // Progress overlay states
@@ -113,7 +117,14 @@ export function CustomDrawerContent(props: DrawerContentComponentProps): JSX.Ele
         }}
         icon={getIconOptions('trash-outline')}
       />
-      <BackupSection />
+      <DrawerItem
+        label="Settings"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          props.onOpenSettings();
+        }}
+        icon={getIconOptions('settings-outline')}
+      />
       <DrawerItem
         label="Close drawer"
         onPress={() => props.navigation.closeDrawer()}

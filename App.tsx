@@ -14,11 +14,12 @@ import { MapsScreen } from '@/features/maps';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
+import { SettingsModal } from '@/shared/components/SettingsModal';
 import { createNavigationTheme, ThemeProvider, useTheme } from '@/theme';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -36,6 +37,11 @@ function AppContent() {
   const navigationTheme = useMemo(() => createNavigationTheme(theme), [theme]);
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
   const [backfillComplete, setBackfillComplete] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
+  // Stable so the drawer's memoised "Settings" row does not change identity
+  // every time the app re-renders.
+  const openSettings = useCallback(() => setSettingsVisible(true), []);
 
   useEffect(() => {
     // Log app startup
@@ -64,7 +70,9 @@ function AppContent() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer theme={navigationTheme}>
-        <Drawer.Navigator drawerContent={props => <CustomDrawerContent {...props} />}>
+        <Drawer.Navigator
+          drawerContent={props => <CustomDrawerContent {...props} onOpenSettings={openSettings} />}
+        >
           <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
             {props => <HomeScreen {...props} />}
           </Drawer.Screen>
@@ -92,6 +100,9 @@ function AppContent() {
             options={getDrawerIconOptions('newspaper-outline')}
           />
         </Drawer.Navigator>
+        {/* Mounted outside the drawer panel: the panel never unmounts, and the
+            settings form holds live text inputs. */}
+        <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
       </NavigationContainer>
     </GestureHandlerRootView>
   );
