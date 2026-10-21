@@ -139,14 +139,18 @@ const FIELD_SPECS: Record<FieldKey, FieldSpec> = {
 
 /** Lowercase, accent-free, whitespace-collapsed, trailing punctuation removed. */
 export function normalizeHeader(value: string): string {
-  return value
+  let out = value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
-    .toLowerCase()
-    .replace(/[.:;]+$/, '');
+    .toLowerCase();
+  // Loop, not /[.:;]+$/: the regex backtracks super-linearly (Sonar S8786).
+  while (out.length > 0 && '.:;'.includes(out[out.length - 1])) {
+    out = out.slice(0, -1);
+  }
+  return out;
 }
 
 /**

@@ -32,8 +32,13 @@ export interface ParsedGpx {
 const TRACK_POINT_PATTERN = /<trkpt\b([^>]*?)(?:\/>|>([\s\S]*?)<\/trkpt>)/g;
 const LAT_PATTERN = /\blat\s*=\s*["']([^"']+)["']/;
 const LON_PATTERN = /\blon\s*=\s*["']([^"']+)["']/;
-const ELE_PATTERN = /<ele>\s*([^<]+?)\s*<\/ele>/;
-const TIME_PATTERN = /<time>\s*([^<]+?)\s*<\/time>/;
+// `[^<]+?\s*` (lazy + whitespace run) overlaps and backtracks quadratically
+// on failing content (Sonar S8786); `\S` anchors the capture to real content
+// and the greedy tail cannot re-match the closing tag, so scanning stays
+// linear. Trailing whitespace now lands inside the capture; the readers below
+// (Number/Date.parse-after-trim) are whitespace-tolerant.
+const ELE_PATTERN = /<ele>\s*(\S[^<]*)<\/ele>/;
+const TIME_PATTERN = /<time>\s*(\S[^<]*)<\/time>/;
 const TRACK_NAME_PATTERN = /<trk>[\s\S]*?<name>([\s\S]*?)<\/name>/;
 const TRACK_TYPE_PATTERN = /<trk>[\s\S]*?<type>([\s\S]*?)<\/type>/;
 
@@ -59,7 +64,7 @@ function readTrackPoint(
 
   const lat = Number(latMatch[1]);
   const lon = Number(lonMatch[1]);
-  const timeMs = Date.parse(timeMatch[1]);
+  const timeMs = Date.parse(timeMatch[1].trim());
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Number.isNaN(timeMs)) return null;
 
   const eleMatch = body.match(ELE_PATTERN);

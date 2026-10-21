@@ -3,7 +3,12 @@ import { simpleLogger } from '@/shared';
 import * as Storage from '@/shared/services/storage';
 import * as SecureStore from 'expo-secure-store';
 import React from 'react';
-import { WebDavConfig, ensureDavFolder, testDavConnection } from './webdavTransport';
+import {
+  WebDavConfig,
+  ensureDavFolder,
+  testDavConnection,
+  trimTrailingSlashes
+} from './webdavTransport';
 
 /**
  * WebDAV backup configuration: server root URL + username + profile label in
@@ -40,7 +45,7 @@ const PROFILE_PATTERN = /^[A-Za-z0-9._-]+$/;
  * UI can show the resolved path (a typo in a label is otherwise invisible).
  */
 export function collectionUrlFor(rootUrl: string, profile: string): string {
-  const root = rootUrl.replace(/\/+$/, '');
+  const root = trimTrailingSlashes(rootUrl);
   return `${root}/${APP_CONFIG.BACKUP_APP_ID}/${profile}`;
 }
 

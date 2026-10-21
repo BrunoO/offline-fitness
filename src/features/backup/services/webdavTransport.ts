@@ -40,9 +40,20 @@ function basicAuth(username: string, password: string): string {
   return `Basic ${btoa(`${username}:${password}`)}`;
 }
 
+/**
+ * Drops trailing slashes with a linear scan: the regex `/\/+$/` backtracks
+ * quadratically over slash runs (Sonar S8786), and URLs ending in garbage
+ * are exactly what user-entered server roots look like.
+ */
+export function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 0x2f) end--;
+  return url.slice(0, end);
+}
+
 /** Joins a base collection URL with path segments, tolerating a trailing slash. */
 export function davUrl(baseUrl: string, ...segments: string[]): string {
-  const trimmed = baseUrl.replace(/\/+$/, '');
+  const trimmed = trimTrailingSlashes(baseUrl);
   const path = segments.map(segment => encodeURIComponent(segment)).join('/');
   return `${trimmed}/${path}`;
 }
@@ -111,7 +122,7 @@ async function davRequest(
  * credentials work; 401/403 mean bad credentials or missing permission.
  */
 export async function testDavConnection(config: WebDavConfig): Promise<void> {
-  await davRequest(config, config.baseUrl.replace(/\/+$/, '') + '/', 'PROPFIND', undefined, {
+  await davRequest(config, trimTrailingSlashes(config.baseUrl) + '/', 'PROPFIND', undefined, {
     Depth: '0'
   });
 }
@@ -123,7 +134,7 @@ export async function testDavConnection(config: WebDavConfig): Promise<void> {
  * end state, so it is not an error.
  */
 export async function ensureDavFolder(config: WebDavConfig, ...segments: string[]): Promise<void> {
-  let current = config.baseUrl.replace(/\/+$/, '');
+  let current = trimTrailingSlashes(config.baseUrl);
   for (const segment of segments) {
     current = davUrl(current, segment);
     try {

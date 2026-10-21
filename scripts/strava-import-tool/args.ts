@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '@/constants';
-import { WebDavConfig } from '@/features/backup/services/webdavTransport';
+import { WebDavConfig, trimTrailingSlashes } from '@/features/backup/services/webdavTransport';
 
 /**
  * Command-line parsing and validation, deliberately free of I/O: the rules
@@ -181,7 +181,7 @@ export function buildConfig(options: ToolOptions, password: string): WebDavConfi
     );
   }
 
-  const root = rootUrl.replace(/\/+$/, '');
+  const root = trimTrailingSlashes(rootUrl);
   return {
     baseUrl: `${root}/${APP_CONFIG.BACKUP_APP_ID}/${profile}`,
     rootUrl,

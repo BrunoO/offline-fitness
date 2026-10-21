@@ -735,3 +735,10 @@ A comprehensive code review was performed, covering technical debt, architecture
 ## Jest Assertion Specificity - 2026-10-21
 
 - Closed all 14 Sonar S5906 MINORs: `expect(x.length).toBe(n)` -> `expect(x).toHaveLength(n)` and `expect(x).toBe(undefined)` -> `expect(x).toBeUndefined()` across nodeSource/theme/useActivities/fetchAndStoreStreams/storage/ytd-stats specs. Specific matchers give readable failure diffs; all assertions still pass, confirming behaviour parity.
+
+## Regex Backtracking Batch - 2026-10-21
+
+- Closed all 7 Sonar S8786 MAJORs (super-linear regexes) plus one unscanned twin in the desktop tool; each fix is also a small perf win, not just a lint quiet:
+  - `/\/+$/` trailing-slash trims (webdavAuth, webdavTransport x3, tool args.ts x1): replaced by `trimTrailingSlashes()` - a linear `charCodeAt` scan exported from `webdavTransport`; quadratic only on hostile input, but server URLs are user-typed.
+  - `/[.:;]+$/` in `csvParser.normalizeHeader` (runs per header cell per import): explicit `slice` loop. A `trimEnd('.:;')` shortcut was tried first and rejected - trimEnd takes no arguments, the spec'd "codePoints" proposal never shipped; the caught-by-test behaviour difference ("vitesse max.") is why the fixture suite matters.
+  - `gpxParser` `<ele>`/`<time>` patterns `\s*([^<]+?)\s*`: whitespace run + lazy capture overlapped, so failing matches backtracked quadratically per track point. Now `/<ele>\s*(\S[^<]*)<\/ele>/` - the `\S` anchor removes the overlap and the greedy tail cannot rematch the closing tag, so matching is linear. Trailing whitespace lands inside the capture: `Number()` tolerates it; `Date.parse` gets an explicit `.trim()`.
