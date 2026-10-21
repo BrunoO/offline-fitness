@@ -130,6 +130,20 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Exported zip chunks are now deleted once shared** — a side-find of auditing the README's
+  privacy claims. `exportData` wrote `strava_export*.zip` into the app document directory,
+  opened the share sheet per chunk, and never touched the files again: a full export left
+  close to a gigabyte in app storage — storage Android's backup agent can then copy around —
+  and a run killed mid-share left its chunks forever. Each chunk is now deleted when its
+  share returns, and every export first sweeps `strava_export*.zip` left by an interrupted
+  predecessor; a failed delete is logged and never fails the export. The return type went
+  from `Promise<string | null>` to `Promise<void>`: the returned uri pointed at a deleted
+  file by the time any caller could use it, and both callers ignored it anyway.
+  - Tests: `__tests__/shared/exportData.spec.ts` (both chunks shared then gone, stale chunks
+    swept, progress reaches 1). The `Directory` mock in `jest.setup.js` accepts the
+    single-argument root form. The README Fine print now describes the remaining window
+    (chunks from a run killed mid-share live until the next export).
+
 - **Merged activity types left the yearly tables without a column** — found while chasing the
   *Last years* crash, but a separate and older bug. `mergeActivities` renamed `EBikeRide` →
   `Ride` and `Hike` → `Walk` on the **activities** while only **dropping** `EBikeRide`/`Hike`

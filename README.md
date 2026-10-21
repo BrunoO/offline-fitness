@@ -108,10 +108,11 @@ Behaviours of the app (or the OS around it) that can surprise you:
   included, off the device. The app itself never uploads anything. If you want the local
   store to be *strictly* local, exclude the app in your phone's backup settings; building
   from source, `allowBackup="false"` is the harder guarantee.
-- **Export leaves its zip chunks behind.** An export writes `strava_export*.zip` into the
-  app's own document storage and opens the share sheet per chunk; the files stay there
-  (and are part of the storage the point above backs up) until cleared or overwritten by a
-  later export.
+- **Export cleans up after itself — almost.** Export writes `strava_export*.zip` chunks into
+  the app's document storage and opens the share sheet per chunk, deleting each once its
+  share returns; the recipient's copy is then yours to manage. Files left by an export that
+  was killed *mid-run* survive until the next export, which sweeps them first — so a share
+  you abandoned can leave gigabytes in app storage briefly.
 - **Map tiles reveal where you ride.** While a map is visible, the tile provider sees your
   IP address and roughly the region you are browsing. This is the only data the app ever
   sends anywhere unless *you* trigger it.

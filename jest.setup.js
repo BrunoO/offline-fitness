@@ -40,12 +40,13 @@ jest.mock('expo-file-system', () => {
   return {
     Paths: {
       document: 'file:///var/mobile/Containers/Data/Application/mock-uuid/Documents/',
-      cache: 'file:///var/mobile/Containers/Data/Application/mock-uuid/Library/Caches/',
+      cache: 'file:///var/mobile/Containers/Data/Application/mock-uuid/Library/Caches/'
     },
     File,
     Directory: class Directory {
       constructor(path, name) {
-        this.uri = `${path}${name}/`;
+        const basePath = typeof path === 'string' ? path : path.uri;
+        this.uri = name ? `${basePath}${name}/` : basePath;
         this.name = name;
       }
 
@@ -67,7 +68,7 @@ jest.mock('expo-file-system', () => {
         return filesInDir;
       }
     },
-    __setMockFiles: (newMockFiles) => {
+    __setMockFiles: newMockFiles => {
       mockFiles = newMockFiles;
     },
     __clearMockFiles: () => {

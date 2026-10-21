@@ -43,14 +43,41 @@ const streamToGPX = (activity: Activity, stream: StreamSet): string => {
 };
 
 const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+const documentsFolder = new Directory(Paths.document);
+
+/** Chunk names written by previous export runs, current and legacy. */
+const EXPORT_CHUNK_PATTERN = /^strava_export(_part_\d+_of_\d+)?\.zip$/;
+
+/**
+ * Removes export zips a previous run left behind (a share cancelled or the app
+ * killed mid-loop keeps every chunk it had already written).
+ */
+function removeStaleExportChunks(): void {
+  try {
+    documentsFolder.list().forEach(entry => {
+      if (entry instanceof File && EXPORT_CHUNK_PATTERN.test(entry.name)) {
+        try {
+          entry.delete();
+          simpleLogger.log(`Removed stale export chunk ${entry.name}`);
+        } catch (deleteError) {
+          simpleLogger.log(`Could not remove stale chunk ${entry.name}: ${deleteError}`);
+        }
+      }
+    });
+  } catch (listError) {
+    // Nothing to clean and no reason to abort the export over it.
+    simpleLogger.log(`Stale export chunk sweep skipped: ${listError}`);
+  }
+}
 
 // Main export function
 export const exportData = async (
   setProgress: (progress: number) => void,
   activitiesToExport?: Activity[]
-): Promise<string | null> => {
+): Promise<void> => {
   try {
     setProgress(0);
+    removeStaleExportChunks();
     let activities: Activity[];
     if (activitiesToExport) {
       activities = activitiesToExport;
@@ -139,6 +166,16 @@ export const exportData = async (
       simpleLogger.log(`Sharing file ${i + 1}/${exportedFiles.length}: ${file.uri}`);
       await Sharing.shareAsync(file.uri);
 
+      // Once the share sheet returns, the recipient has its own copy. Without
+      // this the chunks pile up in app storage — a full export is close to a
+      // gigabyte — and Android's backup agent copies them around. A failed
+      // delete must never fail the export.
+      try {
+        file.delete();
+      } catch (deleteError) {
+        simpleLogger.log(`Could not delete ${file.name} after sharing: ${deleteError}`);
+      }
+
       // Add a small delay between shares to prevent overwhelming the system
       if (i < exportedFiles.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -146,10 +183,8 @@ export const exportData = async (
     }
 
     setProgress(1);
-    return exportedFiles.length > 0 ? exportedFiles[0].uri : null;
   } catch (error) {
     simpleLogger.log(`Error exporting data: ${error}`);
     setProgress(0);
-    return null;
   }
 };
