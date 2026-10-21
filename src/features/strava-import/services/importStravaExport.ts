@@ -57,7 +57,6 @@ const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
 
 const CACHE_ARCHIVE_NAME = 'strava-export-import.zip';
 const ACTIVITY_BATCH_SIZE = 100;
-const YIELD_EVERY = 25;
 
 /** A track slower than this is logged with its id, so a bad file names itself. */
 const SLOW_TRACK_MS = 3000;
@@ -128,7 +127,14 @@ function emptySummary(timezone: string): ImportSummary {
   };
 }
 
-/** Gives the UI thread a chance to breathe during long loops. */
+/**
+ * Hands the JS thread back to the event loop.
+ *
+ * A microtask hop (awaiting something that is already resolved) is not enough:
+ * microtasks starve timers, so `setInterval` and React's scheduler never run,
+ * and the running screen would freeze for the whole pass. `setTimeout` is a
+ * macrotask, which is what makes the live poll — and the progress bar — move.
+ */
 function yieldToUi(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0));
 }
@@ -148,6 +154,28 @@ function mark(
   live.step = step;
   live.stepStartedAt = Date.now();
   if (patch) Object.assign(live, patch);
+}
+
+/**
+ * Records the sub-step the import is inside, and lets the UI paint it before
+ * the next blocking call.
+ *
+ * The running screen polls the live object on a timer, and a timer cannot run
+ * while the JS thread is inside a synchronous native call. `File.write` and
+ * `FileHandle.readBytes` are synchronous (they return `void` and `Uint8Array`,
+ * not promises), so a big track's write holds the thread for as long as the
+ * disk takes. Recording the step without releasing the thread means the screen
+ * only catches up *after* the call returns, which is the opposite of what it
+ * is for: yield right after marking, so "writing stream…" is on screen while
+ * the stream is being written.
+ */
+async function markStep(
+  live: ImportLiveState | undefined,
+  step: ImportStep,
+  patch?: Partial<ImportLiveState>
+): Promise<void> {
+  mark(live, step, patch);
+  await yieldToUi();
 }
 
 /**
@@ -357,7 +385,7 @@ export async function importStravaExport(
       throw new Error('The selected file is not a ZIP archive');
     }
 
-    mark(live, 'reading-directory');
+    await markStep(live, 'reading-directory');
     const directoryStartedAt = Date.now();
     const entries = await readZipEntries(byteSource);
     timings.readDirectory += Date.now() - directoryStartedAt;
@@ -419,7 +447,7 @@ export async function importStravaExport(
         return summary;
       }
       const batch = activities.slice(start, start + ACTIVITY_BATCH_SIZE);
-      mark(live, 'saving-activities', {
+      await markStep(live, 'saving-activities', {
         phase: 'activities',
         index: start,
         total: activities.length
@@ -491,7 +519,7 @@ export async function importStravaExport(
         // older import, or a re-import that overwrote them). Restore them
         // from the stored stream when they are missing.
         if (lacksTrackFields(activity)) {
-          mark(live, 'backfilling');
+          await markStep(live, 'backfilling');
           await backfillTrackFields(activity, new File(streamsFolder, streamName));
         }
         continue;
@@ -522,7 +550,7 @@ export async function importStravaExport(
       }
 
       try {
-        mark(live, 'reading-track', { entryBytes: entry.uncompressedSize });
+        await markStep(live, 'reading-track', { entryBytes: entry.uncompressedSize });
         const readStartedAt = Date.now();
         const raw = await readZipEntry(byteSource, entry);
         readMs = Date.now() - readStartedAt;
@@ -553,7 +581,7 @@ export async function importStravaExport(
         parseMs = Date.now() - parseStartedAt;
         timings.parseTracks += parseMs;
 
-        mark(live, 'writing-stream');
+        await markStep(live, 'writing-stream');
         const streamStartedAt = Date.now();
         new File(streamsFolder, streamName).write(payload);
         writeMs = Date.now() - streamStartedAt;
@@ -569,7 +597,7 @@ export async function importStravaExport(
         if (boundingBox) activity.bounding_box = boundingBox;
         pendingActivityWrites.push(activity);
         if (pendingActivityWrites.length >= ACTIVITY_BATCH_SIZE) {
-          mark(live, 'saving-activity');
+          await markStep(live, 'saving-activity');
           const flushStartedAt = Date.now();
           await flushActivityWrites();
           flushMs += Date.now() - flushStartedAt;
@@ -610,10 +638,12 @@ export async function importStravaExport(
         }
       }
 
-      if (index % YIELD_EVERY === 0) await yieldToUi();
+      // Each track already yields twice — before its read and before its write —
+      // so the screen shows which call it is inside. A third yield here would
+      // only cost time on tracks that were skipped.
     }
 
-    mark(live, 'saving-activity');
+    await markStep(live, 'saving-activity');
     await flushActivityWrites();
     onProgress?.({ phase: 'done', processed: ordered.length, total: ordered.length });
     mark(live, 'idle');

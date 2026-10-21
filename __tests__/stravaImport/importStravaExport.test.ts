@@ -333,6 +333,33 @@ describe('importStravaExport', () => {
     expect(mockLiveState.state?.timings).toBe(result.timings);
   });
 
+  it('lets timers run while it works, so a polling screen can keep up', async () => {
+    mockVirtualFiles.set(PICKED_PATH, { bytes: await buildArchiveWith(MANY_ACTIVITIES_CSV) });
+    const samples: string[] = [];
+    // Stands in for the running screen: it can only see the live state when the
+    // importer hands the JS thread back. The file calls it makes are
+    // synchronous, so a loop that never yields starves this timer entirely.
+    const poll = setInterval(() => {
+      if (mockLiveState.state) samples.push(mockLiveState.state.step);
+    }, 0);
+
+    try {
+      await importStravaExport(pickedFile(), {
+        onLiveState: state => {
+          mockLiveState.state = state;
+        }
+      });
+    } finally {
+      clearInterval(poll);
+    }
+
+    // Every track yields before its read and before its write, so the poller
+    // catches the import inside both steps rather than only at the end.
+    expect(samples).toContain('reading-track');
+    expect(samples).toContain('writing-stream');
+    expect(samples.length).toBeGreaterThan(10);
+  });
+
   it('reports a timing breakdown', () => {
     const { timings } = summary;
     expect(Object.values(timings).every(value => Number.isFinite(value))).toBe(true);
