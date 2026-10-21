@@ -4,6 +4,7 @@ import { createMemoryByteSource, readZipEntries } from '@/features/strava-import
 import JSZip from 'jszip';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { seedCollection } from '../../scripts/strava-import-tool/seed';
+import { DavClient } from '../../scripts/strava-import-tool/client';
 import {
   CSV_HEADER,
   GPX_123,
@@ -339,6 +340,100 @@ describe('seedCollection travel zones (Phase 4)', () => {
   });
 });
 
+describe('seedCollection upload resilience', () => {
+  it('retries a dropped PUT and still converges', async () => {
+    const base = createFakeClient();
+    let attempts = 0;
+    const flaky: DavClient = {
+      ...base.client,
+      putText: async (segments, body) => {
+        if (segments.join('/') === 'activities/123.json') {
+          attempts++;
+          if (attempts < 3) throw new Error('fetch failed');
+        }
+        return base.client.putText(segments, body);
+      }
+    };
+    const summary = await seedCollection({
+      archivePath: await writeArchiveFixture(),
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: flaky
+    });
+
+    expect(attempts).toBe(3);
+    expect(summary.failedTracks).toBe(0);
+    expect(summary.activitiesUploaded).toBe(4);
+    expect(summary.uploadedActivityIds).toContain('123');
+  });
+
+  it('aborts naming the file after exhausting retries', async () => {
+    const base = createFakeClient();
+    let attempts = 0;
+    const dead: DavClient = {
+      ...base.client,
+      putText: async (segments, body) => {
+        if (segments[0] === 'activities') {
+          attempts++;
+          throw new Error('fetch failed');
+        }
+        return base.client.putText(segments, body);
+      }
+    };
+    await expect(
+      seedCollection({
+        archivePath: await writeArchiveFixture(),
+        timezone: machineZone,
+        config: TEST_CONFIG,
+        client: dead
+      })
+    ).rejects.toThrow(/activity \d+: upload failed after 3 attempt\(s\): fetch failed/);
+    // Every activity's record PUT retried to exhaustion (4 rows × 3).
+    expect(attempts).toBe(12);
+  });
+
+  it('checkpoints let a re-run resume the completed prefix', async () => {
+    const fake = createFakeClient();
+    // Newest-first with concurrency 1: 999, 789, then 456 dies.
+    const failing: DavClient = {
+      ...fake.client,
+      putText: async (segments, body) => {
+        if (segments.join('/') === 'activities/456.json') throw new Error('fetch failed');
+        return fake.client.putText(segments, body);
+      }
+    };
+    const archivePath = await writeArchiveFixture();
+    await expect(
+      seedCollection({
+        archivePath,
+        timezone: machineZone,
+        config: TEST_CONFIG,
+        client: failing,
+        concurrency: 1,
+        checkpointEvery: 1
+      })
+    ).rejects.toThrow(/activity 456: upload failed after 3 attempt/);
+
+    // The abort left a valid partial state: 999 + 789, no 456.
+    const partial = JSON.parse(fake.store.get('sync-state.json') as string);
+    expect(Object.keys(partial.activityMd5).sort()).toEqual(['789.json', '999.json']);
+
+    // Heal and re-run: only the tail transfers.
+    const summary = await seedCollection({
+      archivePath,
+      timezone: machineZone,
+      config: TEST_CONFIG,
+      client: fake.client,
+      concurrency: 1
+    });
+    expect(summary.activitiesSkipped).toBe(2);
+    expect(summary.activitiesUploaded).toBe(2);
+    expect(summary.uploadedActivityIds.sort()).toEqual(['123', '456']);
+    expect(summary.streamsSkipped).toBe(1); // 999's stream survived the abort
+    expect(summary.streamsUploaded).toBe(1); // 123's
+  });
+});
+
 describe('seedCollection swim canonicalisation', () => {
   it('uploads swims with moving_time = elapsed_time, even via the GPX type fallback', async () => {
     // 'Inconnu' does not map to a type; the GPX <type> makes it a Swim after
@@ -416,8 +511,13 @@ describe('seedCollection archive failures', () => {
         client: fake.client
       })
     ).rejects.toThrow(/failed in a row/);
-    // Aborted before the state write: the collection stays exactly as whole.
-    expect(fake.putOrder[fake.putOrder.length - 1]).not.toBe('sync-state.json');
+    // Aborting still throws — but the completed prefix is checkpointed as a
+    // valid partial state (activity records upload fine even when their
+    // tracks are unreadable), so a re-run resumes instead of redoing it.
+    expect(fake.putOrder[fake.putOrder.length - 1]).toBe('sync-state.json');
+    const partial = JSON.parse(fake.store.get('sync-state.json') as string);
+    expect(Object.keys(partial.activityMd5).length).toBeGreaterThan(0);
+    expect(Object.keys(partial.streamMd5)).toHaveLength(0);
   });
 
   it('a missing CSV is a hard error', async () => {

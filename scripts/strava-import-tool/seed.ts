@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '@/constants';
-import { WebDavConfig } from '@/features/backup/services/webdavTransport';
+import { WebDavConfig, WebDavTransportError } from '@/features/backup/services/webdavTransport';
 import {
   applySwimMovingTime,
   repairDistanceUnit,
@@ -47,9 +47,12 @@ import { ZoneLookup } from './zoneLookup';
  * - `collection.json` is claimed first, with the app id, the profile and
  *   `schemaVersion` 2. Both apps refuse a folder whose version differs, so a
  *   tool-written collection and an app-written one cannot half-mix layouts.
- * - `sync-state.json` is written **last**: its md5 key sets are the file list
- *   `pullBackup` downloads, so an interrupted run leaves a consistent — just
- *   smaller — collection, and re-running resumes instead of duplicating.
+ * - `sync-state.json` is written **last** — plus interim checkpoints every
+ *   ~100 activities (see `checkpointEvery`): the maps only ever reference
+ *   files already PUT, so any checkpoint is a consistent smaller collection,
+ *   and a re-run after an abort resumes instead of redoing the completed
+ *   prefix. Uploads retry transient failures; a persistent one aborts naming
+ *   the file, not just "fetch failed".
  * - Remote `deletedAt` tombstones are honored: a tombstoned activity is not
  *   uploaded, stays out of the maps, and its tombstone survives the state
  *   rewrite — otherwise a re-import would resurrect what the athlete deleted.
@@ -63,9 +66,54 @@ import { ZoneLookup } from './zoneLookup';
 
 const DEFAULT_CONCURRENCY = 8;
 const MAX_CONCURRENCY = 32;
+/** State checkpoint cadence: a sync-state.json write every N activities. */
+const DEFAULT_CHECKPOINT_EVERY = 100;
+
+/** Upload attempts per file before the run aborts (first try + retries). */
+const UPLOAD_ATTEMPTS = 3;
+/** Backoff between retries: 500 ms, 1 s (×2 per attempt). */
+const RETRY_BASE_DELAY_MS = 500;
 
 /** Read failures in a row before the run gives up — mirrors the phone importer. */
 const MAX_CONSECUTIVE_READ_FAILURES = 10;
+
+/** True for failures worth retrying: dropped connections and server-side strain — never 4xx, which fail identically every time (auth, conflicts, missing). */
+function isRetryable(error: unknown): boolean {
+  if (error instanceof WebDavTransportError) {
+    const status = error.status ?? 0;
+    return status === 0 || status === 408 || status === 429 || status >= 500;
+  }
+  // Anything else is connection-level (DNS, refused, reset, hung-up fetch).
+  return true;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * One PUT with retries. A 4,000-file run over a home LAN must survive a blip:
+ * the alternative is aborting at 95% and — before state checkpoints — redoing
+ * the completed prefix on the re-run. The label names the file in the final
+ * error, so a persistent failure points at the record instead of a bare
+ * "fetch failed".
+ */
+async function putWithRetry(label: string, put: () => Promise<void>): Promise<void> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      await put();
+      return;
+    } catch (error) {
+      attempt++;
+      if (!isRetryable(error) || attempt >= UPLOAD_ATTEMPTS) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${label}: upload failed after ${attempt} attempt(s): ${message}`);
+      }
+      await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+    }
+  }
+}
 
 /** The marker's shape on the server; mirrors `CollectionMarker` in `backupSync.ts`. */
 export interface CollectionMarker {
@@ -96,6 +144,13 @@ export interface SeedOptions {
   lookupZone?: ZoneLookup;
   /** Parallel PUTs. Conversion is CPU-bound, upload network-bound; 8 is a good LAN default. */
   concurrency?: number;
+  /**
+   * State checkpoint cadence: rewrite sync-state.json every N activities so an
+   * aborted run resumes incrementally instead of redoing the completed prefix.
+   * Safe at any cadence — the maps only ever reference files already PUT, so
+   * every checkpoint is a consistent smaller collection. Default 100.
+   */
+  checkpointEvery?: number;
   /** Convert and report with zero network access and zero remote writes. */
   dryRun?: boolean;
   onProgress?: (progress: { done: number; total: number; currentActivityId: string }) => void;
@@ -231,6 +286,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     1,
     Math.min(options.concurrency ?? DEFAULT_CONCURRENCY, MAX_CONCURRENCY)
   );
+  const checkpointEvery = Math.max(1, options.checkpointEvery ?? DEFAULT_CHECKPOINT_EVERY);
   const warnings: string[] = [];
 
   applyTimezone(timezone);
@@ -314,6 +370,19 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     let consecutiveReadFailures = 0;
     let fatalError: Error | undefined;
     const total = queue.length;
+
+    // The state write, factored so the final write and the interim
+    // checkpoints share it. Always consistent: both maps only gain entries
+    // for files whose PUT already succeeded, and deletedAt is fixed above.
+    const writeState = async (): Promise<void> => {
+      const syncState: RemoteSyncState = {
+        syncedAt: new Date().toISOString(),
+        activityMd5,
+        streamMd5,
+        deletedAt
+      };
+      await client.putText([APP_CONFIG.BACKUP_SYNC_STATE_FILE], JSON.stringify(syncState));
+    };
 
     const processRow = async (row: ExportedActivityRow): Promise<void> => {
       const id = row.id;
@@ -424,7 +493,11 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
           summary.uploadedStreamNames.push(name);
           summary.bytesUploaded += streamBytes.byteLength;
           if (!dryRun) {
-            await client.putBytes([APP_CONFIG.BACKUP_STREAMS_FOLDER, name], streamBytes);
+            // Narrowed for the closure: TS drops `let` narrowing inside one.
+            const payload: Uint8Array = streamBytes;
+            await putWithRetry(`stream ${name}`, () =>
+              client.putBytes([APP_CONFIG.BACKUP_STREAMS_FOLDER, name], payload)
+            );
             streamMd5[name] = hash;
           }
         }
@@ -440,7 +513,9 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
         summary.uploadedActivityIds.push(id);
         summary.bytesUploaded += Buffer.byteLength(content);
         if (!dryRun) {
-          await client.putText([APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, name], content);
+          await putWithRetry(`activity ${id}`, () =>
+            client.putText([APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, name], content)
+          );
           activityMd5[name] = hash;
         }
       }
@@ -458,27 +533,31 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
         try {
           await processRow(row);
         } catch (error) {
-          fatalError = error instanceof Error ? error : new Error(String(error));
+          if (!fatalError) fatalError = error instanceof Error ? error : new Error(String(error));
           return;
         }
         done++;
+        // Interim checkpoint, awaited inline: cheap (one small PUT per
+        // `checkpointEvery` activities) and strictly ordered — this worker
+        // settles it before rejoining the pool, so the final write below can
+        // never land before a checkpoint. `done++` is synchronous, so each
+        // multiple is hit by exactly one worker.
+        if (!dryRun && done % checkpointEvery === 0) await writeState();
         options.onProgress?.({ done, total, currentActivityId: row.id });
       }
     };
 
     await Promise.all(Array.from({ length: Math.min(concurrency, total) }, worker));
-    if (fatalError) throw fatalError;
+    if (fatalError) {
+      // Leave the completed prefix behind as a valid state so the re-run
+      // resumes instead of redoing it. Best effort: if the server is gone,
+      // the checkpoint fails too and the original error is what matters.
+      if (!dryRun) await writeState().catch(() => {});
+      throw fatalError;
+    }
 
     // ---- state last: its key sets are the file list the phone restores from ----
-    if (!dryRun) {
-      const syncState: RemoteSyncState = {
-        syncedAt: new Date().toISOString(),
-        activityMd5,
-        streamMd5,
-        deletedAt
-      };
-      await client.putText([APP_CONFIG.BACKUP_SYNC_STATE_FILE], JSON.stringify(syncState));
-    }
+    if (!dryRun) await writeState();
 
     summary.timings.transfer = Date.now() - startedAt - summary.timings.archive;
     summary.timings.total = Date.now() - startedAt;
