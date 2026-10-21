@@ -1,5 +1,5 @@
 import { ProgressOverlay } from '@/features/stats';
-import { exportData, removeAllActivities, simpleLogger } from '@/shared';
+import { exportData, getAllActivitiesKeys, removeAllActivities, simpleLogger } from '@/shared';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DrawerContentComponentProps,
@@ -54,6 +54,9 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
   // Progress overlay states
   const [exportProgress, setExportProgress] = useState(0);
   const [exportVisible, setExportVisible] = useState(false);
+  // Guards the Clear-Activities handler against double-tap while the native
+  // batch delete is in flight (see the handler for why ordering matters).
+  const [isClearing, setIsClearing] = useState(false);
 
   const handleExportData = async () => {
     simpleLogger.log('User initiated data export', {
@@ -90,16 +93,42 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         onPress={() => {
           Alert.alert(
             'Clear Local Activities',
-            'This will permanently delete all locally stored activities. This action cannot be undone.',
+            'This deletes all activity records on this phone so a fresh Restore can refill them (for example after the backup was corrected elsewhere). Cached tracks are kept and reused. This action cannot be undone.',
             [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Delete',
                 style: 'destructive',
-                onPress: () => {
-                  removeAllActivities();
-                  setTotalActivitiesStored(0);
-                  setGlobalActivities([]);
+                onPress: async () => {
+                  if (isClearing) return;
+                  setIsClearing(true);
+                  try {
+                    await removeAllActivities();
+                    // The deletion is one native batch over thousands of keys.
+                    // Restoring before it lands leaves survivors that Restore
+                    // then skips as "local wins" — and the next push
+                    // re-uploads those stale records over the server's copies.
+                    // So the UI only blanks after verifying the store is empty.
+                    const remaining = await getAllActivitiesKeys();
+                    if (remaining.length > 0) {
+                      throw new Error(
+                        `${remaining.length} record${remaining.length === 1 ? '' : 's'} could not be deleted`
+                      );
+                    }
+                    setTotalActivitiesStored(0);
+                    setGlobalActivities([]);
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    simpleLogger.error('Clear Local Activities failed', {
+                      error: message
+                    });
+                    Alert.alert(
+                      'Could not clear activities',
+                      `${message}. Nothing was discarded from the display — try again, and restore only once this succeeds.`
+                    );
+                  } finally {
+                    setIsClearing(false);
+                  }
                 }
               }
             ]
