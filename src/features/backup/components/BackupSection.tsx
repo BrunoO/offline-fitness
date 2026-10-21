@@ -15,6 +15,17 @@ function formatLastSync(isoString: string): string {
 }
 
 /**
+ * Names up to 3 ids inline for the status line ("9.json, +2 more"). The full
+ * lists travel in the summary (and trimmed to 25 in the logs); the status
+ * line only needs enough to identify the files at a glance.
+ */
+function idSuffix(ids: readonly string[]): string {
+  if (ids.length === 0) return '';
+  const shown = ids.slice(0, 3).join(', ');
+  return ` (${shown}${ids.length > 3 ? `, +${ids.length - 3} more` : ''})`;
+}
+
+/**
  * WebDAV backup controls for the drawer. Unconfigured: a small form for
  * the server account URL, username, password and profile name, validated
  * with a PROPFIND before being saved. Configured: manual "Sync now" and
@@ -113,9 +124,12 @@ export function BackupSection() {
         );
       } else {
         setStatus(
-          `Done: ${summary.uploadedActivities + summary.uploadedStreams} uploaded, ` +
-            `${summary.skippedActivities + summary.skippedStreams} unchanged (skipped)` +
-            (summary.deletedRemote > 0 ? `, ${summary.deletedRemote} deleted` : '')
+          `Done: ${summary.uploadedActivities + summary.uploadedStreams} uploaded` +
+            idSuffix([...summary.uploadedActivityIds, ...summary.uploadedStreamNames]) +
+            `, ${summary.skippedActivities + summary.skippedStreams} unchanged (skipped)` +
+            (summary.deletedRemote > 0
+              ? `, ${summary.deletedRemote} deleted${idSuffix(summary.deletedRemoteIds)}`
+              : '')
         );
       }
     } catch (error) {
@@ -164,9 +178,15 @@ export function BackupSection() {
                 );
               } else {
                 setStatus(
-                  `Restore done: ${summary.restoredActivities} activities, ` +
-                    `${summary.restoredStreams} streams downloaded, ` +
-                    `${summary.skippedActivities + summary.skippedStreams} already present`
+                  `Restore done: ${summary.restoredActivities} activities` +
+                    idSuffix(summary.restoredActivityIds) +
+                    `, ${summary.restoredStreams} streams downloaded` +
+                    idSuffix(summary.restoredStreamNames) +
+                    `, ${summary.skippedActivities + summary.skippedStreams} already present` +
+                    (summary.refreshedStreamNames.length > 0
+                      ? `, ${summary.refreshedStreamNames.length} refreshed` +
+                        idSuffix(summary.refreshedStreamNames)
+                      : '')
                 );
               }
             } catch (error) {

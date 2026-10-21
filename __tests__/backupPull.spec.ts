@@ -149,6 +149,7 @@ describe('pullBackupNow (restore)', () => {
     const summary = await pullBackupNow();
 
     expect(summary.restoredActivities).toBe(1);
+    expect(summary.restoredActivityIds).toEqual(['2']);
     expect(summary.skippedActivities).toBe(1);
     expect(summary.errors).toHaveLength(0);
     expect(mockStorage.storeMultiActivities).toHaveBeenCalledTimes(1);
@@ -175,6 +176,8 @@ describe('pullBackupNow (restore)', () => {
     const summary = await pullBackupNow();
 
     expect(summary.restoredStreams).toBe(1);
+    expect(summary.restoredStreamNames).toEqual(['2.json']);
+    expect(summary.refreshedStreamNames).toEqual([]);
     expect(summary.skippedStreams).toBe(1);
     expect(mockFiles.get('doc/streams/2.json')).toBe('stream-content');
     expect(mockFiles.get('doc/streams/1.json')).toBe('existing'); // local wins
@@ -203,6 +206,8 @@ describe('pullBackupNow (restore)', () => {
     const summary = await pullBackupNow();
 
     expect(summary.restoredStreams).toBe(1);
+    expect(summary.restoredStreamNames).toEqual(['9.json']);
+    expect(summary.refreshedStreamNames).toEqual(['9.json']);
     expect(summary.skippedStreams).toBe(0);
     expect(summary.errors).toHaveLength(0);
     expect(mockFiles.get('doc/streams/9.json')).toBe('fresh-bytes-from-server');

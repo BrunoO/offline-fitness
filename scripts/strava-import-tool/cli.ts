@@ -72,6 +72,14 @@ function reportSeed(summary: SeedSummary, dryRun: boolean): void {
     zoneCounts.length <= 1
       ? `Zones:      all ${zoneCounts[0]?.[1] ?? 0} in ${zoneCounts[0]?.[0] ?? '—'}`
       : `Zones:      ${zoneCounts.map(([zone, count]) => `${zone} ×${count}`).join(', ')}`;
+  // Which files, not just how many — the fine grain that names the next
+  // investigation instead of starting it.
+  const uploadedIds = [...summary.uploadedActivityIds, ...summary.uploadedStreamNames];
+  const idsReport =
+    uploadedIds.length === 0
+      ? 'IDs:        nothing uploaded'
+      : `IDs:        ${uploadedIds.slice(0, 10).join(', ')}` +
+        (uploadedIds.length > 10 ? ` (+${uploadedIds.length - 10} more)` : '');
   const lines = [
     `Activities: ${summary.activitiesParsed} parsed — ` +
       `${summary.activitiesUploaded} uploaded, ${summary.activitiesSkipped} already present` +
@@ -85,7 +93,8 @@ function reportSeed(summary: SeedSummary, dryRun: boolean): void {
     )}, transfer ${formatDuration(summary.timings.transfer)}, total ${formatDuration(
       summary.timings.total
     )}`,
-    zoneReport
+    zoneReport,
+    idsReport
   ];
   if (dryRun) {
     lines.unshift('DRY RUN — converted and hashed locally; the counts are what a real run would upload.');

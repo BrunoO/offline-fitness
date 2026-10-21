@@ -22,6 +22,12 @@ export interface SyncSummary {
   deletedRemote: number;
   errors: string[];
   syncedAt: string;
+  /** Ids uploaded this run — the fine grain the counts hide (Phase-6 ping-pong). */
+  uploadedActivityIds: string[];
+  /** File names (`<id>.json`) uploaded this run. */
+  uploadedStreamNames: string[];
+  /** Tombstoned ids deleted from the server this run. */
+  deletedRemoteIds: string[];
 }
 
 export type SyncProgress = {
@@ -228,7 +234,10 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
     skippedStreams: 0,
     deletedRemote: 0,
     errors: [],
-    syncedAt: new Date().toISOString()
+    syncedAt: new Date().toISOString(),
+    uploadedActivityIds: [],
+    uploadedStreamNames: [],
+    deletedRemoteIds: []
   };
 
   // The collection is <root>/<appId>/<profile>/. Recreate the chain in case
@@ -292,6 +301,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
         tombstones[id] = deletedAt;
         remoteDeletedAt[id] = deletedAt;
         summary.deletedRemote += 1;
+        summary.deletedRemoteIds.push(id);
       }
     } catch (error) {
       summary.errors.push(
@@ -328,6 +338,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
       } else {
         await putDavFile(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, name, content);
         summary.uploadedActivities += 1;
+        summary.uploadedActivityIds.push(activity.id);
       }
       pushedActivityMd5[name] = contentMd5;
     } catch (error) {
@@ -356,6 +367,7 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
       } else {
         await putDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, file.name, content);
         summary.uploadedStreams += 1;
+        summary.uploadedStreamNames.push(file.name);
       }
       pushedStreamMd5[file.name] = contentMd5;
     } catch (error) {
@@ -378,7 +390,14 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
   onProgress?.({ phase: 'state', done: 1, total: 1 });
 
   await Storage.storeStringValue(Storage.BACKUP_LAST_SYNC_KEY, summary.syncedAt);
-  simpleLogger.log('WebDAV backup push complete', { ...summary });
+  // The returned summary carries the full id lists; the log keeps a head of
+  // each so the LogScreen stays readable on a full-collection sync.
+  simpleLogger.log('WebDAV backup push complete', {
+    ...summary,
+    uploadedActivityIds: summary.uploadedActivityIds.slice(0, 25),
+    uploadedStreamNames: summary.uploadedStreamNames.slice(0, 25),
+    deletedRemoteIds: summary.deletedRemoteIds.slice(0, 25)
+  });
   return summary;
 }
 
@@ -411,6 +430,16 @@ export interface RestoreSummary {
   restoredStreams: number;
   skippedStreams: number;
   errors: string[];
+  /** Ids downloaded this run. */
+  restoredActivityIds: string[];
+  /** File names (`<id>.json`) downloaded this run. */
+  restoredStreamNames: string[];
+  /**
+   * Downloads that overwrote an existing local file (hash mismatch) rather
+   * than filling a gap — the self-healing path. A recurring name here across
+   * syncs means the local copy keeps diverging.
+   */
+  refreshedStreamNames: string[];
 }
 
 /**
@@ -435,7 +464,10 @@ async function pullBackup(
     skippedActivities: 0,
     restoredStreams: 0,
     skippedStreams: 0,
-    errors: []
+    errors: [],
+    restoredActivityIds: [],
+    restoredStreamNames: [],
+    refreshedStreamNames: []
   };
 
   // Never restore from a collection owned by another profile or app: its
@@ -517,6 +549,7 @@ async function pullBackup(
         }
         pendingWrites.push(activity);
         summary.restoredActivities += 1;
+        summary.restoredActivityIds.push(activity.id);
         // splice() is synchronous, so concurrent flushes take disjoint
         // batches; a batch can end up smaller than the size, which is fine.
         await flushWrites(false);
@@ -542,7 +575,8 @@ async function pullBackup(
         return;
       }
       const file = new File(streamsFolder, name);
-      let download = !file.exists;
+      const existed = file.exists;
+      let download = !existed;
       if (!download) {
         // The file is there, but is it the file the index describes? A wipe
         // keeps the stream cache while deleting the records, and until now a
@@ -575,6 +609,8 @@ async function pullBackup(
             : await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
         file.write(content);
         summary.restoredStreams += 1;
+        summary.restoredStreamNames.push(name);
+        if (existed) summary.refreshedStreamNames.push(name);
       }
     } catch (error) {
       summary.errors.push(
@@ -585,7 +621,12 @@ async function pullBackup(
     onProgress?.({ phase: 'streams', done: streamDone, total: remoteStreams.length });
   });
 
-  simpleLogger.log('WebDAV backup restore complete', { ...summary });
+  simpleLogger.log('WebDAV backup restore complete', {
+    ...summary,
+    restoredActivityIds: summary.restoredActivityIds.slice(0, 25),
+    restoredStreamNames: summary.restoredStreamNames.slice(0, 25),
+    refreshedStreamNames: summary.refreshedStreamNames.slice(0, 25)
+  });
   return summary;
 }
 

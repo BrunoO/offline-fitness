@@ -144,6 +144,7 @@ describe('deletion tombstones', () => {
       expect(mockTransport.deleteDavFile).toHaveBeenCalledWith(CONFIG, 'streams', '2.json');
       expect(mockTransport.deleteDavFile).toHaveBeenCalledWith(CONFIG, 'streams', '2.nostreamflag');
       expect(summary.deletedRemote).toBe(1);
+      expect(summary.deletedRemoteIds).toEqual(['2']);
       // The applied tombstone stays in the local log until the retention
       // window expires — the remote deletedAt map is rebuilt from it on
       // every push, so other devices keep learning about the deletion.

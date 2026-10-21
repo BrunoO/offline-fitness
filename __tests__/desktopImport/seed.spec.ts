@@ -64,7 +64,9 @@ describe('seedCollection on a fresh collection', () => {
 
     expect(summary.activitiesParsed).toBe(4);
     expect(summary.activitiesUploaded).toBe(4);
+    expect(summary.uploadedActivityIds.sort()).toEqual(['123', '456', '789', '999']);
     expect(summary.streamsUploaded).toBe(2); // 123 and 999 have GPX
+    expect(summary.uploadedStreamNames.sort()).toEqual(['123.json', '999.json']);
     expect(summary.activitiesWithoutTrack).toBe(1); // 456: manual entry
     expect(summary.unsupportedTracks).toBe(1); // 789: .fit
   });

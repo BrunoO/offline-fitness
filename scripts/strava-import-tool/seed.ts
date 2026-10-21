@@ -130,6 +130,10 @@ export interface SeedSummary {
   streamsSkipped: number;
   /** Bytes PUT (skips are not counted — those bytes were already on the server). */
   bytesUploaded: number;
+  /** Ids PUT in this run (planned uploads in a dry run). */
+  uploadedActivityIds: string[];
+  /** Stream file names (`<id>.json`) PUT in this run. */
+  uploadedStreamNames: string[];
   /**
    * Records grouped by the zone their local fields were derived in. This is
    * the travel audit surface: everything under `timezone` is home-bucketed
@@ -243,6 +247,8 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
     streamsUploaded: 0,
     streamsSkipped: 0,
     bytesUploaded: 0,
+    uploadedActivityIds: [],
+    uploadedStreamNames: [],
     zones: {},
     warnings,
     timings: { archive: 0, transfer: 0, total: 0 }
@@ -415,6 +421,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
           summary.streamsSkipped++;
         } else {
           summary.streamsUploaded++;
+          summary.uploadedStreamNames.push(name);
           summary.bytesUploaded += streamBytes.byteLength;
           if (!dryRun) {
             await client.putBytes([APP_CONFIG.BACKUP_STREAMS_FOLDER, name], streamBytes);
@@ -430,6 +437,7 @@ export async function seedCollection(options: SeedOptions): Promise<SeedSummary>
         summary.activitiesSkipped++;
       } else {
         summary.activitiesUploaded++;
+        summary.uploadedActivityIds.push(id);
         summary.bytesUploaded += Buffer.byteLength(content);
         if (!dryRun) {
           await client.putText([APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, name], content);
