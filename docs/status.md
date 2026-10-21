@@ -763,3 +763,9 @@ A comprehensive code review was performed, covering technical debt, architecture
 - **S1479 47-case switch (1)**: `LastActivitySummary` emoji switch -> extracted `ACTIVITY_ICONS` lookup map (also moves the function out of the component body; 55 keys + fallback transcribed programmatically to keep the ZWJ emoji exact).
 - **S5976 parameterized tests (3)**: GoalService evaluate trio, streaks 35/52/60-week trio, utils-months match trio -> `it.each`.
 - **S6478 (3)** - NOT "fixed": `App.tsx` drawerContent and the two `headerRight` callbacks are React Navigation's documented render-prop pattern with legitimate closure needs; annotated NOSONAR with rationale (same policy as the gesture-handler import).
+
+## Await-In-Loop Policy Decision - 2026-10-22
+
+- Sonar's 15 remaining S9382 (await-in-loop) issues were marked **Won't Fix** via the API, each with a rationale comment. Reviewed individually: every flagged loop is sequential by design — bounded-memory stream/ZIP reads on low-end devices (the explicit fragile-area strategy), WebDAV MKCOL parent-before-child ordering, PROPFIND pagination that depends on the previous response, one-at-a-time human share-sheet flow, short-circuit scans, and loops already wrapped in `runWithConcurrency`. Parallelizing would trade a lint badge for memory spikes, server races and per-item error-handling regressions.
+- The local ESLint `no-await-in-loop` **warning** stays as the tripwire for accidental new occurrences; the Sonar board is now honest (no rule-level blanket suppression).
+- Result: 40 → 25 open issues without a rescan (transition is immediate).
