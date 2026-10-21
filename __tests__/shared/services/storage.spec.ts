@@ -101,7 +101,7 @@ describe('storage', () => {
       const key = 'non_existent_key';
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
       const retrievedValue = await retrieveValue(key as unknown as StoreKey);
-      expect(retrievedValue).toBe(undefined);
+      expect(retrievedValue).toBeUndefined();
     });
 
     it('should log an error if storing a value fails', async () => {
@@ -123,7 +123,7 @@ describe('storage', () => {
       const result = await retrieveValue(key as unknown as StoreKey);
 
       expect(mockedSimpleLogger.error).toHaveBeenCalledWith(`ERROR retrieving key ${key} ${error}`);
-      expect(result).toBe(undefined);
+      expect(result).toBeUndefined();
     });
   });
 

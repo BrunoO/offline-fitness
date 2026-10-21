@@ -45,7 +45,7 @@ describe('useActivities', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.globalActivities.length).toBe(mockActivities.length);
+      expect(result.current.globalActivities).toHaveLength(mockActivities.length);
       expect(result.current.globalActivities).toEqual(expect.arrayContaining(mockActivities));
       expect(result.current.totalActivitiesStored).toBe(2);
       expect(result.current.fetchingData).toBe(false);
@@ -81,7 +81,7 @@ describe('useActivities', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.globalActivities.length).toBe(2);
+      expect(result.current.globalActivities).toHaveLength(2);
     });
 
     // Delete activity
@@ -91,7 +91,7 @@ describe('useActivities', () => {
 
     await waitFor(() => {
       expect(mockStorage.removeActivity).toHaveBeenCalledWith(mockActivities[0]);
-      expect(result.current.globalActivities.length).toBe(1);
+      expect(result.current.globalActivities).toHaveLength(1);
       expect(result.current.globalActivities[0].id).toBe('2');
     });
     // The deletion is recorded so the next backup push removes the remote copy.

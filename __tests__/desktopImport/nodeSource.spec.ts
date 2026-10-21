@@ -40,10 +40,10 @@ describe('createNodeByteSource', () => {
 
   it('clamps reads past the end instead of failing', async () => {
     const tail = await source.read(rawBytes.length - 2, 1000);
-    expect(tail.length).toBe(2);
+    expect(tail).toHaveLength(2);
 
     const beyond = await source.read(rawBytes.length, 10);
-    expect(beyond.length).toBe(0);
+    expect(beyond).toHaveLength(0);
   });
 
   it('feeds the app ZIP reader the whole fixture correctly', async () => {

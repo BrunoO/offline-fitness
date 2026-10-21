@@ -731,3 +731,7 @@ A comprehensive code review was performed, covering technical debt, architecture
 - Closed the largest MINOR cluster: all 30 Sonar S6759 "mark component props as read-only" issues wrapped in `Readonly<>` across 20 files (ActivityAnalysisView's 8 subcomponents + main view, ActivityListItem, LastActivitySummary, DetailsScreen, ActivityCalendarPeriod, ButtonList, HomeScreen, MiniMapComponent x3, MapsScreen x2, ProgressOverlay, RecentMonths/Years screens, StatsTab, ChipMultiSelect, SettingsModal, PalettePicker, ThemeProvider).
 - Applied via a dry-run-reviewed codemod driven by the issue list itself (shape-specific wraps: inline literal, named Props type, `props:` parameter, `Partial<>`); type-only change, no runtime impact — tsc and 389 tests green.
 - Suggested follow-up: consider ESLint `react/prefer-read-only-props` to keep this closed.
+
+## Jest Assertion Specificity - 2026-10-21
+
+- Closed all 14 Sonar S5906 MINORs: `expect(x.length).toBe(n)` -> `expect(x).toHaveLength(n)` and `expect(x).toBe(undefined)` -> `expect(x).toBeUndefined()` across nodeSource/theme/useActivities/fetchAndStoreStreams/storage/ytd-stats specs. Specific matchers give readable failure diffs; all assertions still pass, confirming behaviour parity.

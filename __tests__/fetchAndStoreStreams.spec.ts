@@ -65,7 +65,7 @@ describe('fetchAndStoreStreams', () => {
 
       const result = await getActivityStreams(mockActivities);
 
-      expect(result.length).toBe(1);
+      expect(result).toHaveLength(1);
       expect(result[0].activity.id).toBe('1');
       expect(result[0].streamSet).toBeDefined();
     });

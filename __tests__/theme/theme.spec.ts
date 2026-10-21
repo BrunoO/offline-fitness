@@ -43,7 +43,7 @@ const SCHEMES = ['light', 'dark'] as const;
 
 describe('palette registry', () => {
   it('exposes every registered palette in the display order', () => {
-    expect(PALETTE_ORDER.length).toBe(Object.keys(PALETTES).length);
+    expect(PALETTE_ORDER).toHaveLength(Object.keys(PALETTES).length);
     PALETTE_ORDER.forEach(id => {
       expect(isKnownPalette(id)).toBe(true);
       expect(getPalette(id).id).toBe(id);
@@ -58,9 +58,9 @@ describe('palette registry', () => {
   it('keeps the same number of chart series and tints in both schemes', () => {
     PALETTE_ORDER.forEach(id => {
       const palette = getPalette(id);
-      expect(palette.chartSeries.light.length).toBe(palette.chartSeries.dark.length);
-      expect(palette.chartTints.light.length).toBe(4);
-      expect(palette.chartTints.dark.length).toBe(4);
+      expect(palette.chartSeries.light).toHaveLength(palette.chartSeries.dark.length);
+      expect(palette.chartTints.light).toHaveLength(4);
+      expect(palette.chartTints.dark).toHaveLength(4);
     });
   });
 });

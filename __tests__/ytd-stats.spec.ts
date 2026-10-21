@@ -151,7 +151,7 @@ describe('YTD Stats Calculator', () => {
       (mockDate.getTime() - new Date(mockDate.getFullYear(), 0, 0).getTime()) /
         (1000 * 60 * 60 * 24)
     );
-    expect(ytdStats.currentYear.data.length).toBe(dayOfYear);
-    expect(ytdStats.previousYear.data.length).toBe(dayOfYear);
+    expect(ytdStats.currentYear.data).toHaveLength(dayOfYear);
+    expect(ytdStats.previousYear.data).toHaveLength(dayOfYear);
   });
 });
