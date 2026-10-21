@@ -29,7 +29,7 @@
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#F3EEFF"
       },
       "permissions": [
         "android.permission.INTERNET",
@@ -61,7 +61,7 @@
         {
           "image": "./assets/images/splash.png",
           "enableFullScreenImage_legacy": "false",
-          "backgroundColor": "#FFFFE0",
+          "backgroundColor": "#F3EEFF",
           "imageWidth": 200
         }
       ],

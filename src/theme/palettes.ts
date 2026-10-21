@@ -109,18 +109,18 @@ const crimson: PaletteDefinition = {
 
 /** Every palette known to the app, keyed by id. */
 export const PALETTES: Record<string, PaletteDefinition> = {
-  legacy,
   twilight,
+  legacy,
   alpine,
   terracotta,
   crimson
 };
 
 /** The palette used when the user has not chosen one. */
-export const DEFAULT_PALETTE_ID = 'legacy';
+export const DEFAULT_PALETTE_ID = 'twilight';
 
 /** The palettes in the order they are offered to the user. */
-export const PALETTE_ORDER: string[] = ['legacy', 'twilight', 'alpine', 'terracotta', 'crimson'];
+export const PALETTE_ORDER: string[] = ['twilight', 'legacy', 'alpine', 'terracotta', 'crimson'];
 
 /**
  * Looks up a palette by id.

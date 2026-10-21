@@ -129,6 +129,25 @@ describe('accessibility floor', () => {
       '#006064'
     ]);
   });
+
+  // The legacy palette is the only one allowed to miss the floor, because it
+  // reproduces the look the app shipped with. The palette the app actually
+  // starts on must never be one of them.
+  it('starts on a palette that meets the accessibility floor', () => {
+    expect(EXEMPT).not.toContain(DEFAULT_PALETTE_ID);
+
+    SCHEMES.forEach(scheme => {
+      const theme = resolveThemeById(DEFAULT_PALETTE_ID, scheme);
+      expect(contrast(theme.primary, theme.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme.onPrimary, theme.primary)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme.success, theme.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme.text, theme.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme.textMuted, theme.surface)).toBeGreaterThanOrEqual(4.5);
+      theme.chartSeries.forEach(series => {
+        expect(contrast(series, theme.surface)).toBeGreaterThanOrEqual(3);
+      });
+    });
+  });
 });
 
 describe('chart theme', () => {
