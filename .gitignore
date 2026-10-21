@@ -32,6 +32,10 @@ service_account_key.json
 build.log
 *.log
 
+# Sonar script outputs
+sonar-results/
+.scannerwork/
+
 # Personal / local
 todo.txt
 .claude/
