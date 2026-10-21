@@ -133,13 +133,14 @@ export function BackupSection() {
         setStatus(`Done with ${summary.errors.length} errors (see logs)`);
         Alert.alert(
           'Backup completed with errors',
-          `${summary.uploadedActivities + summary.uploadedStreams} uploaded, ${summary.errors.length} failed. First error: ${summary.errors[0]}`
+          `${summary.uploadedActivities} activities + ${summary.uploadedStreams} streams uploaded, ` +
+            `${summary.errors.length} failed. First error: ${summary.errors[0]}`
         );
       } else {
         setStatus(
-          `Done: ${summary.uploadedActivities + summary.uploadedStreams} uploaded` +
+          `Done: ${summary.uploadedActivities} activities + ${summary.uploadedStreams} streams uploaded` +
             idSuffix([...summary.uploadedActivityIds, ...summary.uploadedStreamNames]) +
-            `, ${summary.skippedActivities + summary.skippedStreams} unchanged (skipped)` +
+            `, ${summary.skippedActivities} activities + ${summary.skippedStreams} streams unchanged` +
             (summary.deletedRemote > 0
               ? `, ${summary.deletedRemote} deleted${idSuffix(summary.deletedRemoteIds)}`
               : '')
@@ -187,7 +188,8 @@ export function BackupSection() {
                 setStatus(`Restore done with ${summary.errors.length} errors (see logs)`);
                 Alert.alert(
                   'Restore completed with errors',
-                  `${summary.restoredActivities + summary.restoredStreams} restored, ${summary.errors.length} failed. First error: ${summary.errors[0]}`
+                  `${summary.restoredActivities} activities + ${summary.restoredStreams} streams restored, ` +
+                    `${summary.errors.length} failed. First error: ${summary.errors[0]}`
                 );
               } else {
                 setStatus(
@@ -195,7 +197,7 @@ export function BackupSection() {
                     idSuffix(summary.restoredActivityIds) +
                     `, ${summary.restoredStreams} streams downloaded` +
                     idSuffix(summary.restoredStreamNames) +
-                    `, ${summary.skippedActivities + summary.skippedStreams} already present` +
+                    `, ${summary.skippedActivities} activities + ${summary.skippedStreams} streams already present` +
                     (summary.refreshedStreamNames.length > 0
                       ? `, ${summary.refreshedStreamNames.length} refreshed` +
                         idSuffix(summary.refreshedStreamNames)
