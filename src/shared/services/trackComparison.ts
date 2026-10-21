@@ -101,7 +101,7 @@ export async function findSimilarActivitiesByTrack(
 
   const activityStream = streams.find(s => s.activity.id === activity.id);
 
-  if (!activityStream || !activityStream.streamSet.coordinates) {
+  if (!activityStream?.streamSet.coordinates) {
     simpleLogger.warn(`No stream found for current activity ${activity.id}`, {
       activityId: activity.id,
       hasStream: !!activityStream,
@@ -113,7 +113,7 @@ export async function findSimilarActivitiesByTrack(
 
   const similarActivitiesWithTracks = similarActivities.map(otherActivity => {
     const otherActivityStream = streams.find(s => s.activity.id === otherActivity.id);
-    if (!otherActivityStream || !otherActivityStream.streamSet.coordinates) {
+    if (!otherActivityStream?.streamSet.coordinates) {
       simpleLogger.warn(`No stream found for similar activity ${otherActivity.id}`, {
         activityId: otherActivity.id,
         hasStream: !!otherActivityStream,

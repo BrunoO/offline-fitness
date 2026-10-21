@@ -116,7 +116,7 @@ export function formatUtcDateString(date: Date): string {
  * @returns The current week number.
  */
 export function getCurrentWeekNumber(date: Date | undefined = undefined) {
-  const today = date ? date : new Date();
+  const today = date ?? new Date();
   // https://stackoverflow.com/questions/13359294/date-getday-javascript-returns-wrong-day
   // The value returned by getDay is an integer corresponding to the day of the week:
   // 0 for Sunday, 1 for Monday, 2 for Tuesday, and so on.

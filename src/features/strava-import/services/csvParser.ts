@@ -141,13 +141,13 @@ const FIELD_SPECS: Record<FieldKey, FieldSpec> = {
 export function normalizeHeader(value: string): string {
   let out = value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\s+/g, ' ')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replaceAll(/[\u2018\u2019]/g, "'")
+    .replaceAll(/\s+/g, ' ')
     .trim()
     .toLowerCase();
   // Loop, not /[.:;]+$/: the regex backtracks super-linearly (Sonar S8786).
-  while (out.length > 0 && '.:;'.includes(out[out.length - 1])) {
+  while (out.length > 0 && '.:;'.includes(out.at(-1) ?? '')) {
     out = out.slice(0, -1);
   }
   return out;
@@ -168,14 +168,14 @@ export function resolveColumns(header: string[]): {
 
   (Object.keys(FIELD_SPECS) as FieldKey[]).forEach(key => {
     const spec = FIELD_SPECS[key];
-    const aliases = spec.aliases.map(normalizeHeader);
+    const aliases = new Set(spec.aliases.map(normalizeHeader));
     const matches: number[] = [];
     normalized.forEach((value, index) => {
-      if (aliases.includes(value)) matches.push(index);
+      if (aliases.has(value)) matches.push(index);
     });
 
     if (matches.length > 0) {
-      columns[key] = spec.prefer === 'last' ? matches[matches.length - 1] : matches[0];
+      columns[key] = spec.prefer === 'last' ? matches.at(-1)! : matches[0];
     }
   });
 
@@ -257,18 +257,17 @@ function monthFromToken(token: string): number | undefined {
  * 12-hour variants used by some locales.
  */
 export function parseActivityDateUtcMs(value: string): number | undefined {
-  const cleaned = value
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const cleaned = value.replaceAll('\u00a0', ' ').replaceAll(/\s+/g, ' ').trim();
   if (!cleaned) return undefined;
 
-  const dayFirst = cleaned.match(
-    /^(\d{1,2}) ([^\s,]+)\.? (\d{4}),? (\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/
-  );
-  const monthFirst = cleaned.match(
-    /^([^\s,]+)\.? (\d{1,2}), (\d{4}),? (\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/
-  );
+  const dayFirst =
+    /^(\d{1,2}) ([^\s,]+)\.? (\d{4}),? (\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/.exec(
+      cleaned
+    );
+  const monthFirst =
+    /^([^\s,]+)\.? (\d{1,2}), (\d{4}),? (\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/.exec(
+      cleaned
+    );
 
   let day: number;
   let monthToken: string;
@@ -316,12 +315,10 @@ export function parseActivityDateUtcMs(value: string): number | undefined {
  * the `Activity Date` column.
  */
 function parseStartTimeColumn(value: string): number | undefined {
-  const cleaned = value.replace(/\u00a0/g, ' ').trim();
+  const cleaned = value.replaceAll('\u00a0', ' ').trim();
   if (!cleaned) return undefined;
 
-  const naive = cleaned.match(
-    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/
-  );
+  const naive = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/.exec(cleaned);
   if (naive) {
     return Date.UTC(
       Number(naive[1]),
@@ -347,8 +344,8 @@ function parseStartTimeColumn(value: string): number | undefined {
 export function parseExportNumber(raw: string | undefined): number {
   if (raw === undefined || raw === null) return 0;
   let value = raw
-    .replace(/\u00a0/g, ' ')
-    .replace(/[\s\u202f']/g, '')
+    .replaceAll('\u00a0', ' ')
+    .replaceAll(/[\s\u202f']/g, '')
     .trim();
   if (!value) return 0;
 
@@ -356,9 +353,9 @@ export function parseExportNumber(raw: string | undefined): number {
   const lastComma = value.lastIndexOf(',');
   if (lastDot >= 0 && lastComma >= 0) {
     if (lastComma > lastDot) {
-      value = value.replace(/\./g, '').replace(',', '.');
+      value = value.replaceAll('.', '').replace(',', '.');
     } else {
-      value = value.replace(/,/g, '');
+      value = value.replaceAll(',', '');
     }
   } else if (lastComma >= 0) {
     value = value.replace(',', '.');
@@ -577,7 +574,7 @@ function collectRows(
  * skipped and reported as warnings.
  */
 export function parseActivitiesCsv(csvText: string): ParsedExport {
-  const text = csvText.charCodeAt(0) === 0xfeff ? csvText.slice(1) : csvText;
+  const text = csvText.codePointAt(0) === 0xfeff ? csvText.slice(1) : csvText;
   const parsed = Papa.parse<string[]>(text, {
     header: false,
     skipEmptyLines: 'greedy',

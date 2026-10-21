@@ -113,7 +113,7 @@ export function RecentYearsScreen(): JSX.Element {
     name: activity,
     data: dataDistances.slice(0, -1).map((row: string[]) => ({
       x: row[0],
-      y: parseInt(row[indexActivity + 1], 10)
+      y: Number.parseInt(row[indexActivity + 1], 10)
     }))
   }));
 
@@ -411,8 +411,8 @@ function findMaxValuePositions(data: string[][], headers: string[]): Map<string,
 
     // Find max value in this column (exclude last row which is Total)
     for (let row = 0; row < data.length - 1; row++) {
-      const value = parseFloat(data[row][col]);
-      if (!isNaN(value) && value > maxValue) {
+      const value = Number.parseFloat(data[row][col]);
+      if (!Number.isNaN(value) && value > maxValue) {
         maxValue = value;
         maxRow = row;
       }

@@ -71,7 +71,8 @@ export function yearlyData(
   sumCols[0] = -1; // -1 Magic value to indicate "Total" to the formatting function
   // correct last value (sum of averages)
   const numberRows = tableData.length;
-  sumCols[sumCols.length - 1] = numberRows > 0 ? sumCols[sumCols.length - 1] / numberRows : 0;
+  const lastColIndex = sumCols.length - 1;
+  sumCols[lastColIndex] = numberRows > 0 ? sumCols[lastColIndex] / numberRows : 0;
 
   tableData.push(sumCols);
   return tableData;
@@ -239,12 +240,7 @@ export function monthlyData(allActivities: Activity[], activityField: ActivityAc
   const recentMonths = lastMonthsFrom(new Date(), 13);
 
   const recentActivities = allActivities.filter(activity =>
-    isMonthBetween(
-      activity.start_year,
-      activity.start_month,
-      recentMonths[recentMonths.length - 1],
-      recentMonths[0]
-    )
+    isMonthBetween(activity.start_year, activity.start_month, recentMonths.at(-1)!, recentMonths[0])
   );
 
   const allMonthsDistanceMap = new Map<number, number>();
@@ -312,12 +308,7 @@ export function monthlyData2(
 ): MonthSummary[] {
   const recentMonths = lastMonthsFrom(new Date(), numberRecentMonths);
   const recentActivities = allActivities.filter(activity =>
-    isMonthBetween(
-      activity.start_year,
-      activity.start_month,
-      recentMonths[recentMonths.length - 1],
-      recentMonths[0]
-    )
+    isMonthBetween(activity.start_year, activity.start_month, recentMonths.at(-1)!, recentMonths[0])
   );
 
   // Initialize the map with ALL requested months so missing months appear with 0 values

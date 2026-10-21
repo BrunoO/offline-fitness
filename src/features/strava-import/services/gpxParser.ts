@@ -45,11 +45,11 @@ const TRACK_TYPE_PATTERN = /<trk>[\s\S]*?<type>([\s\S]*?)<\/type>/;
 /** Unescapes the handful of XML entities that can appear in track names. */
 function decodeXmlEntities(value: string): string {
   return value
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&amp;', '&');
 }
 
 /** Raw values of one `<trkpt>` match, or null when the point is unusable. */
@@ -57,9 +57,9 @@ function readTrackPoint(
   attributes: string,
   body: string
 ): { lat: number; lon: number; ele: number | null; timeMs: number } | null {
-  const latMatch = attributes.match(LAT_PATTERN);
-  const lonMatch = attributes.match(LON_PATTERN);
-  const timeMatch = body.match(TIME_PATTERN);
+  const latMatch = LAT_PATTERN.exec(attributes);
+  const lonMatch = LON_PATTERN.exec(attributes);
+  const timeMatch = TIME_PATTERN.exec(body);
   if (!latMatch || !lonMatch || !timeMatch) return null;
 
   const lat = Number(latMatch[1]);
@@ -67,7 +67,7 @@ function readTrackPoint(
   const timeMs = Date.parse(timeMatch[1].trim());
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Number.isNaN(timeMs)) return null;
 
-  const eleMatch = body.match(ELE_PATTERN);
+  const eleMatch = ELE_PATTERN.exec(body);
   const ele = eleMatch ? Number(eleMatch[1]) : null;
 
   return { lat, lon, ele: ele !== null && Number.isFinite(ele) ? ele : null, timeMs };
@@ -79,8 +79,8 @@ function readTrackPoint(
  * in document order.
  */
 export function parseGpx(xml: string): ParsedGpx {
-  const nameMatch = xml.match(TRACK_NAME_PATTERN);
-  const typeMatch = xml.match(TRACK_TYPE_PATTERN);
+  const nameMatch = TRACK_NAME_PATTERN.exec(xml);
+  const typeMatch = TRACK_TYPE_PATTERN.exec(xml);
 
   const points: GpxPoint[] = [];
   let previousTime = Number.NEGATIVE_INFINITY;
@@ -158,7 +158,7 @@ export function toStreamSet(points: GpxPoint[]): StreamConversionResult | undefi
   return {
     stream,
     startLatLng: latlng[0],
-    endLatLng: latlng[latlng.length - 1]
+    endLatLng: latlng.at(-1)!
   };
 }
 

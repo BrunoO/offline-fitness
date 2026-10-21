@@ -84,7 +84,7 @@ function decodeUtf8Manually(bytes: Uint8Array): string {
     while (index < runEnd && bytes[index] < 0x80) index++;
     if (index > runStart) {
       pieces.push(
-        String.fromCharCode.apply(
+        String.fromCodePoint.apply(
           null,
           Array.from(bytes.subarray(runStart, index)) as unknown as number[]
         )

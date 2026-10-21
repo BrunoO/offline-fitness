@@ -59,13 +59,13 @@ function readU32(bytes: Uint8Array, offset: number): number {
 function readU64(bytes: Uint8Array, offset: number): number {
   const low = readU32(bytes, offset);
   const high = readU32(bytes, offset + 4);
-  return high * 0x1_0000_0000 + low;
+  return high * 2 ** 32 + low;
 }
 
 function decodeName(bytes: Uint8Array): string {
   // Entry names are ASCII in Strava archives; decode defensively anyway.
   let out = '';
-  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i++) out += String.fromCodePoint(bytes[i]);
   return out;
 }
 

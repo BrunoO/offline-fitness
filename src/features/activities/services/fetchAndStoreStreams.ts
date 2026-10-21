@@ -97,7 +97,7 @@ export const getNoStreamIds = async (activities: readonly Activity[]): Promise<S
  */
 export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
   let coordinatesResult: LatLng[] = [];
-  if (streamSet.latlng && streamSet.latlng.data) {
+  if (streamSet.latlng?.data) {
     const coordinates = streamSet.latlng.data.map(latlng => ({
       latitude: latlng[0],
       longitude: latlng[1]
@@ -106,11 +106,11 @@ export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
   }
 
   let altitudeResult: number[] = [];
-  if (streamSet.altitude && streamSet.altitude.data) {
+  if (streamSet.altitude?.data) {
     altitudeResult = streamSet.altitude.data;
   }
   let timeResult: number[] = [];
-  if (streamSet.time && streamSet.time.data) {
+  if (streamSet.time?.data) {
     timeResult = streamSet.time.data;
   }
   return {
@@ -169,8 +169,8 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
   }
 
   const mostRecentFile = jsonFiles.reduce((latest, file) => {
-    const latestTime = parseInt(latest.name.split('.')[0], 10);
-    const fileTime = parseInt(file.name.split('.')[0], 10);
+    const latestTime = Number.parseInt(latest.name.split('.')[0], 10);
+    const fileTime = Number.parseInt(file.name.split('.')[0], 10);
     return fileTime > latestTime ? file : latest;
   }, jsonFiles[0]);
 

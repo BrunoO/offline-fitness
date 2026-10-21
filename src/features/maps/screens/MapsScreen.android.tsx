@@ -37,7 +37,7 @@ import { useLocationPermission } from '../hooks/useLocationPermission';
  * @returns True if the point is inside the region, false otherwise.
  */
 const isLatLngInsideRegion = (latitude: number, longitude: number, region: Region) => {
-  if (isNaN(latitude) || isNaN(longitude)) {
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
     return false;
   } else
     return (
@@ -209,7 +209,10 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
     } else {
       // Fallback: fit to all activities with distance
       const allActivityCoordinates = activitiesWithDistance
-        .filter(activity => !isNaN(activity.start_latlng[0]) && !isNaN(activity.start_latlng[1]))
+        .filter(
+          activity =>
+            !Number.isNaN(activity.start_latlng[0]) && !Number.isNaN(activity.start_latlng[1])
+        )
         .map(activity => ({
           latitude: activity.start_latlng[0],
           longitude: activity.start_latlng[1]
@@ -293,7 +296,10 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   const refitMapToVisibleActivities = () => {
     if (currentlyFilteredActivities.length > 0) {
       const coordinates = currentlyFilteredActivities
-        .filter(activity => !isNaN(activity.start_latlng[0]) && !isNaN(activity.start_latlng[1]))
+        .filter(
+          activity =>
+            !Number.isNaN(activity.start_latlng[0]) && !Number.isNaN(activity.start_latlng[1])
+        )
         .map(activity => ({
           latitude: activity.start_latlng[0],
           longitude: activity.start_latlng[1]
@@ -355,8 +361,8 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
           >
             {currentlyFilteredActivities.map(
               activity =>
-                !isNaN(activity.start_latlng[0]) &&
-                !isNaN(activity.start_latlng[1]) && (
+                !Number.isNaN(activity.start_latlng[0]) &&
+                !Number.isNaN(activity.start_latlng[1]) && (
                   <Marker
                     key={activity.id}
                     coordinate={{

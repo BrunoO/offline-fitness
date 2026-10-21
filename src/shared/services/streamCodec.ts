@@ -26,9 +26,9 @@ const STREAM_MAGIC_1 = 0x46; // 'F'
 const STREAM_FORMAT_VERSION = 1;
 const HEADER_BYTES = 16;
 
-const FLAG_HAS_LATLNG = 1 << 0;
-const FLAG_HAS_ALTITUDE = 1 << 1;
-const FLAG_HAS_TIME = 1 << 2;
+const FLAG_HAS_LATLNG = 0b001;
+const FLAG_HAS_ALTITUDE = 0b010;
+const FLAG_HAS_TIME = 0b100;
 
 const COORD_SCALE = 1e6;
 const ALTITUDE_SCALE = 10;
@@ -199,7 +199,7 @@ function decodeAsciiBytes(bytes: Uint8Array): string {
   const parts: string[] = [];
   for (let i = 0; i < bytes.length; i += CHUNK) {
     const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
-    parts.push(String.fromCharCode.apply(null, Array.from(slice) as unknown as number[]));
+    parts.push(String.fromCodePoint.apply(null, Array.from(slice) as unknown as number[]));
   }
   return parts.join('');
 }

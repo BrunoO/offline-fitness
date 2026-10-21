@@ -742,3 +742,14 @@ A comprehensive code review was performed, covering technical debt, architecture
   - `/\/+$/` trailing-slash trims (webdavAuth, webdavTransport x3, tool args.ts x1): replaced by `trimTrailingSlashes()` - a linear `charCodeAt` scan exported from `webdavTransport`; quadratic only on hostile input, but server URLs are user-typed.
   - `/[.:;]+$/` in `csvParser.normalizeHeader` (runs per header cell per import): explicit `slice` loop. A `trimEnd('.:;')` shortcut was tried first and rejected - trimEnd takes no arguments, the spec'd "codePoints" proposal never shipped; the caught-by-test behaviour difference ("vitesse max.") is why the fixture suite matters.
   - `gpxParser` `<ele>`/`<time>` patterns `\s*([^<]+?)\s*`: whitespace run + lazy capture overlapped, so failing matches backtracked quadratically per track point. Now `/<ele>\s*(\S[^<]*)<\/ele>/` - the `\S` anchor removes the overlap and the greedy tail cannot rematch the closing tag, so matching is linear. Trailing whitespace lands inside the capture: `Number()` tolerates it; `Date.parse` gets an explicit `.trim()`.
+
+## Modern-API Batch (Sweep 4) - 2026-10-21
+
+- Closed ~60 MINOR modern-API clusters across 17 files via an occurrence-count-asserted codemod (`from`/`to` pairs; aborted unless every count matched), then fixed three dropped trailing punctuation spots by hand:
+  - `.replace(/X/g, y)` -> `String#replaceAll` where the pattern is literal-safe (XML entities, `\u00a0`, `\.`, `,`, `\\/`); `.replace(',', '.')` intentionally kept (first-match semantics).
+  - `str.match(RE)` -> `RE.exec(str)` for the 9 non-global date/coordinate patterns.
+  - `[arr.length - 1]` -> `.at(-1)` in cold paths (streaks, stats, ytd, gps-simplify tail, csvParser, zip prop parse); stats.ts:74 uses an index variable (assignment position cannot use `.at`); `gps-simplify` gets an undefined guard instead of `!`.
+  - `isNaN`/`parseInt`/`parseFloat` -> `Number.*` (all call sites pass already-number typed values; equivalence verified by tests).
+  - `String.fromCharCode` -> `fromCodePoint` in byte-chunk decoders (identical for 0-255), `charCodeAt` -> `codePointAt` in BOM/slash scans.
+  - `&&`-chains -> optional chaining (compressStreamSet, trackComparison guards); ternary defaults -> `??` (utils.getCurrentWeekNumber, fetchStreamContent); `aliases.includes` -> Set `.has`.
+  - Intentionally NOT "fixed": `webdavTransport` text->bytes `charCodeAt & 0xff` (deliberate UTF-16-unit truncation; `codePointAt` would change astral chars) -> NOSONAR comment; `streamCodec` `1 << 0` bit flag (S7767 false positive) -> `0b001` binary literals; `zipReader` `0x1_0000_0000` -> `2 ** 32`.

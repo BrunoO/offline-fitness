@@ -221,7 +221,7 @@ async function md5Bytes(bytes: Uint8Array): Promise<string> {
   const parts: string[] = [];
   for (let i = 0; i < bytes.length; i += CHUNK) {
     const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
-    parts.push(String.fromCharCode.apply(null, Array.from(slice) as unknown as number[]));
+    parts.push(String.fromCodePoint.apply(null, Array.from(slice) as unknown as number[]));
   }
   return digestStringAsync(CryptoDigestAlgorithm.MD5, parts.join(''));
 }
@@ -550,9 +550,7 @@ async function fetchStreamContent(
     typeof getDavFileBytes === 'function'
       ? await getDavFileBytes(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name)
       : undefined;
-  return bytes !== undefined
-    ? bytes
-    : await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name);
+  return bytes ?? (await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name));
 }
 
 async function pullBackup(
@@ -624,7 +622,7 @@ async function pullBackup(
         } catch {
           throw new Error('downloaded file is not valid JSON (not a valid activity)');
         }
-        if (!activity || typeof activity.id === 'undefined') {
+        if (activity?.id === undefined) {
           throw new Error('downloaded file is not a valid activity');
         }
         pendingWrites.push(activity);

@@ -135,7 +135,7 @@ function logWeeklyGoalStreakDiagnostics(
     best: result.best,
     rawCurrentRun: context.rawCurrentRun,
     recencyActive: context.recencyActive,
-    lastMetWeek: metWeeks[metWeeks.length - 1],
+    lastMetWeek: metWeeks.at(-1)!,
     thisWeekKey: context.thisWeekKey,
     lastWeekKey: context.lastWeekKey,
     totalMetWeeks: metWeeks.length,
@@ -182,7 +182,7 @@ export function computeDayStreaks(activities: Activity[]): StreakResult {
   best = Math.max(best, current);
 
   // If the last recorded day is not today or yesterday, current streak should be 0 or 1 based on last day proximity
-  const last = dayNumbers[dayNumbers.length - 1];
+  const last = dayNumbers.at(-1)!;
   const diffToToday = localDateToDayNumber(deviceTodayLocalDateString()) - last;
   const adjustedCurrent = diffToToday <= 1 ? current : 0;
 
@@ -224,7 +224,7 @@ export function computeWeekStreaks(activities: Activity[]): StreakResult {
     d.setDate(d.getDate() - 7);
     return isoWeekKeyForDeviceDate(d);
   })();
-  const lastRecorded = weeks[weeks.length - 1];
+  const lastRecorded = weeks.at(-1)!;
   const adjustedCurrent =
     lastRecorded === thisWeekKey || lastRecorded === lastWeekKey ? current : 0;
 
@@ -279,7 +279,7 @@ export function computeWeeklyGoalStreaks(
     d.setDate(d.getDate() - 7);
     return isoWeekKeyForDeviceDate(d);
   })();
-  const lastRecorded = metWeeks[metWeeks.length - 1];
+  const lastRecorded = metWeeks.at(-1)!;
   const recencyActive = lastRecorded === thisWeekKey || lastRecorded === lastWeekKey;
   const adjustedCurrent = recencyActive ? current : 0;
 

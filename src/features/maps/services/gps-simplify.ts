@@ -76,8 +76,9 @@ function simplifyRadialDistance(points: LatLng[], sqTolerance: number): LatLng[]
     }
   }
 
-  if (prevPoint !== points[points.length - 1]) {
-    newPoints.push(points[points.length - 1]);
+  const lastPoint = points.at(-1);
+  if (lastPoint !== undefined && prevPoint !== lastPoint) {
+    newPoints.push(lastPoint);
   }
   return newPoints;
 }

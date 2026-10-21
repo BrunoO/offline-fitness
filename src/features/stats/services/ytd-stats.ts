@@ -144,7 +144,7 @@ export function calculateYTDStats(
   } else {
     // Show YTD comparison (original behavior)
     const previousYearDataForChart = previousYearStatsFull.data.slice(0, dayOfYear);
-    const previousYearYtdPoint = previousYearDataForChart[previousYearDataForChart.length - 1];
+    const previousYearYtdPoint = previousYearDataForChart.at(-1);
 
     const previousYearActivitiesYtd = activities.filter(
       a => a.start_year === previousYear && activityDayOfYear(a) <= dayOfYear

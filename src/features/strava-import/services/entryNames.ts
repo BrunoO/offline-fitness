@@ -11,13 +11,13 @@
 const UNSUPPORTED_TRACK_EXTENSIONS = ['.fit', '.fit.gz', '.tcx', '.tcx.gz'];
 
 export function baseNameOf(entryName: string): string {
-  const normalized = entryName.replace(/\\/g, '/');
+  const normalized = entryName.replaceAll('\\', '/');
   const index = normalized.lastIndexOf('/');
   return (index >= 0 ? normalized.slice(index + 1) : normalized).toLowerCase();
 }
 
 export function normalizeEntryPath(value: string): string {
-  return value.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+  return value.replaceAll('\\', '/').replace(/^\.\//, '').toLowerCase();
 }
 
 export function isUnsupportedTrack(fileName: string): boolean {

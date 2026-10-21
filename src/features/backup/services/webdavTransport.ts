@@ -47,7 +47,7 @@ function basicAuth(username: string, password: string): string {
  */
 export function trimTrailingSlashes(url: string): string {
   let end = url.length;
-  while (end > 0 && url.charCodeAt(end - 1) === 0x2f) end--;
+  while (end > 0 && url.codePointAt(end - 1) === 0x2f) end--;
   return url.slice(0, end);
 }
 
@@ -157,7 +157,7 @@ export async function putDavFile(
   config: WebDavConfig,
   ...pathSegmentsAndContent: [...string[], string | Uint8Array]
 ): Promise<void> {
-  const content = pathSegmentsAndContent[pathSegmentsAndContent.length - 1];
+  const content = pathSegmentsAndContent.at(-1)!;
   const segments = pathSegmentsAndContent.slice(0, -1) as string[];
   await davRequest(config, davUrl(config.baseUrl, ...segments), 'PUT', content);
 }
@@ -209,7 +209,7 @@ export async function getDavFileBytes(
     const text = await response.text();
     const bytes = new Uint8Array(text.length);
     for (let i = 0; i < text.length; i++) {
-      bytes[i] = text.charCodeAt(i) & 0xff;
+      bytes[i] = text.charCodeAt(i) & 0xff; // NOSONAR - deliberate UTF-16 code-unit truncation; codePointAt would change astral characters
     }
     return bytes;
   } finally {

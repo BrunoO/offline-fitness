@@ -48,3 +48,6 @@ testdata/
 # Skill-install artifacts (local agent tooling)
 .agents/
 skills-lock.json
+
+# Local scanner script - contains a live SonarCloud token; never commit
+scripts/run_sonar_locally.sh
