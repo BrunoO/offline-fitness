@@ -124,7 +124,23 @@ describe('activityToString', () => {
       start_day: 1,
       start_month: 0,
       start_year: 2023,
+      local_time: '16:14:44',
       elapsed_time: 3661 // 1h 1m 1s
+    } as unknown as Parameters<typeof Utils.activityToString>[0];
+    expect(Utils.activityToString(activity)).toBe(
+      'My Run (Run) on 1/1/2023 at 16:14 for 01:01'
+    );
+  });
+
+  it('should omit the time when local_time is missing', () => {
+    const activity = {
+      name: 'My Run',
+      type: 'Run',
+      start_day: 1,
+      start_month: 0,
+      start_year: 2023,
+      local_time: '',
+      elapsed_time: 3661
     } as unknown as Parameters<typeof Utils.activityToString>[0];
     expect(Utils.activityToString(activity)).toBe('My Run (Run) on 1/1/2023 for 01:01');
   });

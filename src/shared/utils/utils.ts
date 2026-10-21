@@ -176,12 +176,13 @@ export function lastWeeksFrom(date: Date, numberWeeks: number): WeekIdentifier[]
  * };
  *
  * const activityString = activityToString(activity);
- * console.log(activityString); // "Morning Run (Run) on 15/7/2023 for 1h 0m 0s"
+ * console.log(activityString); // "Morning Run (Run) on 15/7/2023 at 16:14 for 1h 0m 0s"
  */
 export function activityToString(activity: Activity): string {
+  const at = activity.local_time ? ` at ${activity.local_time.slice(0, 5)}` : ''; // HH:MM, seconds dropped for compactness
   return `${activity.name} (${activity.type}) on ${activity.start_day}/${
     activity.start_month + 1
-  }/${activity.start_year} for ${seconds_to_label(activity.elapsed_time)}`;
+  }/${activity.start_year}${at} for ${seconds_to_label(activity.elapsed_time)}`;
 }
 
 /**

@@ -163,7 +163,7 @@ export function ActivityListItem({
         >
           <Text style={styles.pressableText} numberOfLines={2} ellipsizeMode="tail">
             {activityToString(activity) +
-              ' at ' +
+              ' at avg ' +
               calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
               ' km/h'}
           </Text>

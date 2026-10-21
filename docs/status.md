@@ -130,6 +130,12 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Activity start time surfaced in the Home card and the activity list** — two display spots showed only the date:
+  - **`LastActivitySummary` (Home "Recent Activity" card)**: new 🕐 row under 📅 in the right column rendering `local_time` as `HH:MM` (seconds dropped for compactness); hidden when the field is empty.
+  - **`activityToString` (`shared/utils/utils.ts`)**: now `… on 15/7/2023 at 16:14 for 1h 0m 0s` — the time clause is skipped when `local_time` is missing. All three consumers gain it (activity list via `ActivityListItem`, web maps list, Android map-marker "Start of …" description).
+  - The list item's trailing speed suffix was reworded `' at … km/h'` → `' at avg … km/h'` so the string doesn't read "at 16:14 … at 12.3 km/h".
+  - Tests: `__tests__/utils-misc.spec.ts` activityToString now covers with- and without-`local_time`. Suite 379/379; tsc/lint/check:imports clean.
+
 - **Swim `moving_time` is now canonical at write time, ending the backup-push churn** — observed in the field: after seeding a collection with the desktop tool, the phone's first push reported "200 uploaded, 3,687 skipped" on a freshly restored app. Cause: `loadAllActivities` (storage.ts) fixes swim records at read time (`moving_time := elapsed_time`, Strava computes no moving time for swims), and `pushBackup` hashes *what it loads* — so every swim's md5 differed from the CSV-faithful file the tool (or the phone's own importer) had written. The 200 matched the archive's swim count exactly; everything else skipping proved the byte-identity design working. The dangerous part was the steady state: the tool would write the CSV value, the push would overwrite it with the fixed value, the next tool run would re-upload… forever.
   - **Fix at the source**: `rowToActivity` now applies the rule when building the record, and both importers re-apply it via the new `applySwimMovingTime` after the GPX `<type>` fallback (the path where a record becomes `Swim` after mapping). The stored bytes now equal the pushed bytes on every path — phone import, desktop tool, restore + re-push — and the read-time fix in `loadAllActivities` remains exactly where it should be: a legacy shim for records written by older builds, a no-op for everything else.
   - `moving_time` keeps its position in the record literal either way, so key order — and therefore every writer's md5 — is stable.

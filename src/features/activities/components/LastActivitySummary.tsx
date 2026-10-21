@@ -245,6 +245,12 @@ export function LastActivitySummary({
                 {formatDate(activity.start_day, activity.start_month, activity.start_year)}
               </Text>
             </View>
+            {activity.local_time ? (
+              <View style={styles.compactItem}>
+                <Text style={styles.compactIcon}>🕐</Text>
+                <Text style={styles.compactText}>{activity.local_time.slice(0, 5)}</Text>
+              </View>
+            ) : null}
             <View style={styles.compactItem}>
               <Text style={styles.compactIcon}>📏</Text>
               <Text style={styles.compactText}>{formatDistance(activity.distance)}</Text>
