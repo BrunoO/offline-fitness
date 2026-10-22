@@ -4,7 +4,7 @@ This document describes the system architecture of the Offline Fitness applicati
 
 ## Key Architectural Principles
 
-1. **Modular Feature Structure**: Code is organized by features (activities, backup, strava-import, maps, stats, home) with each feature containing its own components, services, screens, and types. The `backup` feature mirrors local activities/streams to a WebDAV server (manual push/pull, no auto-sync). The `strava-import` feature is the Strava data-export conversion core — no API or OAuth involved — and since Phase 5 it is executed by the desktop tool (`npm run tool:seed`), which writes the WebDAV collection that the phone's *Restore* ingests; there is no in-app archive import any more (see `docs/desktop-import-plan.md`).
+1. **Modular Feature Structure**: Code is organized by features (activities, backup, strava-import, maps, stats, home, recording) with each feature containing its own components, services, screens, and types. The `recording` feature wraps a local Expo module (`modules/gps-tracker/`) that owns the foreground service, the fix log and the replay; the app only owns permissions, the UI and the save flow. The `backup` feature mirrors local activities/streams to a WebDAV server (manual push/pull, no auto-sync). The `strava-import` feature is the Strava data-export conversion core — no API or OAuth involved — and since Phase 5 it is executed by the desktop tool (`npm run tool:seed`), which writes the WebDAV collection that the phone's *Restore* ingests; there is no in-app archive import any more (see `docs/desktop-import-plan.md`).
 
 2. **Barrel Exports with Careful Dependency Management**: Each module exposes a public API through barrel exports (index.ts), but internal module imports use relative paths to prevent circular dependencies.
 
@@ -147,13 +147,14 @@ graph TB
 
 2. **Data Storage**
    - AsyncStorage for activities
-   - FileSystem for stream caching
+   - FileSystem for stream caching and the recording fix logs (`<files>/recording/<sessionId>/`)
    - No authentication state: the app is fully offline after the archive import
 
 3. **Navigation**
    - Drawer-based navigation
-   - Five main screens
+   - Six main screens (Home, Record, Stats, Maps, Activities, Logs)
    - Consistent routing
+   - The `Record` screen drives the local `gps-tracker` module; the `Add activity` drawer item opens the RECORD-CHOOSER.
 
 4. **Component Architecture**
    - Reusable components
@@ -161,11 +162,26 @@ graph TB
    - Common UI elements
 
 5. **Data Flow**
-   - Strava export ZIP import (`activities.csv` + GPX → same local records and stream cache)
+   - Strava export ZIP import (`activities.csv` + GPX → same local records and stream cache) via the desktop seeder (`npm run tool:seed`) + phone Restore
+   - On-device recording (Android): raw fixes → `fixes.jsonl` → TypeScript replay → `Activity` + binary stream, stored and pushed like an imported one
    - Local caching
    - State updates
 
-6. **Strava Archive Conversion** (`src/features/strava-import`, run by `scripts/strava-import-tool/`)
+6. **GPS Recording** (`src/features/recording`, `modules/gps-tracker/`)
+   - The only ingestion path that originates on the phone. A local Expo module (`modules/gps-tracker/`) owns the foreground service (`foregroundServiceType="location"`), the wake lock, the notification, the location providers, the session storage and the fix log; the app owns permissions (D5), the UI and the save flow. The module is autolinked from `modules/` via `app.json` → `expo.autolinking.nativeModulesDir`, with no `package.json`, no lockfile entry and no symlink.
+   - **Typed surface**: `AsyncFunction`/`Events`/`OnStartObserving` replace the legacy `ReadableMap` parsing and the mutable `TrackingService.listener` static. The module holds no session state: the service publishes through `TrackingSession` (a process-wide holder) and the module subscribes, so a destroyed React instance cannot lose a recording (§4 of `docs/recording-plan.md`).
+   - **The fix log is the contract, not GPX** (D3): `<files>/recording/<sessionId>/meta.json` + `fixes.jsonl`. Native captures and persists raw fixes; the app reads the log itself in chunks (D11) through `services/fixLog.ts` and replays it in TypeScript (`services/replaySession.ts`). **No fix array crosses the bridge.**
+   - **Canonical replay in TypeScript** (D2): `replaySession` folds fixes one at a time into a reducer (accuracy ceiling → min distance → speed-jump → stale timestamp → interval → stationary drift → altitude fusion → auto-pause → manual-pause time). Distance, gain, loss, max speed, elapsed, moving time, average speed and the moving segments all come out of it. Coordinates are rounded to 1e-6 and altitude to 0.1 m, matching `toStreamSet`, so a recorded activity and an imported one produce the same payload and the map, charts and stats treat them identically.
+   - **Swims are canonicalised at write time**: `moving_time = elapsed_time` and `total_elevation_gain = 0`, matching `rowToActivity`/`correctSwimElevationGain`, so a recorded swim is never "fixed" by the startup backfill.
+   - **Altitude**: the native `AltitudeProcessor` reports raw altitude + geoid + pressure only; the barometer fusion, EMA smoothing, hysteresis gain/loss and slope live in the replay.
+   - **Save order** (§3.7, retryable): replay → `writeStreamFile` (`encodeStreamSet` + `File.write` into `APP_CONFIG.STREAMS_FOLDER`) → `addActivity` (which triggers the existing backup sync) → `markSessionSaved`. A failure after the stream write leaves an unreferenced file (harmless, overwritten on retry).
+   - **Android-only recording** (D6/D7): iOS is a compiled stub answering `getCapabilities() → { canRecord: false }`. The pod resolves and the stub compiles (`xcodebuild -scheme GpsTracker`), so the module cannot quietly become Android-only at the config level.
+   - **No `ACCESS_BACKGROUND_LOCATION`** (D5): a `foregroundServiceType="location"` service started while the app is visible runs on the while-in-use grant. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is deliberately absent (D9, post-MVP).
+   - **Permissions are the app's job** (D5): foreground location via `expo-location`, `POST_NOTIFICATIONS` via `PermissionsAndroid`; denial of the notification is non-fatal. `useKeepAwake` keeps the screen on only while a session is live.
+   - **Retention** (D10): fix logs are kept for 30 days, device-only, swept at app start and after each successful save through `listSessions()` + `discardSession()`; the README Fine print states the window.
+   - **iOS contribution guide**: the stub is the contract; implement the same functions behind `CoreLocation` and validate against the fixtures in `__tests__/recording/`.
+
+7. **Strava Archive Conversion** (`src/features/strava-import`, run by `scripts/strava-import-tool/`)
    - Entry point: `npm run tool:seed` on a computer (Phase 5 of `docs/desktop-import-plan.md` retired the in-app importer — no Strava connection either way). Nothing under `src/` imports this feature; it is the library the tool runs, so the phone keeps its byte-identity guarantee with the collection.
    - `services/zipReader.ts` — random-access ZIP reader over a plain `ByteSource` seam (seek + read a byte range), with `pako` for deflate/gzip. A full export is ~1 GB uncompressed, so the archive is never loaded whole: peak memory is one central-directory listing plus a single track file. Supports stored/deflate entries and ZIP64.
    - `services/csvParser.ts` — locale-tolerant `activities.csv` parser. Header names follow the account language, so columns resolve by alias (English/French/major European abbreviations) with the known column layout as a verified fallback. `Distance` and `Elapsed Time` appear twice; the later (metres/seconds) occurrence wins. Activity dates are UTC.
@@ -212,6 +228,7 @@ graph TB
    - `CustomDrawer` from `@/shared/components/CustomDrawer`
    - `MiniMapComponent` from `@/features/maps/components/MiniMapComponent`
    - `ButtonList` from `@/features/home/components/ButtonList`
+   - `RecordChooserSheet` from `@/features/activities/components/RecordChooserSheet` (mounted beside the navigator, never inside the drawer panel)
 
    **Services:**
    - `trackComparison` functions from `@/shared/services/trackComparison` (import directly)

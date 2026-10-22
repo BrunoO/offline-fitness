@@ -203,6 +203,7 @@ semantically invisible to tsc. Non-negotiable discipline:
    │   ├── backup/          # Cloud backup/restore (WebDAV transport)
    │   ├── home/            # Home screen, launcher buttons
    │   ├── maps/            # Map visualization (MiniMapComponent)
+   │   ├── recording/       # GPS recording: fix-log reader, replay, save flow, screen (wraps modules/gps-tracker)
    │   ├── stats/           # Charts, statistics screens, SettingsProvider
    │   └── strava-import/   # Archive-conversion core (CSV/GPX/ZIP/mapping), run by the desktop tool
    ├── shared/              # Cross-cutting: components, services, utils, types
@@ -221,6 +222,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 - **`useActivities` hook** (`features/activities/hooks/useActivities.ts`) - Core state management
 - **Stream caching** (`fetchAndStoreStreams.ts`) - Performance-critical, handles large datasets
 - **Archive ingestion** (`scripts/strava-import-tool/` + `features/strava-import/` core) - The only ingestion path: desktop tool → WebDAV → Restore; idempotent and resumable by design
+- **GPS recording** (`modules/gps-tracker/` + `features/recording/`) - The local Expo module, the fix log, the replay and the save flow. The service owns the session; the app owns permissions. Never copy `../GpsLib/gpslogger/` (GPLv2).
 - **Calendar components** (`ActivityCalendarPeriod`) - Complex state and performance optimizations
 - **MiniMap component** - Navigation lifecycle issues, platform-specific behavior
 

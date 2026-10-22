@@ -43,9 +43,12 @@ The app is built in layers, each one unlocking the next. Where we are:
 3. **Backup and sync over WebDAV** — *in progress*. Pushing and restoring activities and
    tracks against any RFC 4918 server exists in the app; the stream files are moving to a
    compact binary format to make the sync faster and roughly half the size.
-4. **Record your own GPS tracks** — *todo*. Capture a track during an activity in the app
-   itself, so Offline Fitness can stand alone and you no longer depend on Strava to produce
-   the data.
+4. **Record your own GPS tracks** — *in progress*. The Android recorder is in the app: a
+   local Expo module owns the foreground service and the fix log, and the app replays the
+   log in TypeScript to produce the same activity/stream shape as an imported one, so maps,
+   charts and stats treat them identically. iOS is a compiled stub today (`canRecord: false`);
+   a CoreLocation implementation is a contribution. Post-MVP: audio/haptic splits and the
+   battery-exemption prompt.
 5. **Activities without GPS** — *todo*. Enter activities by hand (indoor sessions,
    a treadmill run, yoga). Some groundwork exists already: ingestion tolerates
    activities without a track and excludes them from distance/elevation stats.
@@ -54,6 +57,16 @@ The app is built in layers, each one unlocking the next. Where we are:
    "no account, no tracking" promise and making the whole app usable fully offline.
 
 ## Getting the data in
+
+There are two ways to populate the app:
+
+- **Record a track on the phone** (Android today; iOS is a compiled stub). Drawer →
+  **Record** → pick a profile (walking, hiking, cycling, swimming) → Start. The app keeps
+  the screen on, captures the fix log, and on Stop replays it into an activity that shows
+  up everywhere an imported one does (map, stats, calendar, export, WebDAV push). The
+  "Add activity" drawer item opens a chooser between Record and Enter manually.
+- **Import a Strava archive** (the original path), for everything recorded before this
+  app existed or on another device:
 
 1. Sign in to the Strava website → **Settings → My Account → Download or delete your account**
    and request the archive. Strava emails you a link to a `.zip`.
@@ -239,6 +252,12 @@ Behaviours of the app (or the OS around it) that can surprise you:
 - **Plain HTTP to the WebDAV server is allowed, on purpose.** `usesCleartextTraffic` is
   enabled so self-hosted servers on a LAN without certificates work. Prefer HTTPS or a
   VPN where you can, and use a scoped app password.
+- **Recorded tracks keep a 30-day fix log on the device.** A recording writes raw fixes
+  (`fixes.jsonl`) next to its `meta.json` under the app's private files, retained for 30
+  days for debugging (why did last week's ride come out short?). The log never leaves the
+  device: it is not in the WebDAV backup, not in the GPX/CSV export, and not in the
+  desktop seeder. Deleting an activity offers to delete its log; Settings has a
+  **Delete all** control. Android-only recording today; iOS reports `canRecord: false`.
 
 ## Requirements
 
