@@ -74,5 +74,20 @@ jobs:
           args: >
             -Dsonar.organization=brunoo
             -Dsonar.projectKey=BrunoO_offline-fitness
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=300000
+
+      # The project's evaluated gate remains the built-in "Sonar way" (its
+      # new_coverage condition is not our contract; custom-gate ASSIGNMENT is
+      # plan-blocked on Community). So CI waits for compute, then enforces the
+      # documented DoD directly: zero OPEN issues.
+      - name: Quality gate (0 open issues)
+        env:
+          SONARQUBE_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          for i in $(seq 1 30); do
+            pending=$(curl -s -u "$SONARQUBE_TOKEN:" \
+              "https://sonarcloud.io/api/ce/task?component=BrunoO_offline-fitness&status=PENDING,IN_PROGRESS" \
+              | jq '.tasks | length')
+            [ "$pending" = "0" ] && break
+            echo "compute pending ($pending), waiting..."; sleep 10
+          done
+          scripts/sonar_gate.sh

@@ -833,3 +833,9 @@ A comprehensive code review was performed, covering technical debt, architecture
 - sonar-project.properties: removed sonar.sources/tests/test.exclusions/inclusions/language after the scanner proved it ignores them (new scope UX analyzes everything; only exclusions apply); added *.test.ts to exclusions for parity. Comment added so nobody reintroduces the dead keys.
 - App.tsx: applied the prettier fixes the lint step flagged (formatting only; drawerContent suppression structure verified intact).
 - Gate decision (custom new-issues=0 gate vs. covering the new-code tests) remains open with the user - until then CI fails on coverage, by design, not noise.
+
+## Custom Gate Findings + CI Contract Enforcement - 2026-10-22
+
+- SonarCloud **Community plan**: custom quality gates can be CREATED and CONFIGURED via API ("Offline Fitness way" exists with new_violations GT 0 + hotspots-reviewed LT 100), but not ASSIGNED: set_as_default returns "Organization not allowed to modify Quality gates", select_project is gone, and a settings/set probe was accepted (204) but no-op.
+- Therefore the A contract (zero new issues, not new coverage) is enforced in CI directly: build.yml's scan no longer waits on the built-in Sonar way gate; a "Quality gate (0 open issues)" step polls the compute queue (api/ce/task) to completion, then runs `scripts/sonar_gate.sh` (exit 1 on any OPEN/CONFIRMED issue). Same contract the DoD documents, plan-independent.
+- If the gate is ever assigned via UI (or plan upgrade), removing the inline step's overlap is trivial; until then the Sonar way gate's ERROR on new_coverage is expected dashboard noise, not a build blocker.

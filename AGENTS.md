@@ -90,6 +90,11 @@ Rules for AI agents (and humans):
 Supporting files: `scripts/sonar_gate.sh` (this gate),
 `scripts/fetch_sonar_results.sh` / `scripts/fetch_sonar_duplications.sh`
 (issue & duplication detail), `sonar-project.properties` (scanner config).
+CI (`.github/workflows/build.yml`) enforces the same contract after each
+scan. Note on plans: the SonarCloud Community plan allows CREATING custom
+quality gates but not ASSIGNING them (org-default and project-level binding
+are refused/no-op) - hence the contract lives in `sonar_gate.sh`, not in a
+custom SonarCloud gate.
 `sonar-results/` is gitignored; the local scanner script contains a token and
 must never be committed.
 
