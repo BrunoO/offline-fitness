@@ -95,6 +95,8 @@ function computeNoStreamIds(activities: readonly Activity[]): Set<string> {
       for (const file of folder.list()) {
         if (file.name.endsWith('.json')) {
           streamIds.add(file.name.slice(0, -'.json'.length));
+        } else if (file.name.endsWith('.bin')) {
+          streamIds.add(file.name.slice(0, -'.bin'.length));
         }
       }
     }
@@ -187,7 +189,7 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
     return null;
   }
   const files = folder.list();
-  const jsonFiles = files.filter(file => file.name.endsWith('.json'));
+  const jsonFiles = files.filter(file => file.name.endsWith('.json') || file.name.endsWith('.bin'));
 
   if (jsonFiles.length === 0) {
     return null;
@@ -221,7 +223,9 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
   }
 
   for (const activity of allActivities) {
-    const file = new File(folder, `${activity.id}.json`);
+    const binFile = new File(folder, `${activity.id}.bin`);
+    const jsonFile = new File(folder, `${activity.id}.json`);
+    const file = binFile.exists ? binFile : jsonFile;
 
     if (file.exists) {
       try {
@@ -253,7 +257,9 @@ export const loadStreamForActivity = async (activity: Activity): Promise<Activit
   if (!folder) {
     return null;
   }
-  const file = new File(folder, `${activity.id}.json`);
+  const binFile = new File(folder, `${activity.id}.bin`);
+  const jsonFile = new File(folder, `${activity.id}.json`);
+  const file = binFile.exists ? binFile : jsonFile;
 
   if (!file.exists) {
     return null;
@@ -280,7 +286,9 @@ export const loadRawStreamForActivity = async (activity: Activity): Promise<Stre
   if (!folder) {
     return null;
   }
-  const file = new File(folder, `${activity.id}.json`);
+  const binFile = new File(folder, `${activity.id}.bin`);
+  const jsonFile = new File(folder, `${activity.id}.json`);
+  const file = binFile.exists ? binFile : jsonFile;
 
   if (!file.exists) {
     return null;
@@ -309,7 +317,9 @@ export const countStreamsStatus = async (
       return { downloadedStreams: 0, missingStreams };
     }
     const files = folder.list();
-    const downloadedStreams = files.filter(file => file.name.endsWith('.json')).length;
+    const downloadedStreams = files.filter(
+      file => file.name.endsWith('.json') || file.name.endsWith('.bin')
+    ).length;
     return { downloadedStreams, missingStreams };
   } catch (error) {
     simpleLogger.error('Error counting streams status:', error);
@@ -328,7 +338,9 @@ async function backfillBoundingBox(activity: Activity): Promise<boolean> {
     processingActivities.delete(activity.id);
     return false;
   }
-  const file = new File(folder, `${activity.id}.json`);
+  const binFile = new File(folder, `${activity.id}.bin`);
+  const jsonFile = new File(folder, `${activity.id}.json`);
+  const file = binFile.exists ? binFile : jsonFile;
   try {
     if (!file.exists) {
       return false;
