@@ -2,7 +2,7 @@ import { APP_CONFIG } from '@/constants';
 import { compareActivitiesByUtcDesc, simpleLogger } from '@/shared';
 import { useTheme } from '@/theme';
 import * as Storage from '@/shared/services/storage';
-import { useActivitiesDataContext } from '@/features/activities';
+import { useActivitiesDataContext, useActivitiesSyncContext } from '@/features/activities';
 import React from 'react';
 import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RestoreSummary, SyncProgress, pullBackupNow, pushBackupNow } from '../services/backupSync';
@@ -44,6 +44,7 @@ export function BackupSection() {
     disconnect
   } = useWebDavBackup();
   const { setGlobalActivities, setTotalActivitiesStored } = useActivitiesDataContext();
+  const { recordBackupSync } = useActivitiesSyncContext();
 
   const [serverUrl, setServerUrl] = React.useState('');
   const [serverUser, setServerUser] = React.useState('');
@@ -130,6 +131,7 @@ export function BackupSection() {
       };
       const summary = await pushBackupNow(onProgress);
       setLastSync(summary.syncedAt);
+      recordBackupSync(summary.syncedAt);
       if (summary.errors.length > 0) {
         setStatus(`Done with ${summary.errors.length} errors (see logs)`);
         Alert.alert(

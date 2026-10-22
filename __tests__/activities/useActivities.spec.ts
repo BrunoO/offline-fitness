@@ -99,4 +99,17 @@ describe('useActivities', () => {
       expect(mockStorage.addActivityTombstone).toHaveBeenCalledWith('1');
     });
   });
+
+  it('should initialize lastBackupSync from storage and update on recordBackupSync', async () => {
+    mockStorage.retrieveStringValue.mockResolvedValue('2026-10-22T08:00:00.000Z');
+    const { result } = renderHook(() => useActivities());
+    await waitFor(() => {
+      expect(result.current.lastBackupSync).toBe('2026-10-22T08:00:00.000Z');
+    });
+
+    act(() => {
+      result.current.recordBackupSync('2026-10-22T09:00:00.000Z');
+    });
+    expect(result.current.lastBackupSync).toBe('2026-10-22T09:00:00.000Z');
+  });
 });

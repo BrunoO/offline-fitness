@@ -1,6 +1,6 @@
 import { Activity, compareActivitiesByUtcDesc, simpleLogger } from '@/shared';
 import * as Storage from '@/shared/services/storage';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 /**
  * A hook for managing activities.
@@ -10,6 +10,29 @@ export function useActivities() {
   const [globalActivities, setGlobalActivities] = useState<Activity[]>([]);
   const [totalActivitiesStored, setTotalActivitiesStored] = useState(0);
   const [fetchingData, setFetchingData] = useState(true);
+  const [lastBackupSync, setLastBackupSync] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadLastSync = async () => {
+      try {
+        const syncedAt = await Storage.retrieveStringValue(Storage.BACKUP_LAST_SYNC_KEY);
+        if (isMounted && syncedAt) {
+          setLastBackupSync(syncedAt);
+        }
+      } catch {
+        // Storage unavailable or empty
+      }
+    };
+    void loadLastSync();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const recordBackupSync = useCallback((timestamp: string) => {
+    setLastBackupSync(timestamp);
+  }, []);
 
   // Derived from globalActivities (always sorted descending by true UTC instant) so
   // it stays correct after any setGlobalActivities call without a separate state.
@@ -130,6 +153,8 @@ export function useActivities() {
     deleteActivity,
     myActivitiesDiscovered,
     setGlobalActivities,
-    setTotalActivitiesStored
+    setTotalActivitiesStored,
+    lastBackupSync,
+    recordBackupSync
   };
 }

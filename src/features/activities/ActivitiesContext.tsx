@@ -19,6 +19,8 @@ type ActivitiesDataContextType = {
 type ActivitiesSyncContextType = {
   totalActivitiesStored: number;
   fetchingData: boolean;
+  lastBackupSync: string | null;
+  recordBackupSync: (timestamp: string) => void;
   /** Reloads activities from local storage (no network); used by pull-to-refresh. */
   refreshActivities: () => Promise<void>;
   /** Reload activities from local storage only (no network); used after an archive import. */
@@ -45,7 +47,9 @@ export const ActivitiesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     totalActivitiesStored,
     fetchingData,
     refreshActivities,
-    reloadActivitiesFromLocalStorage
+    reloadActivitiesFromLocalStorage,
+    lastBackupSync,
+    recordBackupSync
   } = useActivities();
 
   // Memoized separately so the data context value reference stays stable while
@@ -75,10 +79,19 @@ export const ActivitiesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     () => ({
       totalActivitiesStored,
       fetchingData,
+      lastBackupSync,
+      recordBackupSync,
       refreshActivities,
       reloadActivitiesFromLocalStorage
     }),
-    [totalActivitiesStored, fetchingData, refreshActivities, reloadActivitiesFromLocalStorage]
+    [
+      totalActivitiesStored,
+      fetchingData,
+      lastBackupSync,
+      recordBackupSync,
+      refreshActivities,
+      reloadActivitiesFromLocalStorage
+    ]
   );
 
   return (

@@ -65,7 +65,9 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     globalActivities,
     totalActivitiesStored,
     fetchingData,
-    reloadActivitiesFromLocalStorage
+    reloadActivitiesFromLocalStorage,
+    lastBackupSync,
+    recordBackupSync
   } = useActivitiesContext();
   const [homeScreenStream, setHomeScreenStream] = useState<{
     stream: ActivityStream | undefined;
@@ -134,23 +136,38 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     stale: false
   });
 
+  const updateBackupFreshness = useCallback((syncedAt: string | null) => {
+    const ago = relative_time_label(syncedAt);
+    if (!syncedAt || ago === null) {
+      setBackupFreshness({ label: 'No backup yet', stale: false });
+      return;
+    }
+    setBackupFreshness({
+      label: `Synced ${ago}`,
+      stale: Date.now() - Date.parse(syncedAt) > STALE_BACKUP_MS
+    });
+  }, []);
+
+  useEffect(() => {
+    updateBackupFreshness(lastBackupSync);
+    const interval = setInterval(() => {
+      updateBackupFreshness(lastBackupSync);
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [lastBackupSync, updateBackupFreshness]);
+
   const loadBackupFreshness = useCallback(async () => {
     try {
       const syncedAt = await retrieveStringValue(BACKUP_LAST_SYNC_KEY);
-      const ago = relative_time_label(syncedAt);
-      if (ago === null) {
-        // Never synced, or an unreadable stamp: unknown, not a warning.
-        setBackupFreshness({ label: 'No backup yet', stale: false });
-        return;
+      if (syncedAt) {
+        recordBackupSync(syncedAt);
+      } else {
+        updateBackupFreshness(null);
       }
-      setBackupFreshness({
-        label: `Synced ${ago}`,
-        stale: Date.now() - Date.parse(syncedAt) > STALE_BACKUP_MS
-      });
     } catch (error) {
       simpleLogger.error('Could not read the last backup time:', error);
     }
-  }, []);
+  }, [recordBackupSync, updateBackupFreshness]);
 
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();
@@ -459,9 +476,9 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     }, [homeScreenStream])
   );
 
-  // Re-read the backup stamp whenever the screen gains focus. The Settings sheet
-  // is a `Modal`, so dismissing it fires no focus event: a sync finished in this
-  // visit appears on the next navigation or the next pull-to-refresh.
+  // Re-read the backup stamp whenever the screen gains focus as a fallback when
+  // returning from another tab or drawer destination. Live syncs inside the Settings
+  // modal update lastBackupSync immediately via ActivitiesSyncContext.
   useFocusEffect(
     useCallback(() => {
       void loadBackupFreshness();
