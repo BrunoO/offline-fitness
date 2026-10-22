@@ -63,7 +63,7 @@ function HorizontalBarChart({
     __label: string;
   };
 
-  const chartHeight = data.length * 25; // Adjust to change the height per bar
+  const chartHeight = data.length * 30; // Adjust to change the height per bar
   const processed: ProcessedDatum[] = data.map(d => {
     const raw = accessFunction(d);
     const isZero = raw <= 0 || Number.isNaN(raw);
@@ -80,6 +80,7 @@ function HorizontalBarChart({
       <VictoryChart
         theme={chartTheme}
         height={chartHeight}
+        domainPadding={{ x: 15, y: 15 }}
         padding={{ top: 20, bottom: 20, left: 5, right: 40 }}
       >
         <VictoryBar
@@ -95,7 +96,7 @@ function HorizontalBarChart({
             }
           }}
           data={processed}
-          barWidth={Platform.OS === 'android' ? 20 : undefined}
+          barWidth={18}
           x="month"
           y={d => (d as ProcessedDatum).__value}
           labels={({ datum }) => (datum as ProcessedDatum).__label}
