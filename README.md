@@ -85,9 +85,10 @@ Notes:
   touching what the phone has — but it does re-download any stream file whose bytes differ
   from the index (stale or corrupt copies heal instead of persisting). Interrupt a run at any
   point; re-running resumes.
-- Set up the WebDAV backup first: drawer → **Settings** → Backup. `--root`, `--user` and
-  `--profile` are exactly what that screen shows; a mismatch with the folder's owner is
-  refused before anything uploads.
+- Set up the WebDAV backup first: drawer → **Settings** → Backup (no server yet? see
+  [Backup server (Nextcloud)](#backup-server-nextcloud)). `--root`, `--user` and `--profile`
+  are exactly what that screen shows; a mismatch with the folder's owner is refused before
+  anything uploads.
 - The archive stores only **UTC** timestamps and no timezone. The tool derives each activity's
   zone from its GPS start — a holiday ride in Porto is bucketed Porto-local — and uses `--tz`
   (your home zone) only for records without a usable track: manual entries, swims and `.fit`.
@@ -100,6 +101,87 @@ Notes:
 
 `npm run tool:seed -- status ...` reports what a collection currently holds, and
 `docs/desktop-import-plan.md` describes the layout contract.
+
+## Backup server (Nextcloud)
+
+The backup asks one thing of a server: WebDAV that accepts `PROPFIND`, `MKCOL`, `PUT` and
+`DELETE`. Nextcloud is the reference implementation — a plain file tree served at
+`https://host/remote.php/dav/files/<user>/`, which is exactly the account root the app asks
+for. rclone and Apache `mod_dav` work too; Nextcloud is what the instructions below assume.
+
+**Use an app password, not your login password.** In Nextcloud: avatar → **Personal settings
+→ Security → Devices & sessions → Create new app password**. Nextcloud shows the string once —
+copy it then.
+
+### Docker (fastest)
+
+```bash
+docker run -d --name nextcloud \
+  --restart unless-stopped \
+  -p 8080:80 \
+  -v nextcloud:/var/www/html \
+  nextcloud
+```
+
+Open `http://<host>:8080`, choose the admin login, then create the app password above. The
+image defaults to SQLite, which is enough for a single-user backup target; for more users put
+it behind the upstream MariaDB compose template (see the
+[Nextcloud Docker documentation](https://github.com/nextcloud/docker)).
+
+### Native install
+
+On a Debian/Ubuntu box the snap is the shortest path to a working server:
+
+```bash
+sudo snap install nextcloud
+sudo nextcloud.manual-install <admin-user> <admin-password>
+sudo nextcloud.enable-https lets-encrypt   # needs a public domain pointed at the box
+```
+
+A distro package or the manual LAMP/LEMP install (web server + PHP + MariaDB, data directory
+outside the web root) gives the same result; the
+[admin manual](https://docs.nextcloud.com/server/latest/admin_manual/installation/) has the
+per-distribution steps. Either way the endpoint ends up at
+`https://host/remote.php/dav/files/<user>/`.
+
+### Point the app at it
+
+Drawer → **Settings** → **Backup**:
+
+| Field | Value |
+|---|---|
+| Server URL | `http://<host>:8080/remote.php/dav/files/<user>/` — the account root, trailing slash included, **not** a subfolder |
+| Username | your Nextcloud user |
+| Password | the app password from above |
+| Profile name | any label, e.g. your first name |
+
+Everything below that root is created by the app, so don't make the folders by hand:
+
+```
+remote.php/dav/files/<user>/
+└── offline-fitness/
+    └── <profile>/
+        ├── collection.json   # owner (app id + profile) and layout version
+        ├── activities/       # <activityId>.json
+        ├── streams/          # <activityId> track payloads
+        └── sync-state.json   # md5 index + deletion tombstones
+```
+
+Notes:
+
+- **The profile label is the backup's identity.** Use the same label on every device you own —
+  two phones with one profile share a single backup. Two people sharing one Nextcloud account
+  pick different labels; the app refuses a collection that belongs to another profile or app
+  id, and recreates `offline-fitness/<profile>/` if it was deleted on the server.
+- **Desktop seeding takes the same three values**: `--root`, `--user` and `--profile` are
+  exactly what that screen shows.
+- **HTTPS is preferred, plain HTTP is deliberate.** The app allows cleartext traffic so a
+  self-hosted box on a LAN without certificates works. A **self-signed** certificate is
+  rejected by the phone's TLS stack — use Let's Encrypt, or HTTP on a trusted network.
+- **The folder is ordinary storage.** It counts against the account quota like any other
+  Nextcloud folder, and the track payloads are the bulk of it. You can browse or copy it from
+  the Files app or the Nextcloud desktop client, but don't rename or restructure it — the app
+  only knows the layout above.
 
 ## Activity type merging
 
@@ -214,7 +296,7 @@ direction — everything else in the app works without any key at all.
 
 The WebDAV backup is configured in the app itself: drawer → **Settings** → server URL (the
 full collection root, e.g. `https://host/remote.php/dav/files/<user>/`), username and
-password.
+password. [Backup server (Nextcloud)](#backup-server-nextcloud) covers standing one up.
 
 ## Project layout
 
