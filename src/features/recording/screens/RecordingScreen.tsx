@@ -1,7 +1,8 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import React, { JSX, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
 import type {
   GpsTrackerCapabilities,
@@ -60,14 +61,29 @@ export function RecordingScreen(): JSX.Element {
     error,
     isBusy,
     isSaving,
+    unfinished,
     start,
     pause,
     resume,
     stop,
     save,
-    discard
+    discard,
+    discardUnfinished
   } = useRecording();
   const [profile, setProfile] = useState<Profile>('walking');
+
+  // Keep the screen awake only while a session is live.
+  useEffect(() => {
+    const isLive = state.phase === 'recording' || state.phase === 'paused';
+    if (isLive) {
+      void activateKeepAwakeAsync();
+    } else {
+      void deactivateKeepAwake();
+    }
+    return () => {
+      void deactivateKeepAwake();
+    };
+  }, [state.phase]);
 
   return (
     <ScrollView
@@ -76,6 +92,28 @@ export function RecordingScreen(): JSX.Element {
     >
       <Text style={[styles.title, { marginTop: insets.top + SPACING.lg }]}>Record</Text>
       <Text style={styles.subtitle}>{availabilityText(capabilities)}</Text>
+
+      {unfinished.length > 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Unfinished recording</Text>
+          {unfinished.map(session => (
+            <View key={session.sessionId} style={styles.recoveryRow}>
+              <Text style={styles.cardHint}>
+                {session.profile} · {new Date(session.startedAtUtcMs).toLocaleString()}
+              </Text>
+              <View style={styles.actions}>
+                <ActionButton
+                  label="Discard"
+                  onPress={() => {
+                    void discardUnfinished(session.sessionId);
+                  }}
+                  styles={styles}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <SessionCard phase={state.phase} sessionId={state.sessionId} styles={styles} />
       <LiveStatsCard liveStats={liveStats} styles={styles} />
@@ -113,6 +151,15 @@ export function RecordingScreen(): JSX.Element {
         />
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error?.toLowerCase().includes('permission') ? (
+        <ActionButton
+          label="Open settings"
+          onPress={() => {
+            void Linking.openSettings();
+          }}
+          styles={styles}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -459,6 +506,9 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.onPrimary,
       fontSize: 16,
       fontWeight: '700'
+    },
+    recoveryRow: {
+      marginTop: SPACING.sm
     },
     error: {
       color: theme.danger,

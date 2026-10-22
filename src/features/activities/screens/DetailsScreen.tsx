@@ -103,7 +103,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const [noStreamIds, setNoStreamIds] = useState<Set<string>>(new Set());
   const { globalActivities, deleteActivity, refreshActivities, fetchingData } =
     useActivitiesContext();
-  const { openManualEntry } = useManualEntry();
+  const { openRecordChooser } = useManualEntry();
   const insets = useSafeAreaInsets();
 
   // If route.params has activities it's a filtered view from Maps — use them.
@@ -141,8 +141,8 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // Stable element factory for the header: the button itself is hoisted
   // above, so no component is defined during render.
   const renderHeaderRight = React.useCallback(
-    () => <AddActivityHeaderButton onPress={openManualEntry} color={theme.primary} />,
-    [openManualEntry, theme]
+    () => <AddActivityHeaderButton onPress={openRecordChooser} color={theme.primary} />,
+    [openRecordChooser, theme]
   );
 
   useLayoutEffect(() => {

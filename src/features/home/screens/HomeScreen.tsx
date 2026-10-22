@@ -83,7 +83,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().split('T')[0]);
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
-  const { openManualEntry } = useManualEntry();
+  const { openRecordChooser } = useManualEntry();
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const [dayStreak, setDayStreak] = useState<{ current: number; best: number }>({
@@ -355,7 +355,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
   const handleDaySheetAdd = (date: string) => {
     setDaySheetDate(null);
-    openManualEntry(date);
+    openRecordChooser(date);
   };
 
   const daySheetActivities = useMemo(() => {
@@ -609,7 +609,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>Calendar</Text>
             <TouchableOpacity
-              onPress={() => openManualEntry(calendarDate)}
+              onPress={() => openRecordChooser(calendarDate)}
               accessibilityLabel={`Add activity on ${calendarDate}`}
               accessibilityRole="button"
               style={styles.actionButton}

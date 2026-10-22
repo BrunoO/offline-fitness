@@ -1,16 +1,17 @@
 import { simpleLogger } from '@/shared';
 import { useActivitiesContext } from '@/features/activities';
 import { useCallback, useEffect, useState } from 'react';
-import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
+import { listUnfinishedSessions, readFixLog } from '../services/fixLog';
 import type {
+  RecordingMeta,
   GpsTrackerCapabilities,
   LiveStats,
   Profile,
   RecordingState,
   RecordingSummary
 } from '../services/gpsTracker';
+import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import { buildRecordedActivity } from '../services/buildRecordedActivity';
-import { readFixLog } from '../services/fixLog';
 import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
 import { replaySession } from '../services/replaySession';
 import { useRecordingPermissions } from './useRecordingPermissions';
@@ -28,6 +29,8 @@ export interface UseRecordingResult {
   error: string | null;
   isBusy: boolean;
   isSaving: boolean;
+  unfinished: RecordingMeta[];
+  discardUnfinished: (sessionId: string) => Promise<void>;
   start: (profile: Profile) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -62,6 +65,7 @@ export function useRecording(): UseRecordingResult {
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [unfinished, setUnfinished] = useState<RecordingMeta[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -102,6 +106,24 @@ export function useRecording(): UseRecordingResult {
 
     void loadState();
 
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadUnfinished = async () => {
+      try {
+        const sessions = await listUnfinishedSessions();
+        if (isMounted) {
+          setUnfinished(sessions.map(item => item.meta));
+        }
+      } catch (cause: unknown) {
+        simpleLogger.error('Could not list unfinished sessions', cause);
+      }
+    };
+    void loadUnfinished();
     return () => {
       isMounted = false;
     };
@@ -270,6 +292,15 @@ export function useRecording(): UseRecordingResult {
     }
   }, [state.sessionId]);
 
+  const discardUnfinished = useCallback(async (sessionId: string) => {
+    try {
+      await GpsTracker.discardSession(sessionId);
+      setUnfinished(prev => prev.filter(item => item.sessionId !== sessionId));
+    } catch (cause: unknown) {
+      simpleLogger.error('Could not discard unfinished session', cause);
+    }
+  }, []);
+
   return {
     capabilities,
     state,
@@ -278,6 +309,8 @@ export function useRecording(): UseRecordingResult {
     error,
     isBusy,
     isSaving,
+    unfinished,
+    discardUnfinished,
     start,
     pause,
     resume,

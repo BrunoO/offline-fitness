@@ -1,26 +1,38 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { RootDrawerParamList } from '@/shared/types/types';
 import { ManualActivitySheet } from './components/ManualActivitySheet';
+import { RecordChooserSheet } from './components/RecordChooserSheet';
 
 type ManualEntryContextType = {
   /**
    * Opens the manual-entry sheet, optionally prefilled with a calendar date
-   * ('YYYY-MM-DD'). When GPS tracking lands, turn this into the Track/Manual
-   * chooser (RECORD-CHOOSER) instead of adding a second entry point.
+   * ('YYYY-MM-DD').
    */
   openManualEntry: (date?: string) => void;
+  /**
+   * Opens the RECORD-CHOOSER: a single entry point offering "Record" and
+   * "Enter manually", instead of a second button in the drawer. GPS tracking
+   * no longer adds a third entry point.
+   */
+  openRecordChooser: (date?: string) => void;
 };
 
 const ManualEntryContext = createContext<ManualEntryContextType | undefined>(undefined);
 
 /**
- * Owns the single `ManualActivitySheet` instance (mounted beside the
- * navigator, like `SettingsModal` — never inside the drawer panel). Entry
- * points (Details "+", drawer item, calendar day sheet) all call
- * `openManualEntry`, so the form state lives in exactly one place.
+ * Owns the single `ManualActivitySheet` and `RecordChooserSheet` instances
+ * (mounted beside the navigator, like `SettingsModal` — never inside the
+ * drawer panel). Entry points (Details "+", drawer item, calendar day sheet)
+ * all call `openRecordChooser`, so the form state lives in exactly one place.
  */
 export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigation = useNavigation<DrawerNavigationProp<RootDrawerParamList>>();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [initialDate, setInitialDate] = useState<string | undefined>(undefined);
+  const [chooserVisible, setChooserVisible] = useState(false);
+  const [chooserDate, setChooserDate] = useState<string | undefined>(undefined);
 
   const openManualEntry = useCallback((date?: string) => {
     setInitialDate(date);
@@ -29,12 +41,36 @@ export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const closeSheet = useCallback(() => setSheetVisible(false), []);
 
-  const value = useMemo(() => ({ openManualEntry }), [openManualEntry]);
+  const openRecordChooser = useCallback((date?: string) => {
+    setChooserDate(date);
+    setChooserVisible(true);
+  }, []);
+
+  const closeChooser = useCallback(() => setChooserVisible(false), []);
+
+  const handleRecord = useCallback(() => {
+    navigation.navigate('Record');
+  }, [navigation]);
+
+  const handleEnterManually = useCallback(() => {
+    openManualEntry(chooserDate);
+  }, [chooserDate, openManualEntry]);
+
+  const value = useMemo(
+    () => ({ openManualEntry, openRecordChooser }),
+    [openManualEntry, openRecordChooser]
+  );
 
   return (
     <ManualEntryContext.Provider value={value}>
       {children}
       <ManualActivitySheet visible={sheetVisible} initialDate={initialDate} onClose={closeSheet} />
+      <RecordChooserSheet
+        visible={chooserVisible}
+        onClose={closeChooser}
+        onRecord={handleRecord}
+        onEnterManually={handleEnterManually}
+      />
     </ManualEntryContext.Provider>
   );
 };
