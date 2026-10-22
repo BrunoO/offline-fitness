@@ -244,7 +244,12 @@ Behaviours of the app (or the OS around it) that can surprise you:
 
 - Node 20+, npm
 - Expo SDK 57 / React Native 0.86 / React 19.2 (see `package.json`)
-- Android or iOS device (the app also runs on web)
+- **Android** (the target platform) or **iOS** (partial: statistics, calendar and backup work;
+  the map screen is a placeholder)
+
+The app is mobile only. There is no browser build: it needs the phone's file system (track
+cache, export) and keychain (backup password), and `app.json` lists `ios` and `android` as the
+platforms.
 
 ## Development
 

@@ -1,6 +1,8 @@
 # Plan: drop the web target, keep mobile only (Android full, iOS partial)
 
-Status: proposed, not started.
+Status: **implemented** — see the "Web target removed" entry in `docs/status.md`.
+Kept as the record of what was removed and why; the guard it introduces is
+`npm run check:mobile-only`.
 
 ## Goal
 

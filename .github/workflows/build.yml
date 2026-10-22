@@ -48,6 +48,9 @@ jobs:
       - name: Import hygiene
         run: npm run check:imports
 
+      - name: Mobile-only guard
+        run: npm run check:mobile-only
+
       - name: Lint (advisory until lint debt is cleared)
         # DoD scope only (src + root entry files). `eslint .` also swept
         # scripts/ and __tests__/ - files Sonar excludes anyway - and its

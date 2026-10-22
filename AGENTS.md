@@ -40,9 +40,10 @@ This document provides essential context and rules for AI agents working on this
 1. Run `npx expo lint --fix` to auto-fix linting issues
 2. Run `npx tsc --noEmit` to verify TypeScript compilation
 3. Run `npm run check:imports` to verify no duplicate or scattered imports
-4. Run `npm test -- --watchAll=false` to verify tests pass
-5. Check for circular dependency warnings in build output
-6. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
+4. Run `npm run check:mobile-only` to verify no web target came back
+5. Run `npm test -- --watchAll=false` to verify tests pass
+6. Check for circular dependency warnings in build output
+7. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
 
 **Linting Rules:**
 - Use `npx expo lint --fix` to automatically fix issues
@@ -191,7 +192,7 @@ These areas are particularly sensitive - be extra careful when modifying:
   - Avoid `try/finally` inside compiled components/hooks (React Compiler cannot lower `finally` clauses yet; use `try/catch` + explicit cleanup)
   - Avoid unnecessary manual `useMemo`/`useCallback` unless stabilizing an effect/context dependency or a profiled hotspot
 - **Worklets & Reanimated v4**: `react-native-worklets/plugin` must remain the **last** plugin in `babel.config.cjs` (replaces `react-native-reanimated/plugin` in SDK 55+)
-- **Dependency Overrides**: On every Expo SDK bump, update the `expo-location` entry in `package.json` `overrides` in lockstep with the direct dependency (required so `@teovilla/react-native-web-maps` doesn't pull a nested `expo-location@15`), or `EOVERRIDE` will fail `npm install`
+- **No web-only packages**: the app targets Android and iOS only. `npm run check:mobile-only` fails if `react-dom`, `react-native-web`, `@teovilla/react-native-web-maps` or `@expo/metro-runtime` come back, and the `expo-location` override that package required is gone — do not reintroduce either without a written reason.
 - **Conditional Rendering**: Always use ternary `? ... : null`, **never** `&&` in JSX (prevents React Native `"Text strings must be rendered within a <Text> component"` crashes when values evaluate to `0` or `""`)
 - **Theming**: Read colours from `useTheme()` (`@/theme`) — never hardcode a hex value, and never build styles at module level (a module-level `StyleSheet.create` freezes the colours and cannot follow the active palette). Use `createStyles(theme)` + `useMemo` instead.
 - **Accessibility & Contrast (WCAG 2.1 AA)**: Strictly follow WCAG 2.1 AA standards. Normal text must achieve at least 4.5:1 contrast against its background, and large text/graphical elements at least 3.0:1 across all registered palettes in both light and dark modes. When rendering text over chart bars or progress indicators of varying length, do not render dark text directly over solid saturated fills; use tinted fills (`fillOpacity: 0.25` with a solid stroke) or place text outside the bar so that contrast is preserved everywhere. Streak indicators or badges using reduced opacity fills must pair with `theme.text`, never `theme.onPrimary`.
@@ -327,8 +328,11 @@ After significant changes, verify these critical flows:
 ### Platform Compatibility
 
 - **Always test on both iOS and Android** (or at least verify no platform-specific code breaks)
-- **Web support**: App should work on web via Expo, but mobile is primary target
-- **Platform-specific files**: Use `.android.tsx`, `.ios.tsx`, `.web.tsx` extensions when needed
+- **Platform-specific files**: Use `.android.tsx` / `.ios.tsx` extensions when needed. There is
+  no web target: `npm run check:mobile-only` fails on `*.web.*` files, `Platform.OS === 'web'`,
+  `web:` keys in `Platform.select`, web-only packages (`react-dom`, `react-native-web`,
+  `@teovilla/react-native-web-maps`, `@expo/metro-runtime`) and a `web` script. The iOS map
+  screen is the generic `.tsx` stub on purpose (Android has the `.android.tsx` implementation).
 
 ## Documentation Updates
 
@@ -372,6 +376,9 @@ npx expo lint --fix
 
 # Check for duplicate/scattered imports
 npm run check:imports
+
+# Check no web target came back (platform files, branches, deps, app.json)
+npm run check:mobile-only
 
 # Sonar completion gate (0 open issues; --scan scans first)
 scripts/sonar_gate.sh --scan
