@@ -89,7 +89,8 @@ export function useRecording(): UseRecordingResult {
                   distanceMeters: 0,
                   currentSpeedMps: null,
                   altitudeM: null,
-                  gpsLost: false
+                  gpsLost: false,
+                  hAccM: null
                 }
               });
             } catch (cause: unknown) {
@@ -142,7 +143,8 @@ export function useRecording(): UseRecordingResult {
           distanceMeters: update.distanceMeters,
           currentSpeedMps: update.speedMps,
           altitudeM: update.eleM,
-          gpsLost: update.gpsLost
+          gpsLost: update.gpsLost,
+          hAccM: update.hAccM
         });
       });
     } catch (cause: unknown) {

@@ -66,6 +66,7 @@ export interface LiveStats {
   currentSpeedMps: number | null;
   altitudeM: number | null;
   gpsLost: boolean;
+  hAccM: number | null;
 }
 
 export interface RecordingSummary {
@@ -83,6 +84,7 @@ export interface LocationUpdate {
   elapsedSec: number;
   distanceMeters: number;
   gpsLost: boolean;
+  hAccM: number | null;
 }
 
 
