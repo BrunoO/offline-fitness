@@ -13,6 +13,7 @@ import {
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
 import { MapsScreen } from '@/features/maps';
+import { RecordingScreen } from '@/features/recording';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
@@ -100,6 +101,11 @@ function AppContent() {
             <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
               {props => <HomeScreen {...props} />}
             </Drawer.Screen>
+            <Drawer.Screen
+              name="Record"
+              component={RecordingScreen}
+              options={getDrawerIconOptions('radio-button-on-outline')}
+            />
             <Drawer.Screen
               name="Stats"
               component={StatsTab}

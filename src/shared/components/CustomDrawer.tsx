@@ -50,7 +50,7 @@ type CustomDrawerContentProps = DrawerContentComponentProps & {
 
 export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Element {
   const { setTotalActivitiesStored, setGlobalActivities } = useActivitiesContext();
-  const { openManualEntry } = useManualEntry();
+  const { openRecordChooser } = useManualEntry();
 
   // Progress overlay states
   const [exportProgress, setExportProgress] = useState(0);
@@ -84,13 +84,12 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
   return (
     <DrawerContentScrollView {...props}>
       <DrawerItemList {...props} />
-      {/* RECORD-CHOOSER: when GPS tracking lands, this opens the Track/Manual
-          chooser instead of the manual sheet directly. */}
+      {/* RECORD-CHOOSER: single entry point for "add an activity". */}
       <DrawerItem
         label="Add activity"
         onPress={() => {
           props.navigation.closeDrawer();
-          openManualEntry();
+          openRecordChooser();
         }}
         icon={getIconOptions('add-circle-outline')}
       />

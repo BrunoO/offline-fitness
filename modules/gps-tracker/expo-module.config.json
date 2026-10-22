@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["GpsTrackerModule"]
+  },
+  "android": {
+    "modules": ["com.gpslib.tracker.GpsTrackerModule"]
+  }
+}

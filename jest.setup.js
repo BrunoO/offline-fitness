@@ -3,9 +3,21 @@ jest.mock('expo-file-system', () => {
 
   const File = class File {
     constructor(pathOrDir, name) {
-      const basePath = typeof pathOrDir === 'string' ? pathOrDir : pathOrDir.uri;
-      this.uri = `${basePath}${name}`;
-      this.name = name;
+      // expo-file-system's File accepts either a single URI string or a
+      // (directory, name) pair; keep both working so the recording tests can
+      // open a log by its absolute URI.
+      if (name === undefined) {
+        this.uri = pathOrDir;
+        this.name = pathOrDir.split('/').filter(Boolean).pop();
+      } else {
+        const basePath = typeof pathOrDir === 'string' ? pathOrDir : pathOrDir.uri;
+        this.uri = `${basePath}${name}`;
+        this.name = name;
+      }
+    }
+
+    open() {
+      return new FileHandle(this);
     }
 
     get exists() {
@@ -32,8 +44,47 @@ jest.mock('expo-file-system', () => {
       mockFiles[this.uri] = content;
     }
 
+    writeBytes(content) {
+      mockFiles[this.uri] = content;
+    }
+
     delete() {
       delete mockFiles[this.uri];
+    }
+  };
+
+  const FileHandle = class FileHandle {
+    constructor(file) {
+      this.file = file;
+      this.offset = 0;
+      this._bytes = null;
+    }
+
+    get bytes() {
+      if (this._bytes) {
+        return this._bytes;
+      }
+      const val = mockFiles[this.file.uri];
+      this._bytes =
+        val instanceof Uint8Array ? val : new TextEncoder().encode(String(val));
+      return this._bytes;
+    }
+
+    get size() {
+      return this.bytes.length;
+    }
+
+    readBytes(length) {
+      const bytes = this.bytes;
+      const start = this.offset;
+      const end = Math.min(start + length, bytes.length);
+      const chunk = bytes.slice(start, end);
+      this.offset = end;
+      return chunk;
+    }
+
+    close() {
+      // no-op
     }
   };
 
@@ -43,6 +94,7 @@ jest.mock('expo-file-system', () => {
       cache: 'file:///var/mobile/Containers/Data/Application/mock-uuid/Library/Caches/'
     },
     File,
+    FileHandle,
     Directory: class Directory {
       constructor(path, name) {
         const basePath = typeof path === 'string' ? path : path.uri;
