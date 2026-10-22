@@ -850,3 +850,10 @@ A comprehensive code review was performed, covering technical debt, architecture
 - SonarCloud **Community plan**: custom quality gates can be CREATED and CONFIGURED via API ("Offline Fitness way" exists with new_violations GT 0 + hotspots-reviewed LT 100), but not ASSIGNED: set_as_default returns "Organization not allowed to modify Quality gates", select_project is gone, and a settings/set probe was accepted (204) but no-op.
 - Therefore the A contract (zero new issues, not new coverage) is enforced in CI directly: build.yml's scan no longer waits on the built-in Sonar way gate; a "Quality gate (0 open issues)" step polls the compute queue (api/ce/task) to completion, then runs `scripts/sonar_gate.sh` (exit 1 on any OPEN/CONFIRMED issue). Same contract the DoD documents, plan-independent.
 - If the gate is ever assigned via UI (or plan upgrade), removing the inline step's overlap is trivial; until then the Sonar way gate's ERROR on new_coverage is expected dashboard noise, not a build blocker.
+
+## Expo Config Function Form - 2026-10-22
+
+- `app.config.js` converted from plain-object export (manual `require('./app.json')` + spread) to the dynamic-config function form `({ config }) => ...`, so Expo hands the app.json values through the official channel and expo-doctor's "app.config.js is not using the values from app.json" check passes (21/21 now).
+- Motivation was fragility, not a current bug: `increment-version.cjs` writes versionCode into app.json, which only reaches builds through this file consuming app.json - the function form makes that structural.
+- Note discovered during verification: in the function form, `config` is app.json's `expo` object **already unwrapped** (use `config.android`, not `config.expo.android`); an early version of the change crashed `npx expo config` with `Cannot read properties of undefined` - caught by resolving the config and comparing (versionCode 666 + developer ids with .env; 3 placeholder warnings without), before anything shipped.
+
