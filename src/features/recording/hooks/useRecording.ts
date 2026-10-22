@@ -1,8 +1,12 @@
 import { simpleLogger } from '@/shared';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import type { GpsTrackerCapabilities, GpsTrackerTick } from '../services/gpsTracker';
+
+/** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
+const ANDROID_13_API_LEVEL = 33;
 
 interface UseRecordingResult {
   capabilities: GpsTrackerCapabilities | null;
@@ -14,6 +18,19 @@ interface UseRecordingResult {
 }
 
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
+
+/**
+ * The foreground service's notification is the only visible sign that recording
+ * is on, and Android 13+ hides it until POST_NOTIFICATIONS is granted. The
+ * module only declares the permission — asking is the app's job (D5), exactly
+ * like location. A refusal does not block recording; it just hides the notice.
+ */
+const requestNotificationPermission = async (): Promise<void> => {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < ANDROID_13_API_LEVEL) {
+    return;
+  }
+  await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+};
 
 /**
  * Phase 0 probe for the recording service.
@@ -76,6 +93,7 @@ export function useRecording(): UseRecordingResult {
         setError('Location permission is required to record.');
         return;
       }
+      await requestNotificationPermission();
       await GpsTracker.start();
       setIsRecording(true);
     } catch (cause: unknown) {

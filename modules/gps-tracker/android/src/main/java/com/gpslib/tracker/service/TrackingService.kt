@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 
 /**
  * Phase 0 stub of the recording service (docs/recording-plan.md §6).
@@ -50,6 +51,9 @@ class TrackingService : Service() {
 
   override fun onDestroy() {
     handler.removeCallbacks(ticker)
+    // The foreground notification is the only visible sign that recording is
+    // on: it must disappear with the service, not linger in the shade.
+    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
     super.onDestroy()
   }
 
