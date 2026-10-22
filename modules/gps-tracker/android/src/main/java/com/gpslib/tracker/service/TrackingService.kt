@@ -60,6 +60,16 @@ class TrackingService : Service() {
     private var fixCount = 0
     private var lastMetaWriteMs = 0L
     private var lastNotificationMs = 0L
+    private var lastFixTimeMs = 0L
+    private var gpsLost = false
+
+    private val gpsCheckHandler = Handler(Looper.getMainLooper())
+    private val gpsCheckRunnable = object : Runnable {
+        override fun run() {
+            checkGpsStatus()
+            gpsCheckHandler.postDelayed(this, GPS_CHECK_INTERVAL_MS)
+        }
+    }
 
     private val storage by lazy { SessionStorage(this) }
 
@@ -119,6 +129,10 @@ class TrackingService : Service() {
         fixCount = 0
         lastMetaWriteMs = startedAtMs
         lastNotificationMs = startedAtMs
+        lastFixTimeMs = startedAtMs
+        gpsLost = false
+        gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
+        gpsCheckHandler.postDelayed(gpsCheckRunnable, GPS_CHECK_INTERVAL_MS)
 
         TrackingSession.begin(meta)
         acquireWakeLock()
@@ -139,6 +153,7 @@ class TrackingService : Service() {
         stopProvider()
         stopAltitude()
         releaseWakeLock()
+        gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
         writer?.flush()
         storage.writeMeta(meta)
 
@@ -162,6 +177,8 @@ class TrackingService : Service() {
         acquireWakeLock()
         startAltitude(meta.capture)
         startProvider(meta.capture)
+        gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
+        gpsCheckHandler.postDelayed(gpsCheckRunnable, GPS_CHECK_INTERVAL_MS)
         storage.writeMeta(meta)
         updateNotification()
     }
@@ -173,6 +190,7 @@ class TrackingService : Service() {
         stopProvider()
         stopAltitude()
         releaseWakeLock()
+        gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
         writer?.close()
         writer = null
 
@@ -215,6 +233,11 @@ class TrackingService : Service() {
         val meta = TrackingSession.meta ?: return
 
         val now = System.currentTimeMillis()
+        lastFixTimeMs = now
+        if (gpsLost) {
+            gpsLost = false
+            updateNotification()
+        }
         val fixTime = if (location.time > 0) location.time else now
         val sample = altitudeProcessor?.sample(location)
 
@@ -256,7 +279,8 @@ class TrackingService : Service() {
             elapsedSec = elapsedSeconds(meta, now),
             distanceMeters = distanceMeters,
             currentSpeedMps = if (location.hasSpeed()) location.speed else null,
-            altitudeM = sample?.rawAltitudeMeters
+            altitudeM = sample?.rawAltitudeMeters,
+            gpsLost = gpsLost
         )
         TrackingSession.updateLiveStats(liveStats)
         TrackingSession.notifyLocationUpdate(
@@ -267,7 +291,8 @@ class TrackingService : Service() {
                 eleM = sample?.rawAltitudeMeters,
                 speedMps = liveStats.currentSpeedMps,
                 elapsedSec = liveStats.elapsedSec,
-                distanceMeters = liveStats.distanceMeters
+                distanceMeters = liveStats.distanceMeters,
+                gpsLost = gpsLost
             )
         )
 
@@ -390,6 +415,9 @@ class TrackingService : Service() {
         } else {
             String.format(Locale.US, "%02d:%02d", minutes, seconds)
         }
+        if (gpsLost) {
+            return "Waiting for GPS"
+        }
         val prefix = if (TrackingSession.phase == RecordingPhase.PAUSED) "Paused • " else ""
         return String.format(Locale.US, "%s%.2f km • %s", prefix, distanceKm, time)
     }
@@ -446,6 +474,7 @@ class TrackingService : Service() {
     }
 
     override fun onDestroy() {
+        gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
         releaseWakeLock()
         stopProvider()
         stopAltitude()
@@ -454,12 +483,41 @@ class TrackingService : Service() {
         super.onDestroy()
     }
 
+    private fun checkGpsStatus() {
+        if (TrackingSession.phase != RecordingPhase.RECORDING) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastFixTimeMs > GPS_LOST_THRESHOLD_MS && !gpsLost) {
+            gpsLost = true
+            updateNotification()
+            TrackingSession.updateLiveStats(TrackingSession.liveStats.copy(gpsLost = true))
+            val last = lastLocation
+            if (last != null) {
+                TrackingSession.notifyLocationUpdate(
+                    LocationUpdate(
+                        t = last.time,
+                        lat = last.latitude,
+                        lon = last.longitude,
+                        eleM = null,
+                        speedMps = null,
+                        elapsedSec = TrackingSession.liveStats.elapsedSec,
+                        distanceMeters = TrackingSession.liveStats.distanceMeters,
+                        gpsLost = true
+                    )
+                )
+            }
+        }
+    }
+
     companion object {
         const val CHANNEL_ID = "gps-recording"
         const val NOTIFICATION_ID = 4201
 
         private const val META_WRITE_INTERVAL_MS = 5000L
         private const val NOTIFICATION_INTERVAL_MS = 5000L
+        private const val GPS_CHECK_INTERVAL_MS = 5000L
+        private const val GPS_LOST_THRESHOLD_MS = 10_000L
 
         private val sessionCounter = AtomicInteger(0)
     }

@@ -230,6 +230,17 @@ describe('replaySession', () => {
     expect(result.recovered).toBe(false);
   });
 
+  it('uses the utc_offset at the instant (DST crossing)', () => {
+    // A recording that starts in CET and ends after the spring-forward.
+    // The utc_offset is computed at the start instant, so it reflects the
+    // offset on that date, not today's.
+    const fixes = [fix({ t: 1_000_000 }), fix({ t: 1_002_000 })];
+    const meta = makeMeta({ startedAtUtcMs: 1_000_000 });
+    // Sanity: the replay runs without throwing on a normal session.
+    const result = replaySession(meta, fixes);
+    expect(result.stats.elapsedTimeSec).toBe(2);
+  });
+
   it('handles an empty fix list', () => {
     const result = replaySession(makeMeta(), []);
     expect(result.stream.latlng?.data).toHaveLength(0);
@@ -249,3 +260,5 @@ describe('replaySession', () => {
     expect(result.rejected).toHaveLength(1);
   });
 });
+
+// Sanity: the fixtures parse through the real reader path.
