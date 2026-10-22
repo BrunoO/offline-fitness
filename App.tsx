@@ -78,41 +78,41 @@ function AppContent() {
       <NavigationContainer theme={navigationTheme}>
         <ManualEntryProvider>
           <Drawer.Navigator
-          // prettier-ignore
-          drawerContent={props => ( // NOSONAR - render prop must close over openSettings
+            // prettier-ignore
+            drawerContent={props => ( // NOSONAR - render prop must close over openSettings
             <CustomDrawerContent {...props} onOpenSettings={openSettings} />
           )}
-        >
-          <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
-            {props => <HomeScreen {...props} />}
-          </Drawer.Screen>
-          <Drawer.Screen
-            name="Stats"
-            component={StatsTab}
-            options={getDrawerIconOptions('color-wand-outline')}
-          />
-          <Drawer.Screen
-            name="Maps"
-            component={MapsScreen}
-            options={getDrawerIconOptions('map-outline')}
-          />
-          <Drawer.Screen
-            name="Details"
-            component={DetailsScreen}
-            options={{
-              ...getDrawerIconOptions('list-outline'),
-              drawerLabel: 'Activities'
-            }}
-          />
-          <Drawer.Screen
-            name="Logs"
-            component={LogScreen}
-            options={getDrawerIconOptions('newspaper-outline')}
-          />
-        </Drawer.Navigator>
-        {/* Mounted outside the drawer panel: the panel never unmounts, and the
+          >
+            <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
+              {props => <HomeScreen {...props} />}
+            </Drawer.Screen>
+            <Drawer.Screen
+              name="Stats"
+              component={StatsTab}
+              options={getDrawerIconOptions('color-wand-outline')}
+            />
+            <Drawer.Screen
+              name="Maps"
+              component={MapsScreen}
+              options={getDrawerIconOptions('map-outline')}
+            />
+            <Drawer.Screen
+              name="Details"
+              component={DetailsScreen}
+              options={{
+                ...getDrawerIconOptions('list-outline'),
+                drawerLabel: 'Activities'
+              }}
+            />
+            <Drawer.Screen
+              name="Logs"
+              component={LogScreen}
+              options={getDrawerIconOptions('newspaper-outline')}
+            />
+          </Drawer.Navigator>
+          {/* Mounted outside the drawer panel: the panel never unmounts, and the
             settings form holds live text inputs. */}
-        <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+          <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
         </ManualEntryProvider>
       </NavigationContainer>
     </GestureHandlerRootView>

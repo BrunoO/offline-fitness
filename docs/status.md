@@ -825,3 +825,11 @@ A comprehensive code review was performed, covering technical debt, architecture
 - `sonar-project.properties`: stale `projectKey=offline-fitness` corrected to `BrunoO_offline-fitness` + added `sonar.organization=brunoo` (a bare scanner run would previously scan into / create a wrong project; the CLI overrides in scripts masked this).
 - Needs (done): `SONAR_TOKEN` repository secret. Optional follow-up: pin `actions/setup-node` to a SHA like the other steps for supply-chain parity.
 
+
+## CI Annotation Triage - 2026-10-22
+
+- Verified the failed CI run had exactly ONE true failure: the quality gate (new_coverage 60.7% < 80%). All other red/warning annotations were non-blocking noise from three different layers: prettier [failure]-level annotations from the advisory lint step, ESLint warnings on files outside Sonar's scope (scripts/, new specs), the Node-20 pin notice on wizard-pinned actions, and 5 harmless "could not resolve lcov path" warnings (jest records coverage for tool scripts that Sonar excludes).
+- build.yml: lint step now covers only the DoD scope (src/ + App.tsx/index.js) so out-of-scope files can't paint the UI red.
+- sonar-project.properties: removed sonar.sources/tests/test.exclusions/inclusions/language after the scanner proved it ignores them (new scope UX analyzes everything; only exclusions apply); added *.test.ts to exclusions for parity. Comment added so nobody reintroduces the dead keys.
+- App.tsx: applied the prettier fixes the lint step flagged (formatting only; drawerContent suppression structure verified intact).
+- Gate decision (custom new-issues=0 gate vs. covering the new-code tests) remains open with the user - until then CI fails on coverage, by design, not noise.
