@@ -40,6 +40,9 @@
     },
     "platforms": ["ios", "android"],
     "scheme": "offlinefitness",
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    },
     "plugins": [
       [
         "expo-build-properties",

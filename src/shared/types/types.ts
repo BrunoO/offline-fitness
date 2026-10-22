@@ -43,6 +43,7 @@ export type ActivityAccessor<T> = (arg0: Activity) => T;
 
 export type RootDrawerParamList = {
   Home: undefined;
+  Record: undefined;
   Stats: undefined;
   Logs: undefined;
   Maps: undefined;

@@ -11,9 +11,15 @@ npm-debug.*
 .env
 tsconfig.tsbuildinfo
 
-android/
-ios/
+# CNG output only. Anchored: `modules/gps-tracker/{android,ios}` is checked-in native
+# source for the local Expo module and must never match these patterns.
+/android/
+/ios/
 coverage/
+
+# Build output of local Expo modules (their sources are checked in, their builds are not)
+modules/*/android/build/
+modules/*/android/.gradle/
 
 # macOS
 .DS_Store
