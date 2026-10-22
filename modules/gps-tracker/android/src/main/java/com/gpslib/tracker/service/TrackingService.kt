@@ -477,6 +477,13 @@ class TrackingService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification(notificationTitle(), notificationContent()))
     }
 
+    fun storageSizeBytes(): Long = storage.totalSizeBytes()
+
+    fun deleteAllSessions() {
+        storage.deleteAll()
+        TrackingSession.clear()
+    }
+
     override fun onDestroy() {
         gpsCheckHandler.removeCallbacks(gpsCheckRunnable)
         releaseWakeLock()

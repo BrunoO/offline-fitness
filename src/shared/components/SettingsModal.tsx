@@ -1,8 +1,9 @@
 import { BackupSection } from '@/features/backup';
+import { GpsTracker } from '@/features/recording/services/gpsTracker';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import { SheetFooter, createSheetFrameStyles } from '@/shared';
 import React, { useMemo } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 /**
  * The app's global settings: the colour palette and the WebDAV backup.
@@ -23,12 +24,55 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export function SettingsModal({
   visible,
   onClose
 }: Readonly<SettingsModalProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [sessionCount, setSessionCount] = React.useState(0);
+  const [storageSize, setStorageSize] = React.useState(0);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
+  // Load recording diagnostics when the modal opens.
+  React.useEffect(() => {
+    if (!visible) return;
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const sessions = await GpsTracker.listSessions();
+        const size = await GpsTracker.getStorageSize();
+        if (isMounted) {
+          setSessionCount(sessions.length);
+          setStorageSize(size);
+        }
+      } catch (_cause) {
+        // The module may be unavailable (iOS stub, stale dev client).
+      }
+    };
+    void load();
+    return () => {
+      isMounted = false;
+    };
+  }, [visible]);
+
+  const handleDeleteAll = React.useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      await GpsTracker.deleteAllSessions();
+      setSessionCount(0);
+      setStorageSize(0);
+    } catch (_cause) {
+      // ignore
+    }
+    setIsDeleting(false);
+  }, []);
 
   // Don't mount the form while it is closed. On Android `Modal` already
   // renders null when hidden, but on iOS its children stay mounted after the
@@ -67,6 +111,48 @@ export function SettingsModal({
             <View style={styles.backupSection}>
               <BackupSection />
             </View>
+
+            <Text style={styles.sectionTitle}>Recording diagnostics</Text>
+            <Text style={styles.sectionNote}>
+              Fix logs are kept for 30 days, device-only, for debugging. They never leave the
+              device.
+            </Text>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Sessions retained</Text>
+              <Text style={styles.diagnosticsValue}>{sessionCount}</Text>
+            </View>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Size on disk</Text>
+              <Text style={styles.diagnosticsValue}>{formatBytes(storageSize)}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete all recording sessions"
+              disabled={isDeleting || sessionCount === 0}
+              onPress={() => {
+                Alert.alert(
+                  'Delete all recording sessions?',
+                  'This removes every fix log on this device. It cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete all',
+                      style: 'destructive',
+                      onPress: () => void handleDeleteAll()
+                    }
+                  ]
+                );
+              }}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed ? styles.deleteButtonPressed : null,
+                isDeleting || sessionCount === 0 ? styles.deleteButtonDisabled : null
+              ]}
+            >
+              <Text style={styles.deleteButtonLabel}>
+                {isDeleting ? 'Deleting…' : 'Delete all sessions'}
+              </Text>
+            </Pressable>
           </ScrollView>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
@@ -94,6 +180,41 @@ const createStyles = (theme: ResolvedTheme) => ({
     },
     backupSection: {
       marginHorizontal: -16
+    },
+    diagnosticsRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 8
+    },
+    diagnosticsLabel: {
+      color: theme.textMuted,
+      fontSize: 14
+    },
+    diagnosticsValue: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    deleteButton: {
+      alignItems: 'center',
+      backgroundColor: theme.dangerSoft,
+      borderColor: theme.dangerBorder,
+      borderRadius: 10,
+      borderWidth: 1,
+      marginTop: 12,
+      paddingVertical: 10
+    },
+    deleteButtonPressed: {
+      opacity: 0.7
+    },
+    deleteButtonDisabled: {
+      opacity: 0.4
+    },
+    deleteButtonLabel: {
+      color: theme.danger,
+      fontSize: 14,
+      fontWeight: '600'
     }
   })
 });

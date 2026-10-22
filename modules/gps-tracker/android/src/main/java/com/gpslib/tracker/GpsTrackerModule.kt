@@ -154,6 +154,22 @@ class GpsTrackerModule : Module() {
             null
         }
 
+        AsyncFunction("getStorageSize") {
+            storage().totalSizeBytes()
+        }
+
+        AsyncFunction("deleteAllSessions") { promise: Promise ->
+            val phase = TrackingSession.phase
+            if (phase == RecordingPhase.RECORDING || phase == RecordingPhase.PAUSED) {
+                promise.reject(SessionActiveException(TrackingSession.meta?.sessionId))
+                return@AsyncFunction
+            }
+            withService(promise) { service ->
+                service.deleteAllSessions()
+                promise.resolve()
+            }
+        }
+
         OnStartObserving(EVENT_STATE_CHANGE) {
             TrackingSession.addListener(stateListener)
         }

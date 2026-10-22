@@ -83,6 +83,27 @@ class SessionStorage(private val context: Context) {
         }
     }
 
+    /** Total bytes used by the recording directory (meta.json + fixes.jsonl). */
+    fun totalSizeBytes(): Long {
+        val root = root
+        if (!root.exists()) {
+            return 0L
+        }
+        var total = 0L
+        root.walkTopDown().forEach { file ->
+            if (file.isFile) {
+                total += file.length()
+            }
+        }
+        return total
+    }
+
+    /** Deletes every session directory. Used by the "Delete all" diagnostics control. */
+    fun deleteAll() {
+        root.deleteRecursively()
+        clearActiveSession()
+    }
+
     fun activeSessionId(): String? = prefs.getString(KEY_ACTIVE_SESSION, null)
 
     fun setActiveSession(sessionId: String) {

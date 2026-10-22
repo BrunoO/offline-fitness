@@ -20,6 +20,8 @@ interface GpsTrackerNativeModule {
   listSessions(): Promise<RecordingMeta[]>;
   markSessionSaved(sessionId: string, activityId: string): Promise<void>;
   discardSession(sessionId: string): Promise<void>;
+  getStorageSize(): Promise<number>;
+  deleteAllSessions(): Promise<void>;
   addListener(
     eventName: 'onStateChange',
     listener: (state: RecordingState) => void
@@ -57,7 +59,9 @@ export const GpsTracker = {
   listSessions: (): Promise<RecordingMeta[]> => loadNativeModule().listSessions(),
   markSessionSaved: (sessionId: string, activityId: string): Promise<void> =>
     loadNativeModule().markSessionSaved(sessionId, activityId),
-  discardSession: (sessionId: string): Promise<void> => loadNativeModule().discardSession(sessionId)
+  discardSession: (sessionId: string): Promise<void> => loadNativeModule().discardSession(sessionId),
+  getStorageSize: (): Promise<number> => loadNativeModule().getStorageSize(),
+  deleteAllSessions: (): Promise<void> => loadNativeModule().deleteAllSessions()
 };
 
 export const gpsTrackerEvents = {
