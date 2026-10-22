@@ -5,7 +5,7 @@
     },
     "name": "Offline Fitness",
     "slug": "offline-fitness",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
       "bundleIdentifier": "com.example.offlinefitness"
     },
     "android": {
-      "versionCode": 665,
+      "versionCode": 0,
       "config": {
         "googleMaps": {
           "apiKey": "SET_VIA_EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
