@@ -1,6 +1,6 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { JSX, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecording } from '../hooks/useRecording';
 import type {
@@ -52,8 +52,21 @@ export function RecordingScreen(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const { capabilities, state, liveStats, summary, error, isBusy, start, pause, resume, stop } =
-    useRecording();
+  const {
+    capabilities,
+    state,
+    liveStats,
+    summary,
+    error,
+    isBusy,
+    isSaving,
+    start,
+    pause,
+    resume,
+    stop,
+    save,
+    discard
+  } = useRecording();
   const [profile, setProfile] = useState<Profile>('walking');
 
   return (
@@ -89,7 +102,16 @@ export function RecordingScreen(): JSX.Element {
         styles={styles}
       />
 
-      {summary ? <LastSessionCard summary={summary} styles={styles} /> : null}
+      {state.phase === 'stopped-unsaved' ? (
+        <LastSessionCard
+          sessionId={state.sessionId ?? ''}
+          summary={summary}
+          onSave={save}
+          onDiscard={discard}
+          isSaving={isSaving}
+          styles={styles}
+        />
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </ScrollView>
   );
@@ -239,20 +261,56 @@ function RecordingActions({
 }
 
 interface LastSessionCardProps {
-  readonly summary: RecordingSummary;
+  readonly sessionId: string;
+  readonly summary: RecordingSummary | null;
+  readonly onSave: (name: string) => Promise<void>;
+  readonly onDiscard: () => Promise<void>;
+  readonly isSaving: boolean;
   readonly styles: Styles;
 }
 
-function LastSessionCard({ summary, styles }: LastSessionCardProps): JSX.Element {
+function LastSessionCard({
+  sessionId,
+  summary,
+  onSave,
+  onDiscard,
+  isSaving,
+  styles
+}: LastSessionCardProps): JSX.Element {
+  const [name, setName] = useState('');
   return (
     <View style={styles.card}>
       <Text style={styles.cardLabel}>Last session</Text>
       <Text style={styles.cardHint}>
-        {summary.meta.sessionId} · {summary.meta.fixCount ?? 0} fixes
+        {sessionId} · {summary?.meta.fixCount ?? 0} fixes
       </Text>
       <Text style={styles.cardHint} numberOfLines={2}>
-        {summary.meta.logUri}
+        {summary?.meta.logUri ?? ''}
       </Text>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder="Activity name (optional)"
+        style={styles.input}
+      />
+      <View style={styles.actions}>
+        <ActionButton
+          label={isSaving ? 'Saving…' : 'Save as activity'}
+          onPress={() => {
+            void onSave(name);
+          }}
+          disabled={isSaving}
+          styles={styles}
+        />
+        <ActionButton
+          label="Discard"
+          onPress={() => {
+            void onDiscard();
+          }}
+          disabled={isSaving}
+          styles={styles}
+        />
+      </View>
     </View>
   );
 }
@@ -377,6 +435,15 @@ const createStyles = (theme: ResolvedTheme) =>
     actions: {
       marginHorizontal: SPACING.lg,
       marginTop: SPACING.lg
+    },
+    input: {
+      borderColor: theme.border,
+      borderRadius: RADIUS.card,
+      borderWidth: 1,
+      color: theme.text,
+      marginTop: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm
     },
     button: {
       alignItems: 'center',

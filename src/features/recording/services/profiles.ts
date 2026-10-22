@@ -42,3 +42,50 @@ export const PROFILE_LABELS: Record<Profile, string> = {
   cycling: 'Cycling',
   swimming: 'Swimming'
 };
+
+/**
+ * The filter thresholds the legacy `ActivityProfile` carried.
+ *
+ * They are not part of `CaptureOptions` (and therefore not part of `meta.json`):
+ * the capture contract stays at four fields, and the replay looks these up by
+ * profile. The numbers are copied verbatim from `ActivityProfile.kt` so the
+ * port does not silently change capture behaviour.
+ */
+export interface FilterOptions {
+  maxAccuracyMeters: number;
+  minIntervalMs: number;
+  maxSpeedMps: number;
+  driftSuppressionEnabled: boolean;
+  stationarySpeedThreshold: number;
+}
+
+export const PROFILE_FILTER_OPTIONS: Record<Profile, FilterOptions> = {
+  walking: {
+    maxAccuracyMeters: 15,
+    minIntervalMs: 2000,
+    maxSpeedMps: 5,
+    driftSuppressionEnabled: true,
+    stationarySpeedThreshold: 0.4
+  },
+  hiking: {
+    maxAccuracyMeters: 20,
+    minIntervalMs: 4000,
+    maxSpeedMps: 7,
+    driftSuppressionEnabled: true,
+    stationarySpeedThreshold: 0.3
+  },
+  cycling: {
+    maxAccuracyMeters: 15,
+    minIntervalMs: 1000,
+    maxSpeedMps: 35,
+    driftSuppressionEnabled: true,
+    stationarySpeedThreshold: 0.8
+  },
+  swimming: {
+    maxAccuracyMeters: 25,
+    minIntervalMs: 1000,
+    maxSpeedMps: 3.5,
+    driftSuppressionEnabled: false,
+    stationarySpeedThreshold: 0.5
+  }
+};

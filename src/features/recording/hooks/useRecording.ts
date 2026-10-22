@@ -1,4 +1,5 @@
 import { simpleLogger } from '@/shared';
+import { useActivitiesContext } from '@/features/activities';
 import { useCallback, useEffect, useState } from 'react';
 import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import type {
@@ -8,8 +9,12 @@ import type {
   RecordingState,
   RecordingSummary
 } from '../services/gpsTracker';
+import { buildRecordedActivity } from '../services/buildRecordedActivity';
+import { readFixLog } from '../services/fixLog';
 import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
+import { replaySession } from '../services/replaySession';
 import { useRecordingPermissions } from './useRecordingPermissions';
+import { writeStreamFile } from '../services/writeStreamFile';
 
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
 
@@ -22,10 +27,13 @@ export interface UseRecordingResult {
   summary: RecordingSummary | null;
   error: string | null;
   isBusy: boolean;
+  isSaving: boolean;
   start: (profile: Profile) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
+  save: (name: string) => Promise<void>;
+  discard: () => Promise<void>;
 }
 
 const describeError = (cause: unknown, fallback: string): string => {
@@ -36,22 +44,24 @@ const describeError = (cause: unknown, fallback: string): string => {
 };
 
 /**
- * Drives the native recorder.
+ * Drives the native recorder and the save flow.
  *
  * The service owns the session, so this hook is a thin client: it starts,
  * pauses, resumes and stops, and it treats the state event as the truth about
- * the phase (a reload, a second screen or a stale render cannot talk it out of
- * that). Live numbers are display-only; the canonical ones come from the
- * TypeScript replay over the fix log.
+ * the phase. Saving is a separate, retryable flow (replay → write stream →
+ * store activity → mark saved) so a failed save leaves the session intact and
+ * "Save" stays available.
  */
 export function useRecording(): UseRecordingResult {
   const { requestPermissions } = useRecordingPermissions();
+  const { addActivity } = useActivitiesContext();
   const [capabilities, setCapabilities] = useState<GpsTrackerCapabilities | null>(null);
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,6 +75,22 @@ export function useRecording(): UseRecordingResult {
         if (isMounted) {
           setCapabilities(nextCapabilities);
           setState(nextState);
+          if (nextState.phase === 'stopped-unsaved' && nextState.sessionId) {
+            try {
+              const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
+              setSummary({
+                meta,
+                liveStats: {
+                  elapsedSec: 0,
+                  distanceMeters: 0,
+                  currentSpeedMps: null,
+                  altitudeM: null
+                }
+              });
+            } catch (cause: unknown) {
+              simpleLogger.error('Could not load the stopped session', cause);
+            }
+          }
         }
       } catch (cause: unknown) {
         simpleLogger.error('Recording module unavailable', cause);
@@ -170,5 +196,93 @@ export function useRecording(): UseRecordingResult {
     }
   }, []);
 
-  return { capabilities, state, liveStats, summary, error, isBusy, start, pause, resume, stop };
+  const save = useCallback(
+    async (name: string) => {
+      const sessionId = state.sessionId;
+      if (sessionId === undefined) {
+        return;
+      }
+
+      setError(null);
+      setIsSaving(true);
+
+      try {
+        const meta = await GpsTracker.getSessionMeta(sessionId);
+        const { fixes, skipped } = readFixLog(meta.logUri, meta);
+        const replay = replaySession(meta, fixes, skipped);
+
+        // Shadow mode (dev only): compare the replay against the native display
+        // numbers and log a mismatch instead of failing the save.
+        if (__DEV__) {
+          const nativeDistance = summary?.liveStats.distanceMeters ?? 0;
+          const nativeElapsed = summary?.liveStats.elapsedSec ?? 0;
+          if (
+            Math.abs(replay.stats.distanceMeters - nativeDistance) > 1 ||
+            Math.abs(replay.stats.elapsedTimeSec - nativeElapsed) > 1
+          ) {
+            simpleLogger.log('recording.shadow_mismatch', {
+              sessionId,
+              replayDistance: replay.stats.distanceMeters,
+              nativeDistance,
+              replayElapsed: replay.stats.elapsedTimeSec,
+              nativeElapsed
+            });
+          }
+        }
+
+        const activity = buildRecordedActivity({ meta, replay, name });
+
+        // Save order (§3.7): write the stream before the record, so a failure
+        // after the stream write leaves an unreferenced file (harmless, and
+        // overwritten on retry) instead of a record with a blank map.
+        writeStreamFile(activity.id, replay.stream);
+        await addActivity(activity);
+        await GpsTracker.markSessionSaved(sessionId, activity.id);
+
+        setSummary(null);
+        setState(IDLE_STATE);
+        setLiveStats(null);
+      } catch (cause: unknown) {
+        simpleLogger.error('Could not save recording', cause);
+        setError(describeError(cause, 'Could not save the recording.'));
+      }
+
+      setIsSaving(false);
+    },
+    [state.sessionId, summary, addActivity]
+  );
+
+  const discard = useCallback(async () => {
+    const sessionId = state.sessionId;
+    if (sessionId === undefined) {
+      return;
+    }
+
+    setError(null);
+    try {
+      await GpsTracker.discardSession(sessionId);
+      setSummary(null);
+      setState(IDLE_STATE);
+      setLiveStats(null);
+    } catch (cause: unknown) {
+      simpleLogger.error('Could not discard recording', cause);
+      setError(describeError(cause, 'Could not discard the recording.'));
+    }
+  }, [state.sessionId]);
+
+  return {
+    capabilities,
+    state,
+    liveStats,
+    summary,
+    error,
+    isBusy,
+    isSaving,
+    start,
+    pause,
+    resume,
+    stop,
+    save,
+    discard
+  };
 }

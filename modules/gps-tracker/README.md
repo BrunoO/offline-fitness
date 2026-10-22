@@ -4,7 +4,7 @@ Native half of the GPS recorder (roadmap item 4). The design lives in
 [`docs/recording-plan.md`](../../docs/recording-plan.md); this file covers what
 exists in the tree today.
 
-## Status: Phase 1 (the internals, ported behind the DSL)
+## Status: Phase 3 (replay, record, stream)
 
 The legacy Kotlin internals (service, providers, session storage, altitude
 sensor) are ported into this module, with three deliberate changes:

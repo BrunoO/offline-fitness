@@ -25,13 +25,13 @@ export interface ReadFixLogResult {
  * malformed line mid-file is skipped and counted too - a damaged log must
  * still produce a usable activity instead of losing the recording.
  */
-export async function readFixLog(
+export function readFixLog(
   logUri: string,
   meta: RecordingMeta,
   chunkSize: number = DEFAULT_CHUNK_SIZE
-): Promise<ReadFixLogResult> {
+): ReadFixLogResult {
   const file = new File(logUri);
-  const handle = await file.open();
+  const handle = file.open();
 
   const fixes: FixLogEntry[] = [];
   let skipped = 0;
@@ -43,7 +43,8 @@ export async function readFixLog(
     while (offset < totalSize) {
       const toRead = Math.min(chunkSize, totalSize - offset);
       handle.offset = offset;
-      const bytes = await handle.readBytes(toRead);
+
+      const bytes = handle.readBytes(toRead);
       offset += bytes.length;
 
       buffer += new TextDecoder().decode(bytes);
@@ -78,7 +79,7 @@ export async function readFixLog(
 
   let recovered = false;
   if (meta.endedAtUtcMs == null && fixes.length > 0) {
-    meta.endedAtUtcMs = fixes[fixes.length - 1].t;
+    meta.endedAtUtcMs = fixes.at(-1)!.t;
     recovered = true;
   }
 
@@ -98,15 +99,10 @@ export async function sweepExpiredSessions(): Promise<void> {
   const sessions = await GpsTracker.listSessions();
   const cutoff = Date.now() - FIX_LOG_RETENTION_DAYS * MS_PER_DAY;
 
-  for (const meta of sessions) {
-    if (!meta.savedActivityId) {
-      continue;
-    }
-    if (meta.endedAtUtcMs == null || meta.endedAtUtcMs >= cutoff) {
-      continue;
-    }
-    await GpsTracker.discardSession(meta.sessionId);
-  }
+  const expired = sessions.filter(
+    meta => meta.savedActivityId != null && meta.endedAtUtcMs != null && meta.endedAtUtcMs < cutoff
+  );
+  await Promise.all(expired.map(meta => GpsTracker.discardSession(meta.sessionId)));
 }
 
 /**

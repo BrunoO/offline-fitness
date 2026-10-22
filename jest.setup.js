@@ -44,6 +44,10 @@ jest.mock('expo-file-system', () => {
       mockFiles[this.uri] = content;
     }
 
+    writeBytes(content) {
+      mockFiles[this.uri] = content;
+    }
+
     delete() {
       delete mockFiles[this.uri];
     }
@@ -70,7 +74,7 @@ jest.mock('expo-file-system', () => {
       return this.bytes.length;
     }
 
-    async readBytes(length) {
+    readBytes(length) {
       const bytes = this.bytes;
       const start = this.offset;
       const end = Math.min(start + length, bytes.length);
