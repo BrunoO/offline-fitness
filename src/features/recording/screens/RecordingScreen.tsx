@@ -109,6 +109,12 @@ function SessionCard({ phase, sessionId, styles }: SessionCardProps): JSX.Elemen
       <Text style={styles.cardLabel}>Session</Text>
       <Text style={styles.phase}>{phase}</Text>
       {sessionId ? <Text style={styles.cardHint}>{sessionId}</Text> : null}
+      {phase === 'stopped-unsaved' ? (
+        <Text style={styles.cardHint}>
+          The recording is on the device. Saving it into the activity list comes with the replay
+          (Phase 3).
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -225,9 +231,9 @@ function RecordingActions({
       {phase === 'paused' ? (
         <ActionButton label="Resume" onPress={onResume} styles={styles} />
       ) : null}
-      {phase === 'idle' ? null : (
+      {phase === 'recording' || phase === 'paused' ? (
         <ActionButton label="Stop recording" onPress={onStop} styles={styles} />
-      )}
+      ) : null}
     </View>
   );
 }
