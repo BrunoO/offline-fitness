@@ -272,7 +272,8 @@ private fun LiveStats.toMap(): Map<String, Any?> = mapOf(
     "elapsedSec" to elapsedSec,
     "distanceMeters" to distanceMeters,
     "currentSpeedMps" to currentSpeedMps?.toDouble(),
-    "altitudeM" to altitudeM
+    "altitudeM" to altitudeM,
+    "gpsLost" to gpsLost
 )
 
 private fun LocationUpdate.toMap(): Map<String, Any?> = mapOf(
@@ -282,5 +283,6 @@ private fun LocationUpdate.toMap(): Map<String, Any?> = mapOf(
     "eleM" to eleM,
     "speedMps" to speedMps?.toDouble(),
     "elapsedSec" to elapsedSec,
-    "distanceMeters" to distanceMeters
+    "distanceMeters" to distanceMeters,
+    "gpsLost" to gpsLost
 )

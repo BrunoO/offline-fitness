@@ -1,0 +1,3 @@
+{"t":1000000,"lat":45.0,"lon":6.0,"ele":100.0,"geoid":null,"pressure":null,"hAcc":5,"vAcc":5,"speed":1.5,"bearing":null,"source":"fused","accepted":true}
+not valid json
+{"t":1002000,"lat":45.0001,"lon":6.0001,"ele":100.1,"geoid":null,"pressure":null,"hAcc":5,"vAcc":5,"speed":1.5,"bearing":null,"source":"fused","accepted":true}
