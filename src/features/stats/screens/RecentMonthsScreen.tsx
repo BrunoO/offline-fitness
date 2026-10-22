@@ -88,9 +88,10 @@ function HorizontalBarChart({
             data: {
               fill: ({ datum }) =>
                 (datum as ProcessedDatum).__isZero ? theme.chartZeroFill : barColor,
+              fillOpacity: ({ datum }) => ((datum as ProcessedDatum).__isZero ? 1 : 0.25),
               stroke: ({ datum }) =>
                 (datum as ProcessedDatum).__isZero ? theme.chartZeroStroke : barColor,
-              strokeWidth: 1
+              strokeWidth: 1.5
             }
           }}
           data={processed}
@@ -104,7 +105,7 @@ function HorizontalBarChart({
               dx={0}
               textAnchor="start"
               verticalAnchor="middle"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 12, fill: theme.text }}
             />
           }
           cornerRadius={{ topRight: 4, bottomRight: 4 }}

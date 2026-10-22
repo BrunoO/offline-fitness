@@ -18,6 +18,7 @@ This document provides essential context and rules for AI agents working on this
 - ✅ UI remains responsive on low-end Android devices
 - ✅ Works on both iOS and Android
 - ✅ Dark mode support maintained
+- ✅ **WCAG 2.1 AA Compliance**: All text and UI elements must maintain required contrast ratios (≥4.5:1 for regular text, ≥3.0:1 for large text/graphical UI). Overlapping text on charts/streaks must use tinted fills or adaptive text colors across all palettes in both light and dark modes.
 - ✅ No console errors in production builds
 
 ## Operational Constraints
@@ -193,6 +194,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 - **Dependency Overrides**: On every Expo SDK bump, update the `expo-location` entry in `package.json` `overrides` in lockstep with the direct dependency (required so `@teovilla/react-native-web-maps` doesn't pull a nested `expo-location@15`), or `EOVERRIDE` will fail `npm install`
 - **Conditional Rendering**: Always use ternary `? ... : null`, **never** `&&` in JSX (prevents React Native `"Text strings must be rendered within a <Text> component"` crashes when values evaluate to `0` or `""`)
 - **Theming**: Read colours from `useTheme()` (`@/theme`) — never hardcode a hex value, and never build styles at module level (a module-level `StyleSheet.create` freezes the colours and cannot follow the active palette). Use `createStyles(theme)` + `useMemo` instead.
+- **Accessibility & Contrast (WCAG 2.1 AA)**: Strictly follow WCAG 2.1 AA standards. Normal text must achieve at least 4.5:1 contrast against its background, and large text/graphical elements at least 3.0:1 across all registered palettes in both light and dark modes. When rendering text over chart bars or progress indicators of varying length, do not render dark text directly over solid saturated fills; use tinted fills (`fillOpacity: 0.25` with a solid stroke) or place text outside the bar so that contrast is preserved everywhere. Streak indicators or badges using reduced opacity fills must pair with `theme.text`, never `theme.onPrimary`.
 - **Safe Areas**: Use `SafeAreaProvider` and `SafeAreaView` from `react-native-safe-area-context`
 - **Navigation**: React Navigation v7 (Drawer, Stack, Bottom Tabs)
 

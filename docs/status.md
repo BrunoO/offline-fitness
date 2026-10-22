@@ -130,6 +130,13 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **WCAG 2.1 AA contrast compliance & palette-tinted splash screen** — fixed low-contrast text overlaps across the app, added a project-wide WCAG 2.1 AA accessibility requirement in `AGENTS.md`, and modernized the splash screen:
+  - **Palette-tinted splash screen** (`app.json`, `App.tsx`): replaced legacy hardcoded `#FFFFE0` yellow with Twilight's soft tint (`#F3EEFF`, dark mode `#241E3A`) in `app.json`. Added an in-app splash transition in `App.tsx` that renders the user's active palette tint (`theme.primarySoft`) and smoothly fades out over 350ms once startup backfills complete.
+  - **Tinted bar charts** (`RecentMonthsScreen`, `RecentWeeksScreen`, `RecentYearsScreen`): horizontal and vertical bar charts now use tinted fills (`fillOpacity: 0.25`) with a solid series stroke (`strokeWidth: 1.5`), and explicit `theme.text` labels. This brings label contrast from ~2.16:1 up to >11.8:1 on the bar and 17.7:1 on the card surface, ensuring text is clearly legible across all palettes in both light and dark modes regardless of bar length.
+  - **Calendar streak text contrast** (`ActivityCalendarPeriod`): active streak days without an achieved weekly goal (`theme.primary + '60'`) now use `theme.text` instead of `theme.onPrimary`, raising text contrast from ~1.95:1 to >10.5:1.
+  - **Table max value highlight** (`RecentYearsScreen`): `maxValueText` on `theme.primarySoft` now uses `theme.textStrong` with bold weight, fixing a 3.24:1 contrast failure caused by `theme.info`.
+  - **Accessibility test suite & guidelines**: added contrast assertions in `__tests__/theme/theme.spec.ts` for soft backgrounds and documented WCAG 2.1 AA compliance rules in `AGENTS.md` Definition of Done and Theming sections.
+
 - **Manual entry: type list is personal now (frequency + memory + custom types)** — the fixed built-in row is gone. Chips start with the last-used type (remembered on every save), then the user's own archive by frequency, then their declared customs, then the built-in defaults as fallback. A dashed **+ New** chip opens an inline name field (24 chars max, case-insensitive dedup, capped at 20, persisted in AsyncStorage). Pure `buildManualTypeList` + `manualEntryPrefs` service, 8 new tests. Suite 413/413; tsc/lint/check:imports clean.
 
 - **Manual entry: digits-only start time, presets dropped** — the Now/07:00/12:00/18:00 chips are gone; one numeric field takes 4 digits ("1830" → "18:30", colon auto-inserted, `selectTextOnFocus` so typing replaces the default). Validation and the `buildManualActivity` contract are unchanged.

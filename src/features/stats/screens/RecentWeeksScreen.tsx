@@ -107,8 +107,9 @@ const Item = ({
           style={{
             data: {
               fill: computeStroke(theme, goalAchieved),
+              fillOpacity: 0.25,
               stroke: computeStroke(theme, goalAchieved),
-              strokeWidth: 1
+              strokeWidth: 1.5
             }
           }}
           data={summary}
@@ -116,7 +117,11 @@ const Item = ({
           y={d => d.value}
           labels={({ datum }) => `${seconds_to_label(datum.value)}`}
           labelComponent={
-            <VictoryLabel verticalAnchor="middle" angle={0} style={{ fontSize: 12 }} />
+            <VictoryLabel
+              verticalAnchor="middle"
+              angle={0}
+              style={{ fontSize: 12, fill: theme.text }}
+            />
           }
           cornerRadius={{ top: 4 }}
         />

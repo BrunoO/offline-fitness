@@ -158,7 +158,7 @@ export function ActivityCalendarPeriod({
       const streakColor = goalAchieved ? theme.success : baseColor + '60';
       marks[streakDate] = {
         color: streakColor,
-        textColor: theme.onPrimary
+        textColor: goalAchieved ? theme.onPrimary : theme.text
       };
     });
   });

@@ -22,6 +22,7 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Animated, Image, StyleSheet } from 'react-native';
 
 // Keep the splash screen visible while we fetch resources
 // (only rejects if the splash was already hidden; startup order makes that impossible)
@@ -41,6 +42,8 @@ function AppContent() {
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
   const [backfillComplete, setBackfillComplete] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
   // Stable so the drawer's memoised "Settings" row does not change identity
   // every time the app re-renders.
@@ -58,10 +61,21 @@ function AppContent() {
       .finally(() => setBackfillComplete(true));
   }, []);
 
+  // Once startup backfill completes, hide the native splash and smoothly fade out
+  // our in-app splash (which takes the background tint of the active palette).
   useEffect(() => {
-    void SplashScreen.hideAsync();
-    simpleLogger.log('✨ App UI loaded and ready');
-  }, []);
+    if (backfillComplete) {
+      void SplashScreen.hideAsync().catch(() => undefined);
+      simpleLogger.log('✨ App UI loaded and ready');
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true
+      }).start(() => {
+        setSplashVisible(false);
+      });
+    }
+  }, [backfillComplete, fadeAnim]);
 
   useEffect(() => {
     if (backfillComplete) {
@@ -115,9 +129,38 @@ function AppContent() {
           <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
         </ManualEntryProvider>
       </NavigationContainer>
+      {splashVisible ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.splashContainer,
+            { backgroundColor: theme.primarySoft, opacity: fadeAnim }
+          ]}
+        >
+          <Image
+            source={require('./assets/images/splash.png')}
+            style={styles.splashImage}
+          />
+        </Animated.View>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999
+  },
+  splashImage: {
+    width: 200,
+    height: 200,
+    resizeMode: 'contain',
+    borderRadius: 40
+  }
+});
 
 export default function App() {
   return (

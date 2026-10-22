@@ -21,7 +21,7 @@
       "bundleIdentifier": "com.example.offlinefitness"
     },
     "android": {
-      "versionCode": 661,
+      "versionCode": 665,
       "config": {
         "googleMaps": {
           "apiKey": "SET_VIA_EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
@@ -57,8 +57,12 @@
         {
           "image": "./assets/images/splash.png",
           "enableFullScreenImage_legacy": "false",
-          "backgroundColor": "#FFFFE0",
-          "imageWidth": 200
+          "backgroundColor": "#F3EEFF",
+          "imageWidth": 200,
+          "dark": {
+            "image": "./assets/images/splash.png",
+            "backgroundColor": "#241E3A"
+          }
         }
       ],
       "expo-font",

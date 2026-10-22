@@ -300,8 +300,8 @@ const createStyles = (theme: ResolvedTheme) =>
       margin: 6,
       fontSize: 14,
       textAlign: 'center',
-      color: theme.info,
-      fontWeight: '600'
+      color: theme.textStrong,
+      fontWeight: '700'
     },
     textTitle: {
       margin: 6,
@@ -366,8 +366,12 @@ function BarChart({
               style={{
                 data: {
                   fill: theme.primary,
+                  fillOpacity: 0.25,
                   stroke: theme.primary,
-                  strokeWidth: 1
+                  strokeWidth: 1.5
+                },
+                labels: {
+                  fill: theme.text
                 }
               }}
               cornerRadius={{ top: 4 }}
