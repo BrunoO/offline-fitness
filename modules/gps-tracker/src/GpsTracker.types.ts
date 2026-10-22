@@ -13,7 +13,7 @@ export interface GpsTrackerCapabilities {
   canExemptBattery: boolean;
 }
 
-export type Profile = 'walking' | 'hiking' | 'cycling' | 'swimming';
+export type Profile = 'walking' | 'running' | 'hiking' | 'cycling' | 'swimming';
 
 export interface CaptureOptions {
   /** How often the platform is asked for a fix, in milliseconds. */

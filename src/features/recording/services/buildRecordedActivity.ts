@@ -9,6 +9,8 @@ const profileToActivityType = (profile: string): string => {
   switch (profile) {
     case 'walking':
       return 'Walk';
+    case 'running':
+      return 'Run';
     case 'hiking':
       return 'Hike';
     case 'cycling':

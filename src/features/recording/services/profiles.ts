@@ -7,12 +7,18 @@ import type { CaptureOptions, Profile } from './gpsTracker';
  * behaviour did not change, the class did: profiles are app data now, and
  * the service only receives the four values the capture loop needs.
  */
-export const PROFILES: Profile[] = ['walking', 'hiking', 'cycling', 'swimming'];
+export const PROFILES: Profile[] = ['walking', 'running', 'hiking', 'cycling', 'swimming'];
 
 export const PROFILE_CAPTURE_OPTIONS: Record<Profile, CaptureOptions> = {
   walking: {
     intervalMs: 2000,
     minDistanceM: 2.5,
+    accuracyCeilingM: 15,
+    useBarometer: true
+  },
+  running: {
+    intervalMs: 1000,
+    minDistanceM: 2.0,
     accuracyCeilingM: 15,
     useBarometer: true
   },
@@ -38,6 +44,7 @@ export const PROFILE_CAPTURE_OPTIONS: Record<Profile, CaptureOptions> = {
 
 export const PROFILE_LABELS: Record<Profile, string> = {
   walking: 'Walking',
+  running: 'Running',
   hiking: 'Hiking',
   cycling: 'Cycling',
   swimming: 'Swimming'
@@ -66,6 +73,13 @@ export const PROFILE_FILTER_OPTIONS: Record<Profile, FilterOptions> = {
     maxSpeedMps: 5,
     driftSuppressionEnabled: true,
     stationarySpeedThreshold: 0.4
+  },
+  running: {
+    maxAccuracyMeters: 15,
+    minIntervalMs: 1000,
+    maxSpeedMps: 12,
+    driftSuppressionEnabled: true,
+    stationarySpeedThreshold: 0.5
   },
   hiking: {
     maxAccuracyMeters: 20,

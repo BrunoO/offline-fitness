@@ -2,7 +2,7 @@ import { PROFILE_CAPTURE_OPTIONS, PROFILE_FILTER_OPTIONS, PROFILES } from '@/fea
 
 describe('recording profiles', () => {
   it('exposes the four MVP profiles in a stable order', () => {
-    expect(PROFILES).toEqual(['walking', 'hiking', 'cycling', 'swimming']);
+    expect(PROFILES).toEqual(['walking', 'running', 'hiking', 'cycling', 'swimming']);
   });
 
   it('freezes the capture numbers copied verbatim from ActivityProfile.kt', () => {
@@ -10,6 +10,7 @@ describe('recording profiles', () => {
     // behaviour, so the test pins them to the legacy values.
     expect(PROFILE_CAPTURE_OPTIONS).toEqual({
       walking: { intervalMs: 2000, minDistanceM: 2.5, accuracyCeilingM: 15, useBarometer: true },
+      running: { intervalMs: 1000, minDistanceM: 2.0, accuracyCeilingM: 15, useBarometer: true },
       hiking: { intervalMs: 4000, minDistanceM: 4, accuracyCeilingM: 20, useBarometer: true },
       cycling: { intervalMs: 1000, minDistanceM: 3, accuracyCeilingM: 15, useBarometer: true },
       swimming: { intervalMs: 1000, minDistanceM: 0.5, accuracyCeilingM: 25, useBarometer: false }
@@ -24,6 +25,13 @@ describe('recording profiles', () => {
         maxSpeedMps: 5,
         driftSuppressionEnabled: true,
         stationarySpeedThreshold: 0.4
+      },
+      running: {
+        maxAccuracyMeters: 15,
+        minIntervalMs: 1000,
+        maxSpeedMps: 12,
+        driftSuppressionEnabled: true,
+        stationarySpeedThreshold: 0.5
       },
       hiking: {
         maxAccuracyMeters: 20,
