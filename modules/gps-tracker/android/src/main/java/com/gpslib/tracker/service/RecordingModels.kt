@@ -54,7 +54,8 @@ data class LiveStats(
     val distanceMeters: Double = 0.0,
     val currentSpeedMps: Float? = null,
     val altitudeM: Double? = null,
-    val gpsLost: Boolean = false
+    val gpsLost: Boolean = false,
+    val hAccM: Float? = null
 )
 
 data class RecordingSummary(
@@ -77,5 +78,6 @@ data class LocationUpdate(
     val speedMps: Float?,
     val elapsedSec: Long,
     val distanceMeters: Double,
-    val gpsLost: Boolean = false
+    val gpsLost: Boolean = false,
+    val hAccM: Float? = null
 )

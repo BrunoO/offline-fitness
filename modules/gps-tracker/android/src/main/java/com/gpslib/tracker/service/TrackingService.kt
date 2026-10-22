@@ -282,7 +282,8 @@ class TrackingService : Service() {
             distanceMeters = distanceMeters,
             currentSpeedMps = if (location.hasSpeed()) location.speed else null,
             altitudeM = sample?.rawAltitudeMeters,
-            gpsLost = gpsLost
+            gpsLost = gpsLost,
+            hAccM = if (location.hasAccuracy()) location.accuracy else null
         )
         TrackingSession.updateLiveStats(liveStats)
         TrackingSession.notifyLocationUpdate(
@@ -294,7 +295,8 @@ class TrackingService : Service() {
                 speedMps = liveStats.currentSpeedMps,
                 elapsedSec = liveStats.elapsedSec,
                 distanceMeters = liveStats.distanceMeters,
-                gpsLost = gpsLost
+                gpsLost = gpsLost,
+                hAccM = liveStats.hAccM
             )
         )
 
@@ -505,7 +507,8 @@ class TrackingService : Service() {
                         speedMps = null,
                         elapsedSec = TrackingSession.liveStats.elapsedSec,
                         distanceMeters = TrackingSession.liveStats.distanceMeters,
-                        gpsLost = true
+                        gpsLost = true,
+                        hAccM = null
                     )
                 )
             }
