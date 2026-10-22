@@ -2,6 +2,8 @@ import expoConfig from 'eslint-config-expo/flat.js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import reactCompiler from 'eslint-plugin-react-compiler';
 import globals from 'globals';
+import jest from 'eslint-plugin-jest';
+import regexp from 'eslint-plugin-regexp';
 
 export default [
   {
@@ -30,7 +32,8 @@ export default [
       }
     },
     plugins: {
-      'react-compiler': reactCompiler
+      'react-compiler': reactCompiler,
+      regexp: regexp
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
@@ -60,6 +63,13 @@ export default [
       // writing rather than weeks later in a Sonar scan.
       complexity: ['warn', 15],
       'no-await-in-loop': 'warn',
+      // Sonar smell mirrors (readability & regex safety): warn-level so they
+      // surface at write time without blocking, caught before a scan finds them.
+      'no-nested-ternary': 'warn',
+      'no-warning-comments': ['warn', { terms: ['todo', 'fixme', 'xxx', 'hack'] }],
+      // Super-linear backtracking is a hang vector on user input (archives,
+      // URLs) - hard error in product code (Sonar S8786 mirror).
+      'regexp/no-super-linear-backtracking': 'error',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       // Existing screens compute derived state in effects; react-compiler/react-compiler enforces compiler bailout rules
@@ -85,13 +95,34 @@ export default [
         ...globals.jest
       }
     },
+    plugins: {
+      regexp: regexp
+    },
     rules: {
+      'regexp/no-super-linear-backtracking': 'error',
       'prettier/prettier': [
         'error',
         {
           endOfLine: 'auto'
         }
       ]
+    }
+  },
+  {
+    files: ['__tests__/**/*.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    plugins: {
+      jest
+    },
+    rules: {
+      // Mirrors Sonar S5906 (assertion specificity): jest's own matchers beat
+      // generic toBe/toBe(true) - readable failure diffs are the point.
+      'jest/expect-expect': 'warn',
+      'jest/prefer-comparison-matcher': 'warn',
+      'jest/prefer-to-have-length': 'warn',
+      'jest/no-standalone-expect': 'error',
+      // The portability spec's import-parsing regex runs on repo source, not
+      // user input - the hang risk the rule guards is product-code only.
+      'regexp/no-super-linear-backtracking': 'off'
     }
   }
 ];

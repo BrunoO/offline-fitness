@@ -75,10 +75,14 @@ Rules for AI agents (and humans):
 4. **A gate that cannot run is not a passed gate.** Exit code 2 (missing token
    or network) means the task is blocked on environment; report it as such
    instead of claiming completion.
-5. **Prefer prevention over the gate**: `eslint.config.mjs` encodes the
-   recurring bug classes (floating promises, comparator-less sorts,
-   complexity/await-in-loop warnings). Treat those errors as you would a
+5. **Prefer prevention over the gate**: `eslint.config.mjs` mirrors the Sonar
+   classes that have lint equivalents - hard errors for floating promises,
+   comparator-less sorts, and super-linear regexes in product code; warnings
+   for cognitive complexity, await-in-loop, nested ternaries, stale TODO
+   comments, and jest matcher specificity. Treat those errors as you would a
    compile error - the Sonar gate is the backstop, not the first line.
+   Classes with no lint equivalent (e.g. nested template literals) are caught
+   by scan only - fix them as soon as the gate reports them, same session.
 6. Resolved issues (including human-marked won't-fix ones) stay visible in
    the Sonar UI by design - only OPEN/CONFIRMED count against this gate.
    Query details anytime with `scripts/fetch_sonar_results.sh --open-only`.
@@ -88,6 +92,30 @@ Supporting files: `scripts/sonar_gate.sh` (this gate),
 (issue & duplication detail), `sonar-project.properties` (scanner config).
 `sonar-results/` is gitignored; the local scanner script contains a token and
 must never be committed.
+
+### Bulk Edits & Codemods
+
+Applying a rule across many files (the way the Sonar backlog was cleared) is
+where AI agents most often introduce regressions - a wrong replacement can be
+semantically invisible to tsc. Non-negotiable discipline:
+
+1. **Occurrence-counted replacements**: a codemod declares, for each
+   `from -> to` pair, how many occurrences it expects; it writes **nothing**
+   unless every count matched exactly. Never sed-and-hope.
+2. **Dry run first**: print every changed line and eyeball each one before
+   writing (this caught a codemod silently duplicating a JSX opening tag and
+   another dropping a trailing comma into a syntax error).
+3. **Run the affected test suite immediately after** - before lint, before
+   claiming green. The zipReader fixture caught a `slice(offset, length)` vs
+   `slice(offset, offset + length)` transcription slip that tsc and eslint
+   both passed; a "bulk edit, tests after, if I feel like it" workflow ships
+   that bug.
+4. **Never bulk-format or bulk-fix files with uncommitted work from other
+   sessions** - check `git status` first and restrict auto-fixes to the files
+   your task owns.
+5. Behavior-preserving intent goes in the commit message; equivalence-affecting
+   judgment calls (e.g. first-match `replace` kept instead of `replaceAll`)
+   go in a code comment at the site.
 
 ### Secrets & Environment
 
