@@ -60,9 +60,6 @@ const createStyles = (theme: ResolvedTheme) =>
         },
         android: {
           elevation: 3
-        },
-        web: {
-          boxShadow: '0 1px 3px rgba(0,0,0,0.22)'
         }
       })
     },

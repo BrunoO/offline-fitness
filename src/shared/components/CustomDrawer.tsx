@@ -60,13 +60,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
   const [isClearing, setIsClearing] = useState(false);
 
   const handleExportData = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Not available on web',
-        'Data export needs the phone file system and share sheet. Use the Android or iOS build to export.'
-      );
-      return;
-    }
     simpleLogger.log('User initiated data export', {
       timestamp: new Date().toISOString()
     });

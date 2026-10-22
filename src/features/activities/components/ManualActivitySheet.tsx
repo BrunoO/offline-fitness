@@ -52,7 +52,7 @@ function formatDurationLabel(durationMin: number): string {
  * One-screen quick-add for GPS-less activities. Every field is prefilled
  * (type Yoga, date today, time now, 60 min) so the common case — Yoga done
  * just now — is type + Save. No native date/time picker: preset chips plus
- * plain text inputs behave identically on iOS, Android and web, and stay
+ * plain text inputs behave identically on iOS and Android, and stay
  * unit-testable (the picker's community API differs per platform).
  */
 export function ManualActivitySheet({

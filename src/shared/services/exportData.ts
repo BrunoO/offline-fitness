@@ -4,7 +4,6 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
 import Papa from 'papaparse';
-import { Platform } from 'react-native';
 import { Activity } from '../types/types';
 import { simpleLogger } from './SimpleLogger';
 import { getAllActivitiesKeys, loadAllActivities } from './storage';
@@ -44,10 +43,9 @@ const streamToGPX = (activity: Activity, stream: StreamSet): string => {
 };
 
 /**
- * File-system folders, constructed lazily: `expo-file-system` has no web
- * implementation, so module-level `new Directory(...)` throws during import
- * and kills the whole barrel on web. Consumers only run on native (export is
- * guarded below), but the import itself must stay harmless everywhere.
+ * File-system folders, constructed lazily: module-level `new Directory(...)`
+ * runs during import, so a bad document directory would abort the whole shared
+ * barrel rather than just this service. The import must stay harmless.
  */
 let cachedStreamsFolder: Directory | undefined;
 function streamsFolder(): Directory {
@@ -175,11 +173,6 @@ export const exportData = async (
   setProgress: (progress: number) => void,
   activitiesToExport?: Activity[]
 ): Promise<void> => {
-  if (Platform.OS === 'web') {
-    // expo-file-system and expo-sharing have no web implementation; the guard
-    // keeps the failure explicit instead of a validatePath crash downstream.
-    throw new Error('Data export is not available in the web version.');
-  }
   try {
     setProgress(0);
     removeStaleExportChunks();

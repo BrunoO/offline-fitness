@@ -315,9 +315,6 @@ const createStyles = (theme: ResolvedTheme) =>
         },
         android: {
           elevation: 2
-        },
-        web: {
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
         }
       }),
       width: '100%'

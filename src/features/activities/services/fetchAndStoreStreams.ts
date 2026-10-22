@@ -16,11 +16,11 @@ import simplify from 'simplify-js';
 import { StreamSet } from '../types/stravaActivityStream.model';
 
 /**
- * The stream cache folder, constructed lazily. `expo-file-system` has no web
- * implementation: building a `Directory` at module level throws during import
- * and kills the whole barrel on web (`validatePath is not a function`). The
- * getter degrades to `null` wherever the platform has no file system, and
- * every consumer below treats that as "no cache" instead of throwing.
+ * The stream cache folder, constructed lazily. Building a `Directory` at module
+ * level runs during import, so a bad document directory would take down every
+ * consumer of this barrel rather than just the cache. The getter degrades to
+ * `null` when the folder cannot be created, and every consumer below treats
+ * that as "no cache" instead of throwing.
  */
 let cachedStreamsFolder: Directory | null | undefined;
 function streamsFolder(): Directory | null {
@@ -270,7 +270,8 @@ export const loadStreamForActivity = async (activity: Activity): Promise<Activit
 
 /**
  * Loads the raw (unsimplified) stream for a single activity from the file system.
- * Used by the web maps screen, which renders the original latlng/altitude/time series.
+ * Returns the original latlng/altitude/time series, before the simplification
+ * the map views apply.
  * @param activity The activity to load the stream for.
  * @returns A promise that resolves to the raw stream set, or null if not found.
  */

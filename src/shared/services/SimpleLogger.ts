@@ -1,14 +1,3 @@
-/**
- * Whether logs are echoed to the console. The web build (react-native-web) has
- * a real DOM and benefits from devtools visibility; native keeps logs in
- * memory only (the LogScreen shows them). `Platform.OS` would express the same
- * rule, but importing `react-native` here would drag the whole platform into
- * the portable import core — `webdavTransport` logs through this class and a
- * Node-based tool must load it. Hermes/JSC alias `window` to `globalThis` on
- * native, so `document` is the web marker, not `window`.
- */
-const ECHOES_TO_CONSOLE = typeof document !== 'undefined';
-
 export const LogLevel = {
   Info: 0,
   Warning: 1,
@@ -117,11 +106,6 @@ export class Logger {
    * @param data The data to log.
    */
   log(...data: unknown[]): void {
-    if (ECHOES_TO_CONSOLE) {
-      // Preserve original console behaviour for web debugging
-
-      console.log(...data);
-    }
     this.internalLog(LogLevel.Info, ...data);
   }
 
@@ -130,9 +114,6 @@ export class Logger {
    * @param data The data to log.
    */
   warn(...data: unknown[]): void {
-    if (ECHOES_TO_CONSOLE) {
-      console.warn(...data);
-    }
     this.internalLog(LogLevel.Warning, ...data);
   }
 
@@ -141,9 +122,6 @@ export class Logger {
    * @param data The data to log.
    */
   error(...data: unknown[]): void {
-    if (ECHOES_TO_CONSOLE) {
-      console.error(...data);
-    }
     this.internalLog(LogLevel.Error, ...data);
   }
 }

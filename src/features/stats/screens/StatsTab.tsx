@@ -48,9 +48,6 @@ const createStyles = (theme: ResolvedTheme) =>
         },
         android: {
           elevation: 16
-        },
-        web: {
-          boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
         }
       }),
       maxHeight: '95%',
