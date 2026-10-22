@@ -817,3 +817,11 @@ A comprehensive code review was performed, covering technical debt, architecture
   - All mirror rules report **0 findings** on the committed tree today: they exist to prevent, not to backlog.
 - AGENTS.md: "Sonar Quality Gate" rule 5 updated to describe the full mirror set; new **"Bulk Edits & Codemods"** section - occurrence-counted replacements, dry-run review, affected-test-suite-immediately, never auto-fix files with foreign WIP, judgment-call comments at the site. These are the exact failure modes this session hit (zipReader slice, duplicated JSX tag, dropped commas).
 - Not touched (user's parallel work in `8b0f71e`+WIP): App.tsx prettier drift, manualActivity.spec formatting, one floating promise in useActivities.spec - pre-existing lint errors unrelated to this change; flagged, deliberately not auto-fixed per the new rule 4.
+
+## SonarCloud CI - 2026-10-22
+
+- Added `.github/workflows/build.yml` (from SonarCloud's onboarding template, adjusted): ubuntu-latest (no Xcode needed; macOS minutes burn 10x), install -> tsc -> check:imports -> jest --coverage -> sonarqube-scan-action, with `sonar.qualitygate.wait=true` so the job fails when the "Sonar way" gate (new issues = 0) does. Lint step is `continue-on-error` until the parallel feature work's lint debt lands; flip it to blocking afterwards. Coverage + tsc + imports are blocking now.
+- PRs now get inline Sonar comments on new-code issues (the shift-left for classes with no lint equivalent: S3776 cognitive complexity, S5976 test parameterization, nested templates).
+- `sonar-project.properties`: stale `projectKey=offline-fitness` corrected to `BrunoO_offline-fitness` + added `sonar.organization=brunoo` (a bare scanner run would previously scan into / create a wrong project; the CLI overrides in scripts masked this).
+- Needs (done): `SONAR_TOKEN` repository secret. Optional follow-up: pin `actions/setup-node` to a SHA like the other steps for supply-chain parity.
+

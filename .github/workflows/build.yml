@@ -1,0 +1,71 @@
+# CI: install -> DoD checks -> tests with coverage -> SonarCloud analysis.
+# Based on SonarCloud's onboarding template; deviations (deliberate):
+#   * ubuntu-latest instead of macos-latest: nothing here needs Xcode, and
+#     macOS runners consume Actions minutes 10x faster.
+#   * the commented-out "build and test" placeholder is implemented: without
+#     `jest --coverage` the analysis loses lcov coverage data.
+#   * lint runs non-blocking until the current lint debt (parallel feature
+#     work) is burned down; flip `continue-on-error` away to enforce.
+name: SonarQube
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Setup Node
+        # unpin-to-SHA deliberately (tag pinned); add your supply-chain SHA pin
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Import hygiene
+        run: npm run check:imports
+
+      - name: Lint (advisory until lint debt is cleared)
+        run: npx eslint .
+        continue-on-error: true
+
+      - name: Test with coverage (feeds sonar lcov)
+        run: npx jest --watchAll=false --coverage
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # repo/PR metadata for decoration
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=brunoo
+            -Dsonar.projectKey=BrunoO_offline-fitness
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300000
