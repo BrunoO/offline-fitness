@@ -4,6 +4,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
 import Papa from 'papaparse';
+import { Platform } from 'react-native';
 import { Activity } from '../types/types';
 import { simpleLogger } from './SimpleLogger';
 import { getAllActivitiesKeys, loadAllActivities } from './storage';
@@ -42,8 +43,23 @@ const streamToGPX = (activity: Activity, stream: StreamSet): string => {
 </gpx>`;
 };
 
-const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
-const documentsFolder = new Directory(Paths.document);
+/**
+ * File-system folders, constructed lazily: `expo-file-system` has no web
+ * implementation, so module-level `new Directory(...)` throws during import
+ * and kills the whole barrel on web. Consumers only run on native (export is
+ * guarded below), but the import itself must stay harmless everywhere.
+ */
+let cachedStreamsFolder: Directory | undefined;
+function streamsFolder(): Directory {
+  cachedStreamsFolder ??= new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+  return cachedStreamsFolder;
+}
+
+let cachedDocumentsFolder: Directory | undefined;
+function documentsFolder(): Directory {
+  cachedDocumentsFolder ??= new Directory(Paths.document);
+  return cachedDocumentsFolder;
+}
 
 /** Chunk names written by previous export runs, current and legacy. */
 const EXPORT_CHUNK_PATTERN = /^strava_export(_part_\d+_of_\d+)?\.zip$/;
@@ -54,16 +70,18 @@ const EXPORT_CHUNK_PATTERN = /^strava_export(_part_\d+_of_\d+)?\.zip$/;
  */
 function removeStaleExportChunks(): void {
   try {
-    documentsFolder.list().forEach(entry => {
-      if (entry instanceof File && EXPORT_CHUNK_PATTERN.test(entry.name)) {
-        try {
-          entry.delete();
-          simpleLogger.log(`Removed stale export chunk ${entry.name}`);
-        } catch (deleteError) {
-          simpleLogger.log(`Could not remove stale chunk ${entry.name}: ${deleteError}`);
+    documentsFolder()
+      .list()
+      .forEach(entry => {
+        if (entry instanceof File && EXPORT_CHUNK_PATTERN.test(entry.name)) {
+          try {
+            entry.delete();
+            simpleLogger.log(`Removed stale export chunk ${entry.name}`);
+          } catch (deleteError) {
+            simpleLogger.log(`Could not remove stale chunk ${entry.name}: ${deleteError}`);
+          }
         }
-      }
-    });
+      });
   } catch (listError) {
     // Nothing to clean and no reason to abort the export over it.
     simpleLogger.log(`Stale export chunk sweep skipped: ${listError}`);
@@ -76,7 +94,7 @@ function removeStaleExportChunks(): void {
  */
 async function addStreamToZip(zip: JSZip, activity: Activity): Promise<void> {
   if (!activity.start_latlng) return;
-  const file = new File(streamsFolder, `${activity.id}.json`);
+  const file = new File(streamsFolder(), `${activity.id}.json`);
   if (!file.exists) return;
 
   try {
@@ -157,6 +175,11 @@ export const exportData = async (
   setProgress: (progress: number) => void,
   activitiesToExport?: Activity[]
 ): Promise<void> => {
+  if (Platform.OS === 'web') {
+    // expo-file-system and expo-sharing have no web implementation; the guard
+    // keeps the failure explicit instead of a validatePath crash downstream.
+    throw new Error('Data export is not available in the web version.');
+  }
   try {
     setProgress(0);
     removeStaleExportChunks();

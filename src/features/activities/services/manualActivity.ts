@@ -52,6 +52,53 @@ export const MANUAL_ACTIVITY_TYPES = [
 /** One-tap duration choices (minutes) in the manual-entry sheet. */
 export const MANUAL_DURATION_PRESETS_MIN = [15, 30, 45, 60, 90, 120];
 
+/**
+ * Ordered type list for the manual-entry sheet: the last-used type first,
+ * then the user's own types by frequency (the archive is the source of
+ * truth for what they actually do), then user-declared types, then the
+ * built-in defaults. Case-insensitive dedup keeps "yoga" from doubling
+ * "Yoga"; the first casing seen wins.
+ */
+export function buildManualTypeList(args: {
+  activities: readonly { type: string }[];
+  lastType: string | null;
+  customTypes: readonly string[];
+  defaults?: readonly string[];
+}): string[] {
+  const list: string[] = [];
+  const seen = new Set<string>();
+  const claim = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    list.push(trimmed);
+  };
+
+  if (args.lastType) claim(args.lastType);
+
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const activity of args.activities) {
+    const key = activity.type.trim().toLowerCase();
+    if (!key) continue;
+    const entry = counts.get(key);
+    if (entry) {
+      entry.count += 1;
+    } else {
+      counts.set(key, { name: activity.type.trim(), count: 1 });
+    }
+  }
+  const byFrequency = [...counts.values()].sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name)
+  );
+  for (const entry of byFrequency) claim(entry.name);
+
+  for (const custom of args.customTypes) claim(custom);
+  for (const fallback of args.defaults ?? MANUAL_ACTIVITY_TYPES) claim(fallback);
+  return list;
+}
+
 /** Device IANA zone, e.g. "Europe/Paris". Never throws — falls back to UTC. */
 export function deviceTimezoneLabel(): string {
   try {
@@ -63,26 +110,30 @@ export function deviceTimezoneLabel(): string {
 
 function parseDatePart(localDate: string): { year: number; month: number; day: number } {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
-  if (!match) throw new Error(`Invalid date "${localDate}". Use YYYY-MM-DD.`);
+  if (!match) throw new TypeError(`Invalid date "${localDate}". Use YYYY-MM-DD.`);
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   if (month < 1 || month > 12 || day < 1 || day > 31) {
-    throw new Error(`Invalid date "${localDate}". Use YYYY-MM-DD.`);
+    throw new TypeError(`Invalid date "${localDate}". Use YYYY-MM-DD.`);
   }
   return { year, month, day };
 }
 
 function parseTimePart(localTime: string): { hour: number; minute: number } {
   const match = /^(\d{1,2}):(\d{2})$/.exec(localTime.trim());
-  if (!match) throw new Error(`Invalid time "${localTime}". Use HH:MM (24 h).`);
+  if (!match) throw new TypeError(`Invalid time "${localTime}". Use HH:MM (24 h).`);
   const hour = Number(match[1]);
   const minute = Number(match[2]);
   if (hour > 23 || minute > 59) {
-    throw new Error(`Invalid time "${localTime}". Use HH:MM (24 h).`);
+    throw new TypeError(`Invalid time "${localTime}". Use HH:MM (24 h).`);
   }
   return { hour, minute };
 }
+
+// Monotonic per-session suffix: ids stay unique without any randomness
+// (two entries stamped in the same millisecond still differ).
+let manualIdCounter = 0;
 
 /**
  * Builds a stored `Activity` record from a manual entry. Throws on invalid
@@ -90,7 +141,7 @@ function parseTimePart(localTime: string): { hour: number; minute: number } {
  */
 export function buildManualActivity(input: ManualActivityInput): Activity {
   if (!Number.isFinite(input.durationMin) || input.durationMin < 1) {
-    throw new Error('Duration must be at least 1 minute.');
+    throw new TypeError('Duration must be at least 1 minute.');
   }
   const { year, month, day } = parseDatePart(input.localDate);
   const { hour, minute } = parseTimePart(input.localTime);
@@ -98,7 +149,7 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   // Device-local construction: the entered wall time IS athlete-local time.
   const wallClock = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (Number.isNaN(wallClock.getTime())) {
-    throw new Error(`Invalid date/time "${input.localDate} ${input.localTime}".`);
+    throw new TypeError(`Invalid date/time "${input.localDate} ${input.localTime}".`);
   }
   const startUtcMs = wallClock.getTime();
   const type = input.type.trim() || 'Workout';
@@ -110,7 +161,7 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   const utcOffsetSeconds = -Math.round(wallClock.getTimezoneOffset() * 60);
 
   return {
-    id: `manual-${startUtcMs}-${Math.random().toString(36).slice(2, 10)}`,
+    id: `manual-${startUtcMs}-${(manualIdCounter++).toString(36)}`,
     name,
     // Same mislabeled-Z convention as imported records (see activityDates.ts).
     start_date_local: `${input.localDate}T${localTime}Z`,

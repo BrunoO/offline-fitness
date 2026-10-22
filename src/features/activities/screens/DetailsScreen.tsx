@@ -27,6 +27,27 @@ configureReanimatedLogger({
   strict: false //TMP to remove the warning
 });
 
+/**
+ * The "+" in the Activities header. A module-level component (not an inline
+ * render closure): defining it inside the screen would remount the button on
+ * every render. Data flows in as props.
+ */
+function AddActivityHeaderButton({
+  onPress,
+  color
+}: Readonly<{ onPress: () => void; color: string }>): React.JSX.Element {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityLabel="Add activity"
+      accessibilityRole="button"
+      style={{ marginRight: 12, padding: 6 }}
+    >
+      <Ionicons name="add" size={24} color={color} />
+    </TouchableOpacity>
+  );
+}
+
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     container: {
@@ -117,23 +138,21 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
 
   const keyExtractor = (item: Activity) => item.id;
 
+  // Stable element factory for the header: the button itself is hoisted
+  // above, so no component is defined during render.
+  const renderHeaderRight = React.useCallback(
+    () => <AddActivityHeaderButton onPress={openManualEntry} color={theme.primary} />,
+    [openManualEntry, theme]
+  );
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: `Activities (${allActivities.length})`,
       // RECORD-CHOOSER: when GPS tracking lands, this becomes a Track/Manual
       // chooser instead of opening the manual sheet directly.
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => openManualEntry()}
-          accessibilityLabel="Add activity"
-          accessibilityRole="button"
-          style={{ marginRight: 12, padding: 6 }}
-        >
-          <Ionicons name="add" size={24} color={theme.primary} />
-        </TouchableOpacity>
-      )
+      headerRight: renderHeaderRight
     });
-  }, [navigation, allActivities, openManualEntry, theme]);
+  }, [navigation, allActivities, renderHeaderRight]);
 
   const sortedActivities = [...allActivities].sort(compareActivitiesByUtcDesc);
 

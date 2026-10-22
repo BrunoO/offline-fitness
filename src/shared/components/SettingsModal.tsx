@@ -1,7 +1,8 @@
 import { BackupSection } from '@/features/backup';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
+import { SheetFooter, createSheetFrameStyles } from '@/shared';
 import React, { useMemo } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 /**
  * The app's global settings: the colour palette and the WebDAV backup.
@@ -68,58 +69,16 @@ export function SettingsModal({
             </View>
           </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable style={[styles.button, styles.primaryButton]} onPress={onClose}>
-              <Text style={styles.primaryButtonText}>Close</Text>
-            </Pressable>
-          </View>
+          <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>
       </View>
     </Modal>
   );
 }
 
-const createStyles = (theme: ResolvedTheme) =>
-  StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: theme.scrim,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20
-    },
-    card: {
-      width: '100%',
-      maxWidth: 460,
-      maxHeight: '85%',
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4
-        },
-        android: { elevation: 5 },
-        web: { boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }
-      })
-    },
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 12
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.primary,
-      textAlign: 'center'
-    },
-    scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 12
-    },
+const createStyles = (theme: ResolvedTheme) => ({
+  ...createSheetFrameStyles(theme, { maxHeight: '85%', headerPaddingBottom: 12 }),
+  ...StyleSheet.create({
     sectionTitle: {
       fontSize: 15,
       fontWeight: '600',
@@ -135,28 +94,6 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     backupSection: {
       marginHorizontal: -16
-    },
-    actions: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderTopWidth: 1,
-      borderTopColor: theme.border
-    },
-    button: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 8,
-      minHeight: 42,
-      justifyContent: 'center'
-    },
-    primaryButton: {
-      backgroundColor: theme.primary
-    },
-    primaryButtonText: {
-      color: theme.onPrimary,
-      fontWeight: '600',
-      textAlign: 'center'
     }
-  });
+  })
+});

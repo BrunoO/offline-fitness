@@ -5,6 +5,10 @@
 export { ChipMultiSelect } from './components/chip-multi-select/ChipMultiSelect';
 export type { ChipMultiSelectProps } from './components/chip-multi-select/ChipMultiSelect';
 export { LogScreen } from './components/LogScreen';
+export { SheetFooter } from './components/SheetFooter';
+export type { SheetFooterButton } from './components/SheetFooter';
+export { createSheetFrameStyles } from './components/sheetFrame';
+export type { SheetFrameOptions } from './components/sheetFrame';
 // CustomDrawer is excluded from barrel export to avoid circular dependencies
 
 // Services

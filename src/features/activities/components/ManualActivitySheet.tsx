@@ -1,23 +1,20 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { simpleLogger } from '@/shared';
+import { simpleLogger, SheetFooter, createSheetFrameStyles } from '@/shared';
 import { deviceTodayLocalDateString } from '@/shared/utils/activityDates';
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useActivitiesContext } from '../ActivitiesContext';
 import {
   buildManualActivity,
+  buildManualTypeList,
   MANUAL_ACTIVITY_TYPES,
   MANUAL_DURATION_PRESETS_MIN
 } from '../services/manualActivity';
+import {
+  addCustomManualEntryType,
+  loadManualEntryPrefs,
+  saveLastManualEntryType
+} from '../services/manualEntryPrefs';
 
 interface ManualActivitySheetProps {
   visible: boolean;
@@ -38,6 +35,19 @@ function shiftDate(dateString: string, days: number): string {
   return deviceTodayLocalDateString(shifted);
 }
 
+/** Stepper readout: "45m" under an hour, "1h 30m" / "2h" above it. */
+function formatDurationLabel(durationMin: number): string {
+  if (durationMin < 60) {
+    return `${durationMin}m`;
+  }
+  const hours = Math.floor(durationMin / 60);
+  const minutes = durationMin % 60;
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${minutes}m`;
+}
+
 /**
  * One-screen quick-add for GPS-less activities. Every field is prefilled
  * (type Yoga, date today, time now, 60 min) so the common case — Yoga done
@@ -52,7 +62,7 @@ export function ManualActivitySheet({
 }: Readonly<ManualActivitySheetProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { addActivity } = useActivitiesContext();
+  const { addActivity, globalActivities } = useActivitiesContext();
 
   const [activityType, setActivityType] = useState('Yoga');
   const [date, setDate] = useState(deviceTodayLocalDateString());
@@ -61,19 +71,56 @@ export function ManualActivitySheet({
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Type memory: last-used type (pinned first in the list) and user-declared
+  // types, loaded when the sheet opens.
+  const [customTypes, setCustomTypes] = useState<string[]>([]);
+  const [pinnedType, setPinnedType] = useState<string | null>(null);
+  const [showNewType, setShowNewType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
 
   // Reset the form every time the sheet opens, honouring the caller's date.
   useEffect(() => {
-    if (visible) {
-      setActivityType('Yoga');
-      setDate(initialDate ?? deviceTodayLocalDateString());
-      setTime(nowRoundedToFive());
-      setDurationMin(60);
-      setName('');
-      setError(null);
-      setIsSaving(false);
-    }
+    if (!visible) return;
+    let cancelled = false;
+    setActivityType('Yoga');
+    setPinnedType(null);
+    setCustomTypes([]);
+    setShowNewType(false);
+    setNewTypeName('');
+    setDate(initialDate ?? deviceTodayLocalDateString());
+    setTime(nowRoundedToFive());
+    setDurationMin(60);
+    setName('');
+    setError(null);
+    setIsSaving(false);
+    loadManualEntryPrefs()
+      .then(prefs => {
+        if (cancelled) return;
+        setCustomTypes(prefs.customTypes);
+        if (prefs.lastType) {
+          setPinnedType(prefs.lastType);
+          setActivityType(prefs.lastType);
+        }
+      })
+      .catch(loadError => simpleLogger.error('Could not load manual-entry preferences', loadError));
+    return () => {
+      cancelled = true;
+    };
   }, [visible, initialDate]);
+
+  // Most-used first: the user's own archive decides the order, not the
+  // built-in list. Recomputed when the sheet opens (customTypes/pinnedType
+  // change then) and when the activity set changes underneath it.
+  const typeList = useMemo(
+    () =>
+      buildManualTypeList({
+        activities: globalActivities,
+        lastType: pinnedType,
+        customTypes,
+        defaults: MANUAL_ACTIVITY_TYPES
+      }),
+    [globalActivities, pinnedType, customTypes]
+  );
 
   if (!visible) {
     return <></>;
@@ -81,6 +128,44 @@ export function ManualActivitySheet({
 
   const today = deviceTodayLocalDateString();
   const yesterday = shiftDate(today, -1);
+
+  // Digits-only time entry: the user types "1830", the field shows "18:30".
+  // Kept as display text so the default ("now") and validation stay unchanged.
+  const handleTimeDigitsChange = (text: string) => {
+    const digits = text.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) {
+      setTime(digits);
+    } else {
+      setTime(`${digits.slice(0, 2)}:${digits.slice(2)}`);
+    }
+  };
+
+  // Declares a new type (or selects the existing one on a case-insensitive
+  // match) and remembers it for the next sheet.
+  const handleAddCustomType = async () => {
+    const trimmed = newTypeName.trim();
+    if (!trimmed) {
+      setError('Type a name for the new activity type first.');
+      return;
+    }
+    if (trimmed.length > 24) {
+      setError('Keep the type name to 24 characters or fewer.');
+      return;
+    }
+    setError(null);
+    const existing = typeList.find(type => type.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setActivityType(existing);
+      setShowNewType(false);
+      setNewTypeName('');
+      return;
+    }
+    const next = await addCustomManualEntryType(trimmed);
+    setCustomTypes(next);
+    setActivityType(trimmed);
+    setShowNewType(false);
+    setNewTypeName('');
+  };
 
   const handleSave = async () => {
     if (isSaving) return;
@@ -95,6 +180,9 @@ export function ManualActivitySheet({
         name
       });
       await addActivity(activity);
+      // Remembered for the next entry. Never fails the save: the prefs
+      // service already logs and swallows its own errors.
+      await saveLastManualEntryType(activity.type);
       simpleLogger.log('Manual activity saved', {
         activityId: activity.id,
         activityType: activity.type,
@@ -127,7 +215,7 @@ export function ManualActivitySheet({
             <Text style={styles.sectionLabel}>Type</Text>
             <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
               <View style={styles.chipRow}>
-                {MANUAL_ACTIVITY_TYPES.map(type => {
+                {typeList.map(type => {
                   const selected = type === activityType;
                   return (
                     <Pressable
@@ -143,8 +231,40 @@ export function ManualActivitySheet({
                     </Pressable>
                   );
                 })}
+                <Pressable
+                  style={[styles.chip, styles.newChip]}
+                  onPress={() => {
+                    setNewTypeName('');
+                    setShowNewType(prev => !prev);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Declare a new activity type"
+                >
+                  <Text style={styles.chipText}>+ New</Text>
+                </Pressable>
               </View>
             </ScrollView>
+            {showNewType ? (
+              <View style={styles.newTypeRow}>
+                <TextInput
+                  style={styles.newTypeInput}
+                  value={newTypeName}
+                  onChangeText={setNewTypeName}
+                  placeholder="e.g. Padel"
+                  autoCorrect={false}
+                  maxLength={24}
+                  accessibilityLabel="New activity type name"
+                />
+                <Pressable
+                  style={[styles.chip, styles.chipSelected]}
+                  onPress={handleAddCustomType}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add the new activity type"
+                >
+                  <Text style={[styles.chipText, styles.chipTextSelected]}>Add</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             <Text style={styles.sectionLabel}>Date</Text>
             <View style={styles.chipRow}>
@@ -179,28 +299,16 @@ export function ManualActivitySheet({
 
             <Text style={styles.sectionLabel}>Start time</Text>
             <View style={styles.chipRow}>
-              <Pressable style={styles.chip} onPress={() => setTime(nowRoundedToFive())}>
-                <Text style={styles.chipText}>Now</Text>
-              </Pressable>
-              {['07:00', '12:00', '18:00'].map(preset => (
-                <Pressable
-                  key={preset}
-                  style={[styles.chip, time === preset ? styles.chipSelected : null]}
-                  onPress={() => setTime(preset)}
-                >
-                  <Text style={[styles.chipText, time === preset ? styles.chipTextSelected : null]}>
-                    {preset}
-                  </Text>
-                </Pressable>
-              ))}
               <TextInput
                 style={styles.inlineInput}
                 value={time}
-                onChangeText={setTime}
-                placeholder="HH:MM"
+                onChangeText={handleTimeDigitsChange}
+                placeholder="HHMM"
+                keyboardType="number-pad"
                 autoCorrect={false}
                 maxLength={5}
-                accessibilityLabel="Activity start time HH:MM"
+                selectTextOnFocus={true}
+                accessibilityLabel="Activity start time, 4 digits"
               />
             </View>
 
@@ -231,11 +339,7 @@ export function ManualActivitySheet({
               >
                 <Text style={styles.stepperText}>−5</Text>
               </Pressable>
-              <Text style={styles.stepperValue}>
-                {durationMin >= 60
-                  ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ''}`
-                  : `${durationMin}m`}
-              </Text>
+              <Text style={styles.stepperValue}>{formatDurationLabel(durationMin)}</Text>
               <Pressable
                 style={styles.stepperButton}
                 onPress={() => setDurationMin(prev => Math.min(24 * 60, prev + 5))}
@@ -262,65 +366,26 @@ export function ManualActivitySheet({
             ) : null}
           </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable style={[styles.button, styles.secondaryButton]} onPress={onClose}>
-              <Text style={styles.secondaryButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.button, styles.primaryButton, isSaving ? styles.disabledButton : null]}
-              onPress={handleSave}
-              disabled={isSaving}
-            >
-              <Text style={styles.primaryButtonText}>{isSaving ? 'Saving…' : 'Save'}</Text>
-            </Pressable>
-          </View>
+          <SheetFooter
+            buttons={[
+              { label: 'Cancel', onPress: onClose },
+              {
+                label: isSaving ? 'Saving…' : 'Save',
+                onPress: handleSave,
+                primary: true,
+                disabled: isSaving
+              }
+            ]}
+          />
         </View>
       </View>
     </Modal>
   );
 }
 
-const createStyles = (theme: ResolvedTheme) =>
-  StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: theme.scrim,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20
-    },
-    card: {
-      width: '100%',
-      maxWidth: 460,
-      maxHeight: '88%',
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4
-        },
-        android: { elevation: 5 },
-        web: { boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }
-      })
-    },
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 8
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.primary,
-      textAlign: 'center'
-    },
-    scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 12
-    },
+const createStyles = (theme: ResolvedTheme) => ({
+  ...createSheetFrameStyles(theme, { maxHeight: '88%', headerPaddingBottom: 8 }),
+  ...StyleSheet.create({
     sectionLabel: {
       fontSize: 14,
       fontWeight: '600',
@@ -353,6 +418,25 @@ const createStyles = (theme: ResolvedTheme) =>
     chipTextSelected: {
       color: theme.onPrimary,
       fontWeight: '600'
+    },
+    newChip: {
+      borderStyle: 'dashed'
+    },
+    newTypeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 10
+    },
+    newTypeInput: {
+      flex: 1,
+      borderColor: theme.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 15,
+      color: theme.text
     },
     inlineInput: {
       borderColor: theme.border,
@@ -409,41 +493,6 @@ const createStyles = (theme: ResolvedTheme) =>
     errorText: {
       fontSize: 13,
       color: theme.danger
-    },
-    actions: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: 10,
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderTopWidth: 1,
-      borderTopColor: theme.border
-    },
-    button: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 8,
-      minHeight: 42,
-      justifyContent: 'center'
-    },
-    primaryButton: {
-      backgroundColor: theme.primary
-    },
-    primaryButtonText: {
-      color: theme.onPrimary,
-      fontWeight: '600',
-      textAlign: 'center'
-    },
-    secondaryButton: {
-      borderWidth: 1,
-      borderColor: theme.border
-    },
-    secondaryButtonText: {
-      color: theme.text,
-      fontWeight: '600',
-      textAlign: 'center'
-    },
-    disabledButton: {
-      opacity: 0.6
     }
-  });
+  })
+});

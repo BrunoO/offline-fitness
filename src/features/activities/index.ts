@@ -37,10 +37,18 @@ export { ManualActivitySheet } from './components/ManualActivitySheet';
 // Services
 export {
   buildManualActivity,
+  buildManualTypeList,
   deviceTimezoneLabel,
   MANUAL_ACTIVITY_TYPES,
   MANUAL_DURATION_PRESETS_MIN
 } from './services/manualActivity';
+export type { ManualActivityInput } from './services/manualActivity';
+export {
+  addCustomManualEntryType,
+  loadManualEntryPrefs,
+  saveLastManualEntryType
+} from './services/manualEntryPrefs';
+export type { ManualEntryPrefs } from './services/manualEntryPrefs';
 
 // Screens
 export { DetailsScreen } from './screens/DetailsScreen';

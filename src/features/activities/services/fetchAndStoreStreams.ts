@@ -15,7 +15,25 @@ import { Directory, File, Paths } from 'expo-file-system';
 import simplify from 'simplify-js';
 import { StreamSet } from '../types/stravaActivityStream.model';
 
-const streamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+/**
+ * The stream cache folder, constructed lazily. `expo-file-system` has no web
+ * implementation: building a `Directory` at module level throws during import
+ * and kills the whole barrel on web (`validatePath is not a function`). The
+ * getter degrades to `null` wherever the platform has no file system, and
+ * every consumer below treats that as "no cache" instead of throwing.
+ */
+let cachedStreamsFolder: Directory | null | undefined;
+function streamsFolder(): Directory | null {
+  if (cachedStreamsFolder === undefined) {
+    try {
+      cachedStreamsFolder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
+    } catch (error) {
+      simpleLogger.error('Stream cache unavailable on this platform:', error);
+      cachedStreamsFolder = null;
+    }
+  }
+  return cachedStreamsFolder;
+}
 // Guards local file operations (delete vs. bounding-box backfill) against each other.
 const processingActivities = new Set<string>();
 
@@ -32,8 +50,9 @@ export function deleteStreamFiles(activityId: string): void {
   }
   processingActivities.add(activityId);
   try {
-    if (streamsFolder.exists) {
-      const files = streamsFolder.list();
+    const folder = streamsFolder();
+    if (folder?.exists) {
+      const files = folder.list();
       const filesToDelete = files.filter(file => file.name.startsWith(`${activityId}.`));
 
       // File.delete() is synchronous; a failing delete throws into the catch
@@ -71,8 +90,9 @@ export const getNoStreamIds = (activities: readonly Activity[]): Promise<Set<str
 function computeNoStreamIds(activities: readonly Activity[]): Set<string> {
   const streamIds = new Set<string>();
   try {
-    if (streamsFolder.exists) {
-      for (const file of streamsFolder.list()) {
+    const folder = streamsFolder();
+    if (folder?.exists) {
+      for (const file of folder.list()) {
         if (file.name.endsWith('.json')) {
           streamIds.add(file.name.slice(0, -'.json'.length));
         }
@@ -162,10 +182,11 @@ function simplifyTrack(coordinates: LatLng[], tolerance: number = 0.0001): LatLn
  * @returns A promise that resolves to the most recent stream, or null if no streams are found.
  */
 export const loadMostRecentStream = async (): Promise<ActivityStream | null> => {
-  if (!streamsFolder.exists) {
+  const folder = streamsFolder();
+  if (!folder?.exists) {
     return null;
   }
-  const files = streamsFolder.list();
+  const files = folder.list();
   const jsonFiles = files.filter(file => file.name.endsWith('.json'));
 
   if (jsonFiles.length === 0) {
@@ -194,9 +215,13 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
  */
 export const getActivityStreams = async (allActivities: Activity[]) => {
   const activityStreams: ActivityWithStream[] = [];
+  const folder = streamsFolder();
+  if (!folder) {
+    return activityStreams;
+  }
 
   for (const activity of allActivities) {
-    const file = new File(streamsFolder, `${activity.id}.json`);
+    const file = new File(folder, `${activity.id}.json`);
 
     if (file.exists) {
       try {
@@ -224,7 +249,11 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
  * @returns A promise that resolves to the stream, or null if not found.
  */
 export const loadStreamForActivity = async (activity: Activity): Promise<ActivityStream | null> => {
-  const file = new File(streamsFolder, `${activity.id}.json`);
+  const folder = streamsFolder();
+  if (!folder) {
+    return null;
+  }
+  const file = new File(folder, `${activity.id}.json`);
 
   if (!file.exists) {
     return null;
@@ -246,7 +275,11 @@ export const loadStreamForActivity = async (activity: Activity): Promise<Activit
  * @returns A promise that resolves to the raw stream set, or null if not found.
  */
 export const loadRawStreamForActivity = async (activity: Activity): Promise<StreamSet | null> => {
-  const file = new File(streamsFolder, `${activity.id}.json`);
+  const folder = streamsFolder();
+  if (!folder) {
+    return null;
+  }
+  const file = new File(folder, `${activity.id}.json`);
 
   if (!file.exists) {
     return null;
@@ -270,10 +303,11 @@ export const countStreamsStatus = async (
 ): Promise<{ downloadedStreams: number; missingStreams: number }> => {
   try {
     const missingStreams = (await getNoStreamIds(activities)).size;
-    if (!streamsFolder.exists) {
+    const folder = streamsFolder();
+    if (!folder?.exists) {
       return { downloadedStreams: 0, missingStreams };
     }
-    const files = streamsFolder.list();
+    const files = folder.list();
     const downloadedStreams = files.filter(file => file.name.endsWith('.json')).length;
     return { downloadedStreams, missingStreams };
   } catch (error) {
@@ -288,7 +322,12 @@ export const countStreamsStatus = async (
  */
 async function backfillBoundingBox(activity: Activity): Promise<boolean> {
   processingActivities.add(activity.id);
-  const file = new File(streamsFolder, `${activity.id}.json`);
+  const folder = streamsFolder();
+  if (!folder) {
+    processingActivities.delete(activity.id);
+    return false;
+  }
+  const file = new File(folder, `${activity.id}.json`);
   try {
     if (!file.exists) {
       return false;

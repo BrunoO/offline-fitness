@@ -1,5 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { Activity, seconds_to_label } from '@/shared';
+import { Activity, seconds_to_label, SheetFooter } from '@/shared';
 import React, { useMemo } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -12,6 +12,14 @@ interface DayActivitiesSheetProps {
   onSelect: (activity: Activity) => void;
   onAdd: (date: string) => void;
   onClose: () => void;
+}
+
+/** Header subtitle: activity count with singular/plural, or the empty-day note. */
+function dayCountLabel(count: number): string {
+  if (count === 0) {
+    return 'No activity yet';
+  }
+  return `${count} ${count === 1 ? 'activity' : 'activities'}`;
 }
 
 /**
@@ -48,11 +56,7 @@ export function DayActivitiesSheet({
         <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>{date}</Text>
-            <Text style={styles.subtitle}>
-              {activities.length === 0
-                ? 'No activity yet'
-                : `${activities.length} ${activities.length === 1 ? 'activity' : 'activities'}`}
-            </Text>
+            <Text style={styles.subtitle}>{dayCountLabel(activities.length)}</Text>
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -81,18 +85,17 @@ export function DayActivitiesSheet({
             )}
           </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable style={[styles.button, styles.secondaryButton]} onPress={onClose}>
-              <Text style={styles.secondaryButtonText}>Close</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.button, styles.primaryButton]}
-              onPress={() => onAdd(date)}
-              accessibilityLabel={`Add activity on ${date}`}
-            >
-              <Text style={styles.primaryButtonText}>+ Add activity</Text>
-            </Pressable>
-          </View>
+          <SheetFooter
+            buttons={[
+              { label: 'Close', onPress: onClose },
+              {
+                label: '+ Add activity',
+                onPress: () => onAdd(date),
+                primary: true,
+                accessibilityLabel: `Add activity on ${date}`
+              }
+            ]}
+          />
         </View>
       </View>
     </Modal>
@@ -168,38 +171,5 @@ const createStyles = (theme: ResolvedTheme) =>
     rowMeta: {
       fontSize: 13,
       color: theme.textMuted
-    },
-    actions: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: 10,
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderTopWidth: 1,
-      borderTopColor: theme.border
-    },
-    button: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 8,
-      minHeight: 42,
-      justifyContent: 'center'
-    },
-    primaryButton: {
-      backgroundColor: theme.primary
-    },
-    primaryButtonText: {
-      color: theme.onPrimary,
-      fontWeight: '600',
-      textAlign: 'center'
-    },
-    secondaryButton: {
-      borderWidth: 1,
-      borderColor: theme.border
-    },
-    secondaryButtonText: {
-      color: theme.text,
-      fontWeight: '600',
-      textAlign: 'center'
     }
   });
