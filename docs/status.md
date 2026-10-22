@@ -130,6 +130,8 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Sonar S7726: the Expo dynamic-config function is named** — `app.config.js` exported an anonymous arrow (`module.exports = ({ config }) => {…}`), which SonarCloud flags as `javascript:S7726` (introduced with the config-function-form commit, caught by the gate right after the web-target merge). Converted to `function buildConfig({ config })` + `module.exports = buildConfig`; nothing else changed. Verified with `npx expo config` (versionCode 667, platforms [ios, android], no web key) and `scripts/sonar_gate.sh --scan` back to 0 open issues.
+
 - **Web target removed: Android full, iOS partial, mobile only** — the react-native-web attempt is gone, executed from `docs/drop-web-support-plan.md`:
   - **Deleted** `MapsScreen.web.tsx` (148 LOC) and `MiniMapComponent.web.tsx` (98 LOC), `__tests__/shared/webFileSystem.spec.ts` (5 web-stub tests), `metro.config.cjs` (whole file was the `react-native-maps` → `@teovilla/react-native-web-maps` resolver), `assets/favicon.png`. Android keeps `*.android.tsx`; iOS keeps resolving the generic `.tsx` stubs, so its behaviour is unchanged (it has no map view yet).
   - **Branches stripped**: `exportData`'s "not available in the web version" throw, the drawer's "Not available on web" alert, 11 `web:` style keys in 10 files (silently dropped `boxShadow`, nothing rendered differently on native), and `SimpleLogger`'s `ECHOES_TO_CONSOLE` flag with its three `console.log/warn/error` branches — post-web it was `false` in every supported runtime, no test asserted it, and the desktop tool prints through its own `console.log`. `Platform` imports removed where they became unused.

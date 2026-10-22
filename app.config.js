@@ -11,7 +11,7 @@
 //
 // Local runs pick up .env automatically via the Expo CLI. Copy .env.example to
 // .env and fill it in; see the README.
-module.exports = ({ config }) => {
+function buildConfig({ config }) {
   const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!googleMapsApiKey) {
     console.warn(
@@ -52,4 +52,6 @@ module.exports = ({ config }) => {
       bundleIdentifier: iosBundleId
     }
   };
-};
+}
+
+module.exports = buildConfig;
