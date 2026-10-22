@@ -39,7 +39,7 @@ export default function MapsScreen(): JSX.Element {
         const currentActivity = allActivities[indexActivity];
         if (!isNoGpsActivity(currentActivity.type)) {
           // Streams are read from the local cache written by the archive import.
-          const stream = await loadRawStreamForActivity(currentActivity);
+          const stream = await loadRawStreamForActivity(currentActivity); // NOSONAR - short-circuits on first hit
           if (stream) {
             fetchedData.push({
               activity: currentActivity,

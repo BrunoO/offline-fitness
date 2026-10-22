@@ -91,7 +91,7 @@ async function runWithConcurrency<T>(
     for (;;) {
       const current = index++;
       if (current >= items.length) return;
-      await fn(items[current]);
+      await fn(items[current]); // NOSONAR - worker queue draining loop regulates concurrency
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
@@ -280,7 +280,7 @@ async function propagateLocalTombstones(
   for (const [id, deletedAt] of tombstoneEntries) {
     const age = now - Date.parse(deletedAt);
     if (!Number.isFinite(age)) {
-      await Storage.storeActivityTombstones({});
+      await Storage.storeActivityTombstones({}); // NOSONAR - resets corrupt log before immediate loop break
       break; // Corrupt log: drop it rather than delete blind.
     }
     try {
@@ -289,9 +289,9 @@ async function propagateLocalTombstones(
       } else if (localActivityIds.has(id)) {
         delete tombstones[id]; // resurrected locally: local wins, undo delete
       } else {
-        await deleteDavFile(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, `${id}.json`);
-        await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.json`);
-        await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.nostreamflag`);
+        await deleteDavFile(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, `${id}.json`); // NOSONAR - rate-limits remote deletes
+        await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.json`); // NOSONAR - rate-limits remote deletes
+        await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.nostreamflag`); // NOSONAR - rate-limits remote deletes
         tombstones[id] = deletedAt;
         remoteDeletedAt[id] = deletedAt;
         summary.deletedRemote += 1;
@@ -601,7 +601,7 @@ async function pullBackup(
   const pendingWrites: Activity[] = [];
   const flushWrites = async (flushRemainder: boolean): Promise<void> => {
     while (pendingWrites.length >= ACTIVITY_BATCH_SIZE) {
-      await Storage.storeMultiActivities(pendingWrites.splice(0, ACTIVITY_BATCH_SIZE));
+      await Storage.storeMultiActivities(pendingWrites.splice(0, ACTIVITY_BATCH_SIZE)); // NOSONAR - sequential batch flush
     }
     if (flushRemainder && pendingWrites.length > 0) {
       await Storage.storeMultiActivities(pendingWrites.splice(0));

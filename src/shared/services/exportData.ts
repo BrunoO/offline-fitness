@@ -106,7 +106,7 @@ async function buildChunkFile(
   zip.file('activities.csv', csvData);
 
   for (let i = 0; i < chunkActivities.length; i++) {
-    await addStreamToZip(zip, chunkActivities[i]);
+    await addStreamToZip(zip, chunkActivities[i]); // NOSONAR - sequential zip population controls RAM and drives progress
 
     // Update progress for this chunk
     const overallProgress = (chunkIndex + (i + 1) / chunkActivities.length) / numChunks;
@@ -133,7 +133,7 @@ async function shareExportFiles(exportedFiles: File[]): Promise<void> {
   for (let i = 0; i < exportedFiles.length; i++) {
     const file = exportedFiles[i];
     simpleLogger.log(`Sharing file ${i + 1}/${exportedFiles.length}: ${file.uri}`);
-    await Sharing.shareAsync(file.uri);
+    await Sharing.shareAsync(file.uri); // NOSONAR - native share sheets require sequential user interaction
 
     // Once the share sheet returns, the recipient has its own copy. Without
     // this the chunks pile up in app storage — a full export is close to a
@@ -147,7 +147,7 @@ async function shareExportFiles(exportedFiles: File[]): Promise<void> {
 
     // Add a small delay between shares to prevent overwhelming the system
     if (i < exportedFiles.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000)); // NOSONAR - intentional cooldown between native share sheets
     }
   }
 }
@@ -190,7 +190,8 @@ export const exportData = async (
         `Processing chunk ${chunkIndex + 1}/${numChunks}: activities ${startIndex + 1}-${endIndex} (${chunkActivities.length} activities)`
       );
 
-      exportedFiles.push(await buildChunkFile(chunkActivities, chunkIndex, numChunks, setProgress));
+      // prettier-ignore
+      exportedFiles.push(await buildChunkFile(chunkActivities, chunkIndex, numChunks, setProgress)); // NOSONAR - chunking avoids OOM
     }
 
     simpleLogger.log(`Total files created: ${exportedFiles.length}`);

@@ -200,12 +200,12 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
 
     if (file.exists) {
       try {
-        const stream = await readStreamFile<StreamSet>(file);
+        const stream = await readStreamFile<StreamSet>(file); // NOSONAR - sequential disk read avoids OOM on large sets
         const compressedStream = compressStreamSet(stream);
         if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
           activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
           if (activity.bounding_box) {
-            await storeActivity(activity);
+            await storeActivity(activity); // NOSONAR - sequential persistence avoids storage bridge congestion
           }
         }
         activityStreams.push({ activity, streamSet: compressedStream });
@@ -328,7 +328,8 @@ export const calculateAndStoreMissingBoundingBoxes = async () => {
       continue;
     }
     if (!activity.bounding_box) {
-      if (await backfillBoundingBox(activity)) {
+      // prettier-ignore
+      if (await backfillBoundingBox(activity)) { // NOSONAR - backfill runs sequentially to avoid storage race
         updatedCount++;
       }
     }
@@ -354,7 +355,7 @@ export const correctSwimElevationGain = async () => {
   for (const activity of allActivities) {
     if (activity.type === 'Swim' && activity.total_elevation_gain !== 0) {
       activity.total_elevation_gain = 0;
-      await storeActivity(activity);
+      await storeActivity(activity); // NOSONAR - sequential update avoids storage bridge congestion
       updatedCount++;
     }
   }

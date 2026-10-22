@@ -140,7 +140,7 @@ export async function ensureDavFolder(config: WebDavConfig, ...segments: string[
   for (const segment of segments) {
     current = davUrl(current, segment);
     try {
-      await davRequest(config, current + '/', 'MKCOL', undefined, {}, [405, 301]);
+      await davRequest(config, current + '/', 'MKCOL', undefined, {}, [405, 301]); // NOSONAR - parent folder must exist first
       simpleLogger.log('Created WebDAV folder', { path: current });
     } catch (error) {
       if (error instanceof WebDavTransportError && (error.status === 405 || error.status === 301)) {

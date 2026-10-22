@@ -263,7 +263,7 @@ export async function readZipEntry(source: ByteSource, entry: ZipEntryInfo): Pro
   let filled = 0;
   while (filled < entry.compressedSize) {
     const chunkLength = Math.min(READ_CHUNK, entry.compressedSize - filled);
-    const chunk = await source.read(dataOffset + filled, chunkLength);
+    const chunk = await source.read(dataOffset + filled, chunkLength); // NOSONAR - sequential stream chunk reading
     if (chunk.length === 0) break;
     compressed.set(chunk, filled);
     filled += chunk.length;
