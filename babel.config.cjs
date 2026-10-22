@@ -13,8 +13,6 @@ module.exports = function (api) {
             // (e.g. try/finally). Skip those functions instead of aborting Metro.
             panicThreshold: 'none'
           }
-          // Optional web-only overrides
-          // web: { 'react-compiler': { /* ... */ } },
         }
       ],
       '@babel/preset-typescript'

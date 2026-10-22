@@ -38,9 +38,7 @@
       ],
       "package": "com.example.offlinefitness"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "platforms": ["ios", "android"],
     "scheme": "offlinefitness",
     "plugins": [
       [
