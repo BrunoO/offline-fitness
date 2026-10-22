@@ -1,45 +1,68 @@
 import { requireNativeModule } from 'expo-modules-core';
 import type { EventSubscription } from 'expo-modules-core';
-import type { GpsTrackerCapabilities, GpsTrackerTick } from './GpsTracker.types';
+import type {
+  GpsTrackerCapabilities,
+  LocationUpdate,
+  RecordingMeta,
+  RecordingOptions,
+  RecordingState,
+  RecordingSummary
+} from './GpsTracker.types';
 
 interface GpsTrackerNativeModule {
   getCapabilities(): Promise<GpsTrackerCapabilities>;
-  start(): Promise<boolean>;
-  stop(): Promise<boolean>;
-  getTickCount(): Promise<number>;
+  startRecording(options: RecordingOptions): Promise<RecordingMeta>;
+  pauseRecording(): Promise<void>;
+  resumeRecording(): Promise<void>;
+  stopRecording(): Promise<RecordingSummary>;
+  getRecordingState(): Promise<RecordingState>;
+  getSessionMeta(sessionId?: string): Promise<RecordingMeta>;
+  listSessions(): Promise<RecordingMeta[]>;
+  markSessionSaved(sessionId: string, activityId: string): Promise<void>;
+  discardSession(sessionId: string): Promise<void>;
+  addListener(
+    eventName: 'onStateChange',
+    listener: (state: RecordingState) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onLocationUpdate',
+    listener: (update: LocationUpdate) => void
+  ): EventSubscription;
 }
 
-/**
- * The native module object is itself the event emitter since SDK 52, so this is
- * the listener side of it declared as a plain interface — `EventEmitter<T>` from
- * `expo-modules-core` is the constructor's type and does not expose the instance
- * methods here.
- */
-interface GpsTrackerEmitter {
-  addListener(eventName: 'onTick', listener: (tick: GpsTrackerTick) => void): EventSubscription;
-}
-
-type GpsTrackerNative = GpsTrackerNativeModule & GpsTrackerEmitter;
-
-let nativeModule: GpsTrackerNative | null = null;
+let nativeModule: GpsTrackerNativeModule | null = null;
 
 /**
  * Resolved on first use, not at import time: a JS bundle running against a dev
  * client built before this module existed must fail one call, not crash the app
  * at startup (the screen turns the throw into an explanatory message).
  */
-const loadNativeModule = (): GpsTrackerNative => {
-  nativeModule ??= requireNativeModule<GpsTrackerNative>('GpsTracker');
+const loadNativeModule = (): GpsTrackerNativeModule => {
+  nativeModule ??= requireNativeModule<GpsTrackerNativeModule>('GpsTracker');
   return nativeModule;
 };
 
 export const GpsTracker = {
   getCapabilities: (): Promise<GpsTrackerCapabilities> => loadNativeModule().getCapabilities(),
-  start: (): Promise<boolean> => loadNativeModule().start(),
-  stop: (): Promise<boolean> => loadNativeModule().stop(),
-  getTickCount: (): Promise<number> => loadNativeModule().getTickCount()
+  startRecording: (options: RecordingOptions): Promise<RecordingMeta> =>
+    loadNativeModule().startRecording(options),
+  pauseRecording: (): Promise<void> => loadNativeModule().pauseRecording(),
+  resumeRecording: (): Promise<void> => loadNativeModule().resumeRecording(),
+  stopRecording: (): Promise<RecordingSummary> => loadNativeModule().stopRecording(),
+  getRecordingState: (): Promise<RecordingState> => loadNativeModule().getRecordingState(),
+  getSessionMeta: (sessionId?: string): Promise<RecordingMeta> =>
+    sessionId === undefined
+      ? loadNativeModule().getSessionMeta()
+      : loadNativeModule().getSessionMeta(sessionId),
+  listSessions: (): Promise<RecordingMeta[]> => loadNativeModule().listSessions(),
+  markSessionSaved: (sessionId: string, activityId: string): Promise<void> =>
+    loadNativeModule().markSessionSaved(sessionId, activityId),
+  discardSession: (sessionId: string): Promise<void> => loadNativeModule().discardSession(sessionId)
 };
 
-export const gpsTrackerEvents: GpsTrackerEmitter = {
-  addListener: (eventName, listener) => loadNativeModule().addListener(eventName, listener)
+export const gpsTrackerEvents = {
+  addStateListener: (listener: (state: RecordingState) => void): EventSubscription =>
+    loadNativeModule().addListener('onStateChange', listener),
+  addLocationListener: (listener: (update: LocationUpdate) => void): EventSubscription =>
+    loadNativeModule().addListener('onLocationUpdate', listener)
 };

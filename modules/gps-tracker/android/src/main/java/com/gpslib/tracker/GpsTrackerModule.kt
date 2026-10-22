@@ -1,87 +1,286 @@
 package com.gpslib.tracker
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Build
+import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
-import com.gpslib.tracker.service.TrackingBridge
+import com.gpslib.tracker.capture.CaptureOptions
+import com.gpslib.tracker.capture.RecordingOptions
+import com.gpslib.tracker.service.LiveStats
+import com.gpslib.tracker.service.LocationUpdate
+import com.gpslib.tracker.service.NoSessionException
+import com.gpslib.tracker.service.RecordingMeta
+import com.gpslib.tracker.service.RecordingPhase
+import com.gpslib.tracker.service.RecordingState
+import com.gpslib.tracker.service.SessionActiveException
+import com.gpslib.tracker.service.SessionStorage
 import com.gpslib.tracker.service.TrackingService
+import com.gpslib.tracker.service.TrackingSession
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.Exceptions
+import expo.modules.kotlin.exception.toCodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
- * Phase 0 skeleton of the recording module (docs/recording-plan.md §6).
+ * The Expo module: the typed surface of the recorder.
  *
- * The module is a thin facade: it starts and stops the service and forwards the
- * service's ticks. It deliberately holds no session state — the service owns it,
- * so a destroyed React instance cannot lose a recording (§4).
+ * It owns no state. The service owns the session and publishes it through
+ * [TrackingSession]; this class starts the service, forwards the calls and
+ * relays the events. That is the whole point of the holder object: a JS
+ * reload, a second subscriber or a destroyed React instance cannot lose a
+ * recording, because none of them ever held it.
+ *
+ * The calls that act on a running session are promise-based: the module binds
+ * to the service, runs the action and resolves the promise from the binding
+ * callback. The legacy `TrackingService.instance` singleton is gone - the
+ * binding is what replaced it.
  */
 class GpsTrackerModule : Module() {
-  private val tickListener = TrackingBridge.Listener { count, elapsedMs ->
-    sendEvent(EVENT_TICK, mapOf("count" to count, "elapsedMs" to elapsedMs))
-  }
 
-  override fun definition() = ModuleDefinition {
-    Name("GpsTracker")
+    private val stateListener = object : TrackingSession.Listener {
+        override fun onStateChanged(state: RecordingState) {
+            this@GpsTrackerModule.sendEvent(EVENT_STATE_CHANGE, state.toMap())
+        }
 
-    Events(EVENT_TICK)
-
-    AsyncFunction("getCapabilities") {
-      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      mapOf(
-        "canRecord" to true,
-        "hasBarometer" to hasBarometer(context),
-        "canExemptBattery" to isIgnoringBatteryOptimizations(context)
-      )
+        override fun onLocationUpdate(update: LocationUpdate) {
+            this@GpsTrackerModule.sendEvent(EVENT_LOCATION_UPDATE, update.toMap())
+        }
     }
 
-    AsyncFunction("start") {
-      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      ContextCompat.startForegroundService(context, Intent(context, TrackingService::class.java))
-      true
+    private val locationListener = object : TrackingSession.Listener {
+        override fun onStateChanged(state: RecordingState) = Unit
+
+        override fun onLocationUpdate(update: LocationUpdate) {
+            this@GpsTrackerModule.sendEvent(EVENT_LOCATION_UPDATE, update.toMap())
+        }
     }
 
-    AsyncFunction("stop") {
-      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      context.stopService(Intent(context, TrackingService::class.java))
-      true
+    override fun definition() = ModuleDefinition {
+        Name("GpsTracker")
+
+        Events(EVENT_STATE_CHANGE, EVENT_LOCATION_UPDATE)
+
+        AsyncFunction("getCapabilities") {
+            val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+            mapOf(
+                "canRecord" to true,
+                "hasBarometer" to hasBarometer(context),
+                "canExemptBattery" to isIgnoringBatteryOptimizations(context)
+            )
+        }
+
+        AsyncFunction("startRecording") { options: RecordingOptionsRecord, promise: Promise ->
+            val capture = CaptureOptions(
+                intervalMs = options.capture.intervalMs.toLong(),
+                minDistanceMeters = options.capture.minDistanceM.toFloat(),
+                accuracyCeilingMeters = options.capture.accuracyCeilingM.toFloat(),
+                useBarometer = options.capture.useBarometer
+            )
+            withService(promise) { service ->
+                promise.resolve(
+                    service.startRecording(RecordingOptions(options.profile, capture)).toMap()
+                )
+            }
+        }
+
+        AsyncFunction("pauseRecording") { promise: Promise ->
+            withService(promise) { service ->
+                service.pauseRecording()
+                promise.resolve()
+            }
+        }
+
+        AsyncFunction("resumeRecording") { promise: Promise ->
+            withService(promise) { service ->
+                service.resumeRecording()
+                promise.resolve()
+            }
+        }
+
+        AsyncFunction("stopRecording") { promise: Promise ->
+            withService(promise) { service ->
+                val summary = service.stopRecording()
+                promise.resolve(
+                    mapOf(
+                        "meta" to summary.meta.toMap(),
+                        "liveStats" to summary.liveStats.toMap()
+                    )
+                )
+            }
+        }
+
+        AsyncFunction("getRecordingState") {
+            TrackingSession.currentState().toMap()
+        }
+
+        AsyncFunction("getSessionMeta") { sessionId: String? ->
+            val storage = storage()
+            val meta = if (sessionId != null) {
+                storage.readMeta(sessionId)
+            } else {
+                storage.listMetas().firstOrNull()
+            } ?: throw NoSessionException()
+            meta.toMap()
+        }
+
+        AsyncFunction("listSessions") {
+            storage().listMetas().map { meta -> meta.toMap() }
+        }
+
+        AsyncFunction("markSessionSaved") { sessionId: String, activityId: String ->
+            storage().markSaved(sessionId, activityId)
+            if (TrackingSession.meta?.sessionId == sessionId) {
+                TrackingSession.clear()
+            }
+            null
+        }
+
+        AsyncFunction("discardSession") { sessionId: String ->
+            val phase = TrackingSession.phase
+            if (phase == RecordingPhase.RECORDING || phase == RecordingPhase.PAUSED) {
+                throw SessionActiveException(TrackingSession.meta?.sessionId)
+            }
+            storage().discard(sessionId)
+            if (TrackingSession.meta?.sessionId == sessionId) {
+                TrackingSession.clear()
+            }
+            null
+        }
+
+        OnStartObserving(EVENT_STATE_CHANGE) {
+            TrackingSession.addListener(stateListener)
+        }
+
+        OnStopObserving(EVENT_STATE_CHANGE) {
+            TrackingSession.removeListener(stateListener)
+        }
+
+        OnStartObserving(EVENT_LOCATION_UPDATE) {
+            TrackingSession.addListener(locationListener)
+        }
+
+        OnStopObserving(EVENT_LOCATION_UPDATE) {
+            TrackingSession.removeListener(locationListener)
+        }
     }
 
-    // Phase 0 probe only: lets the debug screen read the last tick without an
-    // event subscription. Removed when the real session API lands.
-    AsyncFunction("getTickCount") { TrackingBridge.tickCount }
+    /**
+     * Starts the service if needed, binds to it, runs the action and resolves
+     * the promise.
+     *
+     * The binding is released right after the action: the service is a started
+     * service, so it keeps recording with nobody bound to it - which is the
+     * point (the service must outlive the JS module).
+     */
+    private fun withService(promise: Promise, action: (TrackingService) -> Unit) {
+        val context = appContext.reactContext
+        if (context == null) {
+            promise.reject(Exceptions.ReactContextLost())
+            return
+        }
 
-    OnStartObserving(EVENT_TICK) {
-      TrackingBridge.addListener(tickListener)
+        val intent = Intent(context, TrackingService::class.java)
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                val localBinder = binder as? TrackingService.LocalBinder
+                runCatching { context.unbindService(this) }
+                if (localBinder == null) {
+                    promise.reject(
+                        "E_SERVICE_UNAVAILABLE",
+                        "The recording service could not be reached.",
+                        null
+                    )
+                    return
+                }
+                try {
+                    action(localBinder.getService())
+                } catch (error: Throwable) {
+                    promise.reject(error.toCodedException())
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) = Unit
+        }
+
+        try {
+            ContextCompat.startForegroundService(context, intent)
+            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        } catch (error: Throwable) {
+            promise.reject(error.toCodedException())
+        }
     }
 
-    OnStopObserving(EVENT_TICK) {
-      TrackingBridge.removeListener(tickListener)
+    private fun storage(): SessionStorage {
+        val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+        return SessionStorage(context)
     }
 
-    OnDestroy {
-      TrackingBridge.removeListener(tickListener)
+    private fun hasBarometer(context: Context): Boolean {
+        val sensors = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return false
+        return sensors.getDefaultSensor(Sensor.TYPE_PRESSURE) != null
     }
-  }
 
-  private fun hasBarometer(context: Context): Boolean {
-    val sensors = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return false
-    return sensors.getDefaultSensor(Sensor.TYPE_PRESSURE) != null
-  }
-
-  private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-      return false
+    private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return false
+        }
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return powerManager.isIgnoringBatteryOptimizations(context.packageName)
     }
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
-    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
-  }
 
-  private companion object {
-    const val EVENT_TICK = "onTick"
-  }
+    private companion object {
+        const val EVENT_STATE_CHANGE = "onStateChange"
+        const val EVENT_LOCATION_UPDATE = "onLocationUpdate"
+    }
 }
+
+private fun RecordingMeta.toMap(): Map<String, Any?> = mapOf(
+    "sessionId" to sessionId,
+    "profile" to profile,
+    "startedAtUtcMs" to startedAtUtcMs,
+    "endedAtUtcMs" to endedAtUtcMs,
+    "deviceUtcOffsetSeconds" to deviceUtcOffsetSeconds,
+    "capture" to mapOf(
+        "intervalMs" to capture.intervalMs,
+        "minDistanceM" to capture.minDistanceMeters.toDouble(),
+        "accuracyCeilingM" to capture.accuracyCeilingMeters.toDouble(),
+        "useBarometer" to capture.useBarometer
+    ),
+    "pauses" to pauses.map { pause ->
+        mapOf("startUtcMs" to pause.startUtcMs, "endUtcMs" to pause.endUtcMs)
+    },
+    "fixCount" to fixCount,
+    "logUri" to logUri,
+    "libraryVersion" to libraryVersion,
+    "savedActivityId" to savedActivityId
+)
+
+private fun RecordingState.toMap(): Map<String, Any?> = mapOf(
+    "phase" to phase.toWireValue(),
+    "sessionId" to sessionId,
+    "startedAtUtcMs" to startedAtUtcMs
+)
+
+private fun LiveStats.toMap(): Map<String, Any?> = mapOf(
+    "elapsedSec" to elapsedSec,
+    "distanceMeters" to distanceMeters,
+    "currentSpeedMps" to currentSpeedMps?.toDouble(),
+    "altitudeM" to altitudeM
+)
+
+private fun LocationUpdate.toMap(): Map<String, Any?> = mapOf(
+    "t" to t,
+    "lat" to lat,
+    "lon" to lon,
+    "eleM" to eleM,
+    "speedMps" to speedMps?.toDouble(),
+    "elapsedSec" to elapsedSec,
+    "distanceMeters" to distanceMeters
+)

@@ -13,3 +13,8 @@ android {
     versionName "0.1.0"
   }
 }
+
+dependencies {
+  // The fused location provider, ported from the legacy library.
+  implementation 'com.google.android.gms:play-services-location:21.3.0'
+}

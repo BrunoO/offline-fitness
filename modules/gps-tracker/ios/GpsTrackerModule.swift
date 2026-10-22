@@ -5,12 +5,15 @@ import ExpoModulesCore
  * links and the JS bundle can ask about capabilities, but it records nothing.
  * `canRecord: false` is a capability, not an error, so the screen can explain
  * the situation instead of handling an exception.
+ *
+ * The function names mirror the Android module one for one, so the app never
+ * branches on the platform - only on `canRecord`.
  */
 public class GpsTrackerModule: Module {
   public func definition() -> ModuleDefinition {
     Name("GpsTracker")
 
-    Events("onTick")
+    Events("onStateChange", "onLocationUpdate")
 
     AsyncFunction("getCapabilities") { () -> [String: Any] in
       [
@@ -20,16 +23,42 @@ public class GpsTrackerModule: Module {
       ]
     }
 
-    AsyncFunction("start") { () -> Bool in
+    AsyncFunction("startRecording") { (_ options: [String: Any]) -> [String: Any] in
       throw RecordingUnavailableException()
     }
 
-    AsyncFunction("stop") { () -> Bool in
+    AsyncFunction("pauseRecording") {
       throw RecordingUnavailableException()
     }
 
-    AsyncFunction("getTickCount") { () -> Int in
-      0
+    AsyncFunction("resumeRecording") {
+      throw RecordingUnavailableException()
+    }
+
+    AsyncFunction("stopRecording") { () -> [String: Any] in
+      throw RecordingUnavailableException()
+    }
+
+    AsyncFunction("getRecordingState") { () -> [String: Any] in
+      [
+        "phase": "idle"
+      ]
+    }
+
+    AsyncFunction("getSessionMeta") { (_ sessionId: String?) -> [String: Any] in
+      throw RecordingUnavailableException()
+    }
+
+    AsyncFunction("listSessions") { () -> [[String: Any]] in
+      []
+    }
+
+    AsyncFunction("markSessionSaved") { (_ sessionId: String, _ activityId: String) in
+      throw RecordingUnavailableException()
+    }
+
+    AsyncFunction("discardSession") { (_ sessionId: String) in
+      throw RecordingUnavailableException()
     }
   }
 }

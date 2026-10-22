@@ -1,69 +1,80 @@
 import { simpleLogger } from '@/shared';
-import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
-import { PermissionsAndroid, Platform } from 'react-native';
 import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
-import type { GpsTrackerCapabilities, GpsTrackerTick } from '../services/gpsTracker';
-
-/** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
-const ANDROID_13_API_LEVEL = 33;
-
-interface UseRecordingResult {
-  capabilities: GpsTrackerCapabilities | null;
-  isRecording: boolean;
-  tick: GpsTrackerTick | null;
-  error: string | null;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-}
+import type {
+  GpsTrackerCapabilities,
+  LiveStats,
+  Profile,
+  RecordingState,
+  RecordingSummary
+} from '../services/gpsTracker';
+import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
+import { useRecordingPermissions } from './useRecordingPermissions';
 
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
 
-/**
- * The foreground service's notification is the only visible sign that recording
- * is on, and Android 13+ hides it until POST_NOTIFICATIONS is granted. The
- * module only declares the permission — asking is the app's job (D5), exactly
- * like location. A refusal does not block recording; it just hides the notice.
- */
-const requestNotificationPermission = async (): Promise<void> => {
-  if (Platform.OS !== 'android' || Number(Platform.Version) < ANDROID_13_API_LEVEL) {
-    return;
+const IDLE_STATE: RecordingState = { phase: 'idle' };
+
+export interface UseRecordingResult {
+  capabilities: GpsTrackerCapabilities | null;
+  state: RecordingState;
+  liveStats: LiveStats | null;
+  summary: RecordingSummary | null;
+  error: string | null;
+  isBusy: boolean;
+  start: (profile: Profile) => Promise<void>;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
+  stop: () => Promise<void>;
+}
+
+const describeError = (cause: unknown, fallback: string): string => {
+  if (cause instanceof Error && cause.message) {
+    return cause.message;
   }
-  await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+  return fallback;
 };
 
 /**
- * Phase 0 probe for the recording service.
+ * Drives the native recorder.
  *
- * It answers the three questions the phase exists to settle: can the module be
- * reached from JS, does the app own the permission (D5 — the module asks for
- * none), and do events cross the bridge while the service runs. The real state
- * machine, replay and save flow arrive in Phases 2–3.
+ * The service owns the session, so this hook is a thin client: it starts,
+ * pauses, resumes and stops, and it treats the state event as the truth about
+ * the phase (a reload, a second screen or a stale render cannot talk it out of
+ * that). Live numbers are display-only; the canonical ones come from the
+ * TypeScript replay over the fix log.
  */
 export function useRecording(): UseRecordingResult {
+  const { requestPermissions } = useRecordingPermissions();
   const [capabilities, setCapabilities] = useState<GpsTrackerCapabilities | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [tick, setTick] = useState<GpsTrackerTick | null>(null);
+  const [state, setState] = useState<RecordingState>(IDLE_STATE);
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+  const [summary, setSummary] = useState<RecordingSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadCapabilities = async () => {
+    const loadState = async () => {
       try {
-        const nextCapabilities = await GpsTracker.getCapabilities();
+        const [nextCapabilities, nextState] = await Promise.all([
+          GpsTracker.getCapabilities(),
+          GpsTracker.getRecordingState()
+        ]);
         if (isMounted) {
           setCapabilities(nextCapabilities);
+          setState(nextState);
         }
       } catch (cause: unknown) {
-        simpleLogger.error('Recording capabilities unavailable', cause);
+        simpleLogger.error('Recording module unavailable', cause);
         if (isMounted) {
           setError(MODULE_UNAVAILABLE);
         }
       }
     };
 
-    void loadCapabilities();
+    void loadState();
 
     return () => {
       isMounted = false;
@@ -71,47 +82,93 @@ export function useRecording(): UseRecordingResult {
   }, []);
 
   useEffect(() => {
-    let subscription: { remove: () => void } | null = null;
+    let stateSubscription: { remove: () => void } | null = null;
+    let locationSubscription: { remove: () => void } | null = null;
 
     try {
-      subscription = gpsTrackerEvents.addListener('onTick', nextTick => setTick(nextTick));
+      stateSubscription = gpsTrackerEvents.addStateListener(nextState => setState(nextState));
+      locationSubscription = gpsTrackerEvents.addLocationListener(update => {
+        setLiveStats({
+          elapsedSec: update.elapsedSec,
+          distanceMeters: update.distanceMeters,
+          currentSpeedMps: update.speedMps,
+          altitudeM: update.eleM
+        });
+      });
     } catch (cause: unknown) {
-      // Already reported as "module unavailable" by the capabilities effect.
+      // The capabilities effect already reports a missing module.
       simpleLogger.error('Recording events unavailable', cause);
     }
 
-    return () => subscription?.remove();
+    return () => {
+      stateSubscription?.remove();
+      locationSubscription?.remove();
+    };
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(
+    async (profile: Profile) => {
+      setError(null);
+      setIsBusy(true);
+
+      try {
+        const isLocationAllowed = await requestPermissions();
+        if (!isLocationAllowed) {
+          setError('Location permission is required to record.');
+          setIsBusy(false);
+          return;
+        }
+
+        const meta = await GpsTracker.startRecording({
+          profile,
+          capture: PROFILE_CAPTURE_OPTIONS[profile]
+        });
+        setState({
+          phase: 'recording',
+          sessionId: meta.sessionId,
+          startedAtUtcMs: meta.startedAtUtcMs
+        });
+        setLiveStats(null);
+      } catch (cause: unknown) {
+        simpleLogger.error('Could not start recording', cause);
+        setError(describeError(cause, 'Could not start the recording service.'));
+      }
+
+      setIsBusy(false);
+    },
+    [requestPermissions]
+  );
+
+  const pause = useCallback(async () => {
     setError(null);
     try {
-      // Android 14+ requires the while-in-use location grant before a
-      // location-typed foreground service may start, so the app asks first.
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        setError('Location permission is required to record.');
-        return;
-      }
-      await requestNotificationPermission();
-      await GpsTracker.start();
-      setIsRecording(true);
+      await GpsTracker.pauseRecording();
     } catch (cause: unknown) {
-      simpleLogger.error('Could not start recording', cause);
-      setError('Could not start the recording service.');
+      simpleLogger.error('Could not pause recording', cause);
+      setError(describeError(cause, 'Could not pause the recording.'));
+    }
+  }, []);
+
+  const resume = useCallback(async () => {
+    setError(null);
+    try {
+      await GpsTracker.resumeRecording();
+    } catch (cause: unknown) {
+      simpleLogger.error('Could not resume recording', cause);
+      setError(describeError(cause, 'Could not resume the recording.'));
     }
   }, []);
 
   const stop = useCallback(async () => {
     setError(null);
     try {
-      await GpsTracker.stop();
-      setIsRecording(false);
+      const nextSummary = await GpsTracker.stopRecording();
+      setSummary(nextSummary);
     } catch (cause: unknown) {
       simpleLogger.error('Could not stop recording', cause);
-      setError('Could not stop the recording service.');
+      setError(describeError(cause, 'Could not stop the recording service.'));
     }
   }, []);
 
-  return { capabilities, isRecording, tick, error, start, stop };
+  return { capabilities, state, liveStats, summary, error, isBusy, start, pause, resume, stop };
 }

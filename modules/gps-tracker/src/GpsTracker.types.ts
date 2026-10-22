@@ -1,9 +1,9 @@
 /**
- * Types shared with the native module (`modules/gps-tracker`).
+ * The typed surface of the native recorder.
  *
- * Phase 0 surface only: capabilities plus the tick probe. The real recording
- * contract (meta, fix log, state machine) lands in Phases 1–2 of
- * `docs/recording-plan.md`.
+ * These types are the contract between the app and `modules/gps-tracker`; the
+ * Kotlin side produces the same field names (see `RecordingModels.kt` and the
+ * `toMap` helpers in `GpsTrackerModule.kt`).
  */
 
 export interface GpsTrackerCapabilities {
@@ -13,17 +13,72 @@ export interface GpsTrackerCapabilities {
   canExemptBattery: boolean;
 }
 
-/** A service heartbeat. Display only — canonical numbers are replayed in TS. */
-export interface GpsTrackerTick {
-  count: number;
-  elapsedMs: number;
+export type Profile = 'walking' | 'hiking' | 'cycling' | 'swimming';
+
+export interface CaptureOptions {
+  /** How often the platform is asked for a fix, in milliseconds. */
+  intervalMs: number;
+  /** Minimum movement between fixes, in meters. */
+  minDistanceM: number;
+  /** Fixes with a worse horizontal accuracy are logged as rejected. */
+  accuracyCeilingM: number;
+  useBarometer: boolean;
 }
 
-/**
- * A type alias, not an interface: the event map must satisfy
- * `Record<string, (...args: any[]) => void>`, and an interface (which stays open
- * to declaration merging) is not assignable to an index signature.
- */
-export type GpsTrackerEventMap = {
-  onTick: (tick: GpsTrackerTick) => void;
-};
+export interface RecordingOptions {
+  profile: Profile;
+  capture: CaptureOptions;
+}
+
+export interface PauseInterval {
+  startUtcMs: number;
+  endUtcMs?: number;
+}
+
+export interface RecordingMeta {
+  sessionId: string;
+  profile: Profile;
+  startedAtUtcMs: number;
+  /** Written at stop; repaired from the last fix when a session is recovered. */
+  endedAtUtcMs?: number;
+  deviceUtcOffsetSeconds: number;
+  capture: CaptureOptions;
+  pauses: PauseInterval[];
+  fixCount?: number;
+  /** Absolute URI of `fixes.jsonl` - the app reads the file itself (D11). */
+  logUri: string;
+  libraryVersion: string;
+  savedActivityId?: string;
+}
+
+export type RecordingPhase = 'idle' | 'recording' | 'paused' | 'stopped-unsaved';
+
+export interface RecordingState {
+  phase: RecordingPhase;
+  sessionId?: string;
+  startedAtUtcMs?: number;
+}
+
+/** Live numbers for the screen. The canonical ones come from the replay. */
+export interface LiveStats {
+  elapsedSec: number;
+  distanceMeters: number;
+  currentSpeedMps: number | null;
+  altitudeM: number | null;
+}
+
+export interface RecordingSummary {
+  meta: RecordingMeta;
+  liveStats: LiveStats;
+}
+
+/** A display-only fix event. May be dropped under load. */
+export interface LocationUpdate {
+  t: number;
+  lat: number;
+  lon: number;
+  eleM: number | null;
+  speedMps: number | null;
+  elapsedSec: number;
+  distanceMeters: number;
+}
