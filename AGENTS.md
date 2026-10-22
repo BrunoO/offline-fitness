@@ -41,14 +41,63 @@ This document provides essential context and rules for AI agents working on this
 2. Run `npx tsc --noEmit` to verify TypeScript compilation
 3. Run `npm run check:imports` to verify no duplicate or scattered imports
 4. Run `npm run check:mobile-only` to verify no web target came back
-5. Run `npm test -- --watchAll=false` to verify tests pass
-6. Check for circular dependency warnings in build output
-7. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
+5. Run `npm run check:install-scripts` to verify every dependency install script has a recorded decision
+6. Run `npm test -- --watchAll=false` to verify tests pass
+7. Check for circular dependency warnings in build output
+8. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
 
 **Linting Rules:**
 - Use `npx expo lint --fix` to automatically fix issues
 - Never disable linting rules without discussion
 - Follow the ESLint flat config in `eslint.config.mjs`
+
+### Dependency Install Scripts
+
+npm 11+ blocks dependency install scripts by default and prints a review
+prompt for every package whose script it skipped:
+
+```
+npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts
+```
+
+That prompt is a **decision point, not a defect** - the script was skipped, so
+the question is only whether anything needs it. Each install script is
+reviewed exactly once and the outcome is recorded in `package.json` under
+`allowScripts`, which keeps the warning gone and the decision auditable in git
+instead of living in each developer's npm state.
+
+**Current policy: no dependency install script is trusted.** The three known
+packages are denied (`false`), because their functionality is delivered by
+prebuilt optional dependencies rather than by their scripts:
+
+| Package | Script | Why the denial is safe |
+| --- | --- | --- |
+| `esbuild` | `postinstall: node install.js` | The native binary ships in the `@esbuild/<platform>` optional dependency; the postinstall only swaps the JS shim for it (startup speed) and checks the version. The JS API, `tsx` and `npm run tool:seed` all work without it. |
+| `fsevents` | `install: node-gyp rebuild` (per registry metadata) | The *published tarball* contains no `install` script at all and ships a prebuilt `fsevents.node`. Optional and darwin-only (it only powers `jest --watch` file watching). |
+| `unrs-resolver` | `postinstall: napi-postinstall ... check` | Verification only: the native binding ships in `@unrs/resolver-binding-<platform>`. Used by `eslint-import-resolver-typescript`. |
+
+Rules for agents:
+
+1. **Never "fix" the warning with `npm install-scripts approve --all`.** That
+   approves every transitive install script and runs third-party code at
+   install time on every machine.
+2. **Never run `npm install-scripts prune`.** npm considers the `fsevents`
+   entry unused (the installed tree has no `install` script) and removes it -
+   which brings the warning back on the next install.
+3. **A new warning means a new dependency ships an install script.** Read the
+   script, then record an explicit decision for it:
+   `npm install-scripts deny <pkg>` (name-only, blocks every future version)
+   or `npm install-scripts approve <pkg>` (pinned to the reviewed version).
+   Deny unless the package genuinely cannot work without it.
+4. **Approvals must be version-pinned** (`"pkg": "1.2.3"`). A bare `true` also
+   allows every future version and is rejected by the guard.
+5. **Run `npm run check:install-scripts`** (also enforced in CI). It fails when
+   a dependency with an install script has no `allowScripts` entry, or when an
+   approval is not pinned.
+6. **npm 10 (Node 22's bundled npm) ignores `allowScripts` entirely** and runs
+   the scripts anyway. That is harmless here - all three are verified
+   unnecessary - but the *local* behaviour is only enforced from npm 11 on.
+   CI is uniform either way: it installs with `npm ci --ignore-scripts`.
 
 ### Sonar Quality Gate (part of the Definition of Done)
 

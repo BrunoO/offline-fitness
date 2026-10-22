@@ -51,6 +51,12 @@ jobs:
       - name: Mobile-only guard
         run: npm run check:mobile-only
 
+      - name: Install-script policy
+        # Every dependency install script must have an explicit decision in
+        # package.json -> allowScripts. Catches a new install script slipping
+        # in unreviewed (npm 11 warns locally; this makes it fail the build).
+        run: npm run check:install-scripts
+
       - name: Lint (advisory until lint debt is cleared)
         # DoD scope only (src + root entry files). `eslint .` also swept
         # scripts/ and __tests__/ - files Sonar excludes anyway - and its

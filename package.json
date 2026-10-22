@@ -28,6 +28,7 @@
     "android:dev:reinstall": "npm run android:dev:uninstall && npm run android:dev",
     "pretty": "npx prettier --write '**/*.{ts,tsx,js,jsx}'",
     "check:imports": "node scripts/check-imports.cjs",
+    "check:install-scripts": "node scripts/check-install-scripts.cjs",
     "check:mobile-only": "node scripts/check-mobile-only.cjs",
     "adb:reverse": "adb -s emulator-5554 reverse tcp:8081 tcp:8081"
   },
@@ -138,5 +139,10 @@
     "prismjs": "1.30.0",
     "react-native-safe-area-context": "~5.7.0"
   },
-  "description": "Offline-first personal activity analytics \u2014 import your Strava data archive and browse maps, stats and streaks without any account or API access."
+  "description": "Offline-first personal activity analytics — import your Strava data archive and browse maps, stats and streaks without any account or API access.",
+  "allowScripts": {
+    "esbuild": false,
+    "fsevents": false,
+    "unrs-resolver": false
+  }
 }
