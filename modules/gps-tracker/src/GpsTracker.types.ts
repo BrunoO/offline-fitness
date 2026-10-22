@@ -82,3 +82,20 @@ export interface LocationUpdate {
   elapsedSec: number;
   distanceMeters: number;
 }
+
+
+export interface FixLogEntry {
+  t: number;
+  lat: number;
+  lon: number;
+  ele: number | null;
+  geoid: number | null;
+  pressure: number | null;
+  hAcc: number;
+  vAcc: number | null;
+  speed: number | null;
+  bearing: number | null;
+  source: 'gps' | 'fused' | 'network' | 'unknown';
+  accepted: boolean;
+  reason?: string | null;
+}

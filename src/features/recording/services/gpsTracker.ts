@@ -8,6 +8,7 @@
 export { GpsTracker, gpsTrackerEvents } from '../../../../modules/gps-tracker/src';
 export type {
   CaptureOptions,
+  FixLogEntry,
   GpsTrackerCapabilities,
   LocationUpdate,
   LiveStats,

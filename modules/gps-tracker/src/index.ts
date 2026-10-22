@@ -1,6 +1,7 @@
 export { GpsTracker, gpsTrackerEvents } from './GpsTrackerModule';
 export type {
   CaptureOptions,
+  FixLogEntry,
   GpsTrackerCapabilities,
   LocationUpdate,
   LiveStats,
