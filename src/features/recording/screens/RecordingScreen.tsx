@@ -115,7 +115,12 @@ export function RecordingScreen(): JSX.Element {
         </View>
       ) : null}
 
-      <SessionCard phase={state.phase} sessionId={state.sessionId} styles={styles} />
+      <SessionCard
+        phase={state.phase}
+        sessionId={state.sessionId}
+        liveStats={liveStats}
+        styles={styles}
+      />
       <LiveStatsCard liveStats={liveStats} styles={styles} />
 
       {state.phase === 'idle' ? (
@@ -169,14 +174,22 @@ type Styles = ReturnType<typeof createStyles>;
 interface SessionCardProps {
   readonly phase: string;
   readonly sessionId?: string;
+  readonly liveStats: LiveStats | null;
   readonly styles: Styles;
 }
 
-function SessionCard({ phase, sessionId, styles }: SessionCardProps): JSX.Element {
+function SessionCard({ phase, sessionId, liveStats, styles }: SessionCardProps): JSX.Element {
   return (
     <View style={styles.card}>
       <Text style={styles.cardLabel}>Session</Text>
       <Text style={styles.phase}>{phase}</Text>
+      {liveStats?.gpsLost ? <Text style={styles.cardHint}>Waiting for GPS…</Text> : null}
+      {liveStats?.gpsLost === false && liveStats.hAccM != null ? (
+        <Text style={styles.cardHint}>GPS: {Math.round(liveStats.hAccM)} m accuracy</Text>
+      ) : null}
+      {liveStats?.gpsLost === false && liveStats.hAccM == null && phase === 'recording' ? (
+        <Text style={styles.cardHint}>Acquiring GPS…</Text>
+      ) : null}
       {sessionId ? <Text style={styles.cardHint}>{sessionId}</Text> : null}
       {phase === 'stopped-unsaved' ? (
         <Text style={styles.cardHint}>
