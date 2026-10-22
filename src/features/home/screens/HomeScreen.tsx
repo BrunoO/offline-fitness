@@ -1,9 +1,11 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import {
+  DayActivitiesSheet,
   LastActivitySummary,
   countStreamsStatus,
   loadStreamForActivity,
-  useActivitiesContext
+  useActivitiesContext,
+  useManualEntry
 } from '@/features/activities';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
@@ -78,6 +80,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const [selectedActivityStats, setSelectedActivityStats] = useState<ActivityStats | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().split('T')[0]);
+  const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
+  const { openManualEntry } = useManualEntry();
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const [dayStreak, setDayStreak] = useState<{ current: number; best: number }>({
@@ -319,6 +323,30 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   };
 
   /**
+   * Opens the day sheet for a calendar day, whether or not it holds
+   * activities — days often carry several (a ride plus an evening Yoga), so
+   * the tap lists them all instead of silently picking the most recent one.
+   */
+  const openDaySheet = useCallback((date: string) => {
+    setDaySheetDate(date);
+  }, []);
+
+  const handleDaySheetSelect = (activity: Activity) => {
+    setDaySheetDate(null);
+    handleActivityChange(activity);
+  };
+
+  const handleDaySheetAdd = (date: string) => {
+    setDaySheetDate(null);
+    openManualEntry(date);
+  };
+
+  const daySheetActivities = useMemo(() => {
+    if (daySheetDate === null) return [];
+    return globalActivities.filter(a => activityLocalDate(a) === daySheetDate);
+  }, [daySheetDate, globalActivities]);
+
+  /**
    * Handles the press event on a day in the calendar.
    * It updates the selected activity and the calendar's selected date.
    * @param {Activity} activity The activity associated with the pressed day.
@@ -331,7 +359,18 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
       activityDate: activity.start_date_local,
       timestamp: new Date().toISOString()
     });
-    handleActivityChange(activity);
+    openDaySheet(activityLocalDate(activity));
+  };
+
+  /**
+   * Handles the press event on an empty calendar day: same sheet, Add first.
+   */
+  const handleCalendarEmptyDayPress = (date: string) => {
+    simpleLogger.log('User pressed empty calendar day', {
+      activityDate: date,
+      timestamp: new Date().toISOString()
+    });
+    openDaySheet(date);
   };
 
   // Update calendar date when selected activity changes
@@ -550,11 +589,22 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
         {/* Calendar Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Calendar</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Calendar</Text>
+            <TouchableOpacity
+              onPress={() => openManualEntry(calendarDate)}
+              accessibilityLabel={`Add activity on ${calendarDate}`}
+              accessibilityRole="button"
+              style={styles.actionButton}
+            >
+              <Ionicons name="add" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.calendarContainer}>
             <ActivityCalendarPeriod
               activities={globalActivities}
               onDayPress={handleCalendarDayPress}
+              onEmptyDayPress={handleCalendarEmptyDayPress}
               selectedDate={calendarDate}
               navigation={navigation}
             />
@@ -662,6 +712,14 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         </View>
         {/* End of Footer Section */}
       </ScrollView>
+      <DayActivitiesSheet
+        visible={daySheetDate !== null}
+        date={daySheetDate ?? calendarDate}
+        activities={daySheetActivities}
+        onSelect={handleDaySheetSelect}
+        onAdd={handleDaySheetAdd}
+        onClose={() => setDaySheetDate(null)}
+      />
     </View>
   );
 }
@@ -688,6 +746,12 @@ const createStyles = (theme: ResolvedTheme) =>
       fontSize: 18,
       fontWeight: '600',
       color: theme.primary
+    },
+    sectionTitleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12
     },
     sectionSubtitle: {
       fontSize: 14,

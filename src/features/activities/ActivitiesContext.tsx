@@ -9,6 +9,7 @@ type ActivitiesDataContextType = {
   globalActivities: Activity[];
   mostRecentActivity: Activity | undefined;
   myActivitiesDiscovered: Set<string>;
+  addActivity: (activity: Activity) => Promise<void>;
   deleteActivity: (activity: Activity) => void;
   setGlobalActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
   setTotalActivitiesStored: React.Dispatch<React.SetStateAction<number>>;
@@ -37,6 +38,7 @@ export const ActivitiesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     globalActivities,
     mostRecentActivity,
     myActivitiesDiscovered,
+    addActivity,
     deleteActivity,
     setGlobalActivities,
     setTotalActivitiesStored,
@@ -53,6 +55,7 @@ export const ActivitiesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       globalActivities,
       mostRecentActivity,
       myActivitiesDiscovered,
+      addActivity,
       deleteActivity,
       setGlobalActivities,
       setTotalActivitiesStored
@@ -61,6 +64,7 @@ export const ActivitiesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       globalActivities,
       mostRecentActivity,
       myActivitiesDiscovered,
+      addActivity,
       deleteActivity,
       setGlobalActivities,
       setTotalActivitiesStored

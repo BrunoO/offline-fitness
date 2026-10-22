@@ -53,6 +53,40 @@ export function useActivities() {
    * Deletes an activity.
    * @param activity The activity to delete.
    */
+  /**
+   * Adds a manually entered activity. The next backup push uploads it as an
+   * unknown md5 — no tombstone or sync-state work needed here. Throws when the
+   * write fails so the entry sheet can report it instead of closing.
+   * @param activity The activity to add.
+   */
+  async function addActivity(activity: Activity): Promise<void> {
+    simpleLogger.log('APP LEVEL - addActivity', {
+      activityId: activity.id,
+      activityType: activity.type,
+      currentGlobalActivitiesLength: globalActivities.length
+    });
+    try {
+      await Storage.storeActivity(activity);
+    } catch (error) {
+      simpleLogger.error('Failed to store activity:', error);
+      throw error;
+    }
+    setGlobalActivities(prev => {
+      // Maintain sorted order after insertion
+      const next = [...prev, activity].sort(compareActivitiesByUtcDesc);
+      simpleLogger.log('setGlobalActivities', {
+        prevLength: prev.length,
+        newLength: next.length
+      });
+      return next;
+    });
+    setTotalActivitiesStored(prev => prev + 1);
+  }
+
+  /**
+   * Deletes an activity.
+   * @param activity The activity to delete.
+   */
   async function deleteActivity(activity: Activity): Promise<void> {
     simpleLogger.log('APP LEVEL - deleteActivity', {
       activityToDelete: activity,
@@ -92,6 +126,7 @@ export function useActivities() {
     fetchingData,
     refreshActivities,
     reloadActivitiesFromLocalStorage,
+    addActivity,
     deleteActivity,
     myActivitiesDiscovered,
     setGlobalActivities,

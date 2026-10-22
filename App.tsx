@@ -8,6 +8,7 @@ import {
   calculateAndStoreMissingBoundingBoxes,
   correctSwimElevationGain,
   DetailsScreen,
+  ManualEntryProvider,
   useActivitiesContext
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
@@ -75,7 +76,8 @@ function AppContent() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer theme={navigationTheme}>
-        <Drawer.Navigator
+        <ManualEntryProvider>
+          <Drawer.Navigator
           // prettier-ignore
           drawerContent={props => ( // NOSONAR - render prop must close over openSettings
             <CustomDrawerContent {...props} onOpenSettings={openSettings} />
@@ -111,6 +113,7 @@ function AppContent() {
         {/* Mounted outside the drawer panel: the panel never unmounts, and the
             settings form holds live text inputs. */}
         <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+        </ManualEntryProvider>
       </NavigationContainer>
     </GestureHandlerRootView>
   );

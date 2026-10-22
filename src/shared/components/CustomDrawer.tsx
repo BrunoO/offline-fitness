@@ -10,7 +10,7 @@ import {
 import React, { JSX, useState } from 'react';
 import { Alert, BackHandler, Platform } from 'react-native';
 
-import { useActivitiesContext } from '@/features/activities';
+import { useActivitiesContext, useManualEntry } from '@/features/activities';
 
 /**
  * Creates an icon component for drawer navigation.
@@ -50,6 +50,7 @@ type CustomDrawerContentProps = DrawerContentComponentProps & {
 
 export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Element {
   const { setTotalActivitiesStored, setGlobalActivities } = useActivitiesContext();
+  const { openManualEntry } = useManualEntry();
 
   // Progress overlay states
   const [exportProgress, setExportProgress] = useState(0);
@@ -83,6 +84,16 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
   return (
     <DrawerContentScrollView {...props}>
       <DrawerItemList {...props} />
+      {/* RECORD-CHOOSER: when GPS tracking lands, this opens the Track/Manual
+          chooser instead of the manual sheet directly. */}
+      <DrawerItem
+        label="Add activity"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          openManualEntry();
+        }}
+        icon={getIconOptions('add-circle-outline')}
+      />
       <DrawerItem
         label="Export Data"
         onPress={handleExportData}

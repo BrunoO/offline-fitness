@@ -8,6 +8,7 @@ export {
   useActivitiesDataContext,
   useActivitiesSyncContext
 } from './ActivitiesContext';
+export { ManualEntryProvider, useManualEntry } from './ManualEntryContext';
 export { useActivities } from './hooks/useActivities';
 export { useProcessedActivities } from './hooks/useProcessedActivities';
 
@@ -29,7 +30,17 @@ export {
 // Components
 export { ActivityAnalysisView } from './components/ActivityAnalysisView';
 export { ActivityListItem } from './components/ActivityListItem';
+export { DayActivitiesSheet } from './components/DayActivitiesSheet';
 export { LastActivitySummary } from './components/LastActivitySummary';
+export { ManualActivitySheet } from './components/ManualActivitySheet';
+
+// Services
+export {
+  buildManualActivity,
+  deviceTimezoneLabel,
+  MANUAL_ACTIVITY_TYPES,
+  MANUAL_DURATION_PRESETS_MIN
+} from './services/manualActivity';
 
 // Screens
 export { DetailsScreen } from './screens/DetailsScreen';

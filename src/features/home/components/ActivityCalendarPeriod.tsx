@@ -27,6 +27,11 @@ interface ActivityCalendarPeriodProps {
    */
   onDayPress: (activity: Activity) => void;
   /**
+   * A function to call when a day without activities is pressed. Opens the
+   * same day sheet (with an empty list) so manual entry works on free days.
+   */
+  onEmptyDayPress?: (date: string) => void;
+  /**
    * The currently selected date in 'YYYY-MM-DD' format.
    */
   selectedDate: string;
@@ -44,6 +49,7 @@ interface ActivityCalendarPeriodProps {
 export function ActivityCalendarPeriod({
   activities,
   onDayPress,
+  onEmptyDayPress,
   selectedDate,
   navigation
 }: Readonly<ActivityCalendarPeriodProps>): React.JSX.Element {
@@ -198,6 +204,8 @@ export function ActivityCalendarPeriod({
     const dayActivities = activities.filter(a => activityLocalDate(a) === day.dateString);
     if (dayActivities.length > 0) {
       onDayPress(dayActivities[0]);
+    } else {
+      onEmptyDayPress?.(day.dateString);
     }
   };
 

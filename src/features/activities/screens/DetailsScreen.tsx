@@ -1,4 +1,5 @@
 import { useActivitiesContext } from '@/features/activities/ActivitiesContext';
+import { useManualEntry } from '@/features/activities/ManualEntryContext';
 import {
   deleteStreamFiles,
   getNoStreamIds
@@ -81,6 +82,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const [noStreamIds, setNoStreamIds] = useState<Set<string>>(new Set());
   const { globalActivities, deleteActivity, refreshActivities, fetchingData } =
     useActivitiesContext();
+  const { openManualEntry } = useManualEntry();
   const insets = useSafeAreaInsets();
 
   // If route.params has activities it's a filtered view from Maps — use them.
@@ -117,9 +119,21 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: `Activities (${allActivities.length})`
+      title: `Activities (${allActivities.length})`,
+      // RECORD-CHOOSER: when GPS tracking lands, this becomes a Track/Manual
+      // chooser instead of opening the manual sheet directly.
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => openManualEntry()}
+          accessibilityLabel="Add activity"
+          accessibilityRole="button"
+          style={{ marginRight: 12, padding: 6 }}
+        >
+          <Ionicons name="add" size={24} color={theme.primary} />
+        </TouchableOpacity>
+      )
     });
-  }, [navigation, allActivities]);
+  }, [navigation, allActivities, openManualEntry, theme]);
 
   const sortedActivities = [...allActivities].sort(compareActivitiesByUtcDesc);
 
