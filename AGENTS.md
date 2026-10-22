@@ -13,6 +13,7 @@ This document provides essential context and rules for AI agents working on this
 **Definition of Done:**
 - ✅ No new TypeScript errors (`npx tsc --noEmit`)
 - ✅ No new ESLint errors (`npx expo lint --fix`)
+- ✅ **Zero open Sonar issues** (`scripts/sonar_gate.sh`; run with `--scan` if the code changed since the last scan). This is a hard completion criterion, not advisory: a task is NOT done while any issue is `OPEN`/`CONFIRMED` on SonarCloud. See "Sonar Quality Gate" below for the agent rules around it.
 - ✅ No new circular dependency warnings
 - ✅ UI remains responsive on low-end Android devices
 - ✅ Works on both iOS and Android
@@ -40,11 +41,53 @@ This document provides essential context and rules for AI agents working on this
 3. Run `npm run check:imports` to verify no duplicate or scattered imports
 4. Run `npm test -- --watchAll=false` to verify tests pass
 5. Check for circular dependency warnings in build output
+6. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
 
 **Linting Rules:**
 - Use `npx expo lint --fix` to automatically fix issues
 - Never disable linting rules without discussion
 - Follow the ESLint flat config in `eslint.config.mjs`
+
+### Sonar Quality Gate (part of the Definition of Done)
+
+A task is only complete when **zero issues are open** on SonarCloud
+(`issueStatuses=OPEN,CONFIRMED`). Enforced by a machine-checkable gate, not
+prose:
+
+```bash
+scripts/sonar_gate.sh          # check (exit 0 = done; exit 1 = open issues, listed)
+scripts/sonar_gate.sh --scan   # scan the working tree first (local scanner +
+                               # waits for server processing, ~2-3 min), then check
+```
+
+Rules for AI agents (and humans):
+
+1. **Run the gate as the last step of every task**, after the other
+   Definition-of-Done checks. Use `--scan` when the code changed since the
+   last scan (requires network and `SONARQUBE_TOKEN`).
+2. **Passing means FIXING the flagged code.** The gate prints each open issue
+   as file/line/severity/rule - iterate fix → `--scan` → gate until zero.
+3. **Never mark an issue "Won't Fix" or "False Positive" as an agent.**
+   Those transitions are human decisions only (see `docs/status.md` for the
+   await-in-loop precedent, each with a rationale comment). Changing server-side
+   issue state to make the count zero is gaming the gate - equivalent to
+   disabling a lint rule - and is forbidden without explicit human instruction.
+4. **A gate that cannot run is not a passed gate.** Exit code 2 (missing token
+   or network) means the task is blocked on environment; report it as such
+   instead of claiming completion.
+5. **Prefer prevention over the gate**: `eslint.config.mjs` encodes the
+   recurring bug classes (floating promises, comparator-less sorts,
+   complexity/await-in-loop warnings). Treat those errors as you would a
+   compile error - the Sonar gate is the backstop, not the first line.
+6. Resolved issues (including human-marked won't-fix ones) stay visible in
+   the Sonar UI by design - only OPEN/CONFIRMED count against this gate.
+   Query details anytime with `scripts/fetch_sonar_results.sh --open-only`.
+
+Supporting files: `scripts/sonar_gate.sh` (this gate),
+`scripts/fetch_sonar_results.sh` / `scripts/fetch_sonar_duplications.sh`
+(issue & duplication detail), `sonar-project.properties` (scanner config).
+`sonar-results/` is gitignored; the local scanner script contains a token and
+must never be committed.
 
 ### Secrets & Environment
 
@@ -294,6 +337,9 @@ npx expo lint --fix
 
 # Check for duplicate/scattered imports
 npm run check:imports
+
+# Sonar completion gate (0 open issues; --scan scans first)
+scripts/sonar_gate.sh --scan
 
 # Tests
 npm test -- --watchAll=false
