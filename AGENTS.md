@@ -94,10 +94,12 @@ Rules for agents:
 5. **Run `npm run check:install-scripts`** (also enforced in CI). It fails when
    a dependency with an install script has no `allowScripts` entry, or when an
    approval is not pinned.
-6. **npm 10 (Node 22's bundled npm) ignores `allowScripts` entirely** and runs
-   the scripts anyway. That is harmless here - all three are verified
-   unnecessary - but the *local* behaviour is only enforced from npm 11 on.
-   CI is uniform either way: it installs with `npm ci --ignore-scripts`.
+6. **`allowScripts` only exists in npm 11+.** npm 10 (the npm bundled with
+   Node 22) ignores the field and runs the scripts anyway - harmless here,
+   since all three are verified unnecessary - but the decision is only
+   *enforced* from npm 11 on. CI runs **Node 24** (npm 11), so CI and the
+   local toolchain agree on what runs at install time; `npm ci
+   --ignore-scripts` stays as belt and braces.
 
 ### Sonar Quality Gate (part of the Definition of Done)
 

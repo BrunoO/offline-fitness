@@ -138,10 +138,7 @@ function AppContent() {
             { backgroundColor: theme.primarySoft, opacity: fadeAnim }
           ]}
         >
-          <Image
-            source={require('./assets/images/splash.png')}
-            style={styles.splashImage}
-          />
+          <Image source={require('./assets/images/splash.png')} style={styles.splashImage} />
         </Animated.View>
       ) : null}
     </GestureHandlerRootView>
