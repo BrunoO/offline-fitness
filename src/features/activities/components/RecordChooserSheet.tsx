@@ -1,7 +1,6 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { JSX, useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface RecordChooserSheetProps {
   readonly visible: boolean;
@@ -22,12 +21,11 @@ export function RecordChooserSheet({
 }: RecordChooserSheetProps): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={styles.sheet}>
         <Text style={styles.title}>Add activity</Text>
         <Text style={styles.subtitle}>How do you want to add it?</Text>
 
@@ -81,6 +79,7 @@ const createStyles = (theme: ResolvedTheme) =>
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
       paddingHorizontal: 20,
+      paddingBottom: 20,
       paddingTop: 20
     },
     title: {
