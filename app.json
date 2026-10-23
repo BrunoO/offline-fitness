@@ -21,7 +21,7 @@
       "bundleIdentifier": "com.example.offlinefitness"
     },
     "android": {
-      "versionCode": 672,
+      "versionCode": 690,
       "config": {
         "googleMaps": {
           "apiKey": "SET_VIA_EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
@@ -38,7 +38,10 @@
       ],
       "package": "com.example.offlinefitness"
     },
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "scheme": "offlinefitness",
     "autolinking": {
       "nativeModulesDir": "./modules"

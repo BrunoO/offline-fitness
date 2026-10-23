@@ -1,6 +1,15 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Linking
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -522,39 +531,46 @@ function LastSessionCard({
         placeholderTextColor={theme.textMuted}
         style={styles.input}
       />
-      <View style={styles.actionRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Save as activity"
-          disabled={isSaving}
-          onPress={() => {
-            void onSave(name);
-          }}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            isSaving ? styles.buttonDisabled : null,
-            pressed && !isSaving ? styles.buttonPressed : null
-          ]}
-        >
-          <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
-          <Text style={styles.primaryButtonLabel}>{isSaving ? 'Saving…' : 'Save'}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Discard recording"
-          disabled={isSaving}
-          onPress={() => {
-            void onDiscard();
-          }}
-          style={({ pressed }) => [
-            styles.dangerButton,
-            isSaving ? styles.buttonDisabled : null,
-            pressed && !isSaving ? styles.buttonPressed : null
-          ]}
-        >
-          <Text style={styles.dangerButtonLabel}>Discard</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Save as activity"
+        disabled={isSaving}
+        onPress={() => {
+          void onSave(name);
+        }}
+        style={({ pressed }) => [
+          styles.primaryButton,
+          isSaving ? styles.buttonDisabled : null,
+          pressed && !isSaving ? styles.buttonPressed : null
+        ]}
+      >
+        <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
+        <Text style={styles.primaryButtonLabel}>{isSaving ? 'Saving…' : 'Save as activity'}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Discard recording"
+        disabled={isSaving}
+        onPress={() => {
+          Alert.alert(
+            'Discard recording?',
+            'This deletes the track and all recorded fixes. This cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Discard',
+                style: 'destructive',
+                onPress: () => {
+                  void onDiscard();
+                }
+              }
+            ]
+          );
+        }}
+        style={styles.discardLink}
+      >
+        <Text style={styles.discardLinkLabel}>Discard recording</Text>
+      </Pressable>
     </View>
   );
 }
@@ -762,6 +778,16 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.onPrimary,
       fontSize: 16,
       fontWeight: '700'
+    },
+    discardLink: {
+      alignItems: 'center',
+      marginTop: SPACING.md,
+      paddingVertical: SPACING.sm
+    },
+    discardLinkLabel: {
+      color: theme.textMuted,
+      fontSize: 14,
+      textDecorationLine: 'underline'
     },
     buttonDisabled: {
       opacity: 0.5
