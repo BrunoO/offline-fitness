@@ -24,7 +24,7 @@ import MapView, {
 import { getActivityStreams, useActivitiesDataContext } from '@/features/activities';
 import { useTheme } from '@/theme';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLocationPermission } from '../hooks/useLocationPermission';
@@ -433,16 +433,18 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
         </Text>
       </View>
       <View style={[styles.dateFilterOverlayContainer, { bottom: insets.bottom }]}>
-        <Button title="Year-1" onPress={setFilterToLastYear} />
-        <Button title="Year" onPress={setFilterToThisYear} />
-        <Button
-          title={`${startDate.toLocaleDateString()}`}
-          onPress={() => setShowStartDatePicker(true)}
-        />
-        <Button
-          title={`To: ${endDate.toLocaleDateString()}`}
-          onPress={() => setShowEndDatePicker(true)}
-        />
+        <Pressable onPress={setFilterToLastYear} style={styles.dateFilterButton}>
+          <Text style={styles.dateFilterButtonLabel}>Year-1</Text>
+        </Pressable>
+        <Pressable onPress={setFilterToThisYear} style={styles.dateFilterButton}>
+          <Text style={styles.dateFilterButtonLabel}>Year</Text>
+        </Pressable>
+        <Pressable onPress={() => setShowStartDatePicker(true)} style={styles.dateFilterButton}>
+          <Text style={styles.dateFilterButtonLabel}>{startDate.toLocaleDateString()}</Text>
+        </Pressable>
+        <Pressable onPress={() => setShowEndDatePicker(true)} style={styles.dateFilterButton}>
+          <Text style={styles.dateFilterButtonLabel}>To: {endDate.toLocaleDateString()}</Text>
+        </Pressable>
       </View>
 
       {showStartDatePicker ? (
@@ -483,11 +485,29 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       position: 'absolute',
       bottom: 0,
       flexDirection: 'row',
+      flexWrap: 'wrap',
       justifyContent: 'space-around',
-      width: '80%',
+      width: '90%',
       marginVertical: 5,
-      marginRight: 20,
-      opacity: 0.75
+      marginRight: 10,
+      opacity: 0.9
+    },
+    dateFilterButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      elevation: 2,
+      marginBottom: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 6
+    },
+    dateFilterButtonLabel: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600'
     },
     mapTextOverlayContainer: {
       position: 'absolute',
@@ -502,11 +522,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
 
     mapTextOverlay: {
       backgroundColor: theme.surface,
-      padding: 10,
-      borderRadius: 5,
-      opacity: 0.75,
-      fontWeight: 'bold',
-      color: theme.text
+      padding: 8,
+      borderRadius: 10,
+      opacity: 0.85,
+      fontWeight: '600',
+      fontSize: 12,
+      color: theme.text,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: theme.border
     },
     mapButtonsOverlayContainer: {
       position: 'absolute',
@@ -518,10 +542,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     iconButton: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: theme.surface,
-      opacity: 0.5,
-      padding: 10,
-      borderRadius: 5
+      opacity: 0.85,
+      padding: 8,
+      borderRadius: 12,
+      marginBottom: 6,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: theme.border
     },
     iconLabel: {
       color: theme.textOnSurface,

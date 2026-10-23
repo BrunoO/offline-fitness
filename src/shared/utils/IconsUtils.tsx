@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useTheme } from '@/theme';
 import { JSX } from 'react';
 import { Pressable, Text } from 'react-native';
 
@@ -28,9 +29,12 @@ export const IconButton = ({
   onPress,
   textStyle,
   buttonStyle
-}: IconButtonProps): JSX.Element => (
-  <Pressable style={buttonStyle} onPress={onPress}>
-    <MaterialIcons name={icon} size={32} color="black" />
-    {label ? <Text style={textStyle}>{label}</Text> : null}
-  </Pressable>
-);
+}: IconButtonProps): JSX.Element => {
+  const theme = useTheme();
+  return (
+    <Pressable style={buttonStyle} onPress={onPress}>
+      <MaterialIcons name={icon} size={24} color={theme.text} />
+      {label ? <Text style={textStyle}>{label}</Text> : null}
+    </Pressable>
+  );
+};

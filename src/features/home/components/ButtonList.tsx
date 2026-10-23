@@ -37,7 +37,9 @@ function ButtonList({
             style={selectedItems.includes(item) ? styles.buttonSelected : styles.button}
             onPress={() => handleOnPress(item)}
           >
-            <Text style={styles.text}>{item}</Text>
+            <Text style={selectedItems.includes(item) ? styles.textSelected : styles.text}>
+              {item}
+            </Text>
           </Pressable>
         );
       })}
@@ -52,32 +54,44 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     container: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-around',
-      paddingBottom: 15
+      gap: 8,
+      justifyContent: 'flex-start',
+      paddingBottom: 8
     },
 
     button: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      borderRadius: 4,
-      elevation: 3,
-      backgroundColor: theme.surfaceMuted
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+      elevation: 1
     },
     buttonSelected: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      borderRadius: 4,
-      elevation: 3,
-      backgroundColor: theme.primary
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+      elevation: 2
     },
     text: {
-      fontSize: 16,
-      lineHeight: 21,
-      fontWeight: 'bold',
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '600',
+      letterSpacing: 0.25,
+      color: theme.text
+    },
+    textSelected: {
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '700',
       letterSpacing: 0.25,
       color: theme.onPrimary
     }
