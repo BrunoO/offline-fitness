@@ -4,6 +4,7 @@ import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import { SheetFooter, createSheetFrameStyles } from '@/shared';
 import React, { useMemo } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
@@ -37,6 +38,7 @@ export function SettingsModal({
 }: Readonly<SettingsModalProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const [sessionCount, setSessionCount] = React.useState(0);
   const [storageSize, setStorageSize] = React.useState(0);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -150,7 +152,12 @@ export function SettingsModal({
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <View
+        style={[
+          styles.backdrop,
+          { paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(20, insets.bottom) }
+        ]}
+      >
         <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
@@ -283,7 +290,10 @@ const createStyles = (theme: ResolvedTheme) => ({
       fontWeight: '600',
       color: theme.text,
       marginTop: 16,
-      marginBottom: 4
+      marginBottom: 4,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.border
     },
     sectionNote: {
       fontSize: 12,
