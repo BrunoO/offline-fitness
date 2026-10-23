@@ -8,7 +8,16 @@
  *
  * To support a new GPS-less activity type, add its Strava type string here.
  */
-export const NO_GPS_ACTIVITY_TYPES = new Set<string>(['Yoga']);
+export const NO_GPS_ACTIVITY_TYPES = new Set<string>([
+  'Yoga',
+  'Workout',
+  'WeightTraining',
+  'Pilates',
+  'Crossfit',
+  'PhysicalTherapy',
+  'Elliptical',
+  'StairStepper'
+]);
 
 export function isNoGpsActivity(type: string): boolean {
   return NO_GPS_ACTIVITY_TYPES.has(type);
