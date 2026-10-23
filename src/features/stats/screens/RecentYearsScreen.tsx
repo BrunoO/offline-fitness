@@ -38,6 +38,9 @@ import { useSettings } from '../StatsTabSettingsContext';
  * @param {RecentYearsScreenProps} props - The props for the component, including navigation and route params.
  * @returns {JSX.Element} The RecentYearsScreen component.
  */
+const formatThousands = (value: string): string =>
+  value.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
 export function RecentYearsScreen(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -91,7 +94,7 @@ export function RecentYearsScreen(): JSX.Element {
       yearlyData(myActivitiesWithGps, activitiesWithGps, (a: Activity) => a.distance).sort(
         sortRowsOnYearDescending
       ),
-      (x: number) => (x / 1000).toFixed(0)
+      (x: number) => formatThousands((x / 1000).toFixed(0))
     ).map(row => [...row, row[0]]);
   })();
 
@@ -102,7 +105,7 @@ export function RecentYearsScreen(): JSX.Element {
         activitiesWithGps,
         (a: Activity) => a.total_elevation_gain
       ).sort(sortRowsOnYearDescending),
-      (x: number) => x.toFixed(0)
+      (x: number) => formatThousands((x / 1000).toFixed(1))
     ).map(row => [...row, row[0]]);
   })();
 
@@ -111,7 +114,7 @@ export function RecentYearsScreen(): JSX.Element {
     name: activity,
     data: dataDistances.slice(0, -1).map((row: string[]) => ({
       x: row[0],
-      y: Number.parseInt(row[indexActivity + 1], 10)
+      y: Number.parseInt(row[indexActivity + 1].replace(/\s/g, ''), 10)
     }))
   }));
 
@@ -172,7 +175,7 @@ export function RecentYearsScreen(): JSX.Element {
 
         {/* Elevation Table Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Elevation Gain (m)</Text>
+          <Text style={styles.sectionTitle}>Elevation Gain (km)</Text>
           <View style={styles.tableCard}>
             <DataTable
               headers={tableElevationHeaders}
