@@ -94,6 +94,14 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         icon={getIconOptions('add-circle-outline')}
       />
       <DrawerItem
+        label="Settings"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          props.onOpenSettings();
+        }}
+        icon={getIconOptions('settings-outline')}
+      />
+      <DrawerItem
         label="Export Data"
         onPress={handleExportData}
         icon={getIconOptions('download-outline')}
@@ -145,14 +153,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
           );
         }}
         icon={getIconOptions('trash-outline')}
-      />
-      <DrawerItem
-        label="Settings"
-        onPress={() => {
-          props.navigation.closeDrawer();
-          props.onOpenSettings();
-        }}
-        icon={getIconOptions('settings-outline')}
       />
       <DrawerItem
         label="Close drawer"

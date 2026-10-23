@@ -107,9 +107,12 @@ function AppContent() {
               options={getDrawerIconOptions('radio-button-on-outline')}
             />
             <Drawer.Screen
-              name="Stats"
-              component={StatsTab}
-              options={getDrawerIconOptions('color-wand-outline')}
+              name="Details"
+              component={DetailsScreen}
+              options={{
+                ...getDrawerIconOptions('list-outline'),
+                drawerLabel: 'Activities'
+              }}
             />
             <Drawer.Screen
               name="Maps"
@@ -117,12 +120,9 @@ function AppContent() {
               options={getDrawerIconOptions('map-outline')}
             />
             <Drawer.Screen
-              name="Details"
-              component={DetailsScreen}
-              options={{
-                ...getDrawerIconOptions('list-outline'),
-                drawerLabel: 'Activities'
-              }}
+              name="Stats"
+              component={StatsTab}
+              options={getDrawerIconOptions('color-wand-outline')}
             />
             <Drawer.Screen
               name="Logs"
