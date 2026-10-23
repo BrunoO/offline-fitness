@@ -18,6 +18,7 @@ import { SplitDetector } from '../services/splits';
 import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
 import { writeStreamFile } from '../services/writeStreamFile';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
 
@@ -227,7 +228,19 @@ export function useRecording(): UseRecordingResult {
           profile,
           capture: PROFILE_CAPTURE_OPTIONS[profile]
         });
-        splitDetectorRef.current = new SplitDetector();
+        const [audioRaw, hapticRaw, intervalRaw] = await Promise.all([
+          AsyncStorage.getItem('splitsAudioEnabled'),
+          AsyncStorage.getItem('splitsHapticEnabled'),
+          AsyncStorage.getItem('splitsIntervalMeters')
+        ]);
+        const audioEnabled = audioRaw === null ? true : audioRaw === 'true';
+        const hapticEnabled = hapticRaw === null ? true : hapticRaw === 'true';
+        const intervalMeters = intervalRaw ? Number.parseInt(intervalRaw, 10) : 1000;
+        splitDetectorRef.current = new SplitDetector({
+          audioEnabled,
+          hapticEnabled,
+          intervalMeters: Number.isFinite(intervalMeters) ? intervalMeters : 1000
+        });
         setLastSplit(null);
         setState({
           phase: 'recording',

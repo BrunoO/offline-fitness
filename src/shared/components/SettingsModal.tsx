@@ -3,7 +3,8 @@ import { GpsTracker } from '@/features/recording/services/gpsTracker';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import { SheetFooter, createSheetFrameStyles } from '@/shared';
 import React, { useMemo } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * The app's global settings: the colour palette and the WebDAV backup.
@@ -41,6 +42,9 @@ export function SettingsModal({
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isIgnoringBattery, setIsIgnoringBattery] = React.useState<boolean | null>(null);
   const [isRequestingBattery, setIsRequestingBattery] = React.useState(false);
+  const [splitsAudioEnabled, setSplitsAudioEnabled] = React.useState(true);
+  const [splitsHapticEnabled, setSplitsHapticEnabled] = React.useState(true);
+  const [splitsInterval, setSplitsInterval] = React.useState(1000);
 
   // Load recording diagnostics when the modal opens.
   React.useEffect(() => {
@@ -51,10 +55,18 @@ export function SettingsModal({
         const sessions = await GpsTracker.listSessions();
         const size = await GpsTracker.getStorageSize();
         const caps = await GpsTracker.getCapabilities();
+        const [audio, haptic, interval] = await Promise.all([
+          AsyncStorage.getItem('splitsAudioEnabled'),
+          AsyncStorage.getItem('splitsHapticEnabled'),
+          AsyncStorage.getItem('splitsIntervalMeters')
+        ]);
         if (isMounted) {
           setSessionCount(sessions.length);
           setStorageSize(size);
           setIsIgnoringBattery(caps.canExemptBattery);
+          if (audio !== null) setSplitsAudioEnabled(audio === 'true');
+          if (haptic !== null) setSplitsHapticEnabled(haptic === 'true');
+          if (interval !== null) setSplitsInterval(Number.parseInt(interval, 10) || 1000);
         }
       } catch (_cause) {
         // The module may be unavailable (iOS stub, stale dev client).
@@ -90,6 +102,21 @@ export function SettingsModal({
       // ignore — module may be unavailable
     }
     setIsRequestingBattery(false);
+  }, []);
+
+  const handleToggleAudio = React.useCallback((value: boolean) => {
+    setSplitsAudioEnabled(value);
+    void AsyncStorage.setItem('splitsAudioEnabled', String(value));
+  }, []);
+
+  const handleToggleHaptic = React.useCallback((value: boolean) => {
+    setSplitsHapticEnabled(value);
+    void AsyncStorage.setItem('splitsHapticEnabled', String(value));
+  }, []);
+
+  const handleIntervalChange = React.useCallback((value: number) => {
+    setSplitsInterval(value);
+    void AsyncStorage.setItem('splitsIntervalMeters', String(value));
   }, []);
 
   let batteryStatusText = 'No';
@@ -214,6 +241,38 @@ export function SettingsModal({
               <Text style={styles.deleteButtonLabel}>{batteryButtonLabel}</Text>
             </Pressable>
 
+            <Text style={styles.sectionTitle}>Recording splits</Text>
+            <Text style={styles.sectionNote}>
+              Audio/haptic announcements at each split milestone. Distance is
+              always recorded; these toggles only control announcements.
+            </Text>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Audio announcements</Text>
+              <Switch value={splitsAudioEnabled} onValueChange={handleToggleAudio} />
+            </View>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Haptic feedback</Text>
+              <Switch value={splitsHapticEnabled} onValueChange={handleToggleHaptic} />
+            </View>
+            <Text style={styles.sectionNote}>Split interval</Text>
+            <View style={styles.chipsRow}>
+              {[500, 1000, 1609].map(value => (
+                <Pressable
+                  key={value}
+                  accessibilityRole="button"
+                  onPress={() => handleIntervalChange(value)}
+                  style={[
+                    styles.chip,
+                    splitsInterval === value ? styles.chipSelected : null
+                  ]}
+                >
+                  <Text style={styles.chipLabel}>
+                    {value === 1609 ? '1 mi' : `${value} m`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>
       </View>
@@ -253,6 +312,28 @@ const createStyles = (theme: ResolvedTheme) => ({
     diagnosticsValue: {
       color: theme.text,
       fontSize: 14,
+      fontWeight: '600'
+    },
+    chipsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4
+    },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface
+    },
+    chipSelected: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primarySoft
+    },
+    chipLabel: {
+      color: theme.text,
+      fontSize: 13,
       fontWeight: '600'
     },
     deleteButton: {
