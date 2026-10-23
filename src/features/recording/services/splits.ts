@@ -55,11 +55,11 @@ export function buildAnnouncementText(
  * default to the native module.
  */
 export class SplitDetector {
-  private intervalMeters: number;
-  private audioEnabled: boolean;
-  private hapticEnabled: boolean;
-  private speakFn: (text: string) => void | Promise<void>;
-  private vibrateFn: () => void | Promise<void>;
+  private readonly intervalMeters: number;
+  private readonly audioEnabled: boolean;
+  private readonly hapticEnabled: boolean;
+  private readonly speakFn: (text: string) => void | Promise<void>;
+  private readonly vibrateFn: () => void | Promise<void>;
 
   splitCount = 0;
   lastSplitDistanceMeters = 0;
