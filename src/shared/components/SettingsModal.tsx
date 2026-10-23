@@ -212,7 +212,6 @@ export function SettingsModal({
                 {isDeleting ? 'Deleting…' : 'Delete all sessions'}
               </Text>
             </Pressable>
-          </ScrollView>
 
           <Text style={styles.sectionTitle}>Battery optimization</Text>
           <Text style={styles.sectionNote}>
@@ -231,12 +230,12 @@ export function SettingsModal({
               void handleRequestBatteryExemption();
             }}
             style={({ pressed }) => [
-              styles.deleteButton,
-              pressed ? styles.deleteButtonPressed : null,
-              isRequestingBattery || isIgnoringBattery === true ? styles.deleteButtonDisabled : null
+              styles.requestButton,
+              pressed ? styles.requestButtonPressed : null,
+              isRequestingBattery || isIgnoringBattery === true ? styles.requestButtonDisabled : null
             ]}
           >
-            <Text style={styles.deleteButtonLabel}>{batteryButtonLabel}</Text>
+            <Text style={styles.requestButtonLabel}>{batteryButtonLabel}</Text>
           </Pressable>
 
           <Text style={styles.sectionTitle}>Recording splits</Text>
@@ -261,10 +260,12 @@ export function SettingsModal({
                 onPress={() => handleIntervalChange(value)}
                 style={[styles.chip, splitsInterval === value ? styles.chipSelected : null]}
               >
-                <Text style={styles.chipLabel}>{value === 1609 ? '1 mi' : `${value} m`}</Text>
+                <Text style={styles.chipLabel}>{`${value} m`}</Text>
               </Pressable>
             ))}
           </View>
+
+          </ScrollView>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>
@@ -327,6 +328,26 @@ const createStyles = (theme: ResolvedTheme) => ({
     chipLabel: {
       color: theme.text,
       fontSize: 13,
+      fontWeight: '600'
+    },
+    requestButton: {
+      alignItems: 'center',
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.primary,
+      borderRadius: 10,
+      borderWidth: 1,
+      marginTop: 12,
+      paddingVertical: 10
+    },
+    requestButtonPressed: {
+      opacity: 0.7
+    },
+    requestButtonDisabled: {
+      opacity: 0.4
+    },
+    requestButtonLabel: {
+      color: theme.primary,
+      fontSize: 14,
       fontWeight: '600'
     },
     deleteButton: {
