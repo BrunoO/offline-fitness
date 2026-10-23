@@ -34,6 +34,7 @@ export interface ReplayResult {
   skipped: number;
   recovered: boolean;
   splits: SplitEvent[];
+  autoPausedCount: number;
 }
 
 interface AltitudeState {
@@ -67,6 +68,7 @@ interface ReplayContext {
   autoPausedSince: number | null;
   autoPauseGaps: { startMs: number; endMs: number }[];
   splits: SplitEvent[];
+  autoPausedCount: number;
   splitDetector: SplitDetector;
 }
 
@@ -328,6 +330,7 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
   const speed = computeSpeed(fix, ctx.lastAccepted, stepDistance);
   const isAutoPaused = ctx.isSwimming ? false : handleAutoPause(ctx, fix, speed);
   if (isAutoPaused) {
+    ctx.autoPausedCount += 1;
     ctx.lastAccepted = fix;
     return;
   }
@@ -424,6 +427,7 @@ export function replaySession(
     autoPausedSince: null,
     autoPauseGaps: [],
     splits: [],
+    autoPausedCount: 0,
     splitDetector: new SplitDetector({ audioEnabled: false, hapticEnabled: false })
   };
 
@@ -483,6 +487,7 @@ export function replaySession(
     rejected: ctx.rejected,
     skipped,
     recovered: meta.endedAtUtcMs == null,
-    splits: ctx.splits
+    splits: ctx.splits,
+    autoPausedCount: ctx.autoPausedCount
   };
 }
