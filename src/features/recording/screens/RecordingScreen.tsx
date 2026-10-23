@@ -96,6 +96,9 @@ export function RecordingScreen(): JSX.Element {
     discardUnfinished
   } = useRecording();
   const [profile, setProfile] = useState<Profile>('walking');
+  // Which live stat is promoted to the hero (large) position. The user taps
+  // a compact tile to promote it; tapping the hero cycles back to elapsed time.
+  const [heroStat, setHeroStat] = useState<'time' | 'distance' | 'speed' | 'altitude'>('time');
 
   // Keep the screen awake only while a session is live.
   useEffect(() => {
@@ -159,7 +162,12 @@ export function RecordingScreen(): JSX.Element {
 
       <SessionCard phase={state.phase} liveStats={liveStats} styles={styles} theme={theme} />
 
-      <LiveStatsCard liveStats={liveStats} styles={styles} />
+      <LiveStatsCard
+        liveStats={liveStats}
+        heroStat={heroStat}
+        onPromote={setHeroStat}
+        styles={styles}
+      />
 
       {state.phase === 'idle' ? (
         <ProfileCard profile={profile} onSelect={setProfile} styles={styles} />
@@ -300,60 +308,99 @@ function SessionCard({ phase, liveStats, styles, theme }: SessionCardProps): JSX
   );
 }
 
+type StatKey = 'time' | 'distance' | 'speed' | 'altitude';
+
+interface StatDef {
+  readonly key: StatKey;
+  readonly label: string;
+  readonly icon: string;
+}
+
+const STAT_DEFS: readonly StatDef[] = [
+  { key: 'time', label: 'Elapsed', icon: 'time-outline' },
+  { key: 'distance', label: 'Distance', icon: 'map-outline' },
+  { key: 'speed', label: 'Speed', icon: 'speedometer-outline' },
+  { key: 'altitude', label: 'Altitude', icon: 'trending-up-outline' }
+];
+
+const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
+  if (!liveStats) {
+    return key === 'time' ? '0:00' : '—';
+  }
+  switch (key) {
+    case 'time':
+      return formatElapsed(liveStats.elapsedSec);
+    case 'distance':
+      return formatDistance(liveStats.distanceMeters);
+    case 'speed':
+      return formatSpeed(liveStats.currentSpeedMps);
+    case 'altitude':
+      return formatAltitude(liveStats.altitudeM);
+  }
+};
+
 interface LiveStatsCardProps {
   readonly liveStats: LiveStats | null;
+  readonly heroStat: StatKey;
+  readonly onPromote: (key: StatKey) => void;
   readonly styles: Styles;
 }
 
-function LiveStatsCard({ liveStats, styles }: LiveStatsCardProps): JSX.Element {
+function LiveStatsCard({
+  liveStats,
+  heroStat,
+  onPromote,
+  styles
+}: LiveStatsCardProps): JSX.Element {
+  const heroDef = STAT_DEFS.find(def => def.key === heroStat) ?? STAT_DEFS[0];
+  const compactDefs = STAT_DEFS.filter(def => def.key !== heroStat);
+
   return (
     <View style={styles.card}>
       <Text style={styles.cardLabel}>Live stats</Text>
-      <View style={styles.heroStat}>
-        <Text style={styles.heroValue}>
-          {liveStats ? formatElapsed(liveStats.elapsedSec) : '0:00'}
-        </Text>
-        <Text style={styles.heroLabel}>elapsed</Text>
-      </View>
+      <Text style={styles.tapHint}>Tap a stat to enlarge it</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Promote ${heroDef.label} (currently enlarged)`}
+        onPress={() => {
+          // Tapping the hero cycles back to elapsed time.
+          if (heroStat !== 'time') {
+            onPromote('time');
+          }
+        }}
+        style={styles.heroStat}
+      >
+        <View style={styles.heroIconRow}>
+          <Ionicons
+            name={heroDef.icon as never}
+            size={18}
+            color={styles.heroLabel.color as string}
+          />
+          <Text style={styles.heroLabel}>{heroDef.label}</Text>
+        </View>
+        <Text style={styles.heroValue}>{statValue(heroStat, liveStats)}</Text>
+      </Pressable>
       <View style={styles.tiles}>
-        <StatTile
-          icon="map-outline"
-          label="Distance"
-          value={liveStats ? formatDistance(liveStats.distanceMeters) : '—'}
-          styles={styles}
-        />
-        <StatTile
-          icon="speedometer-outline"
-          label="Speed"
-          value={formatSpeed(liveStats ? liveStats.currentSpeedMps : null)}
-          styles={styles}
-        />
-        <StatTile
-          icon="trending-up-outline"
-          label="Altitude"
-          value={formatAltitude(liveStats ? liveStats.altitudeM : null)}
-          styles={styles}
-        />
+        {compactDefs.map(def => (
+          <Pressable
+            key={def.key}
+            accessibilityRole="button"
+            accessibilityLabel={`Enlarge ${def.label}`}
+            onPress={() => onPromote(def.key)}
+            style={({ pressed }) => [styles.tile, pressed ? styles.tilePressed : null]}
+          >
+            <View style={styles.tileHeader}>
+              <Ionicons
+                name={def.icon as never}
+                size={14}
+                color={styles.tileLabel.color as string}
+              />
+              <Text style={styles.tileLabel}>{def.label}</Text>
+            </View>
+            <Text style={styles.tileValue}>{statValue(def.key, liveStats)}</Text>
+          </Pressable>
+        ))}
       </View>
-    </View>
-  );
-}
-
-interface StatTileProps {
-  readonly icon: string;
-  readonly label: string;
-  readonly value: string;
-  readonly styles: Styles;
-}
-
-function StatTile({ icon, label, value, styles }: StatTileProps): JSX.Element {
-  return (
-    <View style={styles.tile}>
-      <View style={styles.tileHeader}>
-        <Ionicons name={icon as never} size={14} color={styles.tileLabel.color as string} />
-        <Text style={styles.tileLabel}>{label}</Text>
-      </View>
-      <Text style={styles.tileValue}>{value}</Text>
     </View>
   );
 }
@@ -666,6 +713,18 @@ const createStyles = (theme: ResolvedTheme) =>
       marginTop: SPACING.xs,
       textTransform: 'uppercase'
     },
+    tapHint: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontStyle: 'italic',
+      marginBottom: SPACING.xs
+    },
+    heroIconRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      justifyContent: 'center'
+    },
     tiles: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -674,6 +733,9 @@ const createStyles = (theme: ResolvedTheme) =>
     tile: {
       marginBottom: SPACING.md,
       width: '33.33%'
+    },
+    tilePressed: {
+      opacity: 0.6
     },
     tileHeader: {
       alignItems: 'center',
