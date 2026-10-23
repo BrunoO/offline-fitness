@@ -86,7 +86,7 @@ describe('useActivities', () => {
 
     // Delete activity
     act(() => {
-      result.current.deleteActivity(mockActivities[0]);
+      void result.current.deleteActivity(mockActivities[0]);
     });
 
     await waitFor(() => {

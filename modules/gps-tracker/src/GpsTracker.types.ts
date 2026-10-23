@@ -87,7 +87,6 @@ export interface LocationUpdate {
   hAccM: number | null;
 }
 
-
 export interface FixLogEntry {
   t: number;
   lat: number;

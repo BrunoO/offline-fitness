@@ -34,9 +34,7 @@ describe('buildManualActivity', () => {
     expect(activity.end_latlng).toEqual([]);
     // UTC instant matches the device-local wall clock.
     expect(activity.start_timestamp_utc).toBe(new Date(2026, 9, 20, 18, 30, 0).getTime());
-    expect(activity.start_date_utc).toBe(
-      new Date(activity.start_timestamp_utc).toISOString()
-    );
+    expect(activity.start_date_utc).toBe(new Date(activity.start_timestamp_utc).toISOString());
     expect(activity.start_date_local).toBe('2026-10-20T18:30:00Z');
     expect(activity.start_year).toBe(2026);
     expect(activity.start_month).toBe(9);
@@ -47,8 +45,12 @@ describe('buildManualActivity', () => {
 
   it('defaults the name to the type and trims a custom name', () => {
     expect(
-      buildManualActivity({ type: 'Yoga', localDate: '2026-10-20', localTime: '07:00', durationMin: 30 })
-        .name
+      buildManualActivity({
+        type: 'Yoga',
+        localDate: '2026-10-20',
+        localTime: '07:00',
+        durationMin: 30
+      }).name
     ).toBe('Yoga');
     expect(
       buildManualActivity({

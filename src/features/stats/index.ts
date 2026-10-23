@@ -5,7 +5,6 @@
 export { SettingsProvider, useSettings } from './StatsTabSettingsContext';
 
 // Components
-export { default as ProgressCircleComponent } from './components/ProgressCircleComponent';
 export { ProgressOverlay } from './components/ProgressOverlay';
 export { default as RecentActivityStats } from './components/RecentActivityStats';
 export { default as YTDStatsComponent } from './components/YTDStatsComponent';

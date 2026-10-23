@@ -1,4 +1,8 @@
-import { PROFILE_CAPTURE_OPTIONS, PROFILE_FILTER_OPTIONS, PROFILES } from '@/features/recording/services/profiles';
+import {
+  PROFILE_CAPTURE_OPTIONS,
+  PROFILE_FILTER_OPTIONS,
+  PROFILES
+} from '@/features/recording/services/profiles';
 
 describe('recording profiles', () => {
   it('exposes the four MVP profiles in a stable order', () => {

@@ -418,7 +418,7 @@ function RecordingActions({
             pressed && !isBusy ? styles.buttonPressed : null
           ]}
         >
-          <Ionicons name="play" size={20} color="#FFFFFF" />
+          <Ionicons name="play" size={20} color={styles.primaryButtonLabel.color as string} />
           <Text style={styles.primaryButtonLabel}>{isBusy ? 'Starting…' : 'Start recording'}</Text>
         </Pressable>
       ) : null}
@@ -442,7 +442,7 @@ function RecordingActions({
             onPress={onStop}
             style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
           >
-            <Ionicons name="stop" size={18} color="#FFFFFF" />
+            <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
             <Text style={styles.dangerButtonLabel}>Stop</Text>
           </Pressable>
         </View>
@@ -455,7 +455,7 @@ function RecordingActions({
             onPress={onResume}
             style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
           >
-            <Ionicons name="play" size={18} color="#FFFFFF" />
+            <Ionicons name="play" size={18} color={styles.primaryButtonLabel.color as string} />
             <Text style={styles.primaryButtonLabel}>Resume</Text>
           </Pressable>
           <Pressable
@@ -464,7 +464,7 @@ function RecordingActions({
             onPress={onStop}
             style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
           >
-            <Ionicons name="stop" size={18} color="#FFFFFF" />
+            <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
             <Text style={styles.dangerButtonLabel}>Stop</Text>
           </Pressable>
         </View>
@@ -536,7 +536,7 @@ function LastSessionCard({
             pressed && !isSaving ? styles.buttonPressed : null
           ]}
         >
-          <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+          <Ionicons name="save-outline" size={18} color={theme.onPrimary} />
           <Text style={styles.primaryButtonLabel}>{isSaving ? 'Saving…' : 'Save'}</Text>
         </Pressable>
         <Pressable
@@ -759,7 +759,7 @@ const createStyles = (theme: ResolvedTheme) =>
       paddingVertical: SPACING.md
     },
     dangerButtonLabel: {
-      color: '#FFFFFF',
+      color: theme.onPrimary,
       fontSize: 16,
       fontWeight: '700'
     },

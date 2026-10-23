@@ -1,4 +1,7 @@
-import { buildManualTypeList, MANUAL_ACTIVITY_TYPES } from '../../src/features/activities/services/manualActivity';
+import {
+  buildManualTypeList,
+  MANUAL_ACTIVITY_TYPES
+} from '../../src/features/activities/services/manualActivity';
 import {
   addCustomManualEntryType,
   loadManualEntryPrefs,

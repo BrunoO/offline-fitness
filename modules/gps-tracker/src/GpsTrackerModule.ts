@@ -59,7 +59,8 @@ export const GpsTracker = {
   listSessions: (): Promise<RecordingMeta[]> => loadNativeModule().listSessions(),
   markSessionSaved: (sessionId: string, activityId: string): Promise<void> =>
     loadNativeModule().markSessionSaved(sessionId, activityId),
-  discardSession: (sessionId: string): Promise<void> => loadNativeModule().discardSession(sessionId),
+  discardSession: (sessionId: string): Promise<void> =>
+    loadNativeModule().discardSession(sessionId),
   getStorageSize: (): Promise<number> => loadNativeModule().getStorageSize(),
   deleteAllSessions: (): Promise<void> => loadNativeModule().deleteAllSessions()
 };

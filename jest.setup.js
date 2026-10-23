@@ -65,8 +65,7 @@ jest.mock('expo-file-system', () => {
         return this._bytes;
       }
       const val = mockFiles[this.file.uri];
-      this._bytes =
-        val instanceof Uint8Array ? val : new TextEncoder().encode(String(val));
+      this._bytes = val instanceof Uint8Array ? val : new TextEncoder().encode(String(val));
       return this._bytes;
     }
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { GpsTracker } from '../../src/features/recording/services/gpsTracker';
 import type { FixLogEntry, RecordingMeta } from '../../src/features/recording/services/gpsTracker';
 import { readFixLog, sweepExpiredSessions } from '@/features/recording/services/fixLog';
@@ -25,7 +26,7 @@ function makeMeta(overrides: Partial<RecordingMeta> = {}): RecordingMeta {
   };
 }
 
-function encodeLog(entries: Array<Partial<FixLogEntry>>): string {
+function encodeLog(entries: Partial<FixLogEntry>[]): string {
   return entries
     .map(entry =>
       JSON.stringify({
