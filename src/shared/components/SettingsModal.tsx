@@ -92,6 +92,20 @@ export function SettingsModal({
     setIsRequestingBattery(false);
   }, []);
 
+  let batteryStatusText = 'No';
+  if (isIgnoringBattery === null) {
+    batteryStatusText = '—';
+  } else if (isIgnoringBattery) {
+    batteryStatusText = 'Yes';
+  }
+
+  let batteryButtonLabel = 'Request exemption';
+  if (isRequestingBattery) {
+    batteryButtonLabel = 'Opening settings…';
+  } else if (isIgnoringBattery) {
+    batteryButtonLabel = 'Already exempt';
+  }
+
   // Don't mount the form while it is closed. On Android `Modal` already
   // renders null when hidden, but on iOS its children stay mounted after the
   // first show until the dismiss event lands, so the guard is what keeps the
@@ -180,9 +194,7 @@ export function SettingsModal({
             </Text>
             <View style={styles.diagnosticsRow}>
               <Text style={styles.diagnosticsLabel}>Exempt from optimization</Text>
-              <Text style={styles.diagnosticsValue}>
-                {isIgnoringBattery === null ? '—' : isIgnoringBattery ? 'Yes' : 'No'}
-              </Text>
+              <Text style={styles.diagnosticsValue}>{batteryStatusText}</Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -199,13 +211,7 @@ export function SettingsModal({
                   : null
               ]}
             >
-              <Text style={styles.deleteButtonLabel}>
-                {isRequestingBattery
-                  ? 'Opening settings…'
-                  : isIgnoringBattery
-                    ? 'Already exempt'
-                    : 'Request exemption'}
-              </Text>
+              <Text style={styles.deleteButtonLabel}>{batteryButtonLabel}</Text>
             </Pressable>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />

@@ -38,8 +38,19 @@ import { useSettings } from '../StatsTabSettingsContext';
  * @param {RecentYearsScreenProps} props - The props for the component, including navigation and route params.
  * @returns {JSX.Element} The RecentYearsScreen component.
  */
-const formatThousands = (value: string): string =>
-  value.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const formatThousands = (value: string): string => {
+  const parts = value.split('.');
+  const intPart = parts[0];
+  const decPart = parts.length > 1 ? `.${parts[1]}` : '';
+  let grouped = '';
+  for (let i = 0; i < intPart.length; i++) {
+    if (i > 0 && (intPart.length - i) % 3 === 0) {
+      grouped += ' ';
+    }
+    grouped += intPart[i];
+  }
+  return grouped + decPart;
+};
 
 export function RecentYearsScreen(): JSX.Element {
   const theme = useTheme();
