@@ -56,7 +56,6 @@ export function PalettePicker({ onChange }: Readonly<PalettePickerProps>): React
             <View style={[styles.swatch, { backgroundColor: primary }]} />
             <View style={styles.labels}>
               <Text style={styles.label}>{palette.label}</Text>
-              <Text style={styles.meta}>{primary.toUpperCase()}</Text>
             </View>
             <View style={styles.series}>
               {series.slice(0, 4).map((color, index) => (
@@ -102,11 +101,6 @@ const createStyles = (theme: ResolvedTheme) =>
       fontSize: 15,
       fontWeight: '600',
       color: theme.text
-    },
-    meta: {
-      fontSize: 12,
-      color: theme.textMuted,
-      marginTop: 2
     },
     series: {
       flexDirection: 'row',
