@@ -60,7 +60,7 @@ function documentsFolder(): Directory {
 }
 
 /** Chunk names written by previous export runs, current and legacy. */
-const EXPORT_CHUNK_PATTERN = /^strava_export(_part_\d+_of_\d+)?\.zip$/;
+const EXPORT_CHUNK_PATTERN = /^offline_fitness_export(_part_\d+_of_\d+)?\.zip$/;
 
 /**
  * Removes export zips a previous run left behind (a share cancelled or the app
@@ -106,8 +106,8 @@ async function addStreamToZip(zip: JSZip, activity: Activity): Promise<void> {
 /** Chunk file name; multi-part only when the export spans several chunks. */
 function chunkFileName(chunkIndex: number, numChunks: number): string {
   return numChunks > 1
-    ? `strava_export_part_${chunkIndex + 1}_of_${numChunks}.zip`
-    : 'strava_export.zip';
+    ? `offline_fitness_export_part_${chunkIndex + 1}_of_${numChunks}.zip`
+    : 'offline_fitness_export.zip';
 }
 
 /** Builds one export chunk (CSV + stream GPX) and writes it to the documents folder. */

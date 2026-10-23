@@ -24,7 +24,7 @@ const shareAsyncMock = Sharing.shareAsync as jest.MockedFunction<typeof Sharing.
 function remainingChunks(): string[] {
   return new fsMock.Directory(fsMock.Paths.document)
     .list()
-    .filter(entry => /^strava_export.*\.zip$/.test(entry.name))
+    .filter(entry => /^offline_fitness_export.*\.zip$/.test(entry.name))
     .map(entry => entry.name);
 }
 
@@ -50,8 +50,8 @@ describe('exportData', () => {
 
   it('removes chunks a previous interrupted export left behind', async () => {
     fsMock.__setMockFiles({
-      [`${fsMock.Paths.document}strava_export_part_1_of_9.zip`]: 'stale',
-      [`${fsMock.Paths.document}strava_export.zip`]: 'stale',
+      [`${fsMock.Paths.document}offline_fitness_export_part_1_of_9.zip`]: 'stale',
+      [`${fsMock.Paths.document}offline_fitness_export.zip`]: 'stale',
       [`${fsMock.Paths.document}unrelated.json`]: 'keep'
     });
 
