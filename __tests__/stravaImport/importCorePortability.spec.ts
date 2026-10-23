@@ -200,6 +200,9 @@ describe('portable import core (desktop tool, Phase 0)', () => {
     const walk = (dir: string): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
+        // The recording feature legitimately uses keep-awake (expo-keep-awake)
+        // while a session is live; that is not the Strava archive importer.
+        if (entry.isDirectory() && entry.name === 'recording') return;
         if (entry.isDirectory()) walk(full);
         else if (/\.tsx?$/.test(entry.name) && banned.test(fs.readFileSync(full, 'utf8'))) {
           offenders.push(path.relative(REPO_ROOT, full));

@@ -53,6 +53,14 @@ public class GpsTrackerModule: Module {
       []
     }
 
+    AsyncFunction("getStorageSize") { () -> Int in
+      0
+    }
+
+    AsyncFunction("deleteAllSessions") {
+      // No sessions exist on iOS; nothing to delete.
+    }
+
     AsyncFunction("markSessionSaved") { (_ sessionId: String, _ activityId: String) in
       throw RecordingUnavailableException()
     }

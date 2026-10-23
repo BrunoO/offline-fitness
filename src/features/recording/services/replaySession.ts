@@ -277,6 +277,11 @@ function handleManualPauseBoundary(ctx: ReplayContext, fix: FixLogEntry): void {
     ctx.segments.push({ startIndex: ctx.currentSegmentStart, endIndex: ctx.latlng.length - 1 });
     ctx.currentSegmentStart = null;
   }
+  // A manual pause can span minutes or hours, so the altitude on the next fix
+  // is unrelated to the one before the pause. Reset the hysteresis anchor
+  // (mirroring ActivityProfile/AltitudeProcessor.resetAnchor on pause/resume in
+  // the legacy library) so the gap is not counted as climb or descent.
+  ctx.altitudeState.anchor = null;
 }
 
 function handleAutoPause(ctx: ReplayContext, fix: FixLogEntry, speed: number): boolean {
