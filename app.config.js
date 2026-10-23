@@ -11,6 +11,9 @@
 //
 // Local runs pick up .env automatically via the Expo CLI. Copy .env.example to
 // .env and fill it in; see the README.
+const fs = require('fs');
+const path = require('path');
+
 function buildConfig({ config }) {
   const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!googleMapsApiKey) {
@@ -35,10 +38,22 @@ function buildConfig({ config }) {
     console.warn('[app.config] IOS_BUNDLE_ID is not set: building with the placeholder bundle id.');
   }
 
+  // Version code lives in a gitignored file so builds never dirty app.json.
+  // Fall back to app.json's value (committed baseline) on a fresh clone.
+  let versionCode = config.android && config.android.versionCode;
+  const versionFilePath = path.resolve(process.cwd(), '.version-code');
+  if (fs.existsSync(versionFilePath)) {
+    const parsed = parseInt(fs.readFileSync(versionFilePath, 'utf8').trim(), 10);
+    if (Number.isFinite(parsed)) {
+      versionCode = parsed;
+    }
+  }
+
   return {
     ...config,
     android: {
       ...config.android,
+      versionCode,
       package: androidPackage,
       config: {
         ...config.android.config,
