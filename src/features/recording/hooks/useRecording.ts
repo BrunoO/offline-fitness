@@ -41,7 +41,6 @@ export interface UseRecordingResult {
   stop: () => Promise<void>;
   save: (name: string) => Promise<void>;
   discard: () => Promise<void>;
-  splitNow: () => void;
 }
 
 const describeError = (cause: unknown, fallback: string): string => {
@@ -347,15 +346,6 @@ export function useRecording(): UseRecordingResult {
     [state.sessionId, summary, addActivity]
   );
 
-  const splitNow = useCallback(() => {
-    const detector = splitDetectorRef.current;
-    const stats = liveStats;
-    if (detector && stats) {
-      const event = detector.forceSplit(stats.distanceMeters, stats.elapsedSec * 1000);
-      setLastSplit(event);
-    }
-  }, [liveStats]);
-
   const discard = useCallback(async () => {
     const sessionId = state.sessionId;
     if (sessionId === undefined) {
@@ -401,7 +391,6 @@ export function useRecording(): UseRecordingResult {
     resume,
     stop,
     save,
-    discard,
-    splitNow
+    discard
   };
 }
