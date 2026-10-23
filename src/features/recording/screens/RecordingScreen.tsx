@@ -124,7 +124,12 @@ export function RecordingScreen(): JSX.Element {
       showsVerticalScrollIndicator={false}
     >
       {state.phase === 'idle' ? (
-        <Text style={[styles.subtitle, { marginTop: insets.top + SPACING.md, marginHorizontal: SPACING.lg }]}>
+        <Text
+          style={[
+            styles.subtitle,
+            { marginTop: insets.top + SPACING.md, marginHorizontal: SPACING.lg }
+          ]}
+        >
           {availabilityText(capabilities)}
         </Text>
       ) : null}
@@ -208,7 +213,7 @@ export function RecordingScreen(): JSX.Element {
           void stop();
         }}
         onSplitNow={() => {
-          void splitNow();
+          splitNow();
         }}
         styles={styles}
       />
@@ -516,7 +521,11 @@ function RecordingActions({
             onPress={onSplitNow}
             style={({ pressed }) => [styles.secondaryButton, pressed ? styles.buttonPressed : null]}
           >
-            <Ionicons name="flag-outline" size={18} color={styles.secondaryButtonLabel.color as string} />
+            <Ionicons
+              name="flag-outline"
+              size={18}
+              color={styles.secondaryButtonLabel.color as string}
+            />
             <Text style={styles.secondaryButtonLabel}>Split now</Text>
           </Pressable>
           <Pressable

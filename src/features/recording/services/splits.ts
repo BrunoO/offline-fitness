@@ -93,10 +93,7 @@ export class SplitDetector {
    * Force an immediate split with the current totals.
    */
   forceSplit(totalDistanceMeters: number, totalElapsedMs: number): SplitEvent {
-    const distanceSinceLastSplit = Math.max(
-      1,
-      totalDistanceMeters - this.lastSplitDistanceMeters
-    );
+    const distanceSinceLastSplit = Math.max(1, totalDistanceMeters - this.lastSplitDistanceMeters);
     return this.fire(totalDistanceMeters, totalElapsedMs, distanceSinceLastSplit);
   }
 
@@ -131,12 +128,7 @@ export class SplitDetector {
       void this.vibrateFn();
     }
     if (this.audioEnabled) {
-      const text = buildAnnouncementText(
-        this.splitCount,
-        minutes,
-        seconds,
-        this.safeInterval
-      );
+      const text = buildAnnouncementText(this.splitCount, minutes, seconds, this.safeInterval);
       void this.speakFn(text);
     }
 

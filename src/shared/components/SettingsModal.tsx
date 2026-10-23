@@ -214,64 +214,57 @@ export function SettingsModal({
             </Pressable>
           </ScrollView>
 
-            <Text style={styles.sectionTitle}>Battery optimization</Text>
-            <Text style={styles.sectionNote}>
-              Keeps GPS recording alive in the background on devices that aggressively
-              throttle apps. Only needed if a recording is being stopped mid-activity.
-            </Text>
-            <View style={styles.diagnosticsRow}>
-              <Text style={styles.diagnosticsLabel}>Exempt from optimization</Text>
-              <Text style={styles.diagnosticsValue}>{batteryStatusText}</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Request battery optimization exemption"
-              disabled={isRequestingBattery || isIgnoringBattery === true}
-              onPress={() => {
-                void handleRequestBatteryExemption();
-              }}
-              style={({ pressed }) => [
-                styles.deleteButton,
-                pressed ? styles.deleteButtonPressed : null,
-                isRequestingBattery || isIgnoringBattery === true
-                  ? styles.deleteButtonDisabled
-                  : null
-              ]}
-            >
-              <Text style={styles.deleteButtonLabel}>{batteryButtonLabel}</Text>
-            </Pressable>
+          <Text style={styles.sectionTitle}>Battery optimization</Text>
+          <Text style={styles.sectionNote}>
+            Keeps GPS recording alive in the background on devices that aggressively throttle apps.
+            Only needed if a recording is being stopped mid-activity.
+          </Text>
+          <View style={styles.diagnosticsRow}>
+            <Text style={styles.diagnosticsLabel}>Exempt from optimization</Text>
+            <Text style={styles.diagnosticsValue}>{batteryStatusText}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Request battery optimization exemption"
+            disabled={isRequestingBattery || isIgnoringBattery === true}
+            onPress={() => {
+              void handleRequestBatteryExemption();
+            }}
+            style={({ pressed }) => [
+              styles.deleteButton,
+              pressed ? styles.deleteButtonPressed : null,
+              isRequestingBattery || isIgnoringBattery === true ? styles.deleteButtonDisabled : null
+            ]}
+          >
+            <Text style={styles.deleteButtonLabel}>{batteryButtonLabel}</Text>
+          </Pressable>
 
-            <Text style={styles.sectionTitle}>Recording splits</Text>
-            <Text style={styles.sectionNote}>
-              Audio/haptic announcements at each split milestone. Distance is
-              always recorded; these toggles only control announcements.
-            </Text>
-            <View style={styles.diagnosticsRow}>
-              <Text style={styles.diagnosticsLabel}>Audio announcements</Text>
-              <Switch value={splitsAudioEnabled} onValueChange={handleToggleAudio} />
-            </View>
-            <View style={styles.diagnosticsRow}>
-              <Text style={styles.diagnosticsLabel}>Haptic feedback</Text>
-              <Switch value={splitsHapticEnabled} onValueChange={handleToggleHaptic} />
-            </View>
-            <Text style={styles.sectionNote}>Split interval</Text>
-            <View style={styles.chipsRow}>
-              {[500, 1000, 1609].map(value => (
-                <Pressable
-                  key={value}
-                  accessibilityRole="button"
-                  onPress={() => handleIntervalChange(value)}
-                  style={[
-                    styles.chip,
-                    splitsInterval === value ? styles.chipSelected : null
-                  ]}
-                >
-                  <Text style={styles.chipLabel}>
-                    {value === 1609 ? '1 mi' : `${value} m`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+          <Text style={styles.sectionTitle}>Recording splits</Text>
+          <Text style={styles.sectionNote}>
+            Audio/haptic announcements at each split milestone. Distance is always recorded; these
+            toggles only control announcements.
+          </Text>
+          <View style={styles.diagnosticsRow}>
+            <Text style={styles.diagnosticsLabel}>Audio announcements</Text>
+            <Switch value={splitsAudioEnabled} onValueChange={handleToggleAudio} />
+          </View>
+          <View style={styles.diagnosticsRow}>
+            <Text style={styles.diagnosticsLabel}>Haptic feedback</Text>
+            <Switch value={splitsHapticEnabled} onValueChange={handleToggleHaptic} />
+          </View>
+          <Text style={styles.sectionNote}>Split interval</Text>
+          <View style={styles.chipsRow}>
+            {[500, 1000, 1609].map(value => (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                onPress={() => handleIntervalChange(value)}
+                style={[styles.chip, splitsInterval === value ? styles.chipSelected : null]}
+              >
+                <Text style={styles.chipLabel}>{value === 1609 ? '1 mi' : `${value} m`}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>

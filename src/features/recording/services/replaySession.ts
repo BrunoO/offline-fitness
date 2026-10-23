@@ -326,8 +326,7 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
   // Swimming is exempt: open-water GPS speed is noisy and a swimmer's slow
   // laps would otherwise false-trigger auto-pause (and freeze moving time).
   const speed = computeSpeed(fix, ctx.lastAccepted, stepDistance);
-  const isAutoPaused =
-    ctx.isSwimming ? false : handleAutoPause(ctx, fix, speed);
+  const isAutoPaused = ctx.isSwimming ? false : handleAutoPause(ctx, fix, speed);
   if (isAutoPaused) {
     ctx.lastAccepted = fix;
     return;
