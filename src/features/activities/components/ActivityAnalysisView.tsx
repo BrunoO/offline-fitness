@@ -3,17 +3,7 @@ import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { Button, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 // Reverted: no gesture handler for chart zoom
 import {
   Activity,
@@ -29,7 +19,8 @@ import {
 } from '@/shared';
 import { exportData } from '@/shared/services/exportData';
 import { findSimilarActivitiesByTrack } from '@/shared/services/trackComparison';
-import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
+import { createChartTheme, useTheme } from '@/theme';
+import { createStyles } from './ActivityAnalysisView.styles';
 import {
   VictoryAxis,
   VictoryChart,
@@ -37,67 +28,6 @@ import {
   VictoryScatter,
   VictoryZoomContainer
 } from 'victory-native';
-
-const createStyles = (theme: ResolvedTheme) =>
-  StyleSheet.create({
-    similarActivitiesContainer: {
-      marginTop: 20,
-      padding: 10,
-      backgroundColor: theme.surfaceSunken,
-      borderRadius: 8
-    },
-    similarActivityItem: {
-      marginVertical: 10,
-      padding: 10,
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.22,
-          shadowRadius: 2.22
-        },
-        android: {
-          elevation: 3
-        }
-      })
-    },
-    similarActivityTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      marginBottom: 10
-    },
-    chip: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      backgroundColor: theme.primarySoft,
-      borderRadius: 16,
-      marginLeft: 8
-    },
-    chipText: {
-      fontSize: 12,
-      color: theme.primary,
-      fontWeight: '600'
-    },
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: theme.scrim,
-      justifyContent: 'flex-end'
-    },
-    modalCard: {
-      backgroundColor: theme.surface,
-      padding: 16,
-      borderTopLeftRadius: 12,
-      borderTopRightRadius: 12
-    },
-    modalRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 8
-    }
-  });
 
 /**
  * Formats a time value in hours to a string in the format "h:mm".
