@@ -1,6 +1,7 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { JSX, useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface RecordChooserSheetProps {
   readonly visible: boolean;
@@ -38,8 +39,14 @@ export function RecordChooserSheet({
           }}
           style={({ pressed }) => [styles.option, pressed ? styles.optionPressed : null]}
         >
-          <Text style={styles.optionTitle}>Record</Text>
-          <Text style={styles.optionHint}>Track a walk, hike, ride or swim with GPS.</Text>
+          <View style={styles.optionIcon}>
+            <Ionicons name="navigate" size={24} color={theme.primary} />
+          </View>
+          <View style={styles.optionBody}>
+            <Text style={styles.optionTitle}>Record</Text>
+            <Text style={styles.optionHint}>Track a walk, hike, ride or swim with GPS.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </Pressable>
 
         <Pressable
@@ -51,8 +58,14 @@ export function RecordChooserSheet({
           }}
           style={({ pressed }) => [styles.option, pressed ? styles.optionPressed : null]}
         >
-          <Text style={styles.optionTitle}>Enter manually</Text>
-          <Text style={styles.optionHint}>Log a session without a GPS track.</Text>
+          <View style={styles.optionIcon}>
+            <Ionicons name="create-outline" size={24} color={theme.primary} />
+          </View>
+          <View style={styles.optionBody}>
+            <Text style={styles.optionTitle}>Enter manually</Text>
+            <Text style={styles.optionHint}>Log a session without a GPS track.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </Pressable>
 
         <Pressable
@@ -94,12 +107,26 @@ const createStyles = (theme: ResolvedTheme) =>
       marginTop: 4
     },
     option: {
+      alignItems: 'center',
       backgroundColor: theme.surfaceAlt,
       borderColor: theme.border,
       borderRadius: 12,
       borderWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
       marginBottom: 12,
       padding: 16
+    },
+    optionIcon: {
+      alignItems: 'center',
+      backgroundColor: theme.primarySoft,
+      borderRadius: 10,
+      height: 44,
+      justifyContent: 'center',
+      width: 44
+    },
+    optionBody: {
+      flex: 1
     },
     optionPressed: {
       backgroundColor: theme.surfaceMuted

@@ -2,6 +2,7 @@ import { ResolvedTheme, useTheme } from '@/theme';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
 import type {
@@ -12,8 +13,8 @@ import type {
 } from '../services/gpsTracker';
 import { PROFILE_LABELS, PROFILES } from '../services/profiles';
 
-const SPACING = { xs: 4, sm: 8, md: 16, lg: 24 } as const;
-const RADIUS = { card: 12, pill: 24, chip: 16 } as const;
+const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
+const RADIUS = { card: 16, pill: 24, chip: 20, button: 14 } as const;
 const METERS_PER_KILOMETER = 1000;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -38,16 +39,31 @@ const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
 const availabilityText = (capabilities: GpsTrackerCapabilities | null): string =>
-  capabilities?.canRecord
-    ? 'Recording is available on this device.'
-    : 'Recording is Android-only in this build.';
+  capabilities?.canRecord ? 'Ready to record' : 'Recording is Android-only in this build.';
+
+const PHASE_LABEL: Record<string, string> = {
+  idle: 'Idle',
+  recording: 'Recording',
+  paused: 'Paused',
+  'stopped-unsaved': 'Stopped'
+};
+
+const gpsAccuracyColor = (meters: number, theme: ResolvedTheme): string => {
+  if (meters < 10) {
+    return theme.success;
+  }
+  if (meters < 25) {
+    return theme.warning ?? theme.textMuted;
+  }
+  return theme.danger;
+};
 
 /**
- * Phase 1 screen: the recorder driven end to end.
+ * Recording screen: profiles, live stats, save/discard flow.
  *
- * Deliberately plain - the real screen (profiles picker, save sheet, stats,
- * splits) replaces it in Phase 4, keeping this file's theme and JSX
- * conventions.
+ * Visual hierarchy: elapsed time is the hero metric, distance secondary,
+ * speed/altitude tertiary. Action buttons use colour to convey intent
+ * (primary = start/save, danger = stop/discard, secondary = pause/resume).
  */
 export function RecordingScreen(): JSX.Element {
   const theme = useTheme();
@@ -85,46 +101,65 @@ export function RecordingScreen(): JSX.Element {
     };
   }, [state.phase]);
 
+  const isLive = state.phase === 'recording' || state.phase === 'paused';
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.title, { marginTop: insets.top + SPACING.lg }]}>Record</Text>
-      <Text style={styles.subtitle}>{availabilityText(capabilities)}</Text>
+      <View style={[styles.header, { marginTop: insets.top + SPACING.md }]}>
+        <Text style={styles.title}>Record</Text>
+        <Text style={styles.subtitle}>{availabilityText(capabilities)}</Text>
+      </View>
 
       {unfinished.length > 0 ? (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Unfinished recording</Text>
+          <View style={styles.cardHeader}>
+            <Ionicons name="time-outline" size={18} color={theme.warning ?? theme.textMuted} />
+            <Text style={styles.cardLabel}>Unfinished recording</Text>
+          </View>
           {unfinished.map(session => (
             <View key={session.sessionId} style={styles.recoveryRow}>
-              <Text style={styles.cardHint}>
-                {session.profile} · {new Date(session.startedAtUtcMs).toLocaleString()}
-              </Text>
-              <View style={styles.actions}>
-                <ActionButton
-                  label="Discard"
-                  onPress={() => {
-                    void discardUnfinished(session.sessionId);
-                  }}
-                  styles={styles}
-                />
+              <View style={styles.recoveryInfo}>
+                <Text style={styles.recoveryTitle}>
+                  {PROFILE_LABELS[session.profile as Profile] ?? session.profile}
+                </Text>
+                <Text style={styles.cardHint}>
+                  {new Date(session.startedAtUtcMs).toLocaleString()}
+                </Text>
               </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Discard unfinished recording"
+                onPress={() => {
+                  void discardUnfinished(session.sessionId);
+                }}
+                style={({ pressed }) => [
+                  styles.dangerButton,
+                  pressed ? styles.buttonPressed : null
+                ]}
+              >
+                <Text style={styles.dangerButtonLabel}>Discard</Text>
+              </Pressable>
             </View>
           ))}
         </View>
       ) : null}
 
-      <SessionCard
-        phase={state.phase}
-        sessionId={state.sessionId}
-        liveStats={liveStats}
-        styles={styles}
-      />
+      <SessionCard phase={state.phase} liveStats={liveStats} styles={styles} theme={theme} />
+
       <LiveStatsCard liveStats={liveStats} styles={styles} />
 
       {state.phase === 'idle' ? (
         <ProfileCard profile={profile} onSelect={setProfile} styles={styles} />
+      ) : null}
+      {isLive && state.phase === 'recording' ? (
+        <View style={styles.profileBadge}>
+          <Ionicons name="walk-outline" size={16} color={theme.primary} />
+          <Text style={styles.profileBadgeLabel}>{PROFILE_LABELS[profile]}</Text>
+        </View>
       ) : null}
 
       <RecordingActions
@@ -147,23 +182,31 @@ export function RecordingScreen(): JSX.Element {
 
       {state.phase === 'stopped-unsaved' ? (
         <LastSessionCard
-          sessionId={state.sessionId ?? ''}
           summary={summary}
           onSave={save}
           onDiscard={discard}
           isSaving={isSaving}
           styles={styles}
+          theme={theme}
         />
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {error?.toLowerCase().includes('permission') ? (
-        <ActionButton
-          label="Open settings"
-          onPress={() => {
-            void Linking.openSettings();
-          }}
-          styles={styles}
-        />
+
+      {error ? (
+        <View style={styles.errorCard}>
+          <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
+          <Text style={styles.error}>{error}</Text>
+          {error.toLowerCase().includes('permission') ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void Linking.openSettings();
+              }}
+              style={styles.linkButton}
+            >
+              <Text style={styles.linkButtonLabel}>Open settings</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </ScrollView>
   );
@@ -173,30 +216,77 @@ type Styles = ReturnType<typeof createStyles>;
 
 interface SessionCardProps {
   readonly phase: string;
-  readonly sessionId?: string;
   readonly liveStats: LiveStats | null;
   readonly styles: Styles;
+  readonly theme: ResolvedTheme;
 }
 
-function SessionCard({ phase, sessionId, liveStats, styles }: SessionCardProps): JSX.Element {
+function phaseColorFor(phase: string, theme: ResolvedTheme): string {
+  if (phase === 'recording') {
+    return theme.success;
+  }
+  if (phase === 'paused') {
+    return theme.warning ?? theme.textMuted;
+  }
+  return theme.textMuted;
+}
+
+function GpsStatusRow({
+  liveStats,
+  phase,
+  styles,
+  theme
+}: {
+  readonly liveStats: LiveStats | null;
+  readonly phase: string;
+  readonly styles: Styles;
+  readonly theme: ResolvedTheme;
+}): JSX.Element | null {
+  if (liveStats?.gpsLost) {
+    return (
+      <View style={styles.gpsRow}>
+        <Ionicons name="location-outline" size={14} color={theme.danger} />
+        <Text style={[styles.cardHint, { color: theme.danger }]}>Waiting for GPS…</Text>
+      </View>
+    );
+  }
+  if (liveStats?.hAccM != null) {
+    const color = gpsAccuracyColor(liveStats.hAccM, theme);
+    return (
+      <View style={styles.gpsRow}>
+        <Ionicons name="locate-outline" size={14} color={color} />
+        <Text style={[styles.cardHint, { color }]}>
+          GPS: {Math.round(liveStats.hAccM)} m accuracy
+        </Text>
+      </View>
+    );
+  }
+  if (phase === 'recording') {
+    return (
+      <View style={styles.gpsRow}>
+        <Ionicons name="locate-outline" size={14} color={theme.textMuted} />
+        <Text style={styles.cardHint}>Acquiring GPS…</Text>
+      </View>
+    );
+  }
+  return null;
+}
+
+function SessionCard({ phase, liveStats, styles, theme }: SessionCardProps): JSX.Element {
+  const phaseColor = phaseColorFor(phase, theme);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.cardLabel}>Session</Text>
-      <Text style={styles.phase}>{phase}</Text>
-      {liveStats?.gpsLost ? <Text style={styles.cardHint}>Waiting for GPS…</Text> : null}
-      {liveStats?.gpsLost === false && liveStats.hAccM != null ? (
-        <Text style={styles.cardHint}>GPS: {Math.round(liveStats.hAccM)} m accuracy</Text>
-      ) : null}
-      {liveStats?.gpsLost === false && liveStats.hAccM == null && phase === 'recording' ? (
-        <Text style={styles.cardHint}>Acquiring GPS…</Text>
-      ) : null}
-      {sessionId ? <Text style={styles.cardHint}>{sessionId}</Text> : null}
-      {phase === 'stopped-unsaved' ? (
-        <Text style={styles.cardHint}>
-          The recording is on the device. Saving it into the activity list comes with the replay
-          (Phase 3).
-        </Text>
-      ) : null}
+      <View style={styles.sessionHeader}>
+        <View style={[styles.statusDot, { backgroundColor: phaseColor }]} />
+        <Text style={styles.phase}>{PHASE_LABEL[phase] ?? phase}</Text>
+        {phase === 'recording' ? (
+          <View style={styles.recordingPulse}>
+            <Ionicons name="radio-button-on" size={12} color={theme.danger} />
+          </View>
+        ) : null}
+      </View>
+      <GpsStatusRow liveStats={liveStats} phase={phase} styles={styles} theme={theme} />
     </View>
   );
 }
@@ -209,24 +299,28 @@ interface LiveStatsCardProps {
 function LiveStatsCard({ liveStats, styles }: LiveStatsCardProps): JSX.Element {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardLabel}>Live</Text>
+      <Text style={styles.cardLabel}>Live stats</Text>
+      <View style={styles.heroStat}>
+        <Text style={styles.heroValue}>
+          {liveStats ? formatElapsed(liveStats.elapsedSec) : '0:00'}
+        </Text>
+        <Text style={styles.heroLabel}>elapsed</Text>
+      </View>
       <View style={styles.tiles}>
         <StatTile
-          label="Time"
-          value={liveStats ? formatElapsed(liveStats.elapsedSec) : '—'}
-          styles={styles}
-        />
-        <StatTile
+          icon="map-outline"
           label="Distance"
           value={liveStats ? formatDistance(liveStats.distanceMeters) : '—'}
           styles={styles}
         />
         <StatTile
+          icon="speedometer-outline"
           label="Speed"
           value={formatSpeed(liveStats ? liveStats.currentSpeedMps : null)}
           styles={styles}
         />
         <StatTile
+          icon="trending-up-outline"
           label="Altitude"
           value={formatAltitude(liveStats ? liveStats.altitudeM : null)}
           styles={styles}
@@ -237,15 +331,19 @@ function LiveStatsCard({ liveStats, styles }: LiveStatsCardProps): JSX.Element {
 }
 
 interface StatTileProps {
+  readonly icon: string;
   readonly label: string;
   readonly value: string;
   readonly styles: Styles;
 }
 
-function StatTile({ label, value, styles }: StatTileProps): JSX.Element {
+function StatTile({ icon, label, value, styles }: StatTileProps): JSX.Element {
   return (
     <View style={styles.tile}>
-      <Text style={styles.tileLabel}>{label}</Text>
+      <View style={styles.tileHeader}>
+        <Ionicons name={icon as never} size={14} color={styles.tileLabel.color as string} />
+        <Text style={styles.tileLabel}>{label}</Text>
+      </View>
       <Text style={styles.tileValue}>{value}</Text>
     </View>
   );
@@ -260,7 +358,7 @@ interface ProfileCardProps {
 function ProfileCard({ profile, onSelect, styles }: ProfileCardProps): JSX.Element {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardLabel}>Profile</Text>
+      <Text style={styles.cardLabel}>Activity type</Text>
       <View style={styles.chips}>
         {PROFILES.map(candidate => {
           const isSelected = candidate === profile;
@@ -270,7 +368,11 @@ function ProfileCard({ profile, onSelect, styles }: ProfileCardProps): JSX.Eleme
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
               onPress={() => onSelect(candidate)}
-              style={[styles.chip, isSelected ? styles.chipSelected : null]}
+              style={({ pressed }) => [
+                styles.chip,
+                isSelected ? styles.chipSelected : null,
+                pressed ? styles.chipPressed : null
+              ]}
             >
               <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : null]}>
                 {PROFILE_LABELS[candidate]}
@@ -305,100 +407,155 @@ function RecordingActions({
   return (
     <View style={styles.actions}>
       {phase === 'idle' ? (
-        <ActionButton label="Start recording" onPress={onStart} disabled={isBusy} styles={styles} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start recording"
+          disabled={isBusy}
+          onPress={onStart}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            isBusy ? styles.buttonDisabled : null,
+            pressed && !isBusy ? styles.buttonPressed : null
+          ]}
+        >
+          <Ionicons name="play" size={20} color="#FFFFFF" />
+          <Text style={styles.primaryButtonLabel}>{isBusy ? 'Starting…' : 'Start recording'}</Text>
+        </Pressable>
       ) : null}
       {phase === 'recording' ? (
-        <ActionButton label="Pause" onPress={onPause} styles={styles} />
+        <View style={styles.actionRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pause recording"
+            onPress={onPause}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed ? styles.buttonPressedLight : null
+            ]}
+          >
+            <Ionicons name="pause" size={18} color={styles.secondaryButtonLabel.color as string} />
+            <Text style={styles.secondaryButtonLabel}>Pause</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Stop recording"
+            onPress={onStop}
+            style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
+          >
+            <Ionicons name="stop" size={18} color="#FFFFFF" />
+            <Text style={styles.dangerButtonLabel}>Stop</Text>
+          </Pressable>
+        </View>
       ) : null}
       {phase === 'paused' ? (
-        <ActionButton label="Resume" onPress={onResume} styles={styles} />
-      ) : null}
-      {phase === 'recording' || phase === 'paused' ? (
-        <ActionButton label="Stop recording" onPress={onStop} styles={styles} />
+        <View style={styles.actionRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Resume recording"
+            onPress={onResume}
+            style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
+          >
+            <Ionicons name="play" size={18} color="#FFFFFF" />
+            <Text style={styles.primaryButtonLabel}>Resume</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Stop recording"
+            onPress={onStop}
+            style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
+          >
+            <Ionicons name="stop" size={18} color="#FFFFFF" />
+            <Text style={styles.dangerButtonLabel}>Stop</Text>
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );
 }
 
 interface LastSessionCardProps {
-  readonly sessionId: string;
   readonly summary: RecordingSummary | null;
   readonly onSave: (name: string) => Promise<void>;
   readonly onDiscard: () => Promise<void>;
   readonly isSaving: boolean;
   readonly styles: Styles;
+  readonly theme: ResolvedTheme;
 }
 
 function LastSessionCard({
-  sessionId,
   summary,
   onSave,
   onDiscard,
   isSaving,
-  styles
+  styles,
+  theme
 }: LastSessionCardProps): JSX.Element {
   const [name, setName] = useState('');
+  const fixCount = summary?.meta.fixCount ?? 0;
+  const distanceKm = summary ? (summary.liveStats.distanceMeters / 1000).toFixed(2) : '—';
+  const duration = summary ? formatElapsed(summary.liveStats.elapsedSec) : '—';
+
   return (
     <View style={styles.card}>
-      <Text style={styles.cardLabel}>Last session</Text>
-      <Text style={styles.cardHint}>
-        {sessionId} · {summary?.meta.fixCount ?? 0} fixes
-      </Text>
-      <Text style={styles.cardHint} numberOfLines={2}>
-        {summary?.meta.logUri ?? ''}
-      </Text>
+      <View style={styles.cardHeader}>
+        <Ionicons name="checkmark-circle" size={18} color={theme.success} />
+        <Text style={styles.cardLabel}>Recording complete</Text>
+      </View>
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{fixCount}</Text>
+          <Text style={styles.summaryLabel}>fixes</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{distanceKm} km</Text>
+          <Text style={styles.summaryLabel}>distance</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{duration}</Text>
+          <Text style={styles.summaryLabel}>duration</Text>
+        </View>
+      </View>
       <TextInput
         value={name}
         onChangeText={setName}
-        placeholder="Activity name (optional)"
+        placeholder="Name this activity (optional)"
+        placeholderTextColor={theme.textMuted}
         style={styles.input}
       />
-      <View style={styles.actions}>
-        <ActionButton
-          label={isSaving ? 'Saving…' : 'Save as activity'}
+      <View style={styles.actionRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save as activity"
+          disabled={isSaving}
           onPress={() => {
             void onSave(name);
           }}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            isSaving ? styles.buttonDisabled : null,
+            pressed && !isSaving ? styles.buttonPressed : null
+          ]}
+        >
+          <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryButtonLabel}>{isSaving ? 'Saving…' : 'Save'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Discard recording"
           disabled={isSaving}
-          styles={styles}
-        />
-        <ActionButton
-          label="Discard"
           onPress={() => {
             void onDiscard();
           }}
-          disabled={isSaving}
-          styles={styles}
-        />
+          style={({ pressed }) => [
+            styles.dangerButton,
+            isSaving ? styles.buttonDisabled : null,
+            pressed && !isSaving ? styles.buttonPressed : null
+          ]}
+        >
+          <Text style={styles.dangerButtonLabel}>Discard</Text>
+        </Pressable>
       </View>
     </View>
-  );
-}
-
-interface ActionButtonProps {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly disabled?: boolean;
-  readonly styles: Styles;
-}
-
-function ActionButton({
-  label,
-  onPress,
-  disabled = false,
-  styles
-}: ActionButtonProps): JSX.Element {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed ? styles.buttonPressed : null]}
-    >
-      <Text style={styles.buttonLabel}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -408,17 +565,19 @@ const createStyles = (theme: ResolvedTheme) =>
       backgroundColor: theme.surface,
       flex: 1
     },
+    header: {
+      marginHorizontal: SPACING.lg,
+      marginBottom: SPACING.sm
+    },
     title: {
       color: theme.textStrong,
-      fontSize: 28,
-      fontWeight: '700',
-      marginHorizontal: SPACING.lg
+      fontSize: 30,
+      fontWeight: '800',
+      letterSpacing: -0.5
     },
     subtitle: {
       color: theme.textMuted,
-      fontSize: 15,
-      marginBottom: SPACING.lg,
-      marginHorizontal: SPACING.lg,
+      fontSize: 14,
       marginTop: SPACING.xs
     },
     card: {
@@ -430,22 +589,66 @@ const createStyles = (theme: ResolvedTheme) =>
       marginTop: SPACING.md,
       padding: SPACING.lg
     },
+    cardHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      marginBottom: SPACING.sm
+    },
     cardLabel: {
       color: theme.textMuted,
-      fontSize: 13,
-      letterSpacing: 0.4,
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.6,
       textTransform: 'uppercase'
+    },
+    sessionHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.sm
+    },
+    statusDot: {
+      borderRadius: 6,
+      height: 12,
+      width: 12
     },
     phase: {
       color: theme.text,
-      fontSize: 24,
-      fontWeight: '700',
-      marginTop: SPACING.sm
+      fontSize: 22,
+      fontWeight: '700'
+    },
+    recordingPulse: {
+      marginLeft: SPACING.xs
     },
     cardHint: {
       color: theme.textMuted,
       fontSize: 13,
       marginTop: SPACING.xs
+    },
+    gpsRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      marginTop: SPACING.xs
+    },
+    heroStat: {
+      alignItems: 'center',
+      marginBottom: SPACING.md,
+      marginTop: SPACING.sm
+    },
+    heroValue: {
+      color: theme.text,
+      fontVariant: ['tabular-nums'],
+      fontSize: 48,
+      fontWeight: '800',
+      letterSpacing: -1
+    },
+    heroLabel: {
+      color: theme.textMuted,
+      fontSize: 13,
+      fontWeight: '500',
+      marginTop: SPACING.xs,
+      textTransform: 'uppercase'
     },
     tiles: {
       flexDirection: 'row',
@@ -454,15 +657,22 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     tile: {
       marginBottom: SPACING.md,
-      width: '50%'
+      width: '33.33%'
+    },
+    tileHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      marginBottom: SPACING.xs
     },
     tileLabel: {
       color: theme.textMuted,
-      fontSize: 12
+      fontSize: 11,
+      fontWeight: '500'
     },
     tileValue: {
       color: theme.text,
-      fontSize: 20,
+      fontSize: 18,
       fontVariant: ['tabular-nums'],
       fontWeight: '600'
     },
@@ -478,15 +688,19 @@ const createStyles = (theme: ResolvedTheme) =>
       marginBottom: SPACING.sm,
       marginRight: SPACING.sm,
       paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.xs
+      paddingVertical: SPACING.sm
     },
     chipSelected: {
       backgroundColor: theme.primarySoft,
       borderColor: theme.primary
     },
+    chipPressed: {
+      opacity: 0.7
+    },
     chipLabel: {
       color: theme.text,
-      fontSize: 14
+      fontSize: 14,
+      fontWeight: '500'
     },
     chipLabelSelected: {
       color: theme.textStrong,
@@ -495,6 +709,80 @@ const createStyles = (theme: ResolvedTheme) =>
     actions: {
       marginHorizontal: SPACING.lg,
       marginTop: SPACING.lg
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      marginHorizontal: SPACING.lg,
+      marginTop: SPACING.lg
+    },
+    primaryButton: {
+      alignItems: 'center',
+      backgroundColor: theme.primary,
+      borderRadius: RADIUS.button,
+      flex: 1,
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      justifyContent: 'center',
+      paddingVertical: SPACING.md
+    },
+    primaryButtonLabel: {
+      color: theme.onPrimary,
+      fontSize: 16,
+      fontWeight: '700'
+    },
+    secondaryButton: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: RADIUS.button,
+      borderWidth: 1,
+      flex: 1,
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      justifyContent: 'center',
+      paddingVertical: SPACING.md
+    },
+    secondaryButtonLabel: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '600'
+    },
+    dangerButton: {
+      alignItems: 'center',
+      backgroundColor: theme.danger,
+      borderRadius: RADIUS.button,
+      flex: 1,
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      justifyContent: 'center',
+      paddingVertical: SPACING.md
+    },
+    dangerButtonLabel: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700'
+    },
+    buttonDisabled: {
+      opacity: 0.5
+    },
+    buttonPressed: {
+      opacity: 0.85
+    },
+    buttonPressedLight: {
+      backgroundColor: theme.surfaceMuted
+    },
+    button: {
+      alignItems: 'center',
+      backgroundColor: theme.primary,
+      borderRadius: RADIUS.pill,
+      marginTop: SPACING.sm,
+      paddingVertical: SPACING.md
+    },
+    buttonLabel: {
+      color: theme.onPrimary,
+      fontSize: 16,
+      fontWeight: '700'
     },
     input: {
       borderColor: theme.border,
@@ -505,28 +793,79 @@ const createStyles = (theme: ResolvedTheme) =>
       paddingHorizontal: SPACING.md,
       paddingVertical: SPACING.sm
     },
-    button: {
+    profileBadge: {
       alignItems: 'center',
-      backgroundColor: theme.primary,
-      borderRadius: RADIUS.pill,
-      marginTop: SPACING.sm,
-      paddingVertical: SPACING.md
+      alignSelf: 'flex-start',
+      backgroundColor: theme.primarySoft,
+      borderRadius: RADIUS.chip,
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      marginHorizontal: SPACING.lg,
+      marginTop: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.xs
     },
-    buttonPressed: {
-      backgroundColor: theme.primaryPressed
-    },
-    buttonLabel: {
-      color: theme.onPrimary,
-      fontSize: 16,
-      fontWeight: '700'
+    profileBadgeLabel: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '600'
     },
     recoveryRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       marginTop: SPACING.sm
+    },
+    recoveryInfo: {
+      flex: 1
+    },
+    recoveryTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '600'
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginTop: SPACING.md
+    },
+    summaryItem: {
+      alignItems: 'center'
+    },
+    summaryValue: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: '700'
+    },
+    summaryLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      marginTop: SPACING.xs
+    },
+    errorCard: {
+      alignItems: 'center',
+      backgroundColor: theme.dangerSoft,
+      borderColor: theme.danger,
+      borderRadius: RADIUS.card,
+      borderWidth: 1,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+      marginHorizontal: SPACING.lg,
+      marginTop: SPACING.md,
+      padding: SPACING.md
     },
     error: {
       color: theme.danger,
+      flex: 1,
+      fontSize: 14
+    },
+    linkButton: {
+      marginTop: SPACING.xs
+    },
+    linkButtonLabel: {
+      color: theme.primary,
       fontSize: 14,
-      marginHorizontal: SPACING.lg,
-      marginTop: SPACING.md
+      fontWeight: '600'
     }
   });

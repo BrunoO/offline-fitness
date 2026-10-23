@@ -1,6 +1,6 @@
 import { simpleLogger } from '@/shared';
 import { useActivitiesContext } from '@/features/activities';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listUnfinishedSessions, readFixLog } from '../services/fixLog';
 import type {
   RecordingMeta,
@@ -62,6 +62,12 @@ export function useRecording(): UseRecordingResult {
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
+  // Mirrors `summary` so the state listener (a long-lived closure) can decide
+  // whether the summary still needs loading without re-subscribing.
+  const summaryRef = useRef<RecordingSummary | null>(null);
+  useEffect(() => {
+    summaryRef.current = summary;
+  }, [summary]);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -136,7 +142,40 @@ export function useRecording(): UseRecordingResult {
     let locationSubscription: { remove: () => void } | null = null;
 
     try {
-      stateSubscription = gpsTrackerEvents.addStateListener(nextState => setState(nextState));
+      stateSubscription = gpsTrackerEvents.addStateListener(nextState => {
+        setState(nextState);
+        // A stop triggered from outside the app (e.g. the notification's
+        // "Stop" button) still moves the session to stopped-unsaved, but the
+        // hook never called GpsTracker.stopRecording(), so the summary is
+        // missing. Load it from disk so the LastSessionCard and the dev-only
+        // shadow comparison keep working.
+        if (
+          nextState.phase === 'stopped-unsaved' &&
+          nextState.sessionId !== undefined &&
+          summaryRef.current === null
+        ) {
+          void (async () => {
+            try {
+              const meta = await GpsTracker.getSessionMeta(nextState.sessionId!);
+              if (summaryRef.current === null) {
+                setSummary({
+                  meta,
+                  liveStats: {
+                    elapsedSec: 0,
+                    distanceMeters: 0,
+                    currentSpeedMps: null,
+                    altitudeM: null,
+                    gpsLost: false,
+                    hAccM: null
+                  }
+                });
+              }
+            } catch (cause: unknown) {
+              simpleLogger.error('Could not load the stopped session', cause);
+            }
+          })();
+        }
+      });
       locationSubscription = gpsTrackerEvents.addLocationListener(update => {
         setLiveStats({
           elapsedSec: update.elapsedSec,

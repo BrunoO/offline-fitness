@@ -88,6 +88,24 @@ class TrackingService : Service() {
      * exists. `START_STICKY` keeps the service alive across a process kill.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Notification action buttons (pause/resume/stop from the shade) arrive
+        // here as service intents. Handle them before the foreground-start path
+        // so they act on the running session instead of (re)starting the
+        // foreground notification.
+        when (intent?.action) {
+            ACTION_PAUSE -> {
+                pauseRecording()
+                return START_STICKY
+            }
+            ACTION_RESUME -> {
+                resumeRecording()
+                return START_STICKY
+            }
+            ACTION_STOP -> {
+                stopRecording()
+                return START_NOT_STICKY
+            }
+        }
         val phase = TrackingSession.phase
         if (phase == RecordingPhase.RECORDING || phase == RecordingPhase.PAUSED) {
             startForegroundNotification(notificationTitle(), notificationContent())
@@ -452,7 +470,7 @@ class TrackingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
@@ -460,7 +478,43 @@ class TrackingService : Service() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(Notification.CATEGORY_WORKOUT)
-            .build()
+
+        // Action buttons reflect the current session phase. The phase is the
+        // single source of truth (TrackingSession), so the shade stays in sync
+        // with the in-app UI through updateNotification().
+        val phase = TrackingSession.phase
+        if (phase == RecordingPhase.RECORDING) {
+            val pauseIntent = Intent(this, TrackingService::class.java).apply { action = ACTION_PAUSE }
+            val pausePending = PendingIntent.getService(
+                this,
+                REQUEST_CODE_PAUSE,
+                pauseIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(android.R.drawable.ic_media_pause, "Pause", pausePending)
+        } else if (phase == RecordingPhase.PAUSED) {
+            val resumeIntent = Intent(this, TrackingService::class.java).apply { action = ACTION_RESUME }
+            val resumePending = PendingIntent.getService(
+                this,
+                REQUEST_CODE_RESUME,
+                resumeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(android.R.drawable.ic_media_play, "Resume", resumePending)
+        }
+
+        if (phase == RecordingPhase.RECORDING || phase == RecordingPhase.PAUSED) {
+            val stopIntent = Intent(this, TrackingService::class.java).apply { action = ACTION_STOP }
+            val stopPending = PendingIntent.getService(
+                this,
+                REQUEST_CODE_STOP,
+                stopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(android.R.drawable.ic_delete, "Stop", stopPending)
+        }
+
+        return builder.build()
     }
 
     private fun startForegroundNotification(title: String, content: String) {
@@ -525,6 +579,19 @@ class TrackingService : Service() {
     companion object {
         const val CHANNEL_ID = "gps-recording"
         const val NOTIFICATION_ID = 4201
+
+        // Intent actions delivered to onStartCommand by the notification's
+        // action buttons. Kept as fully-qualified strings so they cannot
+        // collide with any other component's actions.
+        const val ACTION_PAUSE = "com.gpslib.tracker.action.PAUSE"
+        const val ACTION_RESUME = "com.gpslib.tracker.action.RESUME"
+        const val ACTION_STOP = "com.gpslib.tracker.action.STOP"
+
+        // Distinct request codes so PendingIntent.getService does not reuse
+        // the same pending intent for different actions.
+        private const val REQUEST_CODE_PAUSE = 101
+        private const val REQUEST_CODE_RESUME = 102
+        private const val REQUEST_CODE_STOP = 103
 
         private const val META_WRITE_INTERVAL_MS = 5000L
         private const val NOTIFICATION_INTERVAL_MS = 5000L

@@ -215,6 +215,32 @@ export const loadMostRecentStream = async (): Promise<ActivityStream | null> => 
  * @param allActivities The activities to get the streams for.
  * @returns A promise that resolves to an array of enriched activities.
  */
+const loadOneActivityStream = async (
+  activity: Activity,
+  folder: Directory
+): Promise<ActivityWithStream | null> => {
+  const binFile = new File(folder, `${activity.id}.bin`);
+  const jsonFile = new File(folder, `${activity.id}.json`);
+  const file = binFile.exists ? binFile : jsonFile;
+  if (!file.exists) {
+    return null;
+  }
+  try {
+    const stream = await readStreamFile<StreamSet>(file); // NOSONAR - sequential disk read avoids OOM on large sets
+    const compressedStream = compressStreamSet(stream);
+    if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
+      activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
+      if (activity.bounding_box) {
+        await storeActivity(activity); // NOSONAR - sequential persistence avoids storage bridge congestion
+      }
+    }
+    return { activity, streamSet: compressedStream };
+  } catch (error) {
+    simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
+    return null;
+  }
+};
+
 export const getActivityStreams = async (allActivities: Activity[]) => {
   const activityStreams: ActivityWithStream[] = [];
   const folder = streamsFolder();
@@ -223,24 +249,9 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
   }
 
   for (const activity of allActivities) {
-    const binFile = new File(folder, `${activity.id}.bin`);
-    const jsonFile = new File(folder, `${activity.id}.json`);
-    const file = binFile.exists ? binFile : jsonFile;
-
-    if (file.exists) {
-      try {
-        const stream = await readStreamFile<StreamSet>(file); // NOSONAR - sequential disk read avoids OOM on large sets
-        const compressedStream = compressStreamSet(stream);
-        if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
-          activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
-          if (activity.bounding_box) {
-            await storeActivity(activity); // NOSONAR - sequential persistence avoids storage bridge congestion
-          }
-        }
-        activityStreams.push({ activity, streamSet: compressedStream });
-      } catch (error) {
-        simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
-      }
+    const result = await loadOneActivityStream(activity, folder); // NOSONAR - sequential disk read avoids OOM on large sets
+    if (result) {
+      activityStreams.push(result);
     }
   }
 
