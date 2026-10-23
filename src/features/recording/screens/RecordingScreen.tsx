@@ -121,10 +121,11 @@ export function RecordingScreen(): JSX.Element {
       contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.header, { marginTop: insets.top + SPACING.md }]}>
-        <Text style={styles.title}>Record</Text>
-        <Text style={styles.subtitle}>{availabilityText(capabilities)}</Text>
-      </View>
+      {state.phase === 'idle' ? (
+        <Text style={[styles.subtitle, { marginTop: insets.top + SPACING.md, marginHorizontal: SPACING.lg }]}>
+          {availabilityText(capabilities)}
+        </Text>
+      ) : null}
 
       {unfinished.length > 0 ? (
         <View style={styles.card}>
