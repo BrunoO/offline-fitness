@@ -39,6 +39,8 @@ export function SettingsModal({
   const [sessionCount, setSessionCount] = React.useState(0);
   const [storageSize, setStorageSize] = React.useState(0);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isIgnoringBattery, setIsIgnoringBattery] = React.useState<boolean | null>(null);
+  const [isRequestingBattery, setIsRequestingBattery] = React.useState(false);
 
   // Load recording diagnostics when the modal opens.
   React.useEffect(() => {
@@ -48,9 +50,11 @@ export function SettingsModal({
       try {
         const sessions = await GpsTracker.listSessions();
         const size = await GpsTracker.getStorageSize();
+        const caps = await GpsTracker.getCapabilities();
         if (isMounted) {
           setSessionCount(sessions.length);
           setStorageSize(size);
+          setIsIgnoringBattery(caps.canExemptBattery);
         }
       } catch (_cause) {
         // The module may be unavailable (iOS stub, stale dev client).
@@ -72,6 +76,20 @@ export function SettingsModal({
       // ignore
     }
     setIsDeleting(false);
+  }, []);
+
+  const handleRequestBatteryExemption = React.useCallback(async () => {
+    setIsRequestingBattery(true);
+    try {
+      const granted = await GpsTracker.requestIgnoreBatteryOptimization();
+      if (granted) {
+        const caps = await GpsTracker.getCapabilities();
+        setIsIgnoringBattery(caps.canExemptBattery);
+      }
+    } catch (_cause) {
+      // ignore — module may be unavailable
+    }
+    setIsRequestingBattery(false);
   }, []);
 
   // Don't mount the form while it is closed. On Android `Modal` already
@@ -154,6 +172,41 @@ export function SettingsModal({
               </Text>
             </Pressable>
           </ScrollView>
+
+            <Text style={styles.sectionTitle}>Battery optimization</Text>
+            <Text style={styles.sectionNote}>
+              Keeps GPS recording alive in the background on devices that aggressively
+              throttle apps. Only needed if a recording is being stopped mid-activity.
+            </Text>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Exempt from optimization</Text>
+              <Text style={styles.diagnosticsValue}>
+                {isIgnoringBattery === null ? '—' : isIgnoringBattery ? 'Yes' : 'No'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Request battery optimization exemption"
+              disabled={isRequestingBattery || isIgnoringBattery === true}
+              onPress={() => {
+                void handleRequestBatteryExemption();
+              }}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed ? styles.deleteButtonPressed : null,
+                isRequestingBattery || isIgnoringBattery === true
+                  ? styles.deleteButtonDisabled
+                  : null
+              ]}
+            >
+              <Text style={styles.deleteButtonLabel}>
+                {isRequestingBattery
+                  ? 'Opening settings…'
+                  : isIgnoringBattery
+                    ? 'Already exempt'
+                    : 'Request exemption'}
+              </Text>
+            </Pressable>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>

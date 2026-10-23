@@ -23,6 +23,10 @@ public class GpsTrackerModule: Module {
       ]
     }
 
+    AsyncFunction("requestIgnoreBatteryOptimization") { () -> Bool in
+      false
+    }
+
     AsyncFunction("startRecording") { (_ options: [String: Any]) -> [String: Any] in
       throw RecordingUnavailableException()
     }
