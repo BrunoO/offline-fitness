@@ -83,6 +83,7 @@ export function RecordingScreen(): JSX.Element {
     state,
     liveStats,
     summary,
+    lastSplit,
     error,
     isBusy,
     isSaving,
@@ -93,6 +94,7 @@ export function RecordingScreen(): JSX.Element {
     stop,
     save,
     discard,
+    splitNow,
     discardUnfinished
   } = useRecording();
   const [profile, setProfile] = useState<Profile>('walking');
@@ -170,6 +172,16 @@ export function RecordingScreen(): JSX.Element {
         styles={styles}
       />
 
+      {lastSplit ? (
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Last split</Text>
+          <Text style={styles.cardHint}>
+            #{lastSplit.splitNumber} · {(lastSplit.splitDistanceMeters / 1000).toFixed(2)} km · pace{' '}
+            {lastSplit.paceFormatted} /km
+          </Text>
+        </View>
+      ) : null}
+
       {state.phase === 'idle' ? (
         <ProfileCard profile={profile} onSelect={setProfile} styles={styles} />
       ) : null}
@@ -194,6 +206,9 @@ export function RecordingScreen(): JSX.Element {
         }}
         onStop={() => {
           void stop();
+        }}
+        onSplitNow={() => {
+          void splitNow();
         }}
         styles={styles}
       />
@@ -449,6 +464,7 @@ interface RecordingActionsProps {
   readonly onPause: () => void;
   readonly onResume: () => void;
   readonly onStop: () => void;
+  readonly onSplitNow: () => void;
   readonly styles: Styles;
 }
 
@@ -459,6 +475,7 @@ function RecordingActions({
   onPause,
   onResume,
   onStop,
+  onSplitNow,
   styles
 }: RecordingActionsProps): JSX.Element {
   return (
@@ -492,6 +509,15 @@ function RecordingActions({
           >
             <Ionicons name="pause" size={18} color={styles.secondaryButtonLabel.color as string} />
             <Text style={styles.secondaryButtonLabel}>Pause</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Split now"
+            onPress={onSplitNow}
+            style={({ pressed }) => [styles.secondaryButton, pressed ? styles.buttonPressed : null]}
+          >
+            <Ionicons name="flag-outline" size={18} color={styles.secondaryButtonLabel.color as string} />
+            <Text style={styles.secondaryButtonLabel}>Split now</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"

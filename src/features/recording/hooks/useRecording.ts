@@ -14,6 +14,8 @@ import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import { buildRecordedActivity } from '../services/buildRecordedActivity';
 import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
 import { replaySession } from '../services/replaySession';
+import { SplitDetector } from '../services/splits';
+import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
 import { writeStreamFile } from '../services/writeStreamFile';
 
@@ -26,6 +28,7 @@ export interface UseRecordingResult {
   state: RecordingState;
   liveStats: LiveStats | null;
   summary: RecordingSummary | null;
+  lastSplit: SplitEvent | null;
   error: string | null;
   isBusy: boolean;
   isSaving: boolean;
@@ -37,6 +40,7 @@ export interface UseRecordingResult {
   stop: () => Promise<void>;
   save: (name: string) => Promise<void>;
   discard: () => Promise<void>;
+  splitNow: () => void;
 }
 
 const describeError = (cause: unknown, fallback: string): string => {
@@ -62,9 +66,11 @@ export function useRecording(): UseRecordingResult {
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
+  const [lastSplit, setLastSplit] = useState<SplitEvent | null>(null);
   // Mirrors `summary` so the state listener (a long-lived closure) can decide
   // whether the summary still needs loading without re-subscribing.
   const summaryRef = useRef<RecordingSummary | null>(null);
+  const splitDetectorRef = useRef<SplitDetector | null>(null);
   useEffect(() => {
     summaryRef.current = summary;
   }, [summary]);
@@ -185,6 +191,13 @@ export function useRecording(): UseRecordingResult {
           gpsLost: update.gpsLost,
           hAccM: update.hAccM
         });
+        const detector = splitDetectorRef.current;
+        if (detector) {
+          const event = detector.checkSplit(update.distanceMeters, update.elapsedSec * 1000);
+          if (event) {
+            setLastSplit(event);
+          }
+        }
       });
     } catch (cause: unknown) {
       // The capabilities effect already reports a missing module.
@@ -214,6 +227,8 @@ export function useRecording(): UseRecordingResult {
           profile,
           capture: PROFILE_CAPTURE_OPTIONS[profile]
         });
+        splitDetectorRef.current = new SplitDetector();
+        setLastSplit(null);
         setState({
           phase: 'recording',
           sessionId: meta.sessionId,
@@ -254,6 +269,7 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       const nextSummary = await GpsTracker.stopRecording();
+      splitDetectorRef.current = null;
       setSummary(nextSummary);
     } catch (cause: unknown) {
       simpleLogger.error('Could not stop recording', cause);
@@ -307,6 +323,7 @@ export function useRecording(): UseRecordingResult {
         setSummary(null);
         setState(IDLE_STATE);
         setLiveStats(null);
+        setLastSplit(null);
       } catch (cause: unknown) {
         simpleLogger.error('Could not save recording', cause);
         setError(describeError(cause, 'Could not save the recording.'));
@@ -317,6 +334,15 @@ export function useRecording(): UseRecordingResult {
     [state.sessionId, summary, addActivity]
   );
 
+  const splitNow = useCallback(() => {
+    const detector = splitDetectorRef.current;
+    const stats = liveStats;
+    if (detector && stats) {
+      const event = detector.forceSplit(stats.distanceMeters, stats.elapsedSec * 1000);
+      setLastSplit(event);
+    }
+  }, [liveStats]);
+
   const discard = useCallback(async () => {
     const sessionId = state.sessionId;
     if (sessionId === undefined) {
@@ -326,9 +352,11 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       await GpsTracker.discardSession(sessionId);
+      splitDetectorRef.current = null;
       setSummary(null);
       setState(IDLE_STATE);
       setLiveStats(null);
+      setLastSplit(null);
     } catch (cause: unknown) {
       simpleLogger.error('Could not discard recording', cause);
       setError(describeError(cause, 'Could not discard the recording.'));
@@ -349,6 +377,7 @@ export function useRecording(): UseRecordingResult {
     state,
     liveStats,
     summary,
+    lastSplit,
     error,
     isBusy,
     isSaving,
@@ -359,6 +388,7 @@ export function useRecording(): UseRecordingResult {
     resume,
     stop,
     save,
-    discard
+    discard,
+    splitNow
   };
 }
