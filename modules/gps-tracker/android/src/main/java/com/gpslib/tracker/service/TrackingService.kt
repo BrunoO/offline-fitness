@@ -299,7 +299,7 @@ class TrackingService : Service() {
             elapsedSec = elapsedSeconds(meta, now),
             distanceMeters = distanceMeters,
             currentSpeedMps = if (location.hasSpeed()) location.speed else null,
-            altitudeM = sample?.rawAltitudeMeters,
+            altitudeM = sample?.mslAltitudeMeters ?: sample?.rawAltitudeMeters,
             gpsLost = gpsLost,
             hAccM = if (location.hasAccuracy()) location.accuracy else null
         )
@@ -309,7 +309,7 @@ class TrackingService : Service() {
                 t = fixTime,
                 lat = location.latitude,
                 lon = location.longitude,
-                eleM = sample?.rawAltitudeMeters,
+                eleM = sample?.mslAltitudeMeters ?: sample?.rawAltitudeMeters,
                 speedMps = liveStats.currentSpeedMps,
                 elapsedSec = liveStats.elapsedSec,
                 distanceMeters = liveStats.distanceMeters,
