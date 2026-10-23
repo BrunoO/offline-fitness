@@ -11,6 +11,8 @@ export interface GpsTrackerCapabilities {
   canRecord: boolean;
   hasBarometer: boolean;
   canExemptBattery: boolean;
+  canSpeak: boolean;
+  canVibrate: boolean;
 }
 
 export type Profile = 'walking' | 'running' | 'hiking' | 'cycling' | 'swimming';

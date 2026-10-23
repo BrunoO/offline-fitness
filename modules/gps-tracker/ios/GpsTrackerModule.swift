@@ -19,12 +19,22 @@ public class GpsTrackerModule: Module {
       [
         "canRecord": false,
         "hasBarometer": false,
-        "canExemptBattery": false
+        "canExemptBattery": false,
+        "canSpeak": false,
+        "canVibrate": false
       ]
     }
 
     AsyncFunction("requestIgnoreBatteryOptimization") { () -> Bool in
       false
+    }
+
+    AsyncFunction("speak") { (_ text: String) in
+      // No-op on iOS.
+    }
+
+    AsyncFunction("vibrate") {
+      // No-op on iOS.
     }
 
     AsyncFunction("startRecording") { (_ options: [String: Any]) -> [String: Any] in

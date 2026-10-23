@@ -11,6 +11,8 @@ import type {
 
 interface GpsTrackerNativeModule {
   getCapabilities(): Promise<GpsTrackerCapabilities>;
+  speak(text: string): Promise<void>;
+  vibrate(): Promise<void>;
   requestIgnoreBatteryOptimization(): Promise<boolean>;
   startRecording(options: RecordingOptions): Promise<RecordingMeta>;
   pauseRecording(): Promise<void>;
@@ -47,6 +49,8 @@ const loadNativeModule = (): GpsTrackerNativeModule => {
 
 export const GpsTracker = {
   getCapabilities: (): Promise<GpsTrackerCapabilities> => loadNativeModule().getCapabilities(),
+  speak: (text: string): Promise<void> => loadNativeModule().speak(text),
+  vibrate: (): Promise<void> => loadNativeModule().vibrate(),
   requestIgnoreBatteryOptimization: (): Promise<boolean> =>
     loadNativeModule().requestIgnoreBatteryOptimization(),
   startRecording: (options: RecordingOptions): Promise<RecordingMeta> =>

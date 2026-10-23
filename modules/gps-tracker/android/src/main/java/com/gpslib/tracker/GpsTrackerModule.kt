@@ -11,6 +11,15 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import java.util.Locale
 import androidx.core.content.ContextCompat
 import com.gpslib.tracker.capture.CaptureOptions
 import com.gpslib.tracker.capture.RecordingOptions
@@ -45,6 +54,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * binding is what replaced it.
  */
 class GpsTrackerModule : Module() {
+    private var tts: TextToSpeech? = null
+    private var isTtsReady = false
+    private var pendingSpeech: String? = null
+    private val audioManager by lazy {
+        appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     private val stateListener = object : TrackingSession.Listener {
         override fun onStateChanged(state: RecordingState) {
@@ -74,7 +90,9 @@ class GpsTrackerModule : Module() {
             mapOf(
                 "canRecord" to true,
                 "hasBarometer" to hasBarometer(context),
-                "canExemptBattery" to isIgnoringBatteryOptimizations(context)
+                "canExemptBattery" to isIgnoringBatteryOptimizations(context),
+                "canSpeak" to true,
+                "canVibrate" to hasVibrator(context)
             )
         }
 
@@ -111,6 +129,32 @@ class GpsTrackerModule : Module() {
                     promise.reject(error.toCodedException())
                 }
             }
+        }
+
+        AsyncFunction("speak") { text: String, promise: Promise ->
+            val context = appContext.reactContext
+            if (context == null) {
+                promise.reject(Exceptions.ReactContextLost())
+                return@AsyncFunction
+            }
+            ensureTts(context)
+            if (isTtsReady && tts != null) {
+                doSpeak(text)
+                promise.resolve()
+            } else {
+                pendingSpeech = text
+                promise.resolve()
+            }
+        }
+
+        AsyncFunction("vibrate") { promise: Promise ->
+            val context = appContext.reactContext
+            if (context == null) {
+                promise.reject(Exceptions.ReactContextLost())
+                return@AsyncFunction
+            }
+            doVibrate(context)
+            promise.resolve()
         }
 
         AsyncFunction("startRecording") { options: RecordingOptionsRecord, promise: Promise ->
@@ -268,6 +312,116 @@ class GpsTrackerModule : Module() {
         } catch (error: Throwable) {
             promise.reject(error.toCodedException())
         }
+    }
+
+    private fun ensureTts(context: Context) {
+        if (tts != null) return
+        try {
+            tts = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val engine = tts
+                    val targetLocale = Locale.getDefault()
+                    val result = engine?.setLanguage(targetLocale)
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        engine?.language = Locale.US
+                    }
+                    engine?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+                        override fun onDone(utteranceId: String?) { releaseAudioFocus() }
+                        override fun onError(utteranceId: String?) { releaseAudioFocus() }
+                    })
+                    isTtsReady = true
+                    pendingSpeech?.let { text ->
+                        doSpeak(text)
+                        pendingSpeech = null
+                    }
+                } else {
+                    isTtsReady = false
+                }
+            }
+        } catch (_: Exception) {
+            isTtsReady = false
+        }
+    }
+
+    private fun doSpeak(text: String) {
+        val engine = tts ?: return
+        if (!isTtsReady) return
+        requestAudioFocus()
+        try {
+            val params = android.os.Bundle().apply {
+                putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_NOTIFICATION)
+            }
+            engine.speak(text, TextToSpeech.QUEUE_ADD, params, "offline_fitness_split")
+        } catch (_: Exception) {
+            releaseAudioFocus()
+        }
+    }
+
+    private fun doVibrate(context: Context) {
+        val vibrator: Vibrator? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vm?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+        vibrator?.let { vib ->
+            if (!vib.hasVibrator()) return@let
+            try {
+                val pattern = longArrayOf(0, 150, 100, 150)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vib.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vib.vibrate(pattern, -1)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun requestAudioFocus() {
+        val am = audioManager ?: return
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(attrs)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { }
+                    .build()
+                audioFocusRequest = req
+                am.requestAudioFocus(req)
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(null, AudioManager.STREAM_NOTIFICATION, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun releaseAudioFocus() {
+        val am = audioManager ?: return
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { am.abandonAudioFocusRequest(it); audioFocusRequest = null }
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun hasVibrator(context: Context): Boolean {
+        val vib = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+        return vib?.hasVibrator() ?: false
     }
 
     private fun storage(): SessionStorage {
