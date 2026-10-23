@@ -2,6 +2,8 @@ import { PROFILE_FILTER_OPTIONS } from './profiles';
 import type { FilterOptions } from './profiles';
 import type { FixLogEntry, Profile, RecordingMeta } from './gpsTracker';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
+import { SplitDetector } from './splits';
+import type { SplitEvent } from './splits';
 
 const BARO_WEIGHT_GPS = 0.7;
 const BARO_WEIGHT_BARO = 0.3;
@@ -31,6 +33,7 @@ export interface ReplayResult {
   rejected: { index: number; reason: string }[];
   skipped: number;
   recovered: boolean;
+  splits: SplitEvent[];
 }
 
 interface AltitudeState {
@@ -63,6 +66,8 @@ interface ReplayContext {
   belowThresholdSince: number | null;
   autoPausedSince: number | null;
   autoPauseGaps: { startMs: number; endMs: number }[];
+  splits: SplitEvent[];
+  splitDetector: SplitDetector;
 }
 
 function createAltitudeState(): AltitudeState {
@@ -358,6 +363,14 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
     ctx.maxSpeedMps = fixSpeed;
   }
 
+  const splitEvent = ctx.splitDetector.checkSplit(
+    ctx.distanceMeters,
+    fix.t - ctx.meta.startedAtUtcMs
+  );
+  if (splitEvent) {
+    ctx.splits.push(splitEvent);
+  }
+
   ctx.lastAccepted = fix;
 }
 
@@ -410,7 +423,9 @@ export function replaySession(
     currentSegmentStart: null,
     belowThresholdSince: null,
     autoPausedSince: null,
-    autoPauseGaps: []
+    autoPauseGaps: [],
+    splits: [],
+    splitDetector: new SplitDetector({ audioEnabled: false, hapticEnabled: false })
   };
 
   for (let i = 0; i < fixes.length; i++) {
@@ -468,6 +483,7 @@ export function replaySession(
     },
     rejected: ctx.rejected,
     skipped,
-    recovered: meta.endedAtUtcMs == null
+    recovered: meta.endedAtUtcMs == null,
+    splits: ctx.splits
   };
 }
