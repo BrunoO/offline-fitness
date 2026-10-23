@@ -318,8 +318,11 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
   // Auto-pause is checked before the filter, like the legacy service: a
   // stationary run is detected from the incoming fix even when the fix itself
   // is later rejected for distance or accuracy.
+  // Swimming is exempt: open-water GPS speed is noisy and a swimmer's slow
+  // laps would otherwise false-trigger auto-pause (and freeze moving time).
   const speed = computeSpeed(fix, ctx.lastAccepted, stepDistance);
-  const isAutoPaused = handleAutoPause(ctx, fix, speed);
+  const isAutoPaused =
+    ctx.isSwimming ? false : handleAutoPause(ctx, fix, speed);
   if (isAutoPaused) {
     ctx.lastAccepted = fix;
     return;
