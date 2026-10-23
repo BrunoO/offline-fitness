@@ -226,7 +226,7 @@ describe('parseActivitiesCsv', () => {
     const { rows } = parseActivitiesCsv(FRENCH_CSV);
     const walk = rows.find(row => row.id === '20580572834');
 
-    expect(walk).toBeDefined();
+    expect(walk?.id).toBe('20580572834');
     expect(walk!.distance).toBeCloseTo(2825.4);
     expect(walk!.elapsedTime).toBeCloseTo(3014);
     expect(walk!.movingTime).toBeCloseTo(2350);

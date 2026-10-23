@@ -155,7 +155,7 @@ describe('deletion tombstones', () => {
       const stateCall = mockTransport.putDavFile.mock.calls.find(
         call => call[1] === 'sync-state.json'
       );
-      expect(stateCall).toBeDefined();
+      expect(stateCall).toHaveLength(3);
       const writtenState = JSON.parse(String(stateCall?.[2]));
       expect(writtenState.activityMd5).toEqual({ '1.json': expect.any(String) });
       expect(Object.keys(writtenState.streamMd5)).toEqual(['1.json']);

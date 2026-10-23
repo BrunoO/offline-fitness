@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Console } = require('console');
 const console = new Console(require('process').stdout, require('process').stderr);
 
@@ -10,7 +10,7 @@ const appJson = require(appJsonPath);
 // Read current version from external file or app.json (committed baseline)
 let currentVersionCode;
 if (fs.existsSync(versionFilePath)) {
-  currentVersionCode = parseInt(fs.readFileSync(versionFilePath, 'utf8').trim(), 10);
+  currentVersionCode = Number.parseInt(fs.readFileSync(versionFilePath, 'utf8').trim(), 10);
 } else {
   currentVersionCode = appJson.expo.android.versionCode;
 }

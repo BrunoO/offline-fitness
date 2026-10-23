@@ -79,7 +79,7 @@ describe('weeklyData ISO week alignment', () => {
       week.activities.some(activity => activity.id === 'monday-1')
     );
 
-    expect(weekWithActivity).toBeDefined();
+    expect(weekWithActivity).toEqual(expect.objectContaining({ activities: expect.any(Array) }));
     expect(weekWithActivity!.start_week).toBe(expectedWeek);
   });
 

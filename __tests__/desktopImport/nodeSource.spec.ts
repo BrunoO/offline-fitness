@@ -53,7 +53,7 @@ describe('createNodeByteSource', () => {
     );
 
     const gpxEntry = entries.find(entry => entry.name === 'activities/123.gpx');
-    expect(gpxEntry).toBeDefined();
+    expect(gpxEntry?.name).toBe('activities/123.gpx');
     const bytes = await readZipEntry(source, gpxEntry!);
     expect(decodeUtf8(bytes)).toBe(GPX_123);
   });
