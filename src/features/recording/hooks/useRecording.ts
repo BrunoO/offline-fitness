@@ -15,6 +15,7 @@ import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import { buildRecordedActivity } from '../services/buildRecordedActivity';
 import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
 import { replaySession } from '../services/replaySession';
+import { LiveSlopeCalculator } from '../services/slope';
 import { SplitDetector } from '../services/splits';
 import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
@@ -77,6 +78,7 @@ export function useRecording(): UseRecordingResult {
   // whether the summary still needs loading without re-subscribing.
   const summaryRef = useRef<RecordingSummary | null>(null);
   const splitDetectorRef = useRef<SplitDetector | null>(null);
+  const slopeCalculatorRef = useRef<LiveSlopeCalculator | null>(null);
   useEffect(() => {
     summaryRef.current = summary;
   }, [summary]);
@@ -107,6 +109,7 @@ export function useRecording(): UseRecordingResult {
                   distanceMeters: 0,
                   currentSpeedMps: null,
                   altitudeM: null,
+                  slopePercent: null,
                   gpsLost: false,
                   hAccM: null
                 }
@@ -179,6 +182,7 @@ export function useRecording(): UseRecordingResult {
                     distanceMeters: 0,
                     currentSpeedMps: null,
                     altitudeM: null,
+                    slopePercent: null,
                     gpsLost: false,
                     hAccM: null
                   }
@@ -199,11 +203,18 @@ export function useRecording(): UseRecordingResult {
         }
       });
       locationSubscription = gpsTrackerEvents.addLocationListener(update => {
+        slopeCalculatorRef.current ??= new LiveSlopeCalculator();
+        const slopePercent = slopeCalculatorRef.current.update(
+          update.eleM,
+          update.distanceMeters,
+          update.t
+        );
         setLiveStats({
           elapsedSec: update.elapsedSec,
           distanceMeters: update.distanceMeters,
           currentSpeedMps: update.speedMps,
           altitudeM: update.eleM,
+          slopePercent,
           gpsLost: update.gpsLost,
           hAccM: update.hAccM
         });
@@ -257,6 +268,7 @@ export function useRecording(): UseRecordingResult {
           hapticEnabled,
           intervalMeters: Number.isFinite(intervalMeters) ? intervalMeters : 1000
         });
+        slopeCalculatorRef.current = new LiveSlopeCalculator(profile);
         setLastSplit(null);
         setState({
           phase: 'recording',
@@ -278,6 +290,7 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       await GpsTracker.pauseRecording();
+      slopeCalculatorRef.current?.reset();
     } catch (cause: unknown) {
       simpleLogger.error('Could not pause recording', cause);
       setError(describeError(cause, 'Could not pause the recording.'));
@@ -300,6 +313,7 @@ export function useRecording(): UseRecordingResult {
       const nextSummary = await GpsTracker.stopRecording();
       heartRateService.detachRecording();
       splitDetectorRef.current = null;
+      slopeCalculatorRef.current = null;
       setSummary(nextSummary);
       const recordingState = await GpsTracker.getRecordingState();
       const sessionId = recordingState.sessionId;

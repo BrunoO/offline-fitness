@@ -115,7 +115,8 @@ export const createStyles = (theme: ResolvedTheme) =>
     },
     tile: {
       marginBottom: SPACING.md,
-      width: '33.33%'
+      paddingRight: SPACING.sm,
+      width: '50%'
     },
     tilePressed: {
       opacity: 0.6

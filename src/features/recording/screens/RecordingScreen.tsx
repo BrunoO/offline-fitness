@@ -37,6 +37,14 @@ const formatSpeed = (metersPerSecond: number | null): string =>
 const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
+const formatSlope = (slopePercent: number | null | undefined): string => {
+  if (slopePercent == null) {
+    return '—';
+  }
+  const sign = slopePercent >= 0 ? '+' : '';
+  return `${sign}${slopePercent.toFixed(1)}%`;
+};
+
 const availabilityText = (capabilities: GpsTrackerCapabilities | null): string =>
   capabilities?.canRecord ? 'Ready to record' : 'Recording is Android-only in this build.';
 
@@ -90,7 +98,7 @@ export function RecordingScreen(): JSX.Element {
   const [profile, setProfile] = useState<Profile>('walking');
   // Which live stat is promoted to the hero (large) position. The user taps
   // a compact tile to promote it; tapping the hero cycles back to elapsed time.
-  const [heroStat, setHeroStat] = useState<'time' | 'distance' | 'speed' | 'altitude'>('time');
+  const [heroStat, setHeroStat] = useState<StatKey>('time');
 
   // Keep the screen awake only while a session is live.
   useEffect(() => {
@@ -318,7 +326,7 @@ function SessionCard({ phase, liveStats, styles, theme }: SessionCardProps): JSX
   );
 }
 
-type StatKey = 'time' | 'distance' | 'speed' | 'altitude';
+type StatKey = 'time' | 'distance' | 'speed' | 'altitude' | 'slope';
 
 interface StatDef {
   readonly key: StatKey;
@@ -330,7 +338,8 @@ const STAT_DEFS: readonly StatDef[] = [
   { key: 'time', label: 'Elapsed', icon: 'time-outline' },
   { key: 'distance', label: 'Distance', icon: 'map-outline' },
   { key: 'speed', label: 'Speed', icon: 'speedometer-outline' },
-  { key: 'altitude', label: 'Altitude', icon: 'trending-up-outline' }
+  { key: 'altitude', label: 'Altitude', icon: 'triangle-outline' },
+  { key: 'slope', label: 'Slope', icon: 'trending-up-outline' }
 ];
 
 const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
@@ -346,6 +355,8 @@ const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
       return formatSpeed(liveStats.currentSpeedMps);
     case 'altitude':
       return formatAltitude(liveStats.altitudeM);
+    case 'slope':
+      return formatSlope(liveStats.slopePercent);
   }
 };
 
