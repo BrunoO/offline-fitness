@@ -15,7 +15,11 @@ export interface ReadHeartRateLogResult {
  * with it.
  */
 export function heartRateLogUri(meta: RecordingMeta): string {
-  return meta.logUri.replace(/[^/]+$/, 'heartrate.jsonl');
+  const lastSlash = meta.logUri.lastIndexOf('/');
+  if (lastSlash === -1) {
+    return 'heartrate.jsonl';
+  }
+  return `${meta.logUri.slice(0, lastSlash + 1)}heartrate.jsonl`;
 }
 
 /**

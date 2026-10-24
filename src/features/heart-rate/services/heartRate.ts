@@ -35,7 +35,7 @@ export interface HeartRateState {
 type Listener = (state: HeartRateState) => void;
 
 class HeartRateService {
-  private state: HeartRateState = {
+  private readonly state: HeartRateState = {
     capabilities: null,
     devices: [],
     scanning: false,
@@ -46,8 +46,8 @@ class HeartRateService {
     battery: null,
     attachedSession: null
   };
-  private listeners = new Set<Listener>();
-  private readyPromise: Promise<void>;
+  private readonly listeners = new Set<Listener>();
+  private initPromise: Promise<void> | null = null;
   private sampleUnsub: { remove: () => void } | null = null;
   private connUnsub: { remove: () => void } | null = null;
   private scanUnsub: { remove: () => void } | null = null;
@@ -57,12 +57,13 @@ class HeartRateService {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
-    this.readyPromise = this.init();
+  init(): Promise<void> {
+    this.initPromise ??= this.performInit();
+    return this.initPromise;
   }
 
   async ready(): Promise<void> {
-    await this.readyPromise;
+    await this.init();
   }
 
   private emit() {
@@ -71,6 +72,7 @@ class HeartRateService {
   }
 
   subscribe(listener: Listener): () => void {
+    void this.init();
     this.listeners.add(listener);
     listener({ ...this.state, devices: [...this.state.devices] });
     return () => this.listeners.delete(listener);
@@ -80,7 +82,7 @@ class HeartRateService {
     return { ...this.state, devices: [...this.state.devices] };
   }
 
-  private async init() {
+  private async performInit() {
     try {
       const caps = await HeartRate.getCapabilities();
       this.state.capabilities = caps;
@@ -168,6 +170,7 @@ class HeartRateService {
   }
 
   async startScan() {
+    await this.init();
     this.state.devices = [];
     this.emit();
     try {
@@ -186,6 +189,7 @@ class HeartRateService {
   }
 
   async connect(id: string, name: string) {
+    await this.init();
     this.intentionalDisconnect = false;
     this.reconnectAttempts = 0;
     await AsyncStorage.setItem(STORAGE_KEY_ID, id);

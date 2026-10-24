@@ -86,8 +86,7 @@ export function isBinaryStream(bytes: Uint8Array): boolean {
 
 function writeLatLngSeries(view: DataView, offset: number, latlng: [number, number][]): number {
   let cursor = offset;
-  for (let i = 0; i < latlng.length; i++) {
-    const pair = latlng[i];
+  for (const pair of latlng) {
     view.setInt32(cursor, Math.round(pair[0] * COORD_SCALE), true);
     view.setInt32(cursor + 4, Math.round(pair[1] * COORD_SCALE), true);
     cursor += 8;
@@ -97,8 +96,8 @@ function writeLatLngSeries(view: DataView, offset: number, latlng: [number, numb
 
 function writeAltitudeSeries(view: DataView, offset: number, altitude: number[]): number {
   let cursor = offset;
-  for (let i = 0; i < altitude.length; i++) {
-    view.setInt32(cursor, Math.round(altitude[i] * ALTITUDE_SCALE), true);
+  for (const alt of altitude) {
+    view.setInt32(cursor, Math.round(alt * ALTITUDE_SCALE), true);
     cursor += 4;
   }
   return cursor;
@@ -106,8 +105,8 @@ function writeAltitudeSeries(view: DataView, offset: number, altitude: number[])
 
 function writeTimeSeries(view: DataView, offset: number, time: number[]): number {
   let cursor = offset;
-  for (let i = 0; i < time.length; i++) {
-    view.setInt32(cursor, Math.round(time[i]), true);
+  for (const t of time) {
+    view.setInt32(cursor, Math.round(t), true);
     cursor += 4;
   }
   return cursor;
@@ -119,8 +118,7 @@ function writeHeartrateSeries(
   heartrate: (number | null)[]
 ): number {
   let cursor = offset;
-  for (let i = 0; i < heartrate.length; i++) {
-    const bpm = heartrate[i];
+  for (const bpm of heartrate) {
     view.setInt32(cursor, bpm === null ? HEART_RATE_NO_DATA : Math.round(bpm), true);
     cursor += 4;
   }

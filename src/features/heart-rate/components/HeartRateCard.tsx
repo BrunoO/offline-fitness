@@ -1,6 +1,7 @@
 import React, { JSX, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { type ResolvedTheme, useTheme } from '@/theme';
+import { simpleLogger } from '@/shared';
 import { useHeartRate } from '../hooks/useHeartRate';
 import { useHeartRatePermissions } from '../hooks/useHeartRatePermissions';
 import type { HeartRateDevice, HeartRateState } from '../services/heartRate';
@@ -257,7 +258,7 @@ export function HeartRateCard(): JSX.Element {
   const handleManualConnect = () => {
     const trimmed = manualId.trim();
     if (trimmed) {
-      void hr.connect(trimmed, trimmed);
+      hr.connect(trimmed, trimmed);
       setManualId('');
     }
   };
@@ -269,8 +270,14 @@ export function HeartRateCard(): JSX.Element {
 
       {hr.connectionState === 'error' && !isConnected ? (
         <ConnectionErrorNotice
-          onRetry={() => void hr.startScan()}
-          onOpenSettings={() => void Linking.openSettings()}
+          onRetry={() => {
+            hr.startScan();
+          }}
+          onOpenSettings={() => {
+            Linking.openSettings().catch(cause => {
+              simpleLogger.error('Failed to open settings', cause);
+            });
+          }}
           styles={styles}
         />
       ) : null}
@@ -278,8 +285,12 @@ export function HeartRateCard(): JSX.Element {
       {isConnected ? (
         <ConnectedMetrics
           liveHr={hr.liveHr}
-          onDisconnect={() => void hr.disconnect()}
-          onForget={() => void hr.forget()}
+          onDisconnect={() => {
+            hr.disconnect();
+          }}
+          onForget={() => {
+            hr.forget();
+          }}
           styles={styles}
         />
       ) : null}
@@ -290,8 +301,12 @@ export function HeartRateCard(): JSX.Element {
           devices={hr.devices}
           manualId={manualId}
           onChangeManualId={setManualId}
-          onStartScan={() => void hr.startScan()}
-          onSelectDevice={d => void hr.connect(d.id, d.name)}
+          onStartScan={() => {
+            hr.startScan();
+          }}
+          onSelectDevice={d => {
+            hr.connect(d.id, d.name);
+          }}
           onSubmitManualId={handleManualConnect}
           placeholderColor={theme.textMuted}
           styles={styles}
