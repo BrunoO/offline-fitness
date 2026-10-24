@@ -1,7 +1,8 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Activity, calculateSpeedKmh, seconds_to_label } from '@/shared';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Activity, calculateSpeedKmh, getActivityIcon, seconds_to_label } from '@/shared';
 import { ActivityStats } from '@/features/stats';
 
 interface LastActivitySummaryProps {
@@ -11,68 +12,6 @@ interface LastActivitySummaryProps {
   onActivityChange?: (activity: Activity) => void;
 }
 
-/** Activity type (lower-cased) -> emoji. Lookup instead of a 47-case switch (S1479). */
-const ACTIVITY_ICONS: Record<string, string> = {
-  run: '🏃‍♂️',
-  running: '🏃‍♂️',
-  ride: '🚲',
-  ebikeride: '🚲',
-  cycling: '🚲',
-  walk: '🚶‍♂️',
-  walking: '🚶‍♂️',
-  swim: '🏊‍♂️',
-  swimming: '🏊‍♂️',
-  hike: '🥾',
-  hiking: '🥾',
-  yoga: '🧘‍♀️',
-  weighttraining: '🏋️‍♂️',
-  'weight training': '🏋️‍♂️',
-  crossfit: '💪',
-  elliptical: '🔄',
-  'stair stepper': '🪜',
-  stairs: '🪜',
-  rowing: '🚣‍♂️',
-  kayaking: '🛶',
-  snowboarding: '🏂',
-  skiing: '⛷️',
-  'ice skating': '⛸️',
-  'inline skating': '🛼',
-  'rock climbing': '🧗‍♂️',
-  tennis: '🎾',
-  basketball: '🏀',
-  soccer: '⚽',
-  golf: '⛳',
-  baseball: '⚾',
-  volleyball: '🏐',
-  badminton: '🏸',
-  'table tennis': '🏓',
-  squash: '🏏',
-  racquetball: '🎾',
-  handball: '🤾‍♂️',
-  rugby: '🏉',
-  'american football': '🏈',
-  'australian football': '🏉',
-  cricket: '🏏',
-  hockey: '🏒',
-  lacrosse: '🥍',
-  'water polo': '🤽‍♂️',
-  surfing: '🏄‍♂️',
-  windsurfing: '🏄‍♂️',
-  kitesurfing: '🏄‍♂️',
-  sailing: '⛵',
-  'stand up paddling': '🏄‍♂️',
-  workout: '🏋️‍♀️',
-  'virtual ride': '🚲',
-  'virtual run': '🏃‍♂️',
-  'ebike ride': '🚲',
-  velomobile: '🚲',
-  handcycle: '🚲',
-  wheelchair: '♿'
-};
-
-/** Activity emoji by type; runners is the safe default for unknown types. */
-const getActivityIcon = (activityType: string): string =>
-  ACTIVITY_ICONS[activityType.toLowerCase()] ?? '🏃‍♂️';
 /**
  * A component that displays the last activity information in a summary table format.
  * @param props The component props.
@@ -136,7 +75,7 @@ export function LastActivitySummary({
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View entering={FadeIn.duration(200)} style={styles.container}>
       {/* Activity Navigation Stepper */}
       <View style={styles.stepperContainer}>
         <TouchableOpacity
@@ -246,7 +185,7 @@ export function LastActivitySummary({
           </>
         ) : null}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

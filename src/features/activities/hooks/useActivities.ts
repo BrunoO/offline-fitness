@@ -107,6 +107,33 @@ export function useActivities() {
   }
 
   /**
+   * Updates an existing activity (e.g. its optional name) in local storage and
+   * in the in-memory list. The next backup push re-uploads the changed file
+   * (its md5 differs). Throws when the write fails.
+   * @param activity The activity to update.
+   * @param patch The fields to overwrite.
+   */
+  async function updateActivity(activity: Activity, patch: Partial<Activity>): Promise<void> {
+    const updated: Activity = { ...activity, ...patch };
+    simpleLogger.log('APP LEVEL - updateActivity', {
+      activityId: activity.id,
+      patch
+    });
+    try {
+      await Storage.storeActivity(updated);
+    } catch (error) {
+      simpleLogger.error('Failed to store updated activity:', error);
+      throw error;
+    }
+    setGlobalActivities(prev => {
+      const next = prev
+        .map(a => (a.id === activity.id ? updated : a))
+        .sort(compareActivitiesByUtcDesc);
+      return next;
+    });
+  }
+
+  /**
    * Deletes an activity.
    * @param activity The activity to delete.
    */
@@ -150,6 +177,7 @@ export function useActivities() {
     refreshActivities,
     reloadActivitiesFromLocalStorage,
     addActivity,
+    updateActivity,
     deleteActivity,
     myActivitiesDiscovered,
     setGlobalActivities,

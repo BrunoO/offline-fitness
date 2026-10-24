@@ -219,6 +219,75 @@ export function activityToString(activity: Activity): string {
   }/${activity.start_year}${at} for ${seconds_to_label(activity.elapsed_time)}`;
 }
 
+/** Activity emoji by type; runners is the safe default for unknown types. */
+const ACTIVITY_ICONS: Record<string, string> = {
+  run: '🏃‍♂️',
+  running: '🏃‍♂️',
+  ride: '🚲',
+  ebikeride: '🚲',
+  cycling: '🚲',
+  walk: '🚶‍♂️',
+  walking: '🚶‍♂️',
+  swim: '🏊‍♂️',
+  swimming: '🏊‍♂️',
+  hike: '🥾',
+  hiking: '🥾',
+  yoga: '🧘‍♀️',
+  weighttraining: '🏋️‍♂️',
+  'weight training': '🏋️‍♂️',
+  crossfit: '💪',
+  elliptical: '🔄',
+  'stair stepper': '🪜',
+  stairs: '🪜',
+  rowing: '🚣‍♂️',
+  kayaking: '🛶',
+  snowboarding: '🏂',
+  skiing: '⛷️',
+  'ice skating': '⛸️',
+  'inline skating': '🛼',
+  'rock climbing': '🧗‍♂️',
+  tennis: '🎾',
+  basketball: '🏀',
+  soccer: '⚽',
+  golf: '⛳',
+  baseball: '⚾',
+  volleyball: '🏐',
+  badminton: '🏸',
+  'table tennis': '🏓',
+  squash: '🏏',
+  racquetball: '🎾',
+  handball: '🤾‍♂️',
+  rugby: '🏉',
+  'american football': '🏈',
+  'australian football': '🏉',
+  cricket: '🏏',
+  hockey: '🏒',
+  lacrosse: '🥍',
+  'water polo': '🤽‍♂️',
+  surfing: '🏄‍♂️',
+  windsurfing: '🏄‍♂️',
+  kitesurfing: '🏄‍♂️',
+  sailing: '⛵',
+  'stand up paddling': '🏄‍♂️',
+  workout: '🏋️‍♀️',
+  'virtual ride': '🚲',
+  'virtual run': '🏃‍♂️',
+  'ebike ride': '🚲',
+  velomobile: '🚲',
+  handcycle: '🚲',
+  wheelchair: '♿'
+};
+
+/**
+ * Returns the emoji icon for a given activity type (case-insensitive).
+ * Falls back to the runner emoji for unknown types.
+ * @param activityType The activity type string.
+ * @returns An emoji string.
+ */
+export function getActivityIcon(activityType: string): string {
+  return ACTIVITY_ICONS[activityType.toLowerCase()] ?? '🏃‍♂️';
+}
+
 /**
  * Checks if a given month is between two other months.
  * @param startYear The year of the month to check.

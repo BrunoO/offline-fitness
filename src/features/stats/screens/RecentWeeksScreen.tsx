@@ -3,6 +3,7 @@ import { useActivitiesContext, useProcessedActivities } from '@/features/activit
 import { Activity, formatUtcDateString, seconds_to_label, simpleLogger } from '@/shared';
 import { FlashList } from '@shopify/flash-list';
 import React, { JSX, useMemo } from 'react';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { ActivityIndicator, ListRenderItem, Platform, StyleSheet, Text, View } from 'react-native';
 import { VictoryAxis, VictoryBar, VictoryChart, VictoryLabel, VictoryLegend } from 'victory-native';
 import { evaluateGoal } from '../services/GoalService';
@@ -196,7 +197,7 @@ const ShowInProgress = () => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
-    <View style={styles.loadingContainer}>
+    <Animated.View entering={FadeIn.duration(200)} style={styles.loadingContainer}>
       <ActivityIndicator
         animating={true}
         size="large"
@@ -205,7 +206,7 @@ const ShowInProgress = () => {
       />
       <Text style={styles.loadingText}>Computing weekly data...</Text>
       <Text style={styles.loadingSubtext}>This may take a moment</Text>
-    </View>
+    </Animated.View>
   );
 };
 

@@ -3,6 +3,7 @@
 // outside React Native. See `docs/desktop-import-plan.md` and the guard in
 // `__tests__/stravaImport/importCorePortability.spec.ts`.
 import type { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type Activity = {
   average_speed: number;
@@ -44,12 +45,13 @@ export type ActivityAccessor<T> = (arg0: Activity) => T;
 export type RootDrawerParamList = {
   Home: undefined;
   Record: undefined;
-  Stats: undefined;
+  Stats: NavigatorScreenParams<StatsTabParamList> | undefined;
   Logs: undefined;
   Maps: undefined;
   Details:
     | {
         allActivities?: Activity[];
+        selectedActivityId?: string;
       }
     | undefined;
 };
@@ -58,6 +60,7 @@ export type StatsTabParamList = {
   RecentWeeksScreen: undefined;
   RecentYearsScreen: undefined;
   RecentMonthsScreen: undefined;
+  RecordsScreen: undefined;
 };
 
 export type MapsScreenProps = {

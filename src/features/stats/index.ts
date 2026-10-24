@@ -13,6 +13,7 @@ export { default as YTDStatsComponent } from './components/YTDStatsComponent';
 export { RecentMonthsScreen } from './screens/RecentMonthsScreen';
 export { RecentWeeksScreen } from './screens/RecentWeeksScreen';
 export { RecentYearsScreen } from './screens/RecentYearsScreen';
+export { RecordsScreen } from './screens/RecordsScreen';
 export { StatsTab } from './screens/StatsTab';
 
 // Services

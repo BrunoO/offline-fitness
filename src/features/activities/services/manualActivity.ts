@@ -9,8 +9,13 @@ import { week_of_year } from '@/shared/utils/utils';
  * device zone *is* the source of truth here (unlike the desktop seeder, where
  * the laptop zone is nobody's truth). `start_timestamp_utc` is the entered
  * wall time read in the device zone; `local_date`/`local_time` echo the entry
- * verbatim. Distance, speed and elevation stay 0: GPS-less types are excluded
- * from map/distance views by `isNoGpsActivity` and counted in time-based stats.
+ * verbatim.
+ *
+ * Distance, speed and elevation default to 0 for GPS-less types (excluded from
+ * map/distance views by `isNoGpsActivity` and counted in time-based stats). For
+ * types that normally carry a GPS track, the caller may supply `distanceKm` and
+ * `elevationGainM` so a forgotten activity can still be recorded retroactively
+ * without a track; `average_speed` is then derived from distance/duration.
  */
 
 export interface ManualActivityInput {
@@ -26,6 +31,10 @@ export interface ManualActivityInput {
   name?: string;
   /** IANA zone label; defaults to the device zone. */
   timezone?: string;
+  /** Optional distance in kilometres (for GPS-track types entered without a track). */
+  distanceKm?: number;
+  /** Optional elevation gain in metres (for GPS-track types entered without a track). */
+  elevationGainM?: number;
 }
 
 /**
@@ -143,6 +152,18 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   if (!Number.isFinite(input.durationMin) || input.durationMin < 1) {
     throw new TypeError('Duration must be at least 1 minute.');
   }
+  if (
+    input.distanceKm !== undefined &&
+    (!Number.isFinite(input.distanceKm) || input.distanceKm < 0)
+  ) {
+    throw new TypeError('Distance must be a non-negative number.');
+  }
+  if (
+    input.elevationGainM !== undefined &&
+    (!Number.isFinite(input.elevationGainM) || input.elevationGainM < 0)
+  ) {
+    throw new TypeError('Elevation gain must be a non-negative number.');
+  }
   const { year, month, day } = parseDatePart(input.localDate);
   const { hour, minute } = parseTimePart(input.localTime);
 
@@ -160,6 +181,13 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   // on the entered date (not today) is what lands in the record.
   const utcOffsetSeconds = -Math.round(wallClock.getTimezoneOffset() * 60);
 
+  const isSwim = type.toLowerCase() === 'swim' || type.toLowerCase() === 'swimming';
+  const distanceM = Math.round((input.distanceKm ?? 0) * 1000);
+  // Swims canonicalised at write time, like `rowToActivity` does: gain 0,
+  // moving = elapsed. Elevation entry is ignored for swims.
+  const elevationGainM = isSwim ? 0 : (input.elevationGainM ?? 0);
+  const averageSpeed = distanceM > 0 && durationSec > 0 ? distanceM / durationSec : 0;
+
   return {
     id: `manual-${startUtcMs}-${(manualIdCounter++).toString(36)}`,
     name,
@@ -174,13 +202,13 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
     start_month: month - 1,
     start_day: day,
     start_week: week_of_year(year, month - 1, day),
-    distance: 0,
+    distance: distanceM,
     elapsed_time: durationSec,
     // Swims canonicalised at write time, like `rowToActivity` does.
     moving_time: durationSec,
     type,
-    average_speed: 0,
-    total_elevation_gain: 0,
+    average_speed: averageSpeed,
+    total_elevation_gain: elevationGainM,
     elev_high: 0,
     elev_low: 0,
     start_latlng: [],

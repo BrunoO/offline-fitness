@@ -1,6 +1,6 @@
 import { Activity } from '@/shared';
 import { IconButton } from '@/shared/utils/IconsUtils';
-import { activityToString, calculateSpeedKmh } from '@/shared/utils/utils';
+import { activityToString, calculateSpeedKmh, getActivityIcon } from '@/shared/utils/utils';
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -48,7 +48,17 @@ const createStyles = (theme: ResolvedTheme) =>
       })
     },
     pressableText: {
-      fontSize: 16
+      fontSize: 16,
+      flex: 1
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      width: '100%'
+    },
+    itemIcon: {
+      fontSize: 22
     },
     deleteButton: {
       backgroundColor: theme.danger,
@@ -72,10 +82,12 @@ const createStyles = (theme: ResolvedTheme) =>
 function RightAction({
   activity,
   deleteActivity,
+  editActivity,
   progress
 }: Readonly<{
   activity: Activity;
   deleteActivity: (activity: Activity) => void;
+  editActivity: (activity: Activity) => void;
   progress: SharedValue<number>;
 }>) {
   const theme = useTheme();
@@ -93,7 +105,14 @@ function RightAction({
   });
 
   return (
-    <Animated.View style={[animatedStyle]}>
+    <Animated.View style={[animatedStyle, { flexDirection: 'row' }]}>
+      <IconButton
+        icon="edit"
+        onPress={() => {
+          editActivity(activity);
+        }}
+        buttonStyle={[styles.deleteButton, { backgroundColor: theme.primary }]}
+      />
       <IconButton
         icon="delete"
         onPress={() => {
@@ -117,12 +136,14 @@ export function ActivityListItem({
   activity,
   onPress,
   selectedActivityId,
-  deleteActivity
+  deleteActivity,
+  editActivity
 }: Readonly<{
   activity: Activity;
   onPress: (id: string) => void;
   selectedActivityId: string | null;
   deleteActivity: (activity: Activity) => void;
+  editActivity: (activity: Activity) => void;
 }>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -137,7 +158,12 @@ export function ActivityListItem({
   return (
     <ReanimatedSwipeable
       renderRightActions={() => (
-        <RightAction activity={activity} deleteActivity={deleteActivity} progress={progress} />
+        <RightAction
+          activity={activity}
+          deleteActivity={deleteActivity}
+          editActivity={editActivity}
+          progress={progress}
+        />
       )}
       onSwipeableWillOpen={() => {
         progress.value = withSpring(1);
@@ -158,12 +184,15 @@ export function ActivityListItem({
             { backgroundColor: isSelected ? theme.primarySoft : theme.surface }
           ]}
         >
-          <Text style={styles.pressableText} numberOfLines={2} ellipsizeMode="tail">
-            {activityToString(activity) +
-              ' at avg ' +
-              calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
-              ' km/h'}
-          </Text>
+          <View style={styles.itemRow}>
+            <Text style={styles.itemIcon}>{getActivityIcon(activity.type)}</Text>
+            <Text style={styles.pressableText} numberOfLines={2} ellipsizeMode="tail">
+              {activityToString(activity) +
+                ' at avg ' +
+                calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
+                ' km/h'}
+            </Text>
+          </View>
         </Pressable>
       </View>
     </ReanimatedSwipeable>

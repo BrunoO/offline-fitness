@@ -128,6 +128,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   // Tracks whether we've already selected the initial activity to avoid
   // re-running initialization when the user selects a different activity.
   const hasInitializedActivity = useRef(false);
+  const lastMostRecentId = useRef<string | number | null>(null);
+  const lastActivitiesLength = useRef<number>(0);
 
   // When the WebDAV backup last ran, shown in the header: the app is offline
   // and syncs only by hand, so this is the one number that says whether the
@@ -178,11 +180,29 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   }, [globalActivities, reloadActivitiesFromLocalStorage, loadBackupFreshness]);
 
   // Initialize selected activity once when activities first load.
-  // Uses a ref so that subsequent user-driven selections don't re-trigger this.
+  // Also update to the most recent activity if a newer one is added (e.g. recorded).
   useEffect(() => {
-    if (globalActivities.length > 0 && !hasInitializedActivity.current) {
+    if (globalActivities.length === 0) return;
+    const mostRecent = globalActivities[0]; // sorted descending, index 0 = most recent
+    const mostRecentId = mostRecent.id;
+    const lengthIncreased = globalActivities.length > lastActivitiesLength.current;
+    lastActivitiesLength.current = globalActivities.length;
+
+    if (!hasInitializedActivity.current) {
       hasInitializedActivity.current = true;
-      const mostRecent = globalActivities[0]; // sorted descending, index 0 = most recent
+      lastMostRecentId.current = mostRecentId;
+      setSelectedActivity(mostRecent);
+      setHomeScreenStream({ stream: undefined });
+      setIsLoadingStream(true);
+      const stats = calculateRecentActivityStats(mostRecent, globalActivities);
+      setSelectedActivityStats(stats);
+      return;
+    }
+
+    // Only auto-promote when a new activity was added (e.g. recorded), not on
+    // deletes or refreshes, so the viewed activity isn't yanked away.
+    if (lengthIncreased && lastMostRecentId.current !== mostRecentId) {
+      lastMostRecentId.current = mostRecentId;
       setSelectedActivity(mostRecent);
       setHomeScreenStream({ stream: undefined });
       setIsLoadingStream(true);
@@ -645,7 +665,22 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         {/* Recent Achievements Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Achievements</Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Text style={styles.sectionTitle}>Recent Achievements</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Stats', { screen: 'RecordsScreen' })}
+                accessibilityRole="button"
+                accessibilityLabel="See all personal records"
+              >
+                <Text style={styles.seeAllText}>See all</Text>
+              </TouchableOpacity>
+            </View>
             {achievementsStartDate ? (
               <Text style={styles.sectionSubtitle}>
                 since{' '}

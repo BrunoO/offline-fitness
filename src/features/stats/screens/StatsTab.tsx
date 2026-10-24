@@ -20,6 +20,7 @@ import {
 import { validateGoal } from '../services/GoalService';
 import { useSettings } from '../StatsTabSettingsContext';
 import { RecentMonthsScreen } from './RecentMonthsScreen';
+import { RecordsScreen } from './RecordsScreen';
 import { RecentWeeksScreen } from './RecentWeeksScreen';
 import { RecentYearsScreen } from './RecentYearsScreen';
 
@@ -560,6 +561,11 @@ export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>)
           name="RecentYearsScreen"
           component={RecentYearsScreen}
           options={getTabOptions('Last years', 'calculator-outline')}
+        />
+        <Tab.Screen
+          name="RecordsScreen"
+          component={RecordsScreen}
+          options={getTabOptions('Records', 'trophy-outline')}
         />
       </Tab.Navigator>
     </View>

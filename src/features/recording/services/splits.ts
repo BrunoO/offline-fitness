@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GpsTracker } from './gpsTracker';
 
 /**
@@ -56,8 +57,8 @@ export function buildAnnouncementText(
  */
 export class SplitDetector {
   private readonly intervalMeters: number;
-  private readonly audioEnabled: boolean;
-  private readonly hapticEnabled: boolean;
+  private audioEnabled: boolean;
+  private hapticEnabled: boolean;
   private readonly speakFn: (text: string) => void | Promise<void>;
   private readonly vibrateFn: () => void | Promise<void>;
 
@@ -124,6 +125,8 @@ export class SplitDetector {
     this.lastSplitDistanceMeters = totalDistanceMeters;
     this.lastSplitElapsedMs = totalElapsedMs;
 
+    // Feedback uses the cached values so it fires immediately; storage is
+    // re-read in the background so a settings change lands on the next split.
     if (this.hapticEnabled) {
       void this.vibrateFn();
     }
@@ -131,6 +134,23 @@ export class SplitDetector {
       const text = buildAnnouncementText(this.splitCount, minutes, seconds, this.safeInterval);
       void this.speakFn(text);
     }
+
+    void (async () => {
+      try {
+        const [audioRaw, hapticRaw] = await Promise.all([
+          AsyncStorage.getItem('splitsAudioEnabled'),
+          AsyncStorage.getItem('splitsHapticEnabled')
+        ]);
+        if (audioRaw !== null) {
+          this.audioEnabled = audioRaw === 'true';
+        }
+        if (hapticRaw !== null) {
+          this.hapticEnabled = hapticRaw === 'true';
+        }
+      } catch {
+        // Ignore storage read errors and keep cached values.
+      }
+    })();
 
     return event;
   }

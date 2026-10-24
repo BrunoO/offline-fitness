@@ -36,6 +36,11 @@ export const createStyles = (theme: ResolvedTheme) =>
       marginTop: 4,
       fontStyle: 'italic'
     },
+    seeAllText: {
+      fontSize: 14,
+      color: theme.primary,
+      fontWeight: '600'
+    },
     statusCard: {
       backgroundColor: theme.surfaceAlt,
       borderRadius: 12,

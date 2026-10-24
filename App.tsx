@@ -23,7 +23,9 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Animated, Image, StyleSheet } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 // Keep the splash screen visible while we fetch resources
 // (only rejects if the splash was already hidden; startup order makes that impossible)
@@ -31,7 +33,9 @@ void SplashScreen.preventAutoHideAsync();
 
 // Set the animation options. This is optional.
 SplashScreen.setOptions({
-  duration: 1000,
+  // Shorter native fade so the splash doesn't linger; the in-app splash
+  // (Reanimated) handles the final cross-fade on top.
+  duration: 300,
   fade: true
 });
 
@@ -44,11 +48,15 @@ function AppContent() {
   const [backfillComplete, setBackfillComplete] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
-  const fadeAnim = useMemo(() => new Animated.Value(1), []);
+  const fadeAnim = useSharedValue(1);
 
   // Stable so the drawer's memoised "Settings" row does not change identity
   // every time the app re-renders.
   const openSettings = useCallback(() => setSettingsVisible(true), []);
+
+  const splashAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value
+  }));
 
   useEffect(() => {
     // Log app startup
@@ -68,12 +76,10 @@ function AppContent() {
     if (backfillComplete) {
       void SplashScreen.hideAsync().catch(() => undefined);
       simpleLogger.log('✨ App UI loaded and ready');
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true
-      }).start(() => {
-        setSplashVisible(false);
+      fadeAnim.value = withTiming(0, { duration: 350 }, finished => {
+        if (finished) {
+          runOnJS(setSplashVisible)(false);
+        }
       });
     }
   }, [backfillComplete, fadeAnim]);
@@ -141,7 +147,8 @@ function AppContent() {
           style={[
             StyleSheet.absoluteFill,
             styles.splashContainer,
-            { backgroundColor: theme.primarySoft, opacity: fadeAnim }
+            { backgroundColor: theme.primarySoft },
+            splashAnimatedStyle
           ]}
         >
           <Image source={require('./assets/images/splash.png')} style={styles.splashImage} />
@@ -167,12 +174,14 @@ const styles = StyleSheet.create({
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <SettingsProvider>
-        <ActivitiesProvider>
-          <AppContent />
-        </ActivitiesProvider>
-      </SettingsProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <SettingsProvider>
+          <ActivitiesProvider>
+            <AppContent />
+          </ActivitiesProvider>
+        </SettingsProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

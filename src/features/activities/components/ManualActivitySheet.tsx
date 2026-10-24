@@ -1,5 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { simpleLogger, SheetFooter, createSheetFrameStyles } from '@/shared';
+import { isNoGpsActivity, simpleLogger, SheetFooter, createSheetFrameStyles } from '@/shared';
 import { deviceTodayLocalDateString } from '@/shared/utils/activityDates';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -68,6 +68,8 @@ export function ManualActivitySheet({
   const [date, setDate] = useState(deviceTodayLocalDateString());
   const [time, setTime] = useState(nowRoundedToFive());
   const [durationMin, setDurationMin] = useState(60);
+  const [distanceKm, setDistanceKm] = useState('');
+  const [elevationGainM, setElevationGainM] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,6 +92,8 @@ export function ManualActivitySheet({
     setDate(initialDate ?? deviceTodayLocalDateString());
     setTime(nowRoundedToFive());
     setDurationMin(60);
+    setDistanceKm('');
+    setElevationGainM('');
     setName('');
     setError(null);
     setIsSaving(false);
@@ -172,12 +176,16 @@ export function ManualActivitySheet({
     setError(null);
     setIsSaving(true);
     try {
+      const isGpsType = !isNoGpsActivity(activityType);
       const activity = buildManualActivity({
         type: activityType,
         localDate: date.trim(),
         localTime: time.trim(),
         durationMin,
-        name
+        name,
+        distanceKm: isGpsType && distanceKm.trim() !== '' ? Number(distanceKm) : undefined,
+        elevationGainM:
+          isGpsType && elevationGainM.trim() !== '' ? Number(elevationGainM) : undefined
       });
       await addActivity(activity);
       // Remembered for the next entry. Never fails the save: the prefs
@@ -348,6 +356,32 @@ export function ManualActivitySheet({
                 <Text style={styles.stepperText}>+5</Text>
               </Pressable>
             </View>
+
+            {!isNoGpsActivity(activityType) ? (
+              <>
+                <Text style={styles.sectionLabel}>Distance & elevation (optional)</Text>
+                <View style={styles.chipRow}>
+                  <TextInput
+                    style={styles.inlineInput}
+                    value={distanceKm}
+                    onChangeText={setDistanceKm}
+                    placeholder="Distance km"
+                    keyboardType="decimal-pad"
+                    autoCorrect={false}
+                    accessibilityLabel="Activity distance in kilometres"
+                  />
+                  <TextInput
+                    style={styles.inlineInput}
+                    value={elevationGainM}
+                    onChangeText={setElevationGainM}
+                    placeholder="Elevation m"
+                    keyboardType="number-pad"
+                    autoCorrect={false}
+                    accessibilityLabel="Activity elevation gain in metres"
+                  />
+                </View>
+              </>
+            ) : null}
 
             <Text style={styles.sectionLabel}>Name (optional)</Text>
             <TextInput
