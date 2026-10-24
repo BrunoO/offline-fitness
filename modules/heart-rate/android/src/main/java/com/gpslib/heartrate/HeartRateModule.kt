@@ -40,27 +40,20 @@ class HeartRateModule : Module() {
   private val batteryLevelUuid = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
   private val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
-  override fun onDestroy() {
-    try {
-      scanner?.stopScan(scanCallback)
-    } catch (_: Exception) {}
-    scanning = false
-    try {
-      gatt?.disconnect()
-    } catch (_: Exception) {}
-    try {
-      gatt?.close()
-    } catch (_: Exception) {}
-    gatt = null
-    connectedDeviceId = null
-    scope.cancel()
-    super.onDestroy()
-  }
-
   override fun definition() = ModuleDefinition {
     Name("HeartRate")
 
     Events("onDeviceFound", "onScanStateChanged", "onConnectionStateChanged", "onHeartRate", "onBatteryLevel")
+
+    OnDestroy {
+      try { scanner?.stopScan(scanCallback) } catch (_: Exception) {}
+      scanning = false
+      try { gatt?.disconnect() } catch (_: Exception) {}
+      try { gatt?.close() } catch (_: Exception) {}
+      gatt = null
+      connectedDeviceId = null
+      scope.cancel()
+    }
 
     AsyncFunction("getCapabilities") {
       mapOf(

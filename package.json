@@ -119,6 +119,11 @@
     "typescript-eslint": "^8.39.1"
   },
   "private": true,
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  },
   "jest": {
     "preset": "jest-expo",
     "testPathIgnorePatterns": [
