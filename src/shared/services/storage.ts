@@ -1,8 +1,8 @@
 // https://react-native-async-storage.github.io/async-storage/docs/install
 import { STORAGE_KEYS } from '@/constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { simpleLogger } from '@/shared/services/SimpleLogger';
-import { Activity } from '@/shared';
+import { simpleLogger } from './SimpleLogger';
+import type { Activity } from '../types/types';
 
 const ACTIVITY_KEY = STORAGE_KEYS.ACTIVITY_PREFIX;
 

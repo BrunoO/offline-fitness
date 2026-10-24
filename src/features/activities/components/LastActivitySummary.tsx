@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Activity, calculateSpeedKmh, getActivityIcon, seconds_to_label } from '@/shared';
-import { ActivityStats } from '@/features/stats';
+import type { ActivityStats } from '@/features/stats';
 
 interface LastActivitySummaryProps {
   activity: Activity | null;

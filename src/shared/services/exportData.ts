@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '@/constants';
-import { StreamSet } from '@/features/activities';
+import type { StreamSet } from '@/features/activities/types/stravaActivityStream.model';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
