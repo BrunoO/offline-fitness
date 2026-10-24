@@ -259,6 +259,44 @@ describe('replaySession', () => {
     expect(result.stream.latlng?.data).toHaveLength(2);
     expect(result.rejected).toHaveLength(1);
   });
+
+  it('backfills geoid height to early fixes preventing initial elevation drop', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, ele: 100, geoid: null }),
+      fix({ t: 1_003_000, lat: 45.0001, lon: 6.0001, ele: 100, geoid: null }),
+      fix({ t: 1_006_000, lat: 45.0002, lon: 6.0002, ele: 100, geoid: 45 })
+    ];
+    const result = replaySession(makeMeta(), fixes);
+    expect(result.stream.altitude?.data[0]).toBe(55);
+    expect(result.stream.altitude?.data[1]).toBe(55);
+    expect(result.stream.altitude?.data[2]).toBe(55);
+    expect(result.stats.elevationLossMeters).toBe(0);
+    expect(result.stats.elevationGainMeters).toBe(0);
+  });
+
+  it('suppresses elevation gain from GPS vertical wander on flat ground', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, ele: 50.0 }),
+      fix({ t: 1_003_000, lat: 45.0001, lon: 6.0001, ele: 52.0 }),
+      fix({ t: 1_006_000, lat: 45.0002, lon: 6.0002, ele: 48.5 }),
+      fix({ t: 1_009_000, lat: 45.0003, lon: 6.0003, ele: 51.5 }),
+      fix({ t: 1_012_000, lat: 45.0004, lon: 6.0004, ele: 49.0 })
+    ];
+    const result = replaySession(makeMeta(), fixes);
+    expect(result.stats.elevationGainMeters).toBe(0);
+  });
+
+  it('accumulates elevation gain when a real climb exceeds the GPS threshold', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, ele: 50.0 }),
+      fix({ t: 1_003_000, lat: 45.0001, lon: 6.0001, ele: 55.0 }),
+      fix({ t: 1_006_000, lat: 45.0002, lon: 6.0002, ele: 60.0 }),
+      fix({ t: 1_009_000, lat: 45.0003, lon: 6.0003, ele: 65.0 }),
+      fix({ t: 1_012_000, lat: 45.0004, lon: 6.0004, ele: 70.0 })
+    ];
+    const result = replaySession(makeMeta(), fixes);
+    expect(result.stats.elevationGainMeters).toBeGreaterThan(3.5);
+  });
 });
 
 // Sanity: the fixtures parse through the real reader path.

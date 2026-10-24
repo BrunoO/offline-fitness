@@ -5,10 +5,11 @@ import type { EncodableStreamSet } from '@/shared/services/streamCodec';
 import { SplitDetector } from './splits';
 import type { SplitEvent } from './splits';
 
-const BARO_WEIGHT_GPS = 0.7;
-const BARO_WEIGHT_BARO = 0.3;
+const BARO_WEIGHT_GPS = 0.15;
+const BARO_WEIGHT_BARO = 0.85;
 const SMOOTHING_ALPHA = 0.25;
-const HYSTERESIS_THRESHOLD_M = 1.5;
+const HYSTERESIS_THRESHOLD_BARO_M = 1.5;
+const HYSTERESIS_THRESHOLD_GPS_M = 3.5;
 const SLOPE_WINDOW_METERS = 30;
 const SLOPE_WINDOW_MS = 15_000;
 const SLOPE_MIN_DISTANCE_M = 5;
@@ -70,6 +71,9 @@ interface ReplayContext {
   splits: SplitEvent[];
   autoPausedCount: number;
   splitDetector: SplitDetector;
+  firstKnownGeoid: number | null;
+  lastKnownGeoid: number | null;
+  hasBarometer: boolean;
 }
 
 function createAltitudeState(): AltitudeState {
@@ -100,7 +104,12 @@ function fuseBarometer(state: AltitudeState, msl: number, pressure: number): num
   return BARO_WEIGHT_GPS * msl + BARO_WEIGHT_BARO * baroDerived;
 }
 
-function applyHysteresis(state: AltitudeState, smoothed: number, isSwimming: boolean): void {
+function applyHysteresis(
+  state: AltitudeState,
+  smoothed: number,
+  isSwimming: boolean,
+  threshold: number
+): void {
   if (isSwimming) {
     state.gain = 0;
     state.loss = 0;
@@ -112,10 +121,10 @@ function applyHysteresis(state: AltitudeState, smoothed: number, isSwimming: boo
     return;
   }
   const delta = smoothed - state.anchor;
-  if (delta >= HYSTERESIS_THRESHOLD_M) {
+  if (delta >= threshold) {
     state.gain += delta;
     state.anchor = smoothed;
-  } else if (delta <= -HYSTERESIS_THRESHOLD_M) {
+  } else if (delta <= -threshold) {
     state.loss += Math.abs(delta);
     state.anchor = smoothed;
   }
@@ -147,15 +156,23 @@ function sampleAltitude(
   state: AltitudeState,
   location: FixLogEntry,
   stepDistance: number,
-  isSwimming: boolean
+  isSwimming: boolean,
+  ctx: ReplayContext
 ): { smoothed: number; gain: number; loss: number } {
   const raw = location.ele ?? 0;
 
-  let msl = raw;
   if (location.geoid != null) {
-    msl = raw - location.geoid;
+    ctx.lastKnownGeoid = location.geoid;
   }
-  state.geoid = location.geoid ?? state.geoid;
+  // Backfill early fixes if NMEA GGA arrived later in the session,
+  // preventing an artificial ~40m drop at the beginning of the recording.
+  const effectiveGeoid = location.geoid ?? ctx.lastKnownGeoid ?? ctx.firstKnownGeoid;
+
+  let msl = raw;
+  if (effectiveGeoid != null) {
+    msl = raw - effectiveGeoid;
+  }
+  state.geoid = effectiveGeoid ?? state.geoid;
 
   let estimated = msl;
   if (location.pressure != null) {
@@ -177,7 +194,8 @@ function sampleAltitude(
     return { smoothed, gain: 0, loss: 0 };
   }
 
-  applyHysteresis(state, smoothed, isSwimming);
+  const threshold = ctx.hasBarometer ? HYSTERESIS_THRESHOLD_BARO_M : HYSTERESIS_THRESHOLD_GPS_M;
+  applyHysteresis(state, smoothed, isSwimming, threshold);
   updateSlope(state, smoothed, location);
 
   return { smoothed, gain: state.gain, loss: state.loss };
@@ -343,7 +361,7 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
 
   handleManualPauseBoundary(ctx, fix);
 
-  const sample = sampleAltitude(ctx.altitudeState, fix, stepDistance, ctx.isSwimming);
+  const sample = sampleAltitude(ctx.altitudeState, fix, stepDistance, ctx.isSwimming, ctx);
   const roundedLat = roundCoordinate(fix.lat);
   const roundedLon = roundCoordinate(fix.lon);
   const roundedAlt = roundElevation(sample.smoothed);
@@ -408,6 +426,9 @@ export function replaySession(
   const filterOptions =
     PROFILE_FILTER_OPTIONS[meta.profile as Profile] ?? PROFILE_FILTER_OPTIONS.walking;
 
+  const firstKnownGeoid = fixes.find(f => f.geoid != null)?.geoid ?? null;
+  const hasBarometer = fixes.some(f => f.pressure != null);
+
   const ctx: ReplayContext = {
     meta,
     filterOptions,
@@ -428,7 +449,10 @@ export function replaySession(
     autoPauseGaps: [],
     splits: [],
     autoPausedCount: 0,
-    splitDetector: new SplitDetector({ audioEnabled: false, hapticEnabled: false })
+    splitDetector: new SplitDetector({ audioEnabled: false, hapticEnabled: false }),
+    firstKnownGeoid,
+    lastKnownGeoid: null,
+    hasBarometer
   };
 
   for (let i = 0; i < fixes.length; i++) {

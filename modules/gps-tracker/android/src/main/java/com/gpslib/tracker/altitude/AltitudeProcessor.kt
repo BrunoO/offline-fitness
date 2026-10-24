@@ -84,6 +84,10 @@ class AltitudeProcessor(
             else -> null
         }
 
+        if (geoidHeightMeters == null && raw != null && msl != null) {
+            geoidHeightMeters = raw - msl
+        }
+
         val verticalAccuracy = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && location.hasMslAltitudeAccuracy() ->
                 location.mslAltitudeAccuracyMeters
