@@ -160,13 +160,13 @@ function SimilarActivitiesList({
                 isSimilarByTrack ? { backgroundColor: theme.success } : null
               ]}
             >
-              <Text>{activity.name}</Text>
-              <Text>Date: {formatActivityLocalDateTime(activity)}</Text>
-              <Text>Distance: {(activity.distance / 1000).toFixed(1)} km</Text>
+              <Text selectable>{activity.name}</Text>
+              <Text selectable>Date: {formatActivityLocalDateTime(activity)}</Text>
+              <Text selectable>Distance: {(activity.distance / 1000).toFixed(1)} km</Text>
               {similarByTrackInfo ? (
-                <Text>Similarity: {similarByTrackInfo.similarity.toFixed(2)}</Text>
+                <Text selectable>Similarity: {similarByTrackInfo.similarity.toFixed(2)}</Text>
               ) : null}
-              <Text>
+              <Text selectable>
                 Average Speed:{' '}
                 {calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1)} km/h
               </Text>
@@ -375,8 +375,12 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
               paddingBottom: 5
             }}
           >
-            <Text style={{ fontWeight: 'bold', width: 150 }}>{key}</Text>
-            <Text style={{ flex: 1, flexWrap: 'wrap' }}>{valueString}</Text>
+            <Text selectable style={{ fontWeight: 'bold', width: 150 }}>
+              {key}
+            </Text>
+            <Text selectable style={{ flex: 1, flexWrap: 'wrap' }}>
+              {valueString}
+            </Text>
           </View>
         );
       })}
@@ -681,14 +685,29 @@ export function ActivityAnalysisView({
 
   /**
    * Computes the data for the altitude and elevation gain charts.
+   * Uses deadband hysteresis so microscopic sensor noise is not accumulated
+   * into phantom elevation gain.
+   * If the activity recorded 0 elevation gain, the cumulative gain line stays 0.
    * @returns An object with the data for the charts.
    */
   function computeData() {
     if (!altitudeData || !timeData) return { altitudeDataXY: undefined, elevationGain: undefined };
 
-    let sumGain = 0;
     const altXY: { x: number; y: number }[] = [];
     const elGain: { x: number; y: number }[] = [];
+
+    if (item.total_elevation_gain === 0) {
+      for (let i = 0; i < altitudeData.length; i++) {
+        const x = timeData[i] / 3600;
+        altXY.push({ x, y: altitudeData[i] });
+        elGain.push({ x, y: 0 });
+      }
+      return { altitudeDataXY: altXY, elevationGain: elGain };
+    }
+
+    let sumGain = 0;
+    const HYSTERESIS_THRESHOLD = 1.5;
+    let anchor: number | null = null;
 
     for (let i = 0; i < altitudeData.length; i++) {
       const x = timeData[i] / 3600;
@@ -696,10 +715,17 @@ export function ActivityAnalysisView({
       altXY.push({ x, y });
 
       if (i === 0) {
+        anchor = y;
         elGain.push({ x, y: 0 });
-      } else {
-        sumGain += Math.max(0, y - altitudeData[i - 1]);
-        elGain.push({ x, y: sumGain });
+      } else if (anchor !== null) {
+        const delta = y - anchor;
+        if (delta >= HYSTERESIS_THRESHOLD) {
+          sumGain += delta;
+          anchor = y;
+        } else if (delta <= -HYSTERESIS_THRESHOLD) {
+          anchor = y;
+        }
+        elGain.push({ x, y: Math.round(sumGain * 10) / 10 });
       }
     }
 
