@@ -178,6 +178,13 @@ graph TB
    - **Android-only recording** (D6/D7): iOS is a compiled stub answering `getCapabilities() → { canRecord: false }`. The pod resolves and the stub compiles (`xcodebuild -scheme GpsTracker`), so the module cannot quietly become Android-only at the config level.
    - **No `ACCESS_BACKGROUND_LOCATION`** (D5): a `foregroundServiceType="location"` service started while the app is visible runs on the while-in-use grant. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is deliberately absent (D9, post-MVP).
    - **Permissions are the app's job** (D5): foreground location via `expo-location`, `POST_NOTIFICATIONS` via `PermissionsAndroid`; denial of the notification is non-fatal. `useKeepAwake` keeps the screen on only while a session is live.
+
+7. **Heart-Rate Capture & BLE Integration** (`src/features/heart-rate`, `modules/heart-rate/`)
+   - Captures heart rate from Bluetooth Low Energy straps conforming to the standard BLE Heart Rate Service (`0x180D`), Measurement (`0x2A37`), and Battery (`0x2A19`). Tested with the Polar H10.
+   - **Local Expo Module** (`modules/heart-rate/`): Android implementation manages device discovery, GATT connections, notifications, and battery status. Clean lifecycle management cancels scanners and coroutine scopes in `onDestroy()`. iOS is implemented as an explicit capability stub (`canScan: false`).
+   - **Permissions**: Bluetooth permissions are declared directly in the native module's manifest (`BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` with `neverForLocation` for Android 12+, falling back to `ACCESS_FINE_LOCATION` on legacy Android). The app manifest remains free of duplicate declarations.
+   - **Session Logging & Alignment**: While an activity session is active, incoming HR samples are appended as JSONL records to `<files>/recording/<sessionId>/heartrate.jsonl`. Replay correlates samples within a ±10 s window against accepted track fixes. Fixes without nearby samples or with sensor contact lost receive `null` (never `0` bpm) so that gaps and real readings are clearly distinguishable.
+   - **Stream Codec**: The binary stream encoder flags heart rate via `FLAG_HAS_HEARTRATE` and verifies length alignment. Missing samples (`null`) are serialized as a dedicated `0` sentinel value on disk and restored to `null` in memory.
    - **Retention** (D10): fix logs are kept for 30 days, device-only, swept at app start and after each successful save through `listSessions()` + `discardSession()`; the README Fine print states the window.
    - **iOS contribution guide**: the stub is the contract; implement the same functions behind `CoreLocation` and validate against the fixtures in `__tests__/recording/`.
 
@@ -229,6 +236,7 @@ graph TB
    - `MiniMapComponent` from `@/features/maps/components/MiniMapComponent`
    - `ButtonList` from `@/features/home/components/ButtonList`
    - `RecordChooserSheet` from `@/features/activities/components/RecordChooserSheet` (mounted beside the navigator, never inside the drawer panel)
+   - `RecordingScreen` from `@/features/recording/screens/RecordingScreen`
 
    **Services:**
    - `trackComparison` functions from `@/shared/services/trackComparison` (import directly)

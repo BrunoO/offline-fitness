@@ -312,6 +312,71 @@ function AltitudeChart({
 }
 
 /**
+ * Maps the heart-rate series onto hours-since-start.
+ *
+ * The series is aligned with `time` and carries `null` for points without a
+ * reading, so gaps are skipped instead of being drawn as 0 bpm (which would
+ * collapse the chart's y-domain).
+ */
+function buildHeartRateXY(
+  heartRateData: (number | null)[],
+  timeData: number[]
+): { x: number; y: number }[] {
+  const pointCount = Math.min(heartRateData.length, timeData.length);
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i < pointCount; i++) {
+    const bpm = heartRateData[i];
+    if (bpm === null) {
+      continue;
+    }
+    points.push({ x: timeData[i] / 3600, y: bpm });
+  }
+  return points;
+}
+
+/**
+ * Component for displaying heart-rate chart
+ */
+function HeartRateChart({
+  heartRateDataXY,
+  mapWidth
+}: Readonly<{
+  heartRateDataXY: { x: number; y: number }[];
+  mapWidth: number;
+}>): JSX.Element | null {
+  const theme = useTheme();
+  const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
+  if (!heartRateDataXY || heartRateDataXY.length === 0) {
+    return null;
+  }
+
+  return (
+    <VictoryChart theme={chartTheme} width={mapWidth}>
+      <VictoryAxis
+        label="Time (h:min)"
+        tickFormat={formatTime}
+        style={{
+          axisLabel: { padding: 30 }
+        }}
+      />
+      <VictoryAxis
+        dependentAxis
+        label="Heart rate (bpm)"
+        style={{
+          axisLabel: { padding: 40 }
+        }}
+      />
+      <VictoryLine
+        data={heartRateDataXY}
+        style={{
+          data: { stroke: theme.danger }
+        }}
+      />
+    </VictoryChart>
+  );
+}
+
+/**
  * Component for displaying elevation gain chart
  */
 function ElevationGainChart({
@@ -599,7 +664,8 @@ export function ActivityAnalysisView({
 
   // workaround for Strava swimming activities (altitude data is not good enough)
   const altitudeData = item.type === 'Swim' ? undefined : loadedStream?.streamSet.altitude;
-  const { altitudeDataXY, elevationGain } = item.type === 'Swim' ? {} : computeData();
+  const heartRateData = loadedStream?.streamSet.heartrate;
+  const { altitudeDataXY, elevationGain, heartRateDataXY } = computeData();
 
   const handleActivityPress = async (activity: Activity | null) => {
     try {
@@ -666,6 +732,9 @@ export function ActivityAnalysisView({
         </View>
         <AltitudeChart altitudeDataXY={altitudeDataXY} mapWidth={mapWidth} />
         <ElevationGainChart elevationGain={elevationGain} mapWidth={mapWidth} />
+        {heartRateDataXY && heartRateDataXY.length > 0 ? (
+          <HeartRateChart heartRateDataXY={heartRateDataXY} mapWidth={mapWidth} />
+        ) : null}
         <ActivityDetails item={item} />
       </ScrollView>
       <IoUThresholdModal
@@ -691,7 +760,11 @@ export function ActivityAnalysisView({
    * @returns An object with the data for the charts.
    */
   function computeData() {
-    if (!altitudeData || !timeData) return { altitudeDataXY: undefined, elevationGain: undefined };
+    const hrXY = heartRateData ? buildHeartRateXY(heartRateData, timeData ?? []) : undefined;
+
+    if (!altitudeData || !timeData) {
+      return { altitudeDataXY: undefined, elevationGain: undefined, heartRateDataXY: hrXY };
+    }
 
     const altXY: { x: number; y: number }[] = [];
     const elGain: { x: number; y: number }[] = [];
@@ -729,6 +802,10 @@ export function ActivityAnalysisView({
       }
     }
 
-    return { altitudeDataXY: altXY, elevationGain: elGain };
+    return {
+      altitudeDataXY: altXY,
+      elevationGain: elGain,
+      heartRateDataXY: hrXY
+    };
   }
 }

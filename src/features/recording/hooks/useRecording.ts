@@ -2,6 +2,7 @@ import { simpleLogger } from '@/shared';
 import { useActivitiesContext } from '@/features/activities';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listUnfinishedSessions, readFixLog } from '../services/fixLog';
+import { heartRateLogUri, readHeartRateLog } from '../services/heartRateLog';
 import type {
   RecordingMeta,
   GpsTrackerCapabilities,
@@ -18,6 +19,7 @@ import { SplitDetector } from '../services/splits';
 import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
 import { writeStreamFile } from '../services/writeStreamFile';
+import { heartRateService } from '@/features/heart-rate';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
@@ -29,6 +31,7 @@ export interface UseRecordingResult {
   state: RecordingState;
   liveStats: LiveStats | null;
   summary: RecordingSummary | null;
+  heartRateSummary: { average: number; max: number } | null;
   lastSplit: SplitEvent | null;
   error: string | null;
   isBusy: boolean;
@@ -66,6 +69,9 @@ export function useRecording(): UseRecordingResult {
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
+  const [heartRateSummary, setHeartRateSummary] = useState<{ average: number; max: number } | null>(
+    null
+  );
   const [lastSplit, setLastSplit] = useState<SplitEvent | null>(null);
   // Mirrors `summary` so the state listener (a long-lived closure) can decide
   // whether the summary still needs loading without re-subscribing.
@@ -154,12 +160,14 @@ export function useRecording(): UseRecordingResult {
         // "Stop" button) still moves the session to stopped-unsaved, but the
         // hook never called GpsTracker.stopRecording(), so the summary is
         // missing. Load it from disk so the LastSessionCard and the dev-only
-        // shadow comparison keep working.
+        // shadow comparison keep working. Mirror stop(): detach HR and compute
+        // the HR summary.
         if (
           nextState.phase === 'stopped-unsaved' &&
           nextState.sessionId !== undefined &&
           summaryRef.current === null
         ) {
+          heartRateService.detachRecording();
           void (async () => {
             try {
               const meta = await GpsTracker.getSessionMeta(nextState.sessionId!);
@@ -175,6 +183,14 @@ export function useRecording(): UseRecordingResult {
                     hAccM: null
                   }
                 });
+              }
+              const { samples } = readHeartRateLog(heartRateLogUri(meta));
+              if (samples.length > 0) {
+                const avg = Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length);
+                const max = Math.max(...samples.map(x => x.bpm));
+                setHeartRateSummary({ average: avg, max });
+              } else {
+                setHeartRateSummary(null);
               }
             } catch (cause: unknown) {
               simpleLogger.error('Could not load the stopped session', cause);
@@ -227,6 +243,7 @@ export function useRecording(): UseRecordingResult {
           profile,
           capture: PROFILE_CAPTURE_OPTIONS[profile]
         });
+        heartRateService.attachRecording(meta);
         const [audioRaw, hapticRaw, intervalRaw] = await Promise.all([
           AsyncStorage.getItem('splitsAudioEnabled'),
           AsyncStorage.getItem('splitsHapticEnabled'),
@@ -281,8 +298,22 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       const nextSummary = await GpsTracker.stopRecording();
+      heartRateService.detachRecording();
       splitDetectorRef.current = null;
       setSummary(nextSummary);
+      const recordingState = await GpsTracker.getRecordingState();
+      const sessionId = recordingState.sessionId;
+      if (sessionId) {
+        const meta = await GpsTracker.getSessionMeta(sessionId);
+        const { samples } = readHeartRateLog(heartRateLogUri(meta));
+        if (samples.length > 0) {
+          const avg = Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length);
+          const max = Math.max(...samples.map(x => x.bpm));
+          setHeartRateSummary({ average: avg, max });
+        } else {
+          setHeartRateSummary(null);
+        }
+      }
     } catch (cause: unknown) {
       simpleLogger.error('Could not stop recording', cause);
       setError(describeError(cause, 'Could not stop the recording service.'));
@@ -302,7 +333,8 @@ export function useRecording(): UseRecordingResult {
       try {
         const meta = await GpsTracker.getSessionMeta(sessionId);
         const { fixes, skipped } = readFixLog(meta.logUri, meta);
-        const replay = replaySession(meta, fixes, skipped);
+        const { samples: heartRateSamples } = readHeartRateLog(heartRateLogUri(meta));
+        const replay = replaySession(meta, fixes, skipped, heartRateSamples);
 
         // Shadow mode (dev only): compare the replay against the native display
         // numbers and log a mismatch instead of failing the save.
@@ -330,9 +362,11 @@ export function useRecording(): UseRecordingResult {
         // overwritten on retry) instead of a record with a blank map.
         writeStreamFile(activity.id, replay.stream);
         await addActivity(activity);
+        heartRateService.detachRecording();
         await GpsTracker.markSessionSaved(sessionId, activity.id);
 
         setSummary(null);
+        setHeartRateSummary(null);
         setState(IDLE_STATE);
         setLiveStats(null);
         setLastSplit(null);
@@ -354,9 +388,11 @@ export function useRecording(): UseRecordingResult {
 
     setError(null);
     try {
+      heartRateService.detachRecording();
       await GpsTracker.discardSession(sessionId);
       splitDetectorRef.current = null;
       setSummary(null);
+      setHeartRateSummary(null);
       setState(IDLE_STATE);
       setLiveStats(null);
       setLastSplit(null);
@@ -380,6 +416,7 @@ export function useRecording(): UseRecordingResult {
     state,
     liveStats,
     summary,
+    heartRateSummary,
     lastSplit,
     error,
     isBusy,

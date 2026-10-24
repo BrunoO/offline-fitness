@@ -201,6 +201,7 @@ semantically invisible to tsc. Non-negotiable discipline:
    ├── features/
    │   ├── activities/      # Core state, local storage, stream caching, list/detail screens
    │   ├── backup/          # Cloud backup/restore (WebDAV transport)
+   │   ├── heart-rate/      # BLE heart-rate (Polar H10): service, card, permissions, hooks
    │   ├── home/            # Home screen, launcher buttons
    │   ├── maps/            # Map visualization (MiniMapComponent)
    │   ├── recording/       # GPS recording: fix-log reader, replay, save flow, screen (wraps modules/gps-tracker)
@@ -223,6 +224,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 - **Stream caching** (`fetchAndStoreStreams.ts`) - Performance-critical, handles large datasets
 - **Archive ingestion** (`scripts/strava-import-tool/` + `features/strava-import/` core) - The only ingestion path: desktop tool → WebDAV → Restore; idempotent and resumable by design
 - **GPS recording** (`modules/gps-tracker/` + `features/recording/`) - The local Expo module, the fix log, the replay and the save flow. The service owns the session; the app owns permissions. Never copy `../GpsLib/gpslogger/` (GPLv2).
+- **Heart-rate (Polar H10)** (`modules/heart-rate/` + `features/heart-rate/`) - BLE scanning/connection, notification parsing with bounds checks, session HR logging, replay alignment. Permissions live in the module manifest; iOS is a stub.
 - **Calendar components** (`ActivityCalendarPeriod`) - Complex state and performance optimizations
 - **MiniMap component** - Navigation lifecycle issues, platform-specific behavior
 
@@ -280,6 +282,7 @@ import logo from '@/assets/logo.png'; // ❌ Use relative path
 - `import CustomDrawer from '@/shared/components/CustomDrawer'`
 - `import MiniMapComponent from '@/features/maps/components/MiniMapComponent'`
 - `import ButtonList from '@/features/home/components/ButtonList'`
+- `import { RecordingScreen } from '@/features/recording/screens/RecordingScreen'`
 - `trackComparison` functions from `@/shared/services/trackComparison`
 
 See `docs/architecture.md` for complete import guidelines.

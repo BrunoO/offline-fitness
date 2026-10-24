@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
+import { HeartRateCard } from '@/features/heart-rate';
 import type {
   GpsTrackerCapabilities,
   LiveStats,
@@ -72,6 +73,7 @@ export function RecordingScreen(): JSX.Element {
     state,
     liveStats,
     summary,
+    heartRateSummary,
     lastSplit,
     error,
     isBusy,
@@ -157,6 +159,7 @@ export function RecordingScreen(): JSX.Element {
       ) : null}
 
       <SessionCard phase={state.phase} liveStats={liveStats} styles={styles} theme={theme} />
+      <HeartRateCard />
 
       <LiveStatsCard
         liveStats={liveStats}
@@ -206,6 +209,7 @@ export function RecordingScreen(): JSX.Element {
       {state.phase === 'stopped-unsaved' ? (
         <LastSessionCard
           summary={summary}
+          heartRateSummary={heartRateSummary}
           onSave={save}
           onDiscard={discard}
           isSaving={isSaving}
@@ -537,6 +541,7 @@ function RecordingActions({
 
 interface LastSessionCardProps {
   readonly summary: RecordingSummary | null;
+  readonly heartRateSummary: { average: number; max: number } | null;
   readonly onSave: (name: string) => Promise<void>;
   readonly onDiscard: () => Promise<void>;
   readonly isSaving: boolean;
@@ -546,6 +551,7 @@ interface LastSessionCardProps {
 
 function LastSessionCard({
   summary,
+  heartRateSummary,
   onSave,
   onDiscard,
   isSaving,
@@ -576,6 +582,14 @@ function LastSessionCard({
           <Text style={styles.summaryValue}>{duration}</Text>
           <Text style={styles.summaryLabel}>duration</Text>
         </View>
+        {heartRateSummary ? (
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>
+              {heartRateSummary.average}/{heartRateSummary.max}
+            </Text>
+            <Text style={styles.summaryLabel}>HR avg/max</Text>
+          </View>
+        ) : null}
       </View>
       <TextInput
         value={name}

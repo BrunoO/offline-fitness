@@ -13,7 +13,7 @@ import {
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
 import { MapsScreen } from '@/features/maps';
-import { RecordingScreen } from '@/features/recording';
+import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
