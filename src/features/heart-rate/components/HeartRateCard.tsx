@@ -1,5 +1,6 @@
 import React, { JSX, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { type ResolvedTheme, useTheme } from '@/theme';
 import { simpleLogger } from '@/shared';
 import { useHeartRate } from '../hooks/useHeartRate';
@@ -221,12 +222,57 @@ function getConnectedDeviceName(device: { id: string; name: string } | null): st
   return device.name || device.id;
 }
 
+interface HeaderStatusProps {
+  isConnected: boolean;
+  connectionState: string;
+  statusText: string;
+  shouldShowDisconnected: boolean;
+  onToggleExpand: () => void;
+  primaryColor: string;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function HeaderStatus({
+  isConnected,
+  connectionState,
+  statusText,
+  shouldShowDisconnected,
+  onToggleExpand,
+  primaryColor,
+  styles
+}: Readonly<HeaderStatusProps>): JSX.Element {
+  if (!isConnected && connectionState !== 'error') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Heart rate status: ${statusText}. Tap to ${shouldShowDisconnected ? 'collapse' : 'expand'} sensor connection.`}
+        onPress={onToggleExpand}
+        style={styles.statusButton}
+      >
+        <Text style={styles.statusLink}>{statusText}</Text>
+        <Ionicons
+          name={shouldShowDisconnected ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={primaryColor}
+        />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Text style={connectionState === 'error' ? styles.errorStatusText : styles.statusText}>
+      {statusText}
+    </Text>
+  );
+}
+
 export function HeartRateCard(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const hr = useHeartRate();
   const perms = useHeartRatePermissions();
   const [manualId, setManualId] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const isConnected = hr.connectionState === 'connected' && hr.connectedDevice !== null;
 
@@ -254,6 +300,7 @@ export function HeartRateCard(): JSX.Element {
 
   const deviceName = getConnectedDeviceName(hr.connectedDevice);
   const statusText = getStatusMessage(isConnected, deviceName, hr.battery, hr.connectionState);
+  const shouldShowDisconnected = isExpanded || hr.scanning || hr.devices.length > 0;
 
   const handleManualConnect = () => {
     const trimmed = manualId.trim();
@@ -265,8 +312,18 @@ export function HeartRateCard(): JSX.Element {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Heart rate</Text>
-      <Text style={styles.statusText}>{statusText}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Heart rate</Text>
+        <HeaderStatus
+          isConnected={isConnected}
+          connectionState={hr.connectionState}
+          statusText={statusText}
+          shouldShowDisconnected={shouldShowDisconnected}
+          onToggleExpand={() => setIsExpanded(prev => !prev)}
+          primaryColor={theme.primary}
+          styles={styles}
+        />
+      </View>
 
       {hr.connectionState === 'error' && !isConnected ? (
         <ConnectionErrorNotice
@@ -295,7 +352,7 @@ export function HeartRateCard(): JSX.Element {
         />
       ) : null}
 
-      {!isConnected && hr.connectionState !== 'error' ? (
+      {!isConnected && hr.connectionState !== 'error' && shouldShowDisconnected ? (
         <DisconnectedSection
           scanning={hr.scanning}
           devices={hr.devices}
@@ -325,19 +382,40 @@ const createStyles = (theme: ResolvedTheme) =>
       borderRadius: 12,
       backgroundColor: theme.surface
     },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8
+    },
     title: {
       color: theme.text,
       fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 8
+      fontWeight: '600'
     },
     message: {
       color: theme.textMuted,
       marginBottom: 8
     },
+    statusButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      minHeight: 44,
+      paddingVertical: 4
+    },
+    statusLink: {
+      color: theme.primary,
+      fontSize: 14,
+      fontWeight: '500'
+    },
     statusText: {
       color: theme.textMuted,
-      marginBottom: 8
+      fontSize: 14
+    },
+    errorStatusText: {
+      color: theme.danger,
+      fontSize: 14
     },
     errorText: {
       color: theme.danger,
