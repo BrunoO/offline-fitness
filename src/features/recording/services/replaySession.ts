@@ -161,12 +161,12 @@ function sampleAltitude(
 ): { smoothed: number; gain: number; loss: number } {
   const raw = location.ele ?? 0;
 
-  if (location.geoid != null) {
-    ctx.lastKnownGeoid = location.geoid;
-  }
   // Backfill early fixes if NMEA GGA arrived later in the session,
   // preventing an artificial ~40m drop at the beginning of the recording.
   const effectiveGeoid = location.geoid ?? ctx.lastKnownGeoid ?? ctx.firstKnownGeoid;
+  if (location.geoid != null) {
+    ctx.lastKnownGeoid = location.geoid;
+  }
 
   let msl = raw;
   if (effectiveGeoid != null) {
@@ -194,7 +194,10 @@ function sampleAltitude(
     return { smoothed, gain: 0, loss: 0 };
   }
 
-  const threshold = ctx.hasBarometer ? HYSTERESIS_THRESHOLD_BARO_M : HYSTERESIS_THRESHOLD_GPS_M;
+  // Derive hysteresis threshold per fix: fixes with barometric pressure use
+  // the tighter 1.5m deadband, while GPS-only fixes use 3.5m to absorb vertical drift.
+  const threshold =
+    location.pressure != null ? HYSTERESIS_THRESHOLD_BARO_M : HYSTERESIS_THRESHOLD_GPS_M;
   applyHysteresis(state, smoothed, isSwimming, threshold);
   updateSlope(state, smoothed, location);
 

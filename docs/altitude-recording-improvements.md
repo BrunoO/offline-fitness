@@ -45,14 +45,13 @@ Prompted by activity `recorded-1792829095198-1` (recorded on flat ground, showin
 
 ### For Problem 2 (Noise & Elevation Gain)
 1. **Adaptive Hysteresis Threshold (Implemented)**:
-   * *Mechanism*: Use `HYSTERESIS_THRESHOLD_BARO_M = 1.5` when barometric pressure is available, and `HYSTERESIS_THRESHOLD_GPS_M = 3.5` for GPS-only recordings.
+   * *Mechanism*: Use `HYSTERESIS_THRESHOLD_BARO_M = 1.5` for fixes with barometric pressure, and `HYSTERESIS_THRESHOLD_GPS_M = 3.5` for GPS-only fixes.
    * *Rationale*: Matches industry standards (Garmin, Strava, OpenTracks) where GPS-only tracking uses a 3.5m–5.0m deadband to ignore typical $\pm 2\text{ m}$ GPS vertical wander on flat ground while reliably detecting actual climbs.
 2. **Inverted Barometer Complementary Filter (Implemented)**:
    * *Mechanism*: Change weights to `BARO_WEIGHT_GPS = 0.15` and `BARO_WEIGHT_BARO = 0.85`.
    * *Rationale*: Gives the barometer control over high-frequency slope and altitude changes while GPS gently anchors against long-term meteorological drift.
-3. **Deadband Hysteresis in `ActivityAnalysisView.tsx` (Implemented)**:
-   * *Mechanism*: If `item.total_elevation_gain === 0`, render a flat 0m line. If $>0$, apply deadband hysteresis ($1.5\text{ m}$) instead of raw point-to-point positive summation.
-   * *Rationale*: Prevents the chart from displaying a runaway climbing curve when the user is moving on flat ground.
+3. **Deadband Hysteresis in `ActivityAnalysisView.tsx` (Preexisting Reference)**:
+   * *Note*: The elevation gain chart in `ActivityAnalysisView.tsx` already uses deadband hysteresis ($1.5\text{ m}$) in `computeData()` (implemented prior to this commit) to prevent display-side noise summation on flat ground.
 4. **Bidirectional / Zero-Phase Smoothing (Future option)**:
    * *Mechanism*: Apply a forward-backward rolling average or Gaussian filter (e.g. 20–30s or 30–50m distance window) over the full track in `replaySession.ts`.
    * *Status*: Reserved if 1-pole EMA ($\alpha = 0.25$) proves too noisy on low-end GPS chipsets.
@@ -81,10 +80,10 @@ Prompted by activity `recorded-1792829095198-1` (recorded on flat ground, showin
 * **Adaptive Hysteresis**:
   * `HYSTERESIS_THRESHOLD_BARO_M = 1.5`
   * `HYSTERESIS_THRESHOLD_GPS_M = 3.5`
-  * Threshold selected based on `ctx.hasBarometer`.
+  * Threshold evaluated per fix (`location.pressure != null`), applying the tighter barometric deadband only when pressure data is active.
 
-### 3. `src/features/activities/components/ActivityAnalysisView.tsx`
-* Updated `computeData()`:
+### 3. `src/features/activities/components/ActivityAnalysisView.tsx` (Preexisting Reference)
+* Note: Display-side deadband hysteresis in `computeData()` was implemented in earlier commits and is documented here as part of the overall elevation pipeline:
   * When `item.total_elevation_gain === 0`, all `elGain` points are rendered at 0.
   * When `item.total_elevation_gain > 0`, deadband hysteresis (`HYSTERESIS_THRESHOLD = 1.5`) is used to prevent point-to-point noise summation.
 
