@@ -25,7 +25,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 // Keep the splash screen visible while we fetch resources
 // (only rejects if the splash was already hidden; startup order makes that impossible)
@@ -78,7 +79,7 @@ function AppContent() {
       simpleLogger.log('✨ App UI loaded and ready');
       fadeAnim.value = withTiming(0, { duration: 350 }, finished => {
         if (finished) {
-          runOnJS(setSplashVisible)(false);
+          scheduleOnRN(setSplashVisible, false);
         }
       });
     }

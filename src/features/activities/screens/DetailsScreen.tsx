@@ -212,7 +212,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const sortedActivities = [...allActivities].sort(compareActivitiesByUtcDesc);
 
   const activityTypes = useMemo(
-    () => Array.from(new Set(allActivities.map(a => a.type))).sort(),
+    () => Array.from(new Set(allActivities.map(a => a.type))).sort((a, b) => a.localeCompare(b)),
     [allActivities]
   );
 
