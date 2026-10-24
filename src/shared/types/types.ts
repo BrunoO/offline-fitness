@@ -38,6 +38,10 @@ export type Activity = {
   type: string;
   bounding_box?: [[number, number], [number, number]];
   utc_offset: number;
+  /** Optional average heart rate in bpm (recorded or imported). */
+  average_heartrate?: number;
+  /** Optional max heart rate in bpm (recorded or imported). */
+  max_heartrate?: number;
 };
 
 export type ActivityAccessor<T> = (arg0: Activity) => T;
@@ -86,6 +90,8 @@ export interface ActivityStream {
   coordinates: LatLng[];
   altitude: number[];
   time: number[];
+  /** Aligned with `time`; `null` marks points without a sensor reading. */
+  heartrate?: (number | null)[];
 }
 
 export interface ActivityWithStream {

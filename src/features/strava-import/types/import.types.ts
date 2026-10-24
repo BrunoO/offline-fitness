@@ -50,6 +50,8 @@ export interface ExportedActivityRow {
   averageSpeed: number;
   /** Path of the GPS file inside the archive, empty for manual entries. */
   fileName: string;
+  averageHeartRate?: number;
+  maxHeartRate?: number;
 }
 
 export interface ParsedExport {
@@ -74,4 +76,10 @@ export interface ActivityStreamLike {
   };
   altitude: { data: number[]; series_type: string; original_size: number; resolution: string };
   time: { data: number[]; series_type: string; original_size: number; resolution: string };
+  heartrate?: {
+    data: (number | null)[];
+    series_type: string;
+    original_size: number;
+    resolution: string;
+  };
 }

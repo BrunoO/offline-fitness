@@ -49,7 +49,8 @@ describe('parseGpx', () => {
       lat: 44.905428,
       lon: 5.789806,
       ele: 864,
-      timeMs: Date.UTC(2023, 9, 15, 5, 50, 5)
+      timeMs: Date.UTC(2023, 9, 15, 5, 50, 5),
+      hr: null
     });
     expect(parsed.points[2].ele).toBeCloseTo(867.25);
   });
@@ -86,13 +87,15 @@ describe('parseGpx', () => {
         lat: 45.2,
         lon: 6.2,
         ele: 210,
-        timeMs: Date.UTC(2023, 9, 15, 5, 50, 5)
+        timeMs: Date.UTC(2023, 9, 15, 5, 50, 5),
+        hr: null
       },
       {
         lat: 45.3,
         lon: 6.3,
         ele: 211,
-        timeMs: Date.UTC(2023, 9, 15, 5, 50, 6)
+        timeMs: Date.UTC(2023, 9, 15, 5, 50, 6),
+        hr: null
       }
     ]);
   });
@@ -146,5 +149,23 @@ describe('toStreamSet', () => {
       '<gpx><trk><trkseg><trkpt lat="1" lon="2"><time>2023-10-15T05:50:05Z</time></trkpt></trkseg></trk></gpx>'
     );
     expect(converted!.stream.altitude.data).toEqual([0]);
+  });
+
+  it('omits the heart-rate series when no point carries one', () => {
+    const converted = gpxToStream(SAMPLE_GPX);
+    expect(converted!.stream.heartrate).toBeUndefined();
+  });
+
+  it('keeps heart-rate gaps as null so they are not read as 0 bpm', () => {
+    const gpx = `<gpx xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"><trk><trkseg>
+      <trkpt lat="45.1" lon="6.1"><time>2023-10-15T05:50:05Z</time><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>98</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>
+      <trkpt lat="45.2" lon="6.2"><time>2023-10-15T05:50:06Z</time></trkpt>
+      <trkpt lat="45.3" lon="6.3"><time>2023-10-15T05:50:07Z</time><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>112</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>
+    </trkseg></trk></gpx>`;
+    const converted = gpxToStream(gpx);
+
+    expect(converted!.stream.heartrate?.data).toEqual([98, null, 112]);
+    expect(converted!.stream.heartrate?.original_size).toBe(3);
+    expect(converted!.stream.time.data).toHaveLength(3);
   });
 });

@@ -300,3 +300,31 @@ describe('replaySession', () => {
 });
 
 // Sanity: the fixtures parse through the real reader path.
+
+describe('replaySession heart rate', () => {
+  it('aligns HR samples to accepted fixes and reports summary stats', () => {
+    const fixes = [
+      fix({ t: 1_000_000 }),
+      fix({ t: 1_010_000, lat: 45.0001, lon: 6.0001 })
+    ];
+    const samples = [
+      { t: 1_000_000, bpm: 70 },
+      { t: 1_010_000, bpm: 75 }
+    ];
+    const result = replaySession(makeMeta(), fixes, 0, samples as any);
+    expect(result.stream.heartrate?.data).toEqual([70, 75]);
+    expect(result.stats.averageHeartRate).toBe(73);
+    expect(result.stats.maxHeartRate).toBe(75);
+  });
+
+  it('writes null for fixes without a nearby HR sample', () => {
+    const fixes = [
+      fix({ t: 1_000_000 }),
+      fix({ t: 1_030_000, lat: 45.0001, lon: 6.0001 })
+    ];
+    const samples = [{ t: 1_000_000, bpm: 70 }];
+    const result = replaySession(makeMeta(), fixes, 0, samples as any);
+    expect(result.stream.heartrate?.data).toEqual([70, null]);
+    expect(result.stats.averageHeartRate).toBe(70);
+  });
+});

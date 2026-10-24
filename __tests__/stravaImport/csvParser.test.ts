@@ -268,6 +268,33 @@ describe('parseActivitiesCsv', () => {
     expect(rows[0].startUtcMs).toBe(Date.UTC(2026, 9, 14, 18, 38, 7));
   });
 
+  it('reads the max and average heart-rate summary columns', () => {
+    // `Max Heart Rate` sits in the first (summary) block, `Average Heart Rate`
+    // further right; both are matched by alias, never by position.
+    const headers = [...ENGLISH_HEADERS, 'Average Heart Rate'];
+    const csv = buildCsv(headers, [
+      { 0: '999', 1: 'Oct 14, 2026, 10:00:00', 3: 'Ride', 7: '162', 24: '141' }
+    ]);
+
+    const { rows } = parseActivitiesCsv(csv);
+    expect(rows[0].maxHeartRate).toBe(162);
+    expect(rows[0].averageHeartRate).toBe(141);
+  });
+
+  it('leaves heart rate undefined when the columns are empty or absent', () => {
+    // Empty summary cells are the norm (no strap, or an activity type Strava
+    // does not compute HR for) — they must not become 0 bpm.
+    const headers = [...ENGLISH_HEADERS, 'Average Heart Rate'];
+    const csv = buildCsv(headers, [
+      { 0: '999', 1: 'Oct 14, 2026, 10:00:00', 3: 'Yoga', 7: '', 24: '' }
+    ]);
+
+    const { rows } = parseActivitiesCsv(csv);
+    expect(rows[0].maxHeartRate).toBeUndefined();
+    expect(rows[0].averageHeartRate).toBeUndefined();
+    expect(parseActivitiesCsv(ENGLISH_CSV).rows[0].averageHeartRate).toBeUndefined();
+  });
+
   it('falls back to column positions when only the core headers are known', () => {
     // Strava keeps the column order across languages; only the aliases are
     // missing here, so the positional layout must rescue every metric.

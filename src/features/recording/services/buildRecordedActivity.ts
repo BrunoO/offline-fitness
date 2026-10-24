@@ -98,6 +98,8 @@ export function buildRecordedActivity(args: BuildRecordedActivityArgs): Activity
     type,
     average_speed: replay.stats.averageSpeedMetersPerSec,
     total_elevation_gain: elevationGain,
+    average_heartrate: replay.stats.averageHeartRate,
+    max_heartrate: replay.stats.maxHeartRate,
     elev_high: elevHigh,
     elev_low: elevLow,
     start_latlng: startLatLng,

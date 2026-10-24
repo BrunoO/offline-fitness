@@ -53,6 +53,58 @@ describe('streamCodec', () => {
     expect(decodeStreamBytes(view)).toEqual(SAMPLE_STREAM);
   });
 
+  it('round-trips a stream set with a heart-rate series', () => {
+    const withHr: EncodableStreamSet = {
+      ...SAMPLE_STREAM,
+      heartrate: {
+        data: [72, 74, 76],
+        series_type: 'distance',
+        original_size: 3,
+        resolution: 'high'
+      }
+    };
+    const encoded = encodeStreamSet(withHr);
+    expect(decodeStreamBytes(encoded)).toEqual(withHr);
+  });
+
+  it('round-trips heart-rate gaps as null rather than 0 bpm', () => {
+    const withGap: EncodableStreamSet = {
+      ...SAMPLE_STREAM,
+      heartrate: {
+        data: [72, null, 76],
+        series_type: 'distance',
+        original_size: 3,
+        resolution: 'high'
+      }
+    };
+    const decoded = decodeStreamBytes(encodeStreamSet(withGap));
+    expect(decoded.heartrate?.data).toEqual([72, null, 76]);
+  });
+
+  it('rejects encoding when heart-rate length mismatches aligned track point count', () => {
+    const mismatched: EncodableStreamSet = {
+      ...SAMPLE_STREAM,
+      heartrate: {
+        data: [72, 74],
+        series_type: 'distance',
+        original_size: 2,
+        resolution: 'high'
+      }
+    };
+    expect(() => encodeStreamSet(mismatched)).toThrow(
+      'Heart-rate series length (2) does not match aligned track point count (3)'
+    );
+  });
+
+  it('does not trust trailing bytes as heart-rate when the flag is missing', () => {
+    const encoded = encodeStreamSet(SAMPLE_STREAM);
+    const padded = new Uint8Array(encoded.byteLength + 4);
+    padded.set(encoded);
+    const view = new DataView(padded.buffer);
+    view.setInt32(encoded.byteLength, 80, true);
+    expect(decodeStreamBytes(padded).heartrate).toBeUndefined();
+  });
+
   it('handles partial stream sets when optional series are absent', () => {
     const partial: EncodableStreamSet = {
       latlng: {

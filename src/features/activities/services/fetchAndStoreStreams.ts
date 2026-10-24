@@ -139,10 +139,15 @@ export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
   if (streamSet.time?.data) {
     timeResult = streamSet.time.data;
   }
+  let heartrateResult: (number | null)[] | undefined;
+  if (streamSet.heartrate?.data) {
+    heartrateResult = streamSet.heartrate.data;
+  }
   return {
     coordinates: coordinatesResult,
     altitude: altitudeResult,
-    time: timeResult
+    time: timeResult,
+    heartrate: heartrateResult
   };
 };
 /**

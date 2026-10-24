@@ -20,6 +20,8 @@ export interface GpxPoint {
   ele: number | null;
   /** Absolute timestamp in ms. */
   timeMs: number;
+  /** Heart rate in bpm when the track carries it, otherwise null. */
+  hr: number | null;
 }
 
 export interface ParsedGpx {
@@ -39,6 +41,7 @@ const LON_PATTERN = /\blon\s*=\s*["']([^"']+)["']/;
 // (Number/Date.parse-after-trim) are whitespace-tolerant.
 const ELE_PATTERN = /<ele>\s*(\S[^<]*)<\/ele>/;
 const TIME_PATTERN = /<time>\s*(\S[^<]*)<\/time>/;
+const HR_PATTERN = /<(?:gpxtpx:)?hr>\s*(\S[^<]*)<\/(?:gpxtpx:)?hr>/;
 const TRACK_NAME_PATTERN = /<trk>[\s\S]*?<name>([\s\S]*?)<\/name>/;
 const TRACK_TYPE_PATTERN = /<trk>[\s\S]*?<type>([\s\S]*?)<\/type>/;
 
@@ -56,7 +59,7 @@ function decodeXmlEntities(value: string): string {
 function readTrackPoint(
   attributes: string,
   body: string
-): { lat: number; lon: number; ele: number | null; timeMs: number } | null {
+): { lat: number; lon: number; ele: number | null; timeMs: number; hr: number | null } | null {
   const latMatch = LAT_PATTERN.exec(attributes);
   const lonMatch = LON_PATTERN.exec(attributes);
   const timeMatch = TIME_PATTERN.exec(body);
@@ -70,7 +73,11 @@ function readTrackPoint(
   const eleMatch = ELE_PATTERN.exec(body);
   const ele = eleMatch ? Number(eleMatch[1]) : null;
 
-  return { lat, lon, ele: ele !== null && Number.isFinite(ele) ? ele : null, timeMs };
+  const hrMatch = HR_PATTERN.exec(body);
+  const hrRaw = hrMatch ? Number(hrMatch[1]) : null;
+  const hr = hrRaw !== null && Number.isFinite(hrRaw) ? hrRaw : null;
+
+  return { lat, lon, ele: ele !== null && Number.isFinite(ele) ? ele : null, timeMs, hr };
 }
 
 /**
@@ -127,11 +134,19 @@ export function toStreamSet(points: GpxPoint[]): StreamConversionResult | undefi
   const latlng: [number, number][] = [];
   const altitude: number[] = [];
   const time: number[] = [];
+  const heartrate: (number | null)[] = [];
+  let hasHeartrate = false;
 
   for (const point of points) {
     latlng.push([roundCoordinate(point.lat), roundCoordinate(point.lon)]);
     altitude.push(point.ele === null ? 0 : roundElevation(point.ele));
     time.push(Math.round((point.timeMs - startMs) / 1000));
+    if (point.hr !== null) {
+      hasHeartrate = true;
+    }
+    // Keep the series aligned with time/latlng: points without a `<hr>` value
+    // are `null`, never 0, so a gap is not read as a 0 bpm sample downstream.
+    heartrate.push(point.hr);
   }
 
   const stream: ActivityStreamLike = {
@@ -154,6 +169,15 @@ export function toStreamSet(points: GpxPoint[]): StreamConversionResult | undefi
       resolution: 'high'
     }
   };
+
+  if (hasHeartrate) {
+    stream.heartrate = {
+      data: heartrate,
+      series_type: 'distance',
+      original_size: heartrate.length,
+      resolution: 'high'
+    };
+  }
 
   return {
     stream,

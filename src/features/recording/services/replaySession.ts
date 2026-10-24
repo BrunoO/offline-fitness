@@ -1,6 +1,7 @@
 import { PROFILE_FILTER_OPTIONS } from './profiles';
 import type { FilterOptions } from './profiles';
 import type { FixLogEntry, Profile, RecordingMeta } from './gpsTracker';
+import type { HeartRateSample } from '../types/heartRate';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
 import { SplitDetector } from './splits';
 import type { SplitEvent } from './splits';
@@ -30,6 +31,8 @@ export interface ReplayResult {
     elevationLossMeters: number;
     maxSpeedMetersPerSec: number;
     averageSpeedMetersPerSec: number;
+    averageHeartRate?: number;
+    maxHeartRate?: number;
   };
   rejected: { index: number; reason: string }[];
   skipped: number;
@@ -55,9 +58,11 @@ interface ReplayContext {
   filterOptions: FilterOptions;
   isSwimming: boolean;
   fixes: FixLogEntry[];
+  heartRateSamples: HeartRateSample[];
   latlng: [number, number][];
   altitude: number[];
   time: number[];
+  heartrate: (number | null)[];
   segments: { startIndex: number; endIndex: number }[];
   rejected: { index: number; reason: string }[];
   distanceMeters: number;
@@ -337,6 +342,40 @@ function handleAutoPause(ctx: ReplayContext, fix: FixLogEntry, speed: number): b
   return ctx.autoPausedSince !== null;
 }
 
+const HR_MATCH_WINDOW_MS = 10_000;
+
+/**
+ * Heart rate for one accepted track point, or `null` when no sample is close
+ * enough to the fix. A gap stays `null` (never 0) so consumers can tell "no
+ * reading" apart from a measurement.
+ */
+function nearestHeartRate(samples: HeartRateSample[], t: number): number | null {
+  if (samples.length === 0) return null;
+  // Binary search for closest sample within the window.
+  let lo = 0;
+  let hi = samples.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (samples[mid].t < t) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  let bestIndex = lo;
+  if (
+    bestIndex > 0 &&
+    Math.abs(samples[bestIndex - 1].t - t) <= Math.abs(samples[bestIndex].t - t)
+  ) {
+    bestIndex -= 1;
+  }
+  const delta = Math.abs(samples[bestIndex].t - t);
+  if (delta > HR_MATCH_WINDOW_MS) {
+    return null;
+  }
+  return Math.round(samples[bestIndex].bpm);
+}
+
 function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
   const stepDistance =
     ctx.lastAccepted === null
@@ -378,6 +417,7 @@ function processFix(ctx: ReplayContext, fix: FixLogEntry, index: number): void {
   ctx.latlng.push([roundedLat, roundedLon]);
   ctx.altitude.push(roundedAlt);
   ctx.time.push(Math.round((fix.t - ctx.meta.startedAtUtcMs) / 1000));
+  ctx.heartrate.push(nearestHeartRate(ctx.heartRateSamples, fix.t));
 
   ctx.distanceMeters += stepDistance;
 
@@ -420,10 +460,53 @@ function computeTimeAccounting(
   return { elapsedSec, manualPauseMs, autoPauseMs };
 }
 
+function averageHeartRate(samples: HeartRateSample[]): number | undefined {
+  if (samples.length === 0) return undefined;
+  return Math.round(samples.reduce((sum, s) => sum + s.bpm, 0) / samples.length);
+}
+
+function maxHeartRate(samples: HeartRateSample[]): number | undefined {
+  if (samples.length === 0) return undefined;
+  return Math.max(...samples.map(s => s.bpm));
+}
+
+function buildStreamSet(ctx: ReplayContext): EncodableStreamSet {
+  const stream: EncodableStreamSet = {
+    latlng: {
+      data: ctx.latlng,
+      series_type: 'distance',
+      original_size: ctx.latlng.length,
+      resolution: 'high'
+    },
+    altitude: {
+      data: ctx.altitude,
+      series_type: 'distance',
+      original_size: ctx.altitude.length,
+      resolution: 'high'
+    },
+    time: {
+      data: ctx.time,
+      series_type: 'distance',
+      original_size: ctx.time.length,
+      resolution: 'high'
+    }
+  };
+  if (ctx.heartRateSamples.length > 0) {
+    stream.heartrate = {
+      data: ctx.heartrate,
+      series_type: 'distance',
+      original_size: ctx.heartrate.length,
+      resolution: 'high'
+    };
+  }
+  return stream;
+}
+
 export function replaySession(
   meta: RecordingMeta,
   fixes: FixLogEntry[],
-  skipped = 0
+  skipped = 0,
+  heartRateSamples: HeartRateSample[] = []
 ): ReplayResult {
   const isSwimming = meta.profile === 'swimming';
   const filterOptions =
@@ -431,15 +514,17 @@ export function replaySession(
 
   const firstKnownGeoid = fixes.find(f => f.geoid != null)?.geoid ?? null;
   const hasBarometer = fixes.some(f => f.pressure != null);
-
+  const sortedHr = [...heartRateSamples].sort((a, b) => a.t - b.t);
   const ctx: ReplayContext = {
     meta,
     filterOptions,
     isSwimming,
     fixes,
+    heartRateSamples: sortedHr,
     latlng: [],
     altitude: [],
     time: [],
+    heartrate: [],
     segments: [],
     rejected: [],
     distanceMeters: 0,
@@ -478,29 +563,8 @@ export function replaySession(
 
   const averageSpeedMps = movingTimeSec > 0 ? ctx.distanceMeters / movingTimeSec : 0;
 
-  const stream: EncodableStreamSet = {
-    latlng: {
-      data: ctx.latlng,
-      series_type: 'distance',
-      original_size: ctx.latlng.length,
-      resolution: 'high'
-    },
-    altitude: {
-      data: ctx.altitude,
-      series_type: 'distance',
-      original_size: ctx.altitude.length,
-      resolution: 'high'
-    },
-    time: {
-      data: ctx.time,
-      series_type: 'distance',
-      original_size: ctx.time.length,
-      resolution: 'high'
-    }
-  };
-
   return {
-    stream,
+    stream: buildStreamSet(ctx),
     segments: ctx.segments,
     stats: {
       distanceMeters: ctx.distanceMeters,
@@ -509,7 +573,9 @@ export function replaySession(
       elevationGainMeters: isSwimming ? 0 : ctx.altitudeState.gain,
       elevationLossMeters: isSwimming ? 0 : ctx.altitudeState.loss,
       maxSpeedMetersPerSec: ctx.maxSpeedMps,
-      averageSpeedMetersPerSec: averageSpeedMps
+      averageSpeedMetersPerSec: averageSpeedMps,
+      averageHeartRate: averageHeartRate(ctx.heartRateSamples),
+      maxHeartRate: maxHeartRate(ctx.heartRateSamples)
     },
     rejected: ctx.rejected,
     skipped,

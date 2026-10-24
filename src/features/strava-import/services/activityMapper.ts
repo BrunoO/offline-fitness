@@ -129,7 +129,13 @@ export function rowToActivity(row: ExportedActivityRow, timezone: string): Activ
     elev_low: row.elevLow,
     start_latlng: [],
     end_latlng: [],
-    utc_offset: local.utcOffsetSeconds
+    utc_offset: local.utcOffsetSeconds,
+    // Appended last so no existing key moves. `undefined` is omitted by
+    // `JSON.stringify`, so records imported without a strap serialise exactly
+    // as before — the backup push's md5 keeps matching the file on the server
+    // instead of re-uploading the whole archive once.
+    average_heartrate: row.averageHeartRate,
+    max_heartrate: row.maxHeartRate
   };
 }
 

@@ -50,6 +50,23 @@ describe('rowToActivity', () => {
     const swim = rowToActivity(makeRow({ type: 'Swim' }), 'Europe/Paris');
     expect(Object.keys(swim)).toEqual(Object.keys(ride));
   });
+
+  it('carries the archive heart-rate summary onto the stored record', () => {
+    const activity = rowToActivity(
+      makeRow({ averageHeartRate: 141, maxHeartRate: 178 }),
+      'Europe/Paris'
+    );
+    expect(activity.average_heartrate).toBe(141);
+    expect(activity.max_heartrate).toBe(178);
+  });
+
+  it('leaves heart rate absent when the archive had no readings', () => {
+    const activity = rowToActivity(makeRow(), 'Europe/Paris');
+    // `undefined`, not 0: a 0 bpm average is a value the charts would plot.
+    expect(activity.average_heartrate).toBeUndefined();
+    expect(activity.max_heartrate).toBeUndefined();
+    expect('average_heartrate' in activity).toBe(true);
+  });
 });
 
 describe('utcToLocalParts', () => {

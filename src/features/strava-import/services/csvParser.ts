@@ -33,7 +33,9 @@ type FieldKey =
   | 'elevationGain'
   | 'elevationLoss'
   | 'elevLow'
-  | 'elevHigh';
+  | 'elevHigh'
+  | 'averageHeartRate'
+  | 'maxHeartRate';
 
 interface FieldSpec {
   aliases: string[];
@@ -43,8 +45,13 @@ interface FieldSpec {
    * Column index in Strava's export layout, used only as a fallback when the
    * header text is in a language this table does not know. Verified against
    * the live format: the column order is the same in every language.
+   *
+   * Optional on purpose: a *wrong* positional fallback silently stores another
+   * column's value (a grade of `7.2` would become 7 bpm), so a field whose
+   * position has not been verified against a real export is left to the alias
+   * match alone rather than guessed.
    */
-  knownIndex: number;
+  knownIndex?: number;
 }
 
 const FIELD_SPECS: Record<FieldKey, FieldSpec> = {
@@ -134,6 +141,33 @@ const FIELD_SPECS: Record<FieldKey, FieldSpec> = {
     aliases: ['elevation high', 'altitude max.', 'altitude max', 'höchste höhe'],
     prefer: 'first',
     knownIndex: 23
+  },
+  averageHeartRate: {
+    aliases: [
+      'average heart rate',
+      'fréquence cardiaque moyenne',
+      'frequence cardiaque moyenne',
+      'durchschnittliche herzfrequenz',
+      'frecuencia cardiaca media',
+      'frequenza cardiaca media'
+    ],
+    prefer: 'first'
+  },
+  maxHeartRate: {
+    aliases: [
+      'max heart rate',
+      'fréquence cardiaque max.',
+      'fréquence cardiaque max',
+      'frequence cardiaque max',
+      'maximale herzfrequenz',
+      'frecuencia cardiaca max.',
+      'frecuencia cardiaca max',
+      'frecuencia cardiaca maxima',
+      'frequenza cardiaca massima'
+    ],
+    prefer: 'first',
+    // Verified against the fixture header order in `csvParser.test.ts`.
+    knownIndex: 7
   }
 };
 
@@ -188,7 +222,7 @@ export function resolveColumns(header: string[]): {
   (Object.keys(FIELD_SPECS) as FieldKey[]).forEach(key => {
     if (columns[key] !== undefined) return;
     const index = FIELD_SPECS[key].knownIndex;
-    if (layoutConfirmed && index < header.length) {
+    if (layoutConfirmed && index !== undefined && index < header.length) {
       columns[key] = index;
       usedFallback = true;
     } else {
@@ -534,7 +568,15 @@ function readExportedRow(row: string[] | undefined, cell: CellGetter): RowOutcom
       elevHigh: parseExportNumber(cell(row, 'elevHigh')),
       elevLow: parseExportNumber(cell(row, 'elevLow')),
       averageSpeed: parseExportNumber(cell(row, 'averageSpeed')),
-      fileName: cell(row, 'filename')
+      fileName: cell(row, 'filename'),
+      averageHeartRate: (() => {
+        const v = parseExportNumber(cell(row, 'averageHeartRate'));
+        return v > 0 ? v : undefined;
+      })(),
+      maxHeartRate: (() => {
+        const v = parseExportNumber(cell(row, 'maxHeartRate'));
+        return v > 0 ? v : undefined;
+      })()
     }
   };
 }

@@ -21,7 +21,12 @@ export interface LatLngStreamSet {
   latlng?: StreamData<[number, number][]>;
 }
 export interface HeartrateStreamSet {
-  heartrate?: StreamData<number[]>;
+  /**
+   * Aligned with `time`/`latlng`: one entry per track point, `null` where the
+   * sensor had no reading (gap, no contact, before pairing). `null` is not a
+   * bpm value, so it must never be plotted or averaged as one.
+   */
+  heartrate?: StreamData<(number | null)[]>;
 }
 
 export interface CadenceStreamSet {
