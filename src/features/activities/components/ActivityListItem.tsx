@@ -67,7 +67,6 @@ const createStyles = (theme: ResolvedTheme) =>
       margin: 4,
       justifyContent: 'center',
       alignItems: 'center',
-      top: 5,
       marginEnd: 15
     }
   });
@@ -105,7 +104,9 @@ function RightAction({
   });
 
   return (
-    <Animated.View style={[animatedStyle, { flexDirection: 'row' }]}>
+    <Animated.View
+      style={[animatedStyle, { flexDirection: 'row', alignItems: 'center', height: '100%' }]}
+    >
       <IconButton
         icon="edit"
         onPress={() => {
