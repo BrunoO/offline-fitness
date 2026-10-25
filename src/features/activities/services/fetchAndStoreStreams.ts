@@ -121,28 +121,50 @@ function computeNoStreamIds(activities: readonly Activity[]): Set<string> {
  * @param {StreamSet} streamSet - The stream set to be compressed.
  * @returns {ActivityStream} - The compressed stream set with simplified coordinates.
  */
+interface IndexedPoint {
+  x: number;
+  y: number;
+  idx: number;
+}
+
 export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
-  let coordinatesResult: LatLng[] = [];
-  if (streamSet.latlng?.data) {
-    const coordinates = streamSet.latlng.data.map(latlng => ({
-      latitude: latlng[0],
-      longitude: latlng[1]
-    }));
-    coordinatesResult = simplifyTrack(coordinates);
+  if (!streamSet.latlng?.data || streamSet.latlng.data.length === 0) {
+    return {
+      coordinates: [],
+      altitude: streamSet.altitude?.data ?? [],
+      time: streamSet.time?.data ?? [],
+      heartrate: streamSet.heartrate?.data
+    };
   }
 
-  let altitudeResult: number[] = [];
-  if (streamSet.altitude?.data) {
-    altitudeResult = streamSet.altitude.data;
-  }
-  let timeResult: number[] = [];
-  if (streamSet.time?.data) {
-    timeResult = streamSet.time.data;
-  }
-  let heartrateResult: (number | null)[] | undefined;
-  if (streamSet.heartrate?.data) {
-    heartrateResult = streamSet.heartrate.data;
-  }
+  const rawLatLng = streamSet.latlng.data;
+  const rawAlt = streamSet.altitude?.data;
+  const rawTime = streamSet.time?.data;
+  const rawHr = streamSet.heartrate?.data;
+
+  // Convert to format expected by simplify-js, attaching original index
+  // so that altitude, time, and heartrate stay aligned with simplified vertices.
+  const points: IndexedPoint[] = rawLatLng.map((latlng, idx) => ({
+    x: latlng[1],
+    y: latlng[0],
+    idx
+  }));
+
+  const simplified = simplify(points, 0.0001, true) as unknown as IndexedPoint[];
+
+  const coordinatesResult: LatLng[] = simplified.map(point => ({
+    latitude: point.y,
+    longitude: point.x
+  }));
+
+  const altitudeResult: number[] = rawAlt ? simplified.map(point => rawAlt[point.idx] ?? 0) : [];
+
+  const timeResult: number[] = rawTime ? simplified.map(point => rawTime[point.idx] ?? 0) : [];
+
+  const heartrateResult: (number | null)[] | undefined = rawHr
+    ? simplified.map(point => rawHr[point.idx] ?? null)
+    : undefined;
+
   return {
     coordinates: coordinatesResult,
     altitude: altitudeResult,
@@ -150,39 +172,6 @@ export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
     heartrate: heartrateResult
   };
 };
-/**
- * Simplifies a track by reducing the number of points while preserving the essential shape.
- *
- * @param {LatLng[]} coordinates - Array of latitude/longitude coordinates representing the track
- * @param {number} tolerance - Controls the level of simplification. Higher values result in more aggressive simplification. Default is 0.0001
- * @returns {LatLng[]} Simplified array of coordinates
- *
- * @remarks
- * Uses the Ramer-Douglas-Peucker algorithm via simplify-js to reduce the number of points in the track.
- * The tolerance parameter determines how aggressively points are removed - higher values mean more simplification.
- * Coordinates are converted to x/y format for the algorithm and back to lat/lng for the return value.
- * Logs the percentage reduction in number of points achieved.
- */
-
-function simplifyTrack(coordinates: LatLng[], tolerance: number = 0.0001): LatLng[] {
-  // Convert to format expected by simplify-js
-  const points = coordinates.map(coord => ({
-    x: coord.longitude,
-    y: coord.latitude
-  }));
-
-  // Apply simplification
-  const simplified = simplify(points, tolerance, true);
-  // simpleLogger.log(
-  //   `Simplified track from ${points.length} to ${simplified.length} points (${Math.round((1 - simplified.length / points.length) * 100)}% reduction)`
-  // );
-
-  // Convert back to LatLng format
-  return simplified.map(point => ({
-    latitude: point.y,
-    longitude: point.x
-  }));
-}
 
 /**
  * Loads the most recent stream from the file system.

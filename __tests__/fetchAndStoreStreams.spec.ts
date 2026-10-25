@@ -44,6 +44,34 @@ describe('fetchAndStoreStreams', () => {
       expect(compressed.altitude).toEqual([10, 20]);
       expect(compressed.time).toEqual([100, 200]);
     });
+
+    it('maintains 1-to-1 alignment between coordinates, altitude, time, and heartrate when points are simplified', () => {
+      const streamSet: StreamSet = {
+        latlng: {
+          data: [
+            [45.0, 5.0],
+            [45.0005, 5.0005],
+            [45.001, 5.001]
+          ],
+          original_size: 3,
+          resolution: 'high',
+          series_type: 'distance'
+        },
+        altitude: { data: [100, 110, 120], original_size: 3, resolution: 'high', series_type: 'distance' },
+        time: { data: [0, 10, 20], original_size: 3, resolution: 'high', series_type: 'distance' },
+        heartrate: { data: [130, 135, 140], original_size: 3, resolution: 'high', series_type: 'distance' }
+      };
+
+      const compressed = compressStreamSet(streamSet);
+      expect(compressed.coordinates).toHaveLength(2);
+      expect(compressed.time).toHaveLength(2);
+      expect(compressed.altitude).toHaveLength(2);
+      expect(compressed.heartrate).toHaveLength(2);
+
+      expect(compressed.time).toEqual([0, 20]);
+      expect(compressed.altitude).toEqual([100, 120]);
+      expect(compressed.heartrate).toEqual([130, 140]);
+    });
   });
   describe('getActivityStreams', () => {
     const mockActivities: Activity[] = [

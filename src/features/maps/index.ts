@@ -38,5 +38,6 @@ export {
   interpolateAngle,
   interpolateFlyoverPoint,
   resampleTrackByDistance,
-  shortestAngularDifference
+  shortestAngularDifference,
+  smoothSpeeds
 } from './services/flyoverInterpolator';

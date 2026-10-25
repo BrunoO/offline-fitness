@@ -150,27 +150,57 @@ function smoothBearings(rawBearings: number[], windowSize: number): number[] {
   return result;
 }
 
+const MAX_REALISTIC_SPEED_MPS = 50; // 180 km/h: upper threshold to reject impossible GPS teleport spikes
+
 /**
  * Resolves elapsed time for a coordinate index, falling back to cumulative distance
- * if stream.time is missing or incomplete.
+ * if stream.time is missing or incomplete, or interpolating if timeArray length differs
+ * from coordinates count.
  */
 function resolvePointTime(
   index: number,
+  totalPoints: number,
   timeArray: number[] | undefined,
   cumulativeDist: number
 ): number {
-  if (timeArray && index < timeArray.length && Number.isFinite(timeArray[index])) {
-    return timeArray[index];
+  if (timeArray && timeArray.length > 0) {
+    if (timeArray.length === totalPoints && Number.isFinite(timeArray[index])) {
+      return timeArray[index];
+    }
+    if (totalPoints > 1) {
+      const fraction = index / (totalPoints - 1);
+      const startTime = timeArray[0];
+      const endTime = timeArray[timeArray.length - 1];
+      const totalDuration = Math.max(0, endTime - startTime);
+      return startTime + fraction * totalDuration;
+    }
+    return timeArray[0];
   }
   return cumulativeDist / DEFAULT_FALLBACK_SPEED_MPS;
 }
 
 /**
- * Resolves altitude for a coordinate index, falling back to 0 if missing.
+ * Resolves altitude for a coordinate index, falling back to 0 if missing,
+ * or interpolating if altitudeArray length differs from coordinates count.
  */
-function resolvePointAltitude(index: number, altitudeArray: number[] | undefined): number {
-  if (altitudeArray && index < altitudeArray.length && Number.isFinite(altitudeArray[index])) {
-    return altitudeArray[index];
+function resolvePointAltitude(
+  index: number,
+  totalPoints: number,
+  altitudeArray: number[] | undefined
+): number {
+  if (altitudeArray && altitudeArray.length > 0) {
+    if (altitudeArray.length === totalPoints && Number.isFinite(altitudeArray[index])) {
+      return altitudeArray[index];
+    }
+    if (totalPoints > 1) {
+      const fraction = index / (totalPoints - 1);
+      const mappedIdx = Math.min(
+        altitudeArray.length - 1,
+        Math.max(0, Math.round(fraction * (altitudeArray.length - 1)))
+      );
+      return altitudeArray[mappedIdx] ?? 0;
+    }
+    return altitudeArray[0];
   }
   return 0;
 }
@@ -197,8 +227,8 @@ function createSinglePointTrack(
   stream: ActivityStream,
   defaultPitch: number
 ): FlyoverTrack {
-  const singleAlt = resolvePointAltitude(0, stream.altitude);
-  const singleTime = resolvePointTime(0, stream.time, 0);
+  const singleAlt = resolvePointAltitude(0, 1, stream.altitude);
+  const singleTime = resolvePointTime(0, 1, stream.time, 0);
   const singlePoint: FlyoverPoint = {
     latitude: coord.latitude,
     longitude: coord.longitude,
@@ -240,7 +270,8 @@ function computeStepMetrics(
   const dist = haversineDistance(prev, curr);
   const bearing = dist >= minMovement ? calculateBearing(prev, curr) : lastBearing;
   const deltaTime = currTime - prevTime;
-  const speed = deltaTime > 0 ? dist / deltaTime : 0;
+  const rawSpeed = deltaTime > 0 ? dist / deltaTime : 0;
+  const speed = Number.isFinite(rawSpeed) ? Math.min(rawSpeed, MAX_REALISTIC_SPEED_MPS) : 0;
   return { dist, bearing, speed };
 }
 
@@ -279,7 +310,7 @@ function buildIntermediatePoints(
 
   for (let i = 0; i < coords.length; i++) {
     const curr = coords[i];
-    const alt = resolvePointAltitude(i, stream.altitude);
+    const alt = resolvePointAltitude(i, coords.length, stream.altitude);
     minAlt = Math.min(minAlt, alt);
     maxAlt = Math.max(maxAlt, alt);
 
@@ -290,8 +321,13 @@ function buildIntermediatePoints(
     if (i > 0) {
       const prev = coords[i - 1];
       const stepDistPre = haversineDistance(coords[i - 1], curr);
-      const prevTime = resolvePointTime(i - 1, stream.time, cumulativeDistance);
-      const approxCurrTime = resolvePointTime(i, stream.time, cumulativeDistance + stepDistPre);
+      const prevTime = resolvePointTime(i - 1, coords.length, stream.time, cumulativeDistance);
+      const approxCurrTime = resolvePointTime(
+        i,
+        coords.length,
+        stream.time,
+        cumulativeDistance + stepDistPre
+      );
       const metrics = computeStepMetrics(
         prev,
         curr,
@@ -308,7 +344,7 @@ function buildIntermediatePoints(
       maxSpd = Math.max(maxSpd, stepSpeed);
     }
 
-    const time = resolvePointTime(i, stream.time, cumulativeDistance);
+    const time = resolvePointTime(i, coords.length, stream.time, cumulativeDistance);
 
     points.push({
       lat: curr.latitude,
@@ -321,11 +357,41 @@ function buildIntermediatePoints(
     });
   }
 
-  if (coords.length > 1 && points[0].rawBearing === 0 && points[1].rawBearing !== 0) {
-    points[0].rawBearing = points[1].rawBearing;
+  if (coords.length > 1) {
+    if (points[0].rawBearing === 0 && points[1].rawBearing !== 0) {
+      points[0].rawBearing = points[1].rawBearing;
+    }
+    points[0].speed = points[1].speed;
   }
 
   return { points, cumulativeDistance, minAlt, maxAlt, maxSpd };
+}
+
+/**
+ * Smooths linear speed values using a simple moving average window.
+ * @param rawSpeeds Array of instantaneous speeds in m/s.
+ * @param windowSize Width of the smoothing window (must be >= 1).
+ * @returns Array of smoothed speed values.
+ */
+export function smoothSpeeds(rawSpeeds: number[], windowSize: number): number[] {
+  if (rawSpeeds.length <= 1 || windowSize <= 1) {
+    return rawSpeeds;
+  }
+  const half = Math.floor(windowSize / 2);
+  const result: number[] = new Array(rawSpeeds.length);
+
+  for (let i = 0; i < rawSpeeds.length; i++) {
+    const start = Math.max(0, i - half);
+    const end = Math.min(rawSpeeds.length - 1, i + half);
+    let sum = 0;
+    let count = 0;
+    for (let j = start; j <= end; j++) {
+      sum += rawSpeeds[j];
+      count++;
+    }
+    result[i] = count > 0 ? sum / count : rawSpeeds[i];
+  }
+  return result;
 }
 
 /**
@@ -357,24 +423,33 @@ export function buildFlyoverTrack(
     points: intermediatePoints,
     cumulativeDistance,
     minAlt,
-    maxAlt,
-    maxSpd
+    maxAlt
   } = buildIntermediatePoints(coords, stream, minMovement);
 
   const rawBearings = intermediatePoints.map(p => p.rawBearing);
   const smoothedBearings = smoothBearings(rawBearings, smoothingWindow);
 
-  const finalPoints: FlyoverPoint[] = intermediatePoints.map((pt, idx) => ({
-    latitude: pt.lat,
-    longitude: pt.lng,
-    altitude: pt.alt,
-    time: pt.time,
-    distance: pt.dist,
-    speed: pt.speed,
-    bearing: pt.rawBearing,
-    smoothBearing: smoothedBearings[idx],
-    pitch: defaultPitch
-  }));
+  const rawSpeeds = intermediatePoints.map(p => p.speed);
+  const smoothedSpeeds = smoothSpeeds(rawSpeeds, smoothingWindow);
+
+  let maxSmoothedSpeed = 0;
+  const finalPoints: FlyoverPoint[] = intermediatePoints.map((pt, idx) => {
+    const spd = smoothedSpeeds[idx];
+    if (spd > maxSmoothedSpeed) {
+      maxSmoothedSpeed = spd;
+    }
+    return {
+      latitude: pt.lat,
+      longitude: pt.lng,
+      altitude: pt.alt,
+      time: pt.time,
+      distance: pt.dist,
+      speed: spd,
+      bearing: pt.rawBearing,
+      smoothBearing: smoothedBearings[idx],
+      pitch: defaultPitch
+    };
+  });
 
   const totalDuration =
     finalPoints.length > 0 ? Math.max(0, finalPoints.at(-1)!.time - finalPoints[0].time) : 0;
@@ -385,7 +460,7 @@ export function buildFlyoverTrack(
     totalDuration,
     minAltitude: Number.isFinite(minAlt) ? minAlt : 0,
     maxAltitude: Number.isFinite(maxAlt) ? maxAlt : 0,
-    maxSpeed: maxSpd
+    maxSpeed: maxSmoothedSpeed
   };
 }
 

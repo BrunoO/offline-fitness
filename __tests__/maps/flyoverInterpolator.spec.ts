@@ -9,7 +9,8 @@ import {
   interpolateAngle,
   interpolateFlyoverPoint,
   resampleTrackByDistance,
-  shortestAngularDifference
+  shortestAngularDifference,
+  smoothSpeeds
 } from '@/features/maps';
 import { FlyoverPoint } from '@/features/maps/types/flyover.types';
 import { ActivityStream, LatLng } from '@/shared';
@@ -386,3 +387,60 @@ describe('resampleTrackByDistance', () => {
     }
   });
 });
+
+describe('smoothSpeeds', () => {
+  it('returns original array when empty or single element', () => {
+    expect(smoothSpeeds([], 5)).toEqual([]);
+    expect(smoothSpeeds([10], 5)).toEqual([10]);
+    expect(smoothSpeeds([5, 10, 15], 1)).toEqual([5, 10, 15]);
+  });
+
+  it('smooths spikes using moving average window', () => {
+    const raw = [10, 10, 50, 10, 10]; // 50 is an isolated GPS spike
+    const smoothed = smoothSpeeds(raw, 3);
+    // index 2 average: (10 + 50 + 10) / 3 = 23.33 m/s instead of 50
+    expect(smoothed[2]).toBeCloseTo(23.33, 1);
+    expect(smoothed[2]).toBeLessThan(50);
+  });
+});
+
+describe('speed calculation realism and stream alignment', () => {
+  it('computes realistic cycling speed when coordinates and time are aligned', () => {
+    // 2 points ~100m apart over 15 seconds -> ~6.67 m/s = ~24 km/h
+    const stream: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.0009, longitude: 5.0 } // 100 meters
+      ],
+      altitude: [200, 202],
+      time: [0, 15]
+    };
+    const track = buildFlyoverTrack(stream);
+    const speedKmh = track.points[1].speed * 3.6;
+    expect(speedKmh).toBeGreaterThan(20);
+    expect(speedKmh).toBeLessThan(30);
+    expect(track.maxSpeed * 3.6).toBeLessThan(35);
+  });
+
+  it('does not explode to 400 km/h when stream.time length differs from coordinates length', () => {
+    // Suppose coordinates has 3 points (simplified), but time has 30 points (unsimplified 300 seconds)
+    const stream: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.0045, longitude: 5.0 }, // ~500m
+        { latitude: 45.009, longitude: 5.0 }  // ~1000m
+      ],
+      altitude: Array.from({ length: 30 }, (_, i) => 100 + i * 2),
+      time: Array.from({ length: 30 }, (_, i) => i * 10) // 0 to 290 seconds (~1000m in ~300s -> ~3.4 m/s = 12 km/h)
+    };
+
+    const track = buildFlyoverTrack(stream);
+    expect(track.totalDuration).toBe(290);
+    // Every point speed must be realistic (around 3-4 m/s = 10-15 km/h), NOT 400 km/h!
+    for (const pt of track.points) {
+      const kmh = pt.speed * 3.6;
+      expect(kmh).toBeLessThan(25);
+    }
+  });
+});
+
