@@ -170,7 +170,7 @@ function resolvePointTime(
     if (totalPoints > 1) {
       const fraction = index / (totalPoints - 1);
       const startTime = timeArray[0];
-      const endTime = timeArray[timeArray.length - 1];
+      const endTime = timeArray.at(-1) ?? startTime;
       const totalDuration = Math.max(0, endTime - startTime);
       return startTime + fraction * totalDuration;
     }
