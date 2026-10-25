@@ -361,7 +361,7 @@ export default function FlyoverModal({
               <Ionicons name="location-outline" size={48} color={theme.textMuted} />
               <Text style={styles.emptyTitle}>No GPS Track Data</Text>
               <Text style={styles.emptySubtitle}>
-                This activity does not contain recorded GPS coordinates for 3D flyover playback.
+                This activity does not contain recorded GPS coordinates for flyover playback.
               </Text>
             </View>
           </>

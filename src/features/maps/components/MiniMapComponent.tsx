@@ -7,7 +7,7 @@ export type MiniMapComponentProps = {
   overlayStream?: ActivityStream;
   /** Activity title displayed in flyover header on Android */
   title?: string;
-  /** Whether 3D flyover button is enabled on Android (defaults to true) */
+  /** Whether flyover button is enabled on Android (defaults to true) */
   allowFlyover?: boolean;
 };
 

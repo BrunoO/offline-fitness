@@ -51,22 +51,22 @@ describe('MiniMapComponent (Android)', () => {
     jest.useRealTimers();
   });
 
-  it('renders map with polylines and shows 3D Flyover pill once map is ready', () => {
+  it('renders map with polylines and shows Flyover pill once map is ready', () => {
     const { getByTestId, queryByText, getByText } = render(
       wrap(<MiniMapComponent stream={sampleStream} title="Mountain Stage" />)
     );
 
     expect(getByTestId('mock-map-view')).toBeTruthy();
-    expect(queryByText('3D Flyover')).toBeNull();
+    expect(queryByText('Flyover')).toBeNull();
 
     act(() => {
       jest.advanceTimersByTime(1100);
     });
 
-    expect(getByText('3D Flyover')).toBeTruthy();
+    expect(getByText('Flyover')).toBeTruthy();
   });
 
-  it('does not display 3D Flyover pill when allowFlyover is false', () => {
+  it('does not display Flyover pill when allowFlyover is false', () => {
     const { queryByText } = render(
       wrap(
         <MiniMapComponent
@@ -81,10 +81,10 @@ describe('MiniMapComponent (Android)', () => {
       jest.advanceTimersByTime(1100);
     });
 
-    expect(queryByText('3D Flyover')).toBeNull();
+    expect(queryByText('Flyover')).toBeNull();
   });
 
-  it('does not display 3D Flyover pill when stream has no coordinates', () => {
+  it('does not display Flyover pill when stream has no coordinates', () => {
     const { queryByText } = render(
       wrap(<MiniMapComponent stream={undefined} title="No Track" />)
     );
@@ -93,10 +93,10 @@ describe('MiniMapComponent (Android)', () => {
       jest.advanceTimersByTime(1100);
     });
 
-    expect(queryByText('3D Flyover')).toBeNull();
+    expect(queryByText('Flyover')).toBeNull();
   });
 
-  it('opens FlyoverModal when 3D Flyover pill is pressed', () => {
+  it('opens FlyoverModal when Flyover pill is pressed', () => {
     const { getByText } = render(
       wrap(<MiniMapComponent stream={sampleStream} title="Alpe d'Huez" />)
     );
@@ -105,7 +105,7 @@ describe('MiniMapComponent (Android)', () => {
       jest.advanceTimersByTime(1100);
     });
 
-    const pill = getByText('3D Flyover');
+    const pill = getByText('Flyover');
     fireEvent.press(pill);
 
     expect(getByText("Alpe d'Huez")).toBeTruthy();

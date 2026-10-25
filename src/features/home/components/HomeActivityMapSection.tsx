@@ -36,10 +36,10 @@ export function HomeActivityMapSection({
             style={styles.flyoverHeaderButton}
             onPress={onOpenFlyover}
             accessibilityRole="button"
-            accessibilityLabel="Play 3D Flyover of recent activity"
+            accessibilityLabel="Play flyover of recent activity"
           >
             <Ionicons name="airplane" size={14} color={theme.primary} />
-            <Text style={styles.flyoverHeaderButtonText}>3D Flyover</Text>
+            <Text style={styles.flyoverHeaderButtonText}>Flyover</Text>
           </TouchableOpacity>
         ) : null}
       </View>

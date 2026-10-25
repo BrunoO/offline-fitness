@@ -152,10 +152,10 @@ function MiniMapFlyover({
         style={styles.flyoverPill}
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel="Open 3D route flyover"
+        accessibilityLabel="Open route flyover"
       >
         <Ionicons name="airplane" size={13} color="#FFFFFF" />
-        <Text style={styles.flyoverPillText}>3D Flyover</Text>
+        <Text style={styles.flyoverPillText}>Flyover</Text>
       </TouchableOpacity>
       <FlyoverModal visible={visible} onClose={onClose} stream={stream} title={title} />
     </>

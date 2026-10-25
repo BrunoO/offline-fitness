@@ -34,7 +34,7 @@ const sampleStream: ActivityStream = {
 };
 
 describe('HomeActivityMapSection', () => {
-  it('renders Activity Map section and displays 3D Flyover button when GPS track exists', () => {
+  it('renders Activity Map section and displays Flyover button when GPS track exists', () => {
     const onOpenFlyover = jest.fn();
     const { getByText, getByLabelText, getByTestId } = render(
       <HomeActivityMapSection
@@ -52,14 +52,14 @@ describe('HomeActivityMapSection', () => {
     expect(getByTestId('mock-mini-map')).toBeTruthy();
     expect(getByText('Morning Run')).toBeTruthy();
 
-    const flyoverBtn = getByLabelText('Play 3D Flyover of recent activity');
+    const flyoverBtn = getByLabelText('Play flyover of recent activity');
     expect(flyoverBtn).toBeTruthy();
 
     fireEvent.press(flyoverBtn);
     expect(onOpenFlyover).toHaveBeenCalledTimes(1);
   });
 
-  it('does not display 3D Flyover button when stream has no coordinates', () => {
+  it('does not display Flyover button when stream has no coordinates', () => {
     const onOpenFlyover = jest.fn();
     const { getByText, queryByLabelText } = render(
       <HomeActivityMapSection
@@ -74,7 +74,7 @@ describe('HomeActivityMapSection', () => {
     );
 
     expect(getByText('Activity Map')).toBeTruthy();
-    expect(queryByLabelText('Play 3D Flyover of recent activity')).toBeNull();
+    expect(queryByLabelText('Play flyover of recent activity')).toBeNull();
     expect(getByText('No map data available')).toBeTruthy();
   });
 
