@@ -10,3 +10,18 @@ export { default as MapsScreen } from './screens/MapsScreen';
 
 // Services
 export { simplifyGPS } from './services/gps-simplify';
+
+// Flyover Mathematics & Data Pipeline
+export type { FlyoverPipelineOptions, FlyoverPoint, FlyoverTrack } from './types/flyover.types';
+export {
+  buildFlyoverTrack,
+  calculateBearing,
+  circularMean,
+  getFlyoverPointAtProgress,
+  getFlyoverPointAtTime,
+  haversineDistance,
+  interpolateAngle,
+  interpolateFlyoverPoint,
+  resampleTrackByDistance,
+  shortestAngularDifference
+} from './services/flyoverInterpolator';
