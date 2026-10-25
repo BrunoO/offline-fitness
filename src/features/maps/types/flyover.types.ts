@@ -1,3 +1,5 @@
+import { LatLng } from '@/shared';
+
 export interface FlyoverPoint {
   /** Geographic coordinate latitude in degrees */
   latitude: number;
@@ -41,4 +43,50 @@ export interface FlyoverPipelineOptions {
   defaultPitch?: number;
   /** Minimum movement distance (in meters) required to compute a new heading. Default: 1.5 */
   minMovementMeters?: number;
+}
+
+export interface FlyoverPlaybackOptions extends FlyoverPipelineOptions {
+  /** Initial speed multiplier (e.g. 1, 2, 5, 10, 20). Default: 1 */
+  initialSpeed?: number;
+  /** Whether to start playback immediately upon mounting. Default: false */
+  autoPlay?: boolean;
+  /** Whether to restart automatically from beginning upon reaching the finish. Default: false */
+  loop?: boolean;
+}
+
+export interface FlyoverPlaybackState {
+  /** The processed flyover track */
+  track: FlyoverTrack;
+  /** Whether playback is currently active */
+  isPlaying: boolean;
+  /** Current progress fraction in [0, 1] */
+  progress: number;
+  /** Current active speed multiplier */
+  speedMultiplier: number;
+  /** The interpolated FlyoverPoint at the current progress */
+  currentPoint: FlyoverPoint | null;
+  /** Elapsed simulation time in seconds from start */
+  elapsedSeconds: number;
+  /** Total route duration in seconds */
+  totalDurationSeconds: number;
+  /** Cumulative distance traveled so far in meters */
+  completedDistanceMeters: number;
+  /** Total route distance in meters */
+  totalDistanceMeters: number;
+  /** Sub-array of coordinates traveled up to current point (for breadcrumb rendering) */
+  traveledCoordinates: LatLng[];
+  /** Start playback */
+  play: () => void;
+  /** Pause playback */
+  pause: () => void;
+  /** Toggle play/pause state */
+  togglePlay: () => void;
+  /** Seek directly to progress fraction [0, 1] */
+  seekTo: (targetProgress: number) => void;
+  /** Seek directly to elapsed simulation time in seconds */
+  seekToTime: (timeSeconds: number) => void;
+  /** Change playback speed multiplier */
+  setSpeed: (multiplier: number) => void;
+  /** Reset playback to the beginning and start playing */
+  restart: () => void;
 }

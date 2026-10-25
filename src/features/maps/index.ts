@@ -11,8 +11,17 @@ export { default as MapsScreen } from './screens/MapsScreen';
 // Services
 export { simplifyGPS } from './services/gps-simplify';
 
+// Hooks
+export { useFlyoverPlayback } from './hooks/useFlyoverPlayback';
+
 // Flyover Mathematics & Data Pipeline
-export type { FlyoverPipelineOptions, FlyoverPoint, FlyoverTrack } from './types/flyover.types';
+export type {
+  FlyoverPipelineOptions,
+  FlyoverPlaybackOptions,
+  FlyoverPlaybackState,
+  FlyoverPoint,
+  FlyoverTrack
+} from './types/flyover.types';
 export {
   buildFlyoverTrack,
   calculateBearing,
