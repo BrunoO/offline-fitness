@@ -4,6 +4,12 @@
 // Components
 export { default as MiniMapComponent } from './components/MiniMapComponent';
 export type { MiniMapComponentProps } from './components/MiniMapComponent';
+export { default as FlyoverModal } from './components/FlyoverModal';
+export type { FlyoverModalProps } from './components/FlyoverModal';
+export { default as FlyoverHud } from './components/FlyoverHud';
+export type { FlyoverHudProps } from './components/FlyoverHud';
+export { default as FlyoverControls } from './components/FlyoverControls';
+export type { FlyoverControlsProps } from './components/FlyoverControls';
 
 // Screens
 export { default as MapsScreen } from './screens/MapsScreen';

@@ -139,3 +139,26 @@ jest.mock('expo-file-system', () => {
     }
   };
 });
+
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const MockMapView = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      animateCamera: jest.fn(),
+      fitToCoordinates: jest.fn()
+    }));
+    return <View testID="mock-map-view" {...props}>{props.children}</View>;
+  });
+  MockMapView.displayName = 'MockMapView';
+  return {
+    __esModule: true,
+    default: MockMapView,
+    MapView: MockMapView,
+    Marker: props => <View testID="mock-marker" {...props}>{props.children}</View>,
+    Polyline: props => <View testID="mock-polyline" {...props} />,
+    Heatmap: props => <View testID="mock-heatmap" {...props} />,
+    PROVIDER_GOOGLE: 'google'
+  };
+});
+
