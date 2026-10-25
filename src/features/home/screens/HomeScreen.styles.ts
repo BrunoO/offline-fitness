@@ -102,6 +102,28 @@ export const createStyles = (theme: ResolvedTheme) =>
       padding: 8,
       minHeight: 200
     },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12
+    },
+    flyoverHeaderButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: theme.primarySoft,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.primary
+    },
+    flyoverHeaderButtonText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.primary
+    },
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',

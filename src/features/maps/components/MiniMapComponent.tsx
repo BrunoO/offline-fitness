@@ -5,6 +5,8 @@ import { ActivityStream } from '@/shared';
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
+  title?: string;
+  allowFlyover?: boolean;
 };
 
 /**

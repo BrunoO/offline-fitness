@@ -699,7 +699,11 @@ export function ActivityAnalysisView({
             setMapWidth(width); // so that the chart has same size as the map
           }}
         >
-          <MiniMapComponent stream={loadedStream?.streamSet} overlayStream={overlayStream} />
+          <MiniMapComponent
+            stream={loadedStream?.streamSet}
+            overlayStream={overlayStream}
+            title={item.name}
+          />
         </View>
         <View style={styles.similarActivitiesContainer}>
           <SimilarActivitiesHeader

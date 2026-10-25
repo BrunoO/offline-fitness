@@ -1,4 +1,4 @@
-import { useTheme } from '@/theme';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -9,6 +9,7 @@ import {
   useManualEntry
 } from '@/features/activities';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
+import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
 import {
@@ -58,6 +59,62 @@ function achievementLabel(valueText: string | null, name?: string | null): strin
   return name ? `${valueText} (${name})` : valueText;
 }
 
+type HomeActivityMapProps = {
+  stream: ActivityStream | undefined;
+  isLoading: boolean;
+  mapRefreshKey: number;
+  activityTitle: string;
+  onOpenFlyover: () => void;
+  theme: ResolvedTheme;
+  styles: ReturnType<typeof createStyles>;
+};
+
+function HomeActivityMapSection({
+  stream,
+  isLoading,
+  mapRefreshKey,
+  activityTitle,
+  onOpenFlyover,
+  theme,
+  styles
+}: Readonly<HomeActivityMapProps>) {
+  const hasGpsTrack = Boolean(stream?.coordinates && stream.coordinates.length >= 2);
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>Activity Map</Text>
+        {hasGpsTrack ? (
+          <TouchableOpacity
+            style={styles.flyoverHeaderButton}
+            onPress={onOpenFlyover}
+            accessibilityRole="button"
+            accessibilityLabel="Play 3D Flyover of recent activity"
+          >
+            <Ionicons name="airplane" size={14} color={theme.primary} />
+            <Text style={styles.flyoverHeaderButtonText}>3D Flyover</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <View style={styles.mapContainer}>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading map...</Text>
+          </View>
+        ) : null}
+        {!isLoading && stream ? (
+          <MiniMapComponent key={mapRefreshKey} stream={stream} title={activityTitle} />
+        ) : null}
+        {!isLoading && !stream ? (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>No map data available</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -87,6 +144,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const { openRecordChooser } = useManualEntry();
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
+  const [isHomeFlyoverVisible, setIsHomeFlyoverVisible] = useState(false);
   const [dayStreak, setDayStreak] = useState<{ current: number; best: number }>({
     current: 0,
     best: 0
@@ -729,26 +787,15 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         </View>
         {/* End of Recent Achievements Section */}
 
-        {/* Activity Map Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Activity Map</Text>
-          <View style={styles.mapContainer}>
-            {isLoadingStream ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading map...</Text>
-              </View>
-            ) : null}
-            {!isLoadingStream && homeScreenStream?.stream ? (
-              <MiniMapComponent key={mapRefreshKey} stream={homeScreenStream.stream} />
-            ) : null}
-            {!isLoadingStream && !homeScreenStream?.stream ? (
-              <View style={styles.noDataContainer}>
-                <Text style={styles.noDataText}>No map data available</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-        {/* End of Activity Map Section */}
+        <HomeActivityMapSection
+          stream={homeScreenStream?.stream}
+          isLoading={isLoadingStream}
+          mapRefreshKey={mapRefreshKey}
+          activityTitle={selectedActivity?.name ?? 'Recent Activity'}
+          onOpenFlyover={() => setIsHomeFlyoverVisible(true)}
+          theme={theme}
+          styles={styles}
+        />
 
         {/* Footer Section - Branding and Version */}
         <View style={styles.section}>
@@ -772,6 +819,12 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         onSelect={handleDaySheetSelect}
         onAdd={handleDaySheetAdd}
         onClose={() => setDaySheetDate(null)}
+      />
+      <FlyoverModal
+        visible={isHomeFlyoverVisible}
+        onClose={() => setIsHomeFlyoverVisible(false)}
+        stream={homeScreenStream?.stream}
+        title={selectedActivity?.name ?? 'Recent Activity'}
       />
     </View>
   );

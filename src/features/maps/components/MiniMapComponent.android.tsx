@@ -1,14 +1,17 @@
 import { APP_CONFIG } from '@/constants';
-import { LatLng, ActivityStream } from '@/shared';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ActivityStream, LatLng } from '@/shared';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import FlyoverModal from './FlyoverModal';
 
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
+  title?: string;
+  allowFlyover?: boolean;
 };
 
 // Adjust this constant to control how many direction arrows are displayed along the track
@@ -91,9 +94,80 @@ const renderDirectionArrows = (
   return markers;
 };
 
+type MiniMapLayersProps = {
+  coordinates: LatLng[] | undefined;
+  overlayCoordinates: LatLng[] | undefined;
+};
+
+function MiniMapLayers({ coordinates, overlayCoordinates }: Readonly<MiniMapLayersProps>) {
+  return (
+    <>
+      {coordinates?.length ? (
+        <Marker
+          coordinate={coordinates[0]}
+          title="Start"
+          description="Start of the activity"
+          pinColor="green"
+        />
+      ) : null}
+      {coordinates?.length ? (
+        <Polyline
+          coordinates={coordinates}
+          strokeWidth={5}
+          strokeColor={TRACK_PRIMARY_COLOR}
+          fillColor={FILL_PRIMARY_COLOR}
+        />
+      ) : null}
+      {overlayCoordinates?.length ? (
+        <Polyline
+          coordinates={overlayCoordinates}
+          strokeWidth={3}
+          strokeColor={TRACK_OVERLAY_COLOR}
+        />
+      ) : null}
+      {renderDirectionArrows(coordinates, ARROW_PRIMARY_COLOR)}
+      {renderDirectionArrows(overlayCoordinates, ARROW_OVERLAY_COLOR)}
+    </>
+  );
+}
+
+type MiniMapFlyoverProps = {
+  visible: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  stream: ActivityStream | undefined;
+  title?: string;
+};
+
+function MiniMapFlyover({
+  visible,
+  onOpen,
+  onClose,
+  stream,
+  title
+}: Readonly<MiniMapFlyoverProps>) {
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.flyoverPill}
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel="Open 3D route flyover"
+      >
+        <Ionicons name="airplane" size={13} color="#FFFFFF" />
+        <Text style={styles.flyoverPillText}>3D Flyover</Text>
+      </TouchableOpacity>
+      <FlyoverModal visible={visible} onClose={onClose} stream={stream} title={title} />
+    </>
+  );
+}
+
 export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
   const mapRef = React.useRef<MapView>(null);
   const coordinates: LatLng[] | undefined = props.stream?.coordinates;
+  const [isFlyoverOpen, setIsFlyoverOpen] = React.useState(false);
+  const hasGpsTrack = Boolean(coordinates && coordinates.length >= 2);
+  const allowFlyover = props.allowFlyover !== false;
 
   const initialRegion = coordinates?.length
     ? { ...coordinates[0], latitudeDelta: 0.1, longitudeDelta: 0.1 }
@@ -206,32 +280,21 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
         initialRegion={initialRegion}
         userInterfaceStyle="light" // Force light theme regardless of system theme
       >
-        {coordinates?.length ? (
-          <Marker
-            coordinate={coordinates[0]}
-            title={'Start'}
-            description={'Start of the activity'}
-            pinColor="green"
-          />
-        ) : null}
-        {coordinates?.length ? (
-          <Polyline
-            coordinates={coordinates}
-            strokeWidth={5}
-            strokeColor={TRACK_PRIMARY_COLOR}
-            fillColor={FILL_PRIMARY_COLOR}
-          />
-        ) : null}
-        {props.overlayStream?.coordinates?.length ? (
-          <Polyline
-            coordinates={props.overlayStream.coordinates}
-            strokeWidth={3}
-            strokeColor={TRACK_OVERLAY_COLOR}
-          />
-        ) : null}
-        {renderDirectionArrows(coordinates, ARROW_PRIMARY_COLOR)}
-        {renderDirectionArrows(props.overlayStream?.coordinates, ARROW_OVERLAY_COLOR)}
+        <MiniMapLayers
+          coordinates={coordinates}
+          overlayCoordinates={props.overlayStream?.coordinates}
+        />
       </MapView>
+
+      {hasGpsTrack && allowFlyover ? (
+        <MiniMapFlyover
+          visible={isFlyoverOpen}
+          onOpen={() => setIsFlyoverOpen(true)}
+          onClose={() => setIsFlyoverOpen(false)}
+          stream={props.stream}
+          title={props.title}
+        />
+      ) : null}
     </View>
   );
 }
@@ -239,10 +302,36 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    aspectRatio: 4 / 3
+    aspectRatio: 4 / 3,
+    position: 'relative'
   },
   map: {
     flex: 1,
     width: '100%'
+  },
+  flyoverPill: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(24, 24, 27, 0.88)',
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10
+  },
+  flyoverPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700'
   }
 });
