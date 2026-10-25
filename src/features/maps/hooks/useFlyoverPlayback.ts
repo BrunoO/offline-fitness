@@ -60,11 +60,23 @@ export function useFlyoverPlayback(
   stream: ActivityStream | undefined | null,
   options?: FlyoverPlaybackOptions
 ): FlyoverPlaybackState {
-  const initialSpeed = options?.initialSpeed ?? DEFAULT_SPEED_MULTIPLIER;
-  const autoPlay = options?.autoPlay ?? false;
-  const loop = options?.loop ?? false;
+  const stableOptions = useMemo(
+    () => options,
+    [
+      options?.initialSpeed,
+      options?.autoPlay,
+      options?.loop,
+      options?.smoothingWindow,
+      options?.defaultPitch,
+      options?.minMovementMeters
+    ]
+  );
 
-  const track = useMemo(() => buildFlyoverTrack(stream, options), [stream, options]);
+  const initialSpeed = stableOptions?.initialSpeed ?? DEFAULT_SPEED_MULTIPLIER;
+  const autoPlay = stableOptions?.autoPlay ?? false;
+  const loop = stableOptions?.loop ?? false;
+
+  const track = useMemo(() => buildFlyoverTrack(stream, stableOptions), [stream, stableOptions]);
 
   const [isPlaying, setIsPlaying] = useState(autoPlay && track.totalDuration > 0);
   const [progress, setProgress] = useState(PROGRESS_START);

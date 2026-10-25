@@ -130,4 +130,20 @@ describe('FlyoverModal', () => {
     fireEvent.press(mapTypeBtn);
     expect(getByText('hybrid')).toBeTruthy();
   });
+
+  it('renders clean empty state when stream has no GPS coordinates', () => {
+    const { getByText } = render(
+      wrap(
+        <FlyoverModal
+          visible={true}
+          onClose={jest.fn()}
+          stream={null}
+          title="Indoor Rowing"
+        />
+      )
+    );
+
+    expect(getByText('No GPS Track Data')).toBeTruthy();
+    expect(getByText('Indoor Rowing')).toBeTruthy();
+  });
 });

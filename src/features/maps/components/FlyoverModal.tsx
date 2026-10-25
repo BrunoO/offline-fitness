@@ -2,11 +2,12 @@ import { ActivityStream, LatLng } from '@/shared';
 import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Modal, Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import MapView, { MapType, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlyoverPlayback } from '../hooks/useFlyoverPlayback';
-import { FlyoverPoint } from '../types/flyover.types';
+import { getFlyoverPointAtTime } from '../services/flyoverInterpolator';
+import { FlyoverPoint, FlyoverTrack } from '../types/flyover.types';
 import FlyoverControls from './FlyoverControls';
 import FlyoverHeader from './FlyoverHeader';
 import FlyoverHud from './FlyoverHud';
@@ -69,6 +70,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
       shadowOpacity: 0.25,
       shadowRadius: 4,
       elevation: 4
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+      backgroundColor: theme.surface
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.textStrong,
+      marginTop: 16,
+      marginBottom: 8,
+      textAlign: 'center'
+    },
+    emptySubtitle: {
+      fontSize: 14,
+      color: theme.textMuted,
+      textAlign: 'center',
+      lineHeight: 20
     }
   });
 
@@ -88,8 +110,9 @@ function FlyoverMapLayers({
   scheme,
   primaryColor,
   markerContainerStyle
-}: FlyoverMapLayersProps) {
-  const fullRouteColor = scheme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.35)';
+}: Readonly<FlyoverMapLayersProps>) {
+  const fullRouteColor =
+    scheme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.35)';
 
   return (
     <>
@@ -118,6 +141,29 @@ function FlyoverMapLayers({
       ) : null}
     </>
   );
+}
+
+function animateToPoint(map: MapView | null, point: FlyoverPoint | null): void {
+  if (!map || !point) return;
+  map.animateCamera(
+    {
+      center: {
+        latitude: point.latitude,
+        longitude: point.longitude
+      },
+      heading: point.smoothBearing,
+      pitch: point.pitch,
+      zoom: DEFAULT_CAMERA_ZOOM
+    },
+    { duration: CAMERA_DURATION_MS }
+  );
+}
+
+function resolvePointAtProgress(track: FlyoverTrack, targetProgress: number): FlyoverPoint | null {
+  if (track.points.length === 0) return null;
+  const startTime = track.points[0].time;
+  const targetTime = startTime + targetProgress * track.totalDuration;
+  return getFlyoverPointAtTime(track, targetTime);
 }
 
 export default function FlyoverModal({
@@ -157,12 +203,10 @@ export default function FlyoverModal({
     restart
   } = playback;
 
-  // Toggle map type (hybrid -> satellite -> terrain -> standard)
   const cycleMapType = useCallback(() => {
     setMapType(current => NEXT_MAP_TYPE[current] ?? 'hybrid');
   }, []);
 
-  // Update map camera smoothly along the current point
   const updateCamera = useCallback(
     (force = false) => {
       if (!currentPoint || !mapRef.current) return;
@@ -171,31 +215,17 @@ export default function FlyoverModal({
         return;
       }
       lastCameraUpdateRef.current = now;
-
-      mapRef.current.animateCamera(
-        {
-          center: {
-            latitude: currentPoint.latitude,
-            longitude: currentPoint.longitude
-          },
-          heading: currentPoint.smoothBearing,
-          pitch: currentPoint.pitch,
-          zoom: DEFAULT_CAMERA_ZOOM
-        },
-        { duration: CAMERA_DURATION_MS }
-      );
+      animateToPoint(mapRef.current, currentPoint);
     },
     [currentPoint]
   );
 
-  // Trigger camera update whenever currentPoint changes
   useEffect(() => {
     if (visible && currentPoint) {
       updateCamera();
     }
   }, [visible, currentPoint, updateCamera]);
 
-  // Handle scrubber drag start / end
   const handleSlidingStart = useCallback(() => {
     wasPlayingBeforeScrubRef.current = isPlaying;
     pause();
@@ -204,15 +234,16 @@ export default function FlyoverModal({
   const handleSlidingComplete = useCallback(
     (targetProgress: number) => {
       seekTo(targetProgress);
-      updateCamera(true);
+      const targetPoint = resolvePointAtProgress(playback.track, targetProgress);
+      lastCameraUpdateRef.current = Date.now();
+      animateToPoint(mapRef.current, targetPoint);
       if (wasPlayingBeforeScrubRef.current) {
         play();
       }
     },
-    [seekTo, updateCamera, play]
+    [seekTo, playback.track, play]
   );
 
-  // Initial fit to track on modal open
   const onMapReady = useCallback(() => {
     if (stream?.coordinates && stream.coordinates.length > 0 && mapRef.current) {
       mapRef.current.fitToCoordinates(stream.coordinates, {
@@ -222,13 +253,13 @@ export default function FlyoverModal({
     }
   }, [stream]);
 
-  // Pause playback when modal is closed
   const handleClose = useCallback(() => {
     pause();
     onClose();
   }, [pause, onClose]);
 
   const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+  const hasValidTrack = Boolean(stream?.coordinates && stream.coordinates.length >= 2);
   const initialCoord = stream?.coordinates?.[0] ?? { latitude: 0, longitude: 0 };
 
   return (
@@ -239,68 +270,86 @@ export default function FlyoverModal({
       onRequestClose={handleClose}
     >
       <View style={styles.container}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={provider}
-          mapType={mapType}
-          initialRegion={{
-            latitude: initialCoord.latitude,
-            longitude: initialCoord.longitude,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05
-          }}
-          onMapReady={onMapReady}
-          showsCompass={false}
-          showsScale={false}
-          pitchEnabled
-          rotateEnabled
-        >
-          <FlyoverMapLayers
-            streamCoordinates={stream?.coordinates}
-            traveledCoordinates={traveledCoordinates}
-            currentPoint={currentPoint}
-            scheme={theme.scheme}
-            primaryColor={theme.primary}
-            markerContainerStyle={styles.markerContainer}
-          />
-        </MapView>
+        {hasValidTrack ? (
+          <>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              provider={provider}
+              mapType={mapType}
+              initialRegion={{
+                latitude: initialCoord.latitude,
+                longitude: initialCoord.longitude,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05
+              }}
+              onMapReady={onMapReady}
+              showsCompass={false}
+              showsScale={false}
+              pitchEnabled
+              rotateEnabled
+            >
+              <FlyoverMapLayers
+                streamCoordinates={stream?.coordinates}
+                traveledCoordinates={traveledCoordinates}
+                currentPoint={currentPoint}
+                scheme={theme.scheme}
+                primaryColor={theme.primary}
+                markerContainerStyle={styles.markerContainer}
+              />
+            </MapView>
 
-        {/* Top Header Bar */}
-        <FlyoverHeader
-          title={title}
-          mapType={mapType}
-          onClose={handleClose}
-          onCycleMapType={cycleMapType}
-          topInset={insets.top}
-        />
+            <FlyoverHeader
+              title={title}
+              mapType={mapType}
+              onClose={handleClose}
+              onCycleMapType={cycleMapType}
+              topInset={insets.top}
+            />
 
-        {/* Floating HUD Card */}
-        <View style={styles.hudContainer}>
-          <FlyoverHud
-            speedMps={currentPoint?.speed ?? 0}
-            completedDistanceMeters={completedDistanceMeters}
-            totalDistanceMeters={totalDistanceMeters}
-            altitudeMeters={currentPoint?.altitude ?? 0}
-            elapsedSeconds={elapsedSeconds}
-            totalDurationSeconds={totalDurationSeconds}
-          />
-        </View>
+            <View style={styles.hudContainer}>
+              <FlyoverHud
+                speedMps={currentPoint?.speed ?? 0}
+                completedDistanceMeters={completedDistanceMeters}
+                totalDistanceMeters={totalDistanceMeters}
+                altitudeMeters={currentPoint?.altitude ?? 0}
+                elapsedSeconds={elapsedSeconds}
+                totalDurationSeconds={totalDurationSeconds}
+              />
+            </View>
 
-        {/* Bottom Playback Controls */}
-        <View style={styles.controlsContainer}>
-          <FlyoverControls
-            isPlaying={isPlaying}
-            progress={progress}
-            speedMultiplier={speedMultiplier}
-            onTogglePlay={togglePlay}
-            onRestart={restart}
-            onSeek={seekTo}
-            onSetSpeed={setSpeed}
-            onSlidingStart={handleSlidingStart}
-            onSlidingComplete={handleSlidingComplete}
-          />
-        </View>
+            <View style={styles.controlsContainer}>
+              <FlyoverControls
+                isPlaying={isPlaying}
+                progress={progress}
+                speedMultiplier={speedMultiplier}
+                onTogglePlay={togglePlay}
+                onRestart={restart}
+                onSeek={seekTo}
+                onSetSpeed={setSpeed}
+                onSlidingStart={handleSlidingStart}
+                onSlidingComplete={handleSlidingComplete}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <FlyoverHeader
+              title={title}
+              mapType={mapType}
+              onClose={handleClose}
+              onCycleMapType={cycleMapType}
+              topInset={insets.top}
+            />
+            <View style={styles.emptyContainer}>
+              <Ionicons name="location-outline" size={48} color={theme.textMuted} />
+              <Text style={styles.emptyTitle}>No GPS Track Data</Text>
+              <Text style={styles.emptySubtitle}>
+                This activity does not contain recorded GPS coordinates for 3D flyover playback.
+              </Text>
+            </View>
+          </>
+        )}
       </View>
     </Modal>
   );
