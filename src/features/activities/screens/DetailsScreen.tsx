@@ -14,7 +14,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@/theme';
-import React, { JSX, useLayoutEffect, useMemo, useState } from 'react';
+import React, { JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -133,6 +133,13 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const listRef = useRef<{
+    scrollToIndex: (params: {
+      index: number;
+      animated?: boolean;
+      viewPosition?: number;
+    }) => Promise<void>;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [hideNoStream, setHideNoStream] = useState<boolean>(false);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
@@ -170,7 +177,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     if (match && selectedActivity?.id !== match.id) {
       setSelectedActivity(match);
     }
-  }, [route.params?.selectedActivityId, allActivities]);
+  }, [route.params?.selectedActivityId, allActivities, selectedActivity?.id]);
 
   // Debug log to track activities updates
   React.useEffect(() => {
@@ -209,7 +216,10 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     });
   }, [navigation, allActivities, renderHeaderRight]);
 
-  const sortedActivities = [...allActivities].sort(compareActivitiesByUtcDesc);
+  const sortedActivities = useMemo(
+    () => [...allActivities].sort(compareActivitiesByUtcDesc),
+    [allActivities]
+  );
 
   const activityTypes = useMemo(
     () => Array.from(new Set(allActivities.map(a => a.type))).sort((a, b) => a.localeCompare(b)),
@@ -228,15 +238,31 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   }, [hideNoStream, allActivities]);
 
   const query = searchQuery.trim().toLowerCase();
-  const nameFiltered =
-    query.length === 0
-      ? sortedActivities
-      : sortedActivities.filter(a => (a.name || '').toLowerCase().includes(query));
-  const typeFiltered =
-    selectedTypes.size === 0 ? nameFiltered : nameFiltered.filter(a => selectedTypes.has(a.type));
-  const filteredActivities = hideNoStream
-    ? typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id))
-    : typeFiltered;
+  const filteredActivities = useMemo(() => {
+    const nameFiltered =
+      query.length === 0
+        ? sortedActivities
+        : sortedActivities.filter(a => (a.name || '').toLowerCase().includes(query));
+    const typeFiltered =
+      selectedTypes.size === 0 ? nameFiltered : nameFiltered.filter(a => selectedTypes.has(a.type));
+    return hideNoStream
+      ? typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id))
+      : typeFiltered;
+  }, [sortedActivities, query, selectedTypes, hideNoStream, noStreamIds]);
+
+  // Keep the selected activity visible in the list (e.g. after navigating
+  // from the Records screen), so its short description can be checked.
+  React.useEffect(() => {
+    if (!selectedActivity) return;
+    const index = filteredActivities.findIndex(a => a.id === selectedActivity.id);
+    if (index < 0) return;
+    const frame = requestAnimationFrame(() => {
+      listRef.current
+        ?.scrollToIndex({ index, animated: true, viewPosition: 0.5 })
+        .catch(() => undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedActivity, filteredActivities]);
 
   const toggleType = (type: string) => {
     setSelectedTypes(prev => {
@@ -342,6 +368,8 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
         ) : null}
         <View style={styles.list}>
           <FlashList
+            // @ts-expect-error FlashList v2 types omit ref despite runtime forwardRef
+            ref={listRef}
             data={filteredActivities}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
