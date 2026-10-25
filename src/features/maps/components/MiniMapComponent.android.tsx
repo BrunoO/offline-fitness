@@ -174,6 +174,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
     : undefined;
 
   const [isMapReady, setIsMapReady] = React.useState(false);
+  const canShowFlyover = Boolean(hasGpsTrack && allowFlyover && isMapReady);
   const [mapKey, setMapKey] = React.useState(0); // Force re-render when needed
 
   const fitToTrack = React.useCallback(() => {
@@ -286,7 +287,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
         />
       </MapView>
 
-      {hasGpsTrack && allowFlyover ? (
+      {canShowFlyover ? (
         <MiniMapFlyover
           visible={isFlyoverOpen}
           onOpen={() => setIsFlyoverOpen(true)}

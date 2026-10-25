@@ -230,12 +230,29 @@ export default function FlyoverModal({
     pause();
   }, [isPlaying, pause]);
 
+  const handleSeek = useCallback(
+    (targetProgress: number) => {
+      seekTo(targetProgress);
+      const targetPoint = resolvePointAtProgress(playback.track, targetProgress);
+      if (targetPoint && mapRef.current) {
+        const now = Date.now();
+        if (now - lastCameraUpdateRef.current >= CAMERA_UPDATE_THROTTLE_MS) {
+          lastCameraUpdateRef.current = now;
+          animateToPoint(mapRef.current, targetPoint);
+        }
+      }
+    },
+    [seekTo, playback.track]
+  );
+
   const handleSlidingComplete = useCallback(
     (targetProgress: number) => {
       seekTo(targetProgress);
       const targetPoint = resolvePointAtProgress(playback.track, targetProgress);
       lastCameraUpdateRef.current = Date.now();
-      animateToPoint(mapRef.current, targetPoint);
+      if (targetPoint && mapRef.current) {
+        animateToPoint(mapRef.current, targetPoint);
+      }
       if (wasPlayingBeforeScrubRef.current) {
         play();
       }
@@ -324,7 +341,7 @@ export default function FlyoverModal({
                 speedMultiplier={speedMultiplier}
                 onTogglePlay={togglePlay}
                 onRestart={restart}
-                onSeek={seekTo}
+                onSeek={handleSeek}
                 onSetSpeed={setSpeed}
                 onSlidingStart={handleSlidingStart}
                 onSlidingComplete={handleSlidingComplete}

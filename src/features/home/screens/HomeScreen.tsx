@@ -1,4 +1,4 @@
-import { ResolvedTheme, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -8,7 +8,7 @@ import {
   useActivitiesContext,
   useManualEntry
 } from '@/features/activities';
-import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
+import { HomeActivityMapSection } from '../components/HomeActivityMapSection';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
@@ -57,62 +57,6 @@ const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
 function achievementLabel(valueText: string | null, name?: string | null): string {
   if (valueText === null) return 'N/A';
   return name ? `${valueText} (${name})` : valueText;
-}
-
-type HomeActivityMapProps = {
-  stream: ActivityStream | undefined;
-  isLoading: boolean;
-  mapRefreshKey: number;
-  activityTitle: string;
-  onOpenFlyover: () => void;
-  theme: ResolvedTheme;
-  styles: ReturnType<typeof createStyles>;
-};
-
-function HomeActivityMapSection({
-  stream,
-  isLoading,
-  mapRefreshKey,
-  activityTitle,
-  onOpenFlyover,
-  theme,
-  styles
-}: Readonly<HomeActivityMapProps>) {
-  const hasGpsTrack = Boolean(stream?.coordinates && stream.coordinates.length >= 2);
-
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionTitle}>Activity Map</Text>
-        {hasGpsTrack ? (
-          <TouchableOpacity
-            style={styles.flyoverHeaderButton}
-            onPress={onOpenFlyover}
-            accessibilityRole="button"
-            accessibilityLabel="Play 3D Flyover of recent activity"
-          >
-            <Ionicons name="airplane" size={14} color={theme.primary} />
-            <Text style={styles.flyoverHeaderButtonText}>3D Flyover</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <View style={styles.mapContainer}>
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading map...</Text>
-          </View>
-        ) : null}
-        {!isLoading && stream ? (
-          <MiniMapComponent key={mapRefreshKey} stream={stream} title={activityTitle} />
-        ) : null}
-        {!isLoading && !stream ? (
-          <View style={styles.noDataContainer}>
-            <Text style={styles.noDataText}>No map data available</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
 }
 
 export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX.Element {
