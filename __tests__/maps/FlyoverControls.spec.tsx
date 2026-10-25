@@ -76,8 +76,12 @@ describe('FlyoverControls', () => {
       )
     );
 
-    const speed5x = getByLabelText('5 times speed');
-    fireEvent.press(speed5x);
-    expect(onSetSpeed).toHaveBeenCalledWith(5);
+    const speed2x = getByLabelText('2 times speed');
+    fireEvent.press(speed2x);
+    expect(onSetSpeed).toHaveBeenCalledWith(2);
+
+    const speedHalfX = getByLabelText('0.5 times speed');
+    fireEvent.press(speedHalfX);
+    expect(onSetSpeed).toHaveBeenCalledWith(0.5);
   });
 });

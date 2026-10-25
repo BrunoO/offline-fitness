@@ -4,7 +4,7 @@ import Slider from '@react-native-community/slider';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const SPEED_OPTIONS = [1, 2, 5, 10, 20];
+const SPEED_OPTIONS = [0.5, 1, 2, 4];
 const SLIDER_STEP = 0.001;
 const MIN_SLIDER_VAL = 0;
 const MAX_SLIDER_VAL = 1;

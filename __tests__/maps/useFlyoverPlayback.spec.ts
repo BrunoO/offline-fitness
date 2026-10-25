@@ -130,7 +130,7 @@ describe('useFlyoverPlayback', () => {
     expect(result.current.speedMultiplier).toBe(5);
   });
 
-  it('advances progress across animation frames', () => {
+  it('advances progress across animation frames based on target duration', () => {
     const { result } = renderHook(() => useFlyoverPlayback(sampleStream));
 
     act(() => {
@@ -143,21 +143,22 @@ describe('useFlyoverPlayback', () => {
     });
     expect(result.current.progress).toBe(0);
 
-    // Second frame: 1000ms later at 1x speed -> advances by 1s (1 / 20 = 0.05 progress)
-    // Note: MAX_DELTA_REAL_SECONDS clamps delta to 0.25s per frame
+    // Second frame: 200ms real delta at 1x speed with default 30s target duration
+    // advances by 0.2 / 30 = 0.00667 progress
     act(() => {
       triggerNextFrame(1200); // 200ms real delta
     });
 
-    expect(result.current.progress).toBeCloseTo(0.2 / 20, 3);
-    expect(result.current.elapsedSeconds).toBeCloseTo(0.2, 2);
+    expect(result.current.progress).toBeCloseTo(0.2 / 30, 4);
+    expect(result.current.elapsedSeconds).toBeCloseTo((0.2 / 30) * 20, 3);
   });
 
-  it('stops at end of route when loop is false', () => {
-    const { result } = renderHook(() => useFlyoverPlayback(sampleStream, { loop: false }));
+  it('scales frame advancement according to speedMultiplier and targetDurationSeconds', () => {
+    const { result } = renderHook(() =>
+      useFlyoverPlayback(sampleStream, { targetDurationSeconds: 20, initialSpeed: 2 })
+    );
 
     act(() => {
-      result.current.seekTo(0.99);
       result.current.play();
     });
 
@@ -165,7 +166,26 @@ describe('useFlyoverPlayback', () => {
       triggerNextFrame(1000);
     });
 
-    // Jump forward enough to exceed total duration
+    act(() => {
+      triggerNextFrame(1200); // 200ms delta, speed = 2, targetDuration = 20s -> 0.4 / 20 = 0.02
+    });
+
+    expect(result.current.progress).toBeCloseTo(0.02, 4);
+  });
+
+  it('stops at end of route when loop is false', () => {
+    const { result } = renderHook(() => useFlyoverPlayback(sampleStream, { loop: false }));
+
+    act(() => {
+      result.current.seekTo(0.999);
+      result.current.play();
+    });
+
+    act(() => {
+      triggerNextFrame(1000);
+    });
+
+    // Jump forward enough to exceed target duration (0.25s delta / 30s > 0.001)
     act(() => {
       triggerNextFrame(1250);
     });
@@ -178,7 +198,7 @@ describe('useFlyoverPlayback', () => {
     const { result } = renderHook(() => useFlyoverPlayback(sampleStream, { loop: true }));
 
     act(() => {
-      result.current.seekTo(0.99);
+      result.current.seekTo(0.999);
       result.current.play();
     });
 

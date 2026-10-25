@@ -46,12 +46,14 @@ export interface FlyoverPipelineOptions {
 }
 
 export interface FlyoverPlaybackOptions extends FlyoverPipelineOptions {
-  /** Initial speed multiplier (e.g. 1, 2, 5, 10, 20). Default: 1 */
+  /** Initial speed multiplier (e.g. 0.5, 1, 2, 4). Default: 1 */
   initialSpeed?: number;
   /** Whether to start playback immediately upon mounting. Default: false */
   autoPlay?: boolean;
   /** Whether to restart automatically from beginning upon reaching the finish. Default: false */
   loop?: boolean;
+  /** Target full animation duration in seconds at 1x speed. Default: 30 */
+  targetDurationSeconds?: number;
 }
 
 export interface FlyoverPlaybackState {

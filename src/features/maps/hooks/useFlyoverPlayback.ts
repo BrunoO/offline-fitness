@@ -10,6 +10,7 @@ import {
 
 const DEFAULT_SPEED_MULTIPLIER = 1;
 const MIN_SPEED_MULTIPLIER = 0.1;
+const DEFAULT_TARGET_DURATION_SECONDS = 30;
 const MAX_DELTA_REAL_SECONDS = 0.25;
 const PROGRESS_START = 0;
 const PROGRESS_END = 1;
@@ -66,6 +67,10 @@ export function useFlyoverPlayback(
   const smoothingWindow = options?.smoothingWindow;
   const defaultPitch = options?.defaultPitch;
   const minMovementMeters = options?.minMovementMeters;
+  const targetDurationSeconds = Math.max(
+    1,
+    options?.targetDurationSeconds ?? DEFAULT_TARGET_DURATION_SECONDS
+  );
 
   const track = useMemo(
     () =>
@@ -87,6 +92,7 @@ export function useFlyoverPlayback(
   const lastTimestampRef = useRef<number | null>(null);
   const speedRef = useRef(speedMultiplier);
   const progressRef = useRef(progress);
+  const targetDurationRef = useRef(targetDurationSeconds);
 
   useEffect(() => {
     speedRef.current = speedMultiplier;
@@ -95,6 +101,10 @@ export function useFlyoverPlayback(
   useEffect(() => {
     progressRef.current = progress;
   }, [progress]);
+
+  useEffect(() => {
+    targetDurationRef.current = targetDurationSeconds;
+  }, [targetDurationSeconds]);
 
   const totalDurationSeconds = track.totalDuration;
   const elapsedSeconds = progress * totalDurationSeconds;
@@ -183,21 +193,19 @@ export function useFlyoverPlayback(
           MAX_DELTA_REAL_SECONDS,
           (timestamp - lastTimestampRef.current) / 1000
         );
-        const deltaSimSeconds = deltaRealSeconds * speedRef.current;
+        const progressIncrement = (deltaRealSeconds * speedRef.current) / targetDurationRef.current;
+        const nextProgress = progressRef.current + progressIncrement;
 
-        const currentElapsed = progressRef.current * totalDurationSeconds;
-        const nextElapsed = currentElapsed + deltaSimSeconds;
-
-        if (nextElapsed >= totalDurationSeconds) {
+        if (nextProgress >= PROGRESS_END) {
           if (loop) {
-            const wrappedElapsed = nextElapsed % totalDurationSeconds;
-            setProgress(wrappedElapsed / totalDurationSeconds);
+            const wrappedProgress = nextProgress - Math.floor(nextProgress);
+            setProgress(wrappedProgress);
           } else {
             setProgress(PROGRESS_END);
             setIsPlaying(false);
           }
         } else {
-          setProgress(nextElapsed / totalDurationSeconds);
+          setProgress(nextProgress);
         }
       }
 
