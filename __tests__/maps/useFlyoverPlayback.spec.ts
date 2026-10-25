@@ -224,4 +224,28 @@ describe('useFlyoverPlayback', () => {
 
     expect(result.current.traveledCoordinates.length).toBe(3);
   });
+
+  it('safely ignores NaN and non-finite inputs to seekTo, seekToTime, and setSpeed', () => {
+    const { result } = renderHook(() => useFlyoverPlayback(sampleStream));
+
+    act(() => {
+      result.current.seekTo(0.3);
+    });
+    expect(result.current.progress).toBe(0.3);
+
+    act(() => {
+      result.current.seekTo(NaN);
+    });
+    expect(result.current.progress).toBe(0.3);
+
+    act(() => {
+      result.current.seekToTime(Number.POSITIVE_INFINITY);
+    });
+    expect(result.current.progress).toBe(0.3);
+
+    act(() => {
+      result.current.setSpeed(NaN);
+    });
+    expect(result.current.speedMultiplier).toBe(1);
+  });
 });

@@ -289,8 +289,9 @@ function buildIntermediatePoints(
 
     if (i > 0) {
       const prev = coords[i - 1];
+      const stepDistPre = haversineDistance(coords[i - 1], curr);
       const prevTime = resolvePointTime(i - 1, stream.time, cumulativeDistance);
-      const approxCurrTime = resolvePointTime(i, stream.time, cumulativeDistance);
+      const approxCurrTime = resolvePointTime(i, stream.time, cumulativeDistance + stepDistPre);
       const metrics = computeStepMetrics(
         prev,
         curr,

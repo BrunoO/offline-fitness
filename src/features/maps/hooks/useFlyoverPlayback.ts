@@ -1,6 +1,6 @@
 import { ActivityStream, LatLng } from '@/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildFlyoverTrack, getFlyoverPointAtProgress } from '../services/flyoverInterpolator';
+import { buildFlyoverTrack, getFlyoverPointAtTime } from '../services/flyoverInterpolator';
 import {
   FlyoverPlaybackOptions,
   FlyoverPlaybackState,
@@ -38,9 +38,8 @@ function deriveTraveledCoordinates(
 
   const lastTraveled = result.at(-1);
   if (
-    !lastTraveled ||
-    lastTraveled.latitude !== currentPoint.latitude ||
-    lastTraveled.longitude !== currentPoint.longitude
+    lastTraveled?.latitude !== currentPoint.latitude ||
+    lastTraveled?.longitude !== currentPoint.longitude
   ) {
     result.push({
       latitude: currentPoint.latitude,
@@ -76,20 +75,31 @@ export function useFlyoverPlayback(
   const animFrameIdRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
   const speedRef = useRef(speedMultiplier);
+  const progressRef = useRef(progress);
 
   useEffect(() => {
     speedRef.current = speedMultiplier;
   }, [speedMultiplier]);
 
-  const currentPoint = useMemo(() => getFlyoverPointAtProgress(track, progress), [track, progress]);
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
+  const totalDurationSeconds = track.totalDuration;
+  const elapsedSeconds = progress * totalDurationSeconds;
+
+  const currentPoint = useMemo(() => {
+    if (track.points.length === 0) {
+      return null;
+    }
+    const startTime = track.points[0].time;
+    return getFlyoverPointAtTime(track, startTime + elapsedSeconds);
+  }, [track, elapsedSeconds]);
 
   const traveledCoordinates = useMemo(
     () => deriveTraveledCoordinates(track, currentPoint),
     [track, currentPoint]
   );
-
-  const totalDurationSeconds = track.totalDuration;
-  const elapsedSeconds = progress * totalDurationSeconds;
   const totalDistanceMeters = track.totalDistance;
   const completedDistanceMeters = currentPoint ? currentPoint.distance : 0;
 
@@ -105,22 +115,23 @@ export function useFlyoverPlayback(
 
   const togglePlay = useCallback(() => {
     if (track.totalDuration <= 0) return;
-    setIsPlaying(prev => {
-      if (!prev) {
-        setProgress(current => (current >= PROGRESS_END ? PROGRESS_START : current));
-        return true;
-      }
-      return false;
-    });
-  }, [track.totalDuration]);
+    if (isPlaying) {
+      setIsPlaying(false);
+    } else {
+      setProgress(prev => (prev >= PROGRESS_END ? PROGRESS_START : prev));
+      setIsPlaying(true);
+    }
+  }, [isPlaying, track.totalDuration]);
 
   const seekTo = useCallback((targetProgress: number) => {
+    if (!Number.isFinite(targetProgress)) return;
     const clamped = Math.max(PROGRESS_START, Math.min(PROGRESS_END, targetProgress));
     setProgress(clamped);
   }, []);
 
   const seekToTime = useCallback(
     (timeSeconds: number) => {
+      if (!Number.isFinite(timeSeconds)) return;
       if (totalDurationSeconds <= 0) {
         seekTo(PROGRESS_START);
         return;
@@ -131,11 +142,13 @@ export function useFlyoverPlayback(
   );
 
   const setSpeed = useCallback((multiplier: number) => {
+    if (!Number.isFinite(multiplier)) return;
     const sanitized = Math.max(MIN_SPEED_MULTIPLIER, multiplier);
     setSpeedMultiplier(sanitized);
   }, []);
 
   const restart = useCallback(() => {
+    lastTimestampRef.current = null;
     setProgress(PROGRESS_START);
     if (track.totalDuration > 0) {
       setIsPlaying(true);
@@ -161,20 +174,20 @@ export function useFlyoverPlayback(
         );
         const deltaSimSeconds = deltaRealSeconds * speedRef.current;
 
-        setProgress(prevProgress => {
-          const currentElapsed = prevProgress * totalDurationSeconds;
-          const nextElapsed = currentElapsed + deltaSimSeconds;
+        const currentElapsed = progressRef.current * totalDurationSeconds;
+        const nextElapsed = currentElapsed + deltaSimSeconds;
 
-          if (nextElapsed >= totalDurationSeconds) {
-            if (loop) {
-              const wrappedElapsed = nextElapsed % totalDurationSeconds;
-              return wrappedElapsed / totalDurationSeconds;
-            }
+        if (nextElapsed >= totalDurationSeconds) {
+          if (loop) {
+            const wrappedElapsed = nextElapsed % totalDurationSeconds;
+            setProgress(wrappedElapsed / totalDurationSeconds);
+          } else {
+            setProgress(PROGRESS_END);
             setIsPlaying(false);
-            return PROGRESS_END;
           }
-          return nextElapsed / totalDurationSeconds;
-        });
+        } else {
+          setProgress(nextElapsed / totalDurationSeconds);
+        }
       }
 
       lastTimestampRef.current = timestamp;
