@@ -353,6 +353,11 @@ function buildIntermediatePoints(
   }
 
   if (coords.length > 1) {
+    // Point 0 has no predecessor segment (i = 0 starts with placeholder 0),
+    // so seed its initial heading and speed from the first segment (p0 -> p1).
+    // This gives a forward-difference boundary condition at t = 0 and prevents
+    // an artificial 0 m/s from dragging down the initial HUD readout and the
+    // moving-average window in `smoothSpeeds` across the first few points.
     if (points[0].rawBearing === 0 && points[1].rawBearing !== 0) {
       points[0].rawBearing = points[1].rawBearing;
     }

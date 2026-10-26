@@ -77,11 +77,17 @@ function processYearData(
     date.setDate(day);
     if (activitiesByDay[day]) {
       for (const activity of activitiesByDay[day]) {
-        cumulativeDistance += activity.distance;
-        cumulativeTime += useElapsedTime
+        const distance = Number.isFinite(activity.distance) ? activity.distance : 0;
+        const rawTime = useElapsedTime
           ? (activity.elapsed_time ?? activity.moving_time)
           : activity.moving_time;
-        cumulativeElevation += activity.total_elevation_gain;
+        const time = Number.isFinite(rawTime) ? rawTime : 0;
+        const elevation = Number.isFinite(activity.total_elevation_gain)
+          ? activity.total_elevation_gain
+          : 0;
+        cumulativeDistance += distance;
+        cumulativeTime += time;
+        cumulativeElevation += elevation;
       }
       cumulativeActivities += activitiesByDay[day].length;
     }

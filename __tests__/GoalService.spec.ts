@@ -1,3 +1,4 @@
+import { Parser } from 'expr-eval';
 import { evaluateGoal, validateGoal } from '../src/features/stats/services/GoalService';
 import { Activity } from '../src/shared/types/types';
 
@@ -66,6 +67,22 @@ describe('GoalService', () => {
     ])('should evaluate $label', ({ expression }) => {
       const result = evaluateGoal(expression, { activities: mockActivities });
       expect(result).toBe(true);
+    });
+
+    it('parses each filter expression only once per sum/count invocation regardless of activity count', () => {
+      const parseSpy = jest.spyOn(Parser.prototype, 'parse');
+      try {
+        const result = evaluateGoal(
+          'sum("elapsed_time", "type == \'Yoga\'") >= 3600 and count("type == \'Run\'") == 1',
+          { activities: mockActivities }
+        );
+        expect(result).toBe(true);
+        // 1 parse for the outer goal expression (via parser.evaluate) + 1 for sum filter + 1 for count filter
+        expect(parseSpy.mock.calls.filter(call => call[0] === "type == 'Yoga'")).toHaveLength(1);
+        expect(parseSpy.mock.calls.filter(call => call[0] === "type == 'Run'")).toHaveLength(1);
+      } finally {
+        parseSpy.mockRestore();
+      }
     });
   });
 

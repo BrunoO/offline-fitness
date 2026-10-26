@@ -1,4 +1,4 @@
-import { weeklyData } from '@/features/stats/services/stats';
+import { monthlyData2, weeklyData } from '@/features/stats/services/stats';
 import { Activity } from '@/shared';
 import { activityIsoWeekKey, isoWeekKeyFromLocalParts } from '@/shared/utils/isoWeek';
 import { week_of_year } from '@/shared/utils/utils';
@@ -103,5 +103,49 @@ describe('weeklyData ISO week alignment', () => {
     const weekWithYoga = weeks.find(week => week.start_week === expectedWeek);
 
     expect(weekWithYoga?.activities.some(activity => activity.id === 'yoga-1')).toBe(true);
+  });
+
+  it('keeps an uninitialised activity type and non-finite fields out of NaN in weeklyData and monthlyData2', () => {
+    const monday = lastMonday(new Date());
+    const knownRun = makeActivity('run-1', localTimestamp(monday, '08:00:00+02:00'), 'Run', 3600);
+    const unknownSport = makeActivity(
+      'skate-1',
+      localTimestamp(monday, '10:00:00+02:00'),
+      'Skateboard',
+      1800
+    );
+    const brokenRun = {
+      ...makeActivity('broken-1', localTimestamp(monday, '12:00:00+02:00'), 'Run', NaN),
+      distance: NaN,
+      total_elevation_gain: NaN
+    };
+
+    const weeks = weeklyData(['Run'], [knownRun, unknownSport, brokenRun], 4);
+    for (const week of weeks) {
+      for (const entry of week.summary) {
+        expect(Number.isFinite(entry.value)).toBe(true);
+      }
+      for (const val of week.extraValues.values()) {
+        expect(Number.isFinite(val)).toBe(true);
+      }
+    }
+
+    const weekWithActivities = weeks.find(week => week.activities.length > 0)!;
+    expect(weekWithActivities.summary.find(s => s.type === 'Run')?.value).toBe(3600);
+    expect(weekWithActivities.summary.find(s => s.type === 'Skateboard')?.value).toBe(1800);
+    expect(weekWithActivities.extraValues.get('totalH')).toBe(5400);
+    expect(weekWithActivities.extraValues.get('dist')).toBe(10000);
+
+    const months = monthlyData2(
+      [knownRun, brokenRun],
+      a => a.distance,
+      a => a.total_elevation_gain,
+      3
+    );
+    for (const m of months) {
+      expect(Number.isFinite(m.distance)).toBe(true);
+      expect(Number.isFinite(m.elevation)).toBe(true);
+      expect(Number.isFinite(m.time ?? 0)).toBe(true);
+    }
   });
 });

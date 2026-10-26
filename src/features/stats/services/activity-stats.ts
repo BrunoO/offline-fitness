@@ -33,14 +33,21 @@ export function calculateRecentActivityStats(
 
   const totalActivities = activitiesThisYear.length;
 
-  const totalDistance = activitiesThisYear.reduce((sum, activity) => sum + activity.distance, 0);
+  const totalDistance = activitiesThisYear.reduce(
+    (sum, activity) => sum + (Number.isFinite(activity.distance) ? activity.distance : 0),
+    0
+  );
   const totalElevationGain = activitiesThisYear.reduce(
-    (sum, activity) => sum + activity.total_elevation_gain,
+    (sum, activity) =>
+      sum + (Number.isFinite(activity.total_elevation_gain) ? activity.total_elevation_gain : 0),
     0
   );
   // Normalize speed computation across sports using distance and moving_time.
   // Strava's average_speed can vary (m/s, missing for swims, etc.).
-  const speedsKmh = activitiesThisYear.map(a => calculateSpeedKmh(a.distance, a.moving_time));
+  const speedsKmh = activitiesThisYear.map(a => {
+    const speed = calculateSpeedKmh(a.distance, a.moving_time);
+    return Number.isFinite(speed) ? speed : 0;
+  });
   const totalSpeed = speedsKmh.reduce((sum, s) => sum + s, 0);
 
   const averageDistance = totalDistance / totalActivities;

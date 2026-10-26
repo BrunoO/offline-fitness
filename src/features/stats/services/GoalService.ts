@@ -22,18 +22,14 @@ export function evaluateGoal(expression: string, data: WeekData): boolean {
   const parser = new Parser();
 
   parser.functions.sum = (fieldName: string, filter?: string) => {
+    if (!isValidActivityField(fieldName) || data.activities.length === 0) {
+      return 0;
+    }
+
+    const filterExpression = filter ? parser.parse(filter) : null;
     let total = 0;
     for (const activity of data.activities) {
-      if (!isValidActivityField(fieldName)) {
-        continue;
-      }
-
-      if (filter) {
-        const filterExpression = parser.parse(filter);
-        if (filterExpression.evaluate(activity as unknown as Value)) {
-          total += getNumericFieldValue(activity, fieldName);
-        }
-      } else {
+      if (!filterExpression || filterExpression.evaluate(activity as unknown as Value)) {
         total += getNumericFieldValue(activity, fieldName);
       }
     }
@@ -44,10 +40,13 @@ export function evaluateGoal(expression: string, data: WeekData): boolean {
     if (!filter) {
       return data.activities.length;
     }
+    if (data.activities.length === 0) {
+      return 0;
+    }
 
+    const filterExpression = parser.parse(filter);
     let count = 0;
     for (const activity of data.activities) {
-      const filterExpression = parser.parse(filter); // Parse the filter expression
       if (filterExpression.evaluate(activity as unknown as Value)) {
         count++;
       }

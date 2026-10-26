@@ -24,6 +24,10 @@ import {
  *  - First value set to -1 (indicating "Total")
  *  - Last value containing the average of all yearly averages
  */
+function finiteOrZero(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
+
 export function yearlyData(
   myActivities: string[],
   allActivities: Activity[],
@@ -45,8 +49,8 @@ export function yearlyData(
     // initialised, and a field that is not a number. The yearly charts feed
     // these values straight into victory-native paths, whose native parser on
     // Android crashes on NaN, so a broken cell is worse than a zero here.
-    const value = activityField(ga);
-    yearMap.set(ga.type, (yearMap.get(ga.type) ?? 0) + (Number.isFinite(value) ? value : 0));
+    const value = finiteOrZero(activityField(ga));
+    yearMap.set(ga.type, (yearMap.get(ga.type) ?? 0) + value);
   });
 
   // transform the map into a array of arrays
@@ -178,18 +182,16 @@ export function weeklyData(
     const weekMap = allWeeksMap.get(weekKey);
     if (!weekMap) return;
 
-    weekMap.set(
-      activity.type,
-      weekMap.get(activity.type)! + (useElapsedTime ? activity.elapsed_time : activity.moving_time)
-    );
+    const duration = finiteOrZero(useElapsedTime ? activity.elapsed_time : activity.moving_time);
+    const distance = finiteOrZero(activity.distance);
+    const elevation = finiteOrZero(activity.total_elevation_gain);
+
+    weekMap.set(activity.type, (weekMap.get(activity.type) ?? 0) + duration);
 
     const extraValues = extraMap.get(weekKey)!;
-    extraValues.set('dist', extraValues.get('dist')! + activity.distance);
-    extraValues.set('elev', extraValues.get('elev')! + activity.total_elevation_gain);
-    extraValues.set(
-      'totalH',
-      extraValues.get('totalH')! + (useElapsedTime ? activity.elapsed_time : activity.moving_time)
-    );
+    extraValues.set('dist', extraValues.get('dist')! + distance);
+    extraValues.set('elev', extraValues.get('elev')! + elevation);
+    extraValues.set('totalH', extraValues.get('totalH')! + duration);
     extraValues.set('nbA', extraValues.get('nbA')! + 1);
 
     activitiesByWeek.get(weekKey)!.push(activity);
@@ -249,7 +251,10 @@ export function monthlyData(allActivities: Activity[], activityField: ActivityAc
     if (!allMonthsDistanceMap.has(keyDate)) {
       allMonthsDistanceMap.set(keyDate, 0);
     }
-    allMonthsDistanceMap.set(keyDate, allMonthsDistanceMap.get(keyDate)! + activityField(a));
+    allMonthsDistanceMap.set(
+      keyDate,
+      allMonthsDistanceMap.get(keyDate)! + finiteOrZero(activityField(a))
+    );
   });
 
   const arr = Array.from(allMonthsDistanceMap, function (entry) {
@@ -324,10 +329,11 @@ export function monthlyData2(
       allMonthsDistanceMap.set(keyDate, [0, 0]);
     }
     const currentValues = allMonthsDistanceMap.get(keyDate)!;
+    const durationSeconds = finiteOrZero(useElapsedTime ? a.elapsed_time : a.moving_time);
     const updatedValues = [
-      currentValues[0] + activityField1(a),
-      currentValues[1] + activityField2(a),
-      (currentValues[2] || 0) + (useElapsedTime ? a.elapsed_time : a.moving_time) / 3600 // hours
+      currentValues[0] + finiteOrZero(activityField1(a)),
+      currentValues[1] + finiteOrZero(activityField2(a)),
+      (currentValues[2] || 0) + durationSeconds / 3600 // hours
     ];
     allMonthsDistanceMap.set(keyDate, updatedValues);
   });
