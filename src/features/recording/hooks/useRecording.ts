@@ -76,6 +76,23 @@ const readSplitIntervalMeters = async (): Promise<number> => {
   }
 };
 
+const createLiveSplitDetector = async (profile: Profile): Promise<SplitDetector> => {
+  const [audioRaw, hapticRaw, intervalMeters] = await Promise.all([
+    AsyncStorage.getItem('splitsAudioEnabled'),
+    AsyncStorage.getItem('splitsHapticEnabled'),
+    readSplitIntervalMeters()
+  ]);
+  const audioEnabled = audioRaw === null ? true : audioRaw === 'true';
+  const hapticEnabled = hapticRaw === null ? true : hapticRaw === 'true';
+  return new SplitDetector({
+    profile,
+    audioEnabled,
+    hapticEnabled,
+    intervalMeters,
+    getHeartRateBpm: () => heartRateService.getState().liveHr
+  });
+};
+
 const loadStoppedSessionData = async (
   sessionId: string,
   existingSummary: RecordingSummary | null
@@ -244,8 +261,10 @@ export function useRecording(): UseRecordingResult {
         }
         if (nextState.phase === 'recording' || nextState.phase === 'paused') {
           const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
+          const detector = await createLiveSplitDetector(meta.profile);
           if (isMounted) {
             setActiveProfile(meta.profile);
+            splitDetectorRef.current ??= detector;
             slopeCalculatorRef.current ??= new LiveSlopeCalculator(
               meta.profile,
               Boolean(nextCapabilities.hasBarometer && meta.capture.useBarometer)
@@ -429,19 +448,7 @@ export function useRecording(): UseRecordingResult {
         setActiveProfile(profile);
         void saveLastRecordingProfile(profile);
         heartRateService.attachRecording(meta);
-        const [audioRaw, hapticRaw, intervalRaw] = await Promise.all([
-          AsyncStorage.getItem('splitsAudioEnabled'),
-          AsyncStorage.getItem('splitsHapticEnabled'),
-          AsyncStorage.getItem('splitsIntervalMeters')
-        ]);
-        const audioEnabled = audioRaw === null ? true : audioRaw === 'true';
-        const hapticEnabled = hapticRaw === null ? true : hapticRaw === 'true';
-        const intervalMeters = intervalRaw ? Number.parseInt(intervalRaw, 10) : 1000;
-        splitDetectorRef.current = new SplitDetector({
-          audioEnabled,
-          hapticEnabled,
-          intervalMeters: Number.isFinite(intervalMeters) ? intervalMeters : 1000
-        });
+        splitDetectorRef.current = await createLiveSplitDetector(profile);
         slopeCalculatorRef.current = new LiveSlopeCalculator(
           profile,
           Boolean(capabilities?.hasBarometer && PROFILE_CAPTURE_OPTIONS[profile].useBarometer)

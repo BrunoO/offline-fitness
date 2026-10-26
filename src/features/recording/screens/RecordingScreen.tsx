@@ -326,8 +326,8 @@ export function RecordingScreen({
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Last split</Text>
           <Text style={styles.cardHint}>
-            #{lastSplit.splitNumber} · {(lastSplit.splitDistanceMeters / 1000).toFixed(2)} km · pace{' '}
-            {lastSplit.paceFormatted} /km
+            #{lastSplit.splitNumber} · {formatSplitDistance(lastSplit.splitDistanceMeters)} ·{' '}
+            {formatSplitRate(lastSplit, displayedProfile, rateMode)}
           </Text>
         </View>
       ) : null}
