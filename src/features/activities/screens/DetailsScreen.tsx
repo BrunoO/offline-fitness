@@ -88,7 +88,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      marginRight: 8
+      marginRight: 8,
+      color: theme.text
     },
     clearButton: {
       padding: 8,
@@ -317,11 +318,14 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           <Switch
             value={hideNoStream}
             onValueChange={setHideNoStream}
+            trackColor={{ false: theme.border, true: theme.primary }}
+            thumbColor={hideNoStream ? theme.onPrimary : theme.surfaceSunken}
             accessibilityLabel="Hide activities without streams"
           />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by name"
+            placeholderTextColor={theme.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}

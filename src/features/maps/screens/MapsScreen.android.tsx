@@ -332,7 +332,9 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
     >
       <View style={{ flex: 1, width: '100%' }}>
         {allActivities.length === 0 ? (
-          <Text style={{ textAlign: 'center', marginVertical: 20 }}>No activities available</Text>
+          <Text style={{ textAlign: 'center', marginVertical: 20, color: theme.textMuted }}>
+            No activities available
+          </Text>
         ) : (
           <MapView
             style={{ flex: 1 }}
@@ -344,7 +346,7 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
             showsUserLocation={isLocationGranted}
             showsScale={true}
             loadingEnabled={false}
-            loadingIndicatorColor={'green'}
+            loadingIndicatorColor={theme.primary}
             onMapReady={onMapReady}
             mapType={mapType}
             onRegionChangeComplete={onRegionChangeCompleted}
@@ -553,7 +555,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.border
     },
     iconLabel: {
-      color: theme.textOnSurface,
+      color: theme.text,
       marginLeft: 8
     }
   });

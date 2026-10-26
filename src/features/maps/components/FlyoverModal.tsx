@@ -157,8 +157,8 @@ interface CameraAnimationParams {
   track: FlyoverTrack;
   cameraMode: FlyoverCameraMode;
   force: boolean;
-  lastHeadingRef: React.MutableRefObject<number | null>;
-  lastCenterRef: React.MutableRefObject<LatLng | null>;
+  lastHeadingRef: React.RefObject<number | null>;
+  lastCenterRef: React.RefObject<LatLng | null>;
 }
 
 function fitMapToOverview(map: MapView | null, coordinates: LatLng[] | undefined): void {
@@ -173,7 +173,7 @@ function resolveDampedHeading(
   track: FlyoverTrack,
   point: FlyoverPoint,
   force: boolean,
-  lastHeadingRef: React.MutableRefObject<number | null>
+  lastHeadingRef: React.RefObject<number | null>
 ): number {
   const targetHeading = computeLookAheadBearing(track, point);
   if (force || lastHeadingRef.current === null) {
@@ -197,7 +197,7 @@ function shouldSkipNorthUpPan(
   point: FlyoverPoint,
   totalDistance: number,
   force: boolean,
-  lastCenterRef: React.MutableRefObject<LatLng | null>
+  lastCenterRef: React.RefObject<LatLng | null>
 ): boolean {
   if (force || !lastCenterRef.current) {
     return false;

@@ -117,7 +117,6 @@ export function ActivityCalendarPeriod({
   const sortedDates = Object.keys(activitiesByDate).sort((a, b) => a.localeCompare(b));
   const streaks: string[][] = [];
   let currentStreak: string[] = [];
-  const baseColor = theme.primary;
 
   // Build streaks array (DST-safe whole-day math on athlete-local dates)
   sortedDates.forEach((date, index) => {
@@ -155,10 +154,10 @@ export function ActivityCalendarPeriod({
   streaks.forEach(streak => {
     streak.forEach(streakDate => {
       const goalAchieved = getGoalAchievement(streakDate);
-      const streakColor = goalAchieved ? theme.success : baseColor + '60';
+      const streakColor = goalAchieved ? theme.successSoft : theme.primarySoft;
       marks[streakDate] = {
         color: streakColor,
-        textColor: goalAchieved ? theme.onPrimary : theme.text
+        textColor: theme.textStrong
       };
     });
   });
@@ -169,7 +168,7 @@ export function ActivityCalendarPeriod({
       ...marks[today],
       today: true,
       marked: true,
-      dotColor: theme.textOnSurface
+      dotColor: theme.primary
     };
   } else {
     marks[today] = {
@@ -184,14 +183,14 @@ export function ActivityCalendarPeriod({
     marks[selectedDate] = {
       ...marks[selectedDate],
       selected: true,
-      selectedColor: theme.success,
-      selectedTextColor: theme.textStrong
+      selectedColor: theme.primary,
+      selectedTextColor: theme.onPrimary
     };
   } else {
     marks[selectedDate] = {
       selected: true,
-      selectedColor: theme.success,
-      selectedTextColor: theme.textStrong
+      selectedColor: theme.primary,
+      selectedTextColor: theme.onPrimary
     };
   }
 
@@ -225,7 +224,7 @@ export function ActivityCalendarPeriod({
         dayTextColor: theme.textStrong,
         monthTextColor: theme.textStrong,
         indicatorColor: theme.primary,
-        selectedDayBackgroundColor: theme.success,
+        selectedDayBackgroundColor: theme.primary,
         selectedDayTextColor: theme.onPrimary,
         todayBackgroundColor: theme.surfaceMuted //theme.primary + '40'
       }}

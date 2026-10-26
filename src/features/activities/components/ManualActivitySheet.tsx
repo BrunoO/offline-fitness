@@ -259,6 +259,7 @@ export function ManualActivitySheet({
                   value={newTypeName}
                   onChangeText={setNewTypeName}
                   placeholder="e.g. Padel"
+                  placeholderTextColor={theme.textMuted}
                   autoCorrect={false}
                   maxLength={24}
                   accessibilityLabel="New activity type name"
@@ -299,6 +300,7 @@ export function ManualActivitySheet({
                 value={date}
                 onChangeText={setDate}
                 placeholder="YYYY-MM-DD"
+                placeholderTextColor={theme.textMuted}
                 autoCorrect={false}
                 maxLength={10}
                 accessibilityLabel="Activity date YYYY-MM-DD"
@@ -312,6 +314,7 @@ export function ManualActivitySheet({
                 value={time}
                 onChangeText={handleTimeDigitsChange}
                 placeholder="HHMM"
+                placeholderTextColor={theme.textMuted}
                 keyboardType="number-pad"
                 autoCorrect={false}
                 maxLength={5}
@@ -366,6 +369,7 @@ export function ManualActivitySheet({
                     value={distanceKm}
                     onChangeText={setDistanceKm}
                     placeholder="Distance km"
+                    placeholderTextColor={theme.textMuted}
                     keyboardType="decimal-pad"
                     autoCorrect={false}
                     accessibilityLabel="Activity distance in kilometres"
@@ -375,6 +379,7 @@ export function ManualActivitySheet({
                     value={elevationGainM}
                     onChangeText={setElevationGainM}
                     placeholder="Elevation m"
+                    placeholderTextColor={theme.textMuted}
                     keyboardType="number-pad"
                     autoCorrect={false}
                     accessibilityLabel="Activity elevation gain in metres"
@@ -389,6 +394,7 @@ export function ManualActivitySheet({
               value={name}
               onChangeText={setName}
               placeholder={`e.g. Morning ${activityType}`}
+              placeholderTextColor={theme.textMuted}
               autoCorrect={false}
               accessibilityLabel="Activity name, optional"
             />

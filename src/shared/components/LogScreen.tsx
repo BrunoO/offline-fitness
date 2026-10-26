@@ -153,47 +153,40 @@ export function LogScreen(): JSX.Element {
         <View style={styles.headerButtons}>
           {logs.length > 0 ? (
             <TouchableOpacity
-              style={[styles.copyButton, { backgroundColor: theme.success }]}
+              style={[styles.actionButton, styles.copyButton]}
               onPress={handleCopyAllLogs}
             >
-              <Text style={styles.buttonText}>Copy All</Text>
+              <Text style={styles.copyButtonText}>Copy All</Text>
             </TouchableOpacity>
           ) : null}
           {logs.length > 0 ? (
             <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: theme.info }]}
+              style={[styles.actionButton, styles.exportButton]}
               onPress={handleExportLogs}
             >
-              <Text style={styles.buttonText}>Export</Text>
+              <Text style={styles.exportButtonText}>Export</Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
-            style={[styles.clearButton, { backgroundColor: theme.danger }]}
+            style={[styles.actionButton, styles.clearButton]}
             onPress={handleClearLogs}
           >
-            <Text style={styles.buttonText}>Clear</Text>
+            <Text style={styles.clearButtonText}>Clear</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.refreshButton, { backgroundColor: theme.warning }]}
+            style={[styles.actionButton, styles.refreshButton]}
             onPress={forceUpdate}
           >
-            <Text style={styles.buttonText}>Refresh</Text>
+            <Text style={styles.refreshButtonText}>Refresh</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[
-              styles.invertButton,
-              {
-                backgroundColor: isReversed ? theme.success : theme.textMuted,
-                borderWidth: 2,
-                borderColor: isReversed ? theme.primaryPressed : theme.border
-              }
-            ]}
+            style={[styles.invertButton, isReversed ? styles.invertButtonActive : null]}
             onPress={() => setIsReversed(!isReversed)}
           >
             <Ionicons
               name={isReversed ? 'arrow-up' : 'arrow-down'}
               size={18}
-              color={theme.onPrimary}
+              color={isReversed ? theme.primary : theme.text}
             />
           </TouchableOpacity>
         </View>
@@ -240,38 +233,62 @@ const createStyles = (theme: ResolvedTheme) =>
       fontSize: 28,
       fontWeight: 'bold'
     },
-    buttonText: {
-      color: theme.onPrimary,
+    actionButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1
+    },
+    copyButton: {
+      backgroundColor: theme.successSoft,
+      borderColor: theme.success
+    },
+    copyButtonText: {
+      color: theme.textStrong,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    exportButton: {
+      backgroundColor: theme.surfaceSunken,
+      borderColor: theme.border
+    },
+    exportButtonText: {
+      color: theme.text,
       fontSize: 14,
       fontWeight: '600'
     },
     clearButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8
+      backgroundColor: theme.dangerSoft,
+      borderColor: theme.dangerBorder
+    },
+    clearButtonText: {
+      color: theme.danger,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    refreshButton: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary
+    },
+    refreshButtonText: {
+      color: theme.onPrimary,
+      fontSize: 14,
+      fontWeight: '600'
     },
     invertButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 8,
+      borderWidth: 1,
       minWidth: 40,
       alignItems: 'center',
-      justifyContent: 'center'
+      justifyContent: 'center',
+      backgroundColor: theme.surfaceSunken,
+      borderColor: theme.border
     },
-    copyButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8
-    },
-    exportButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8
-    },
-    refreshButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8
+    invertButtonActive: {
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.primary
     },
     emptyContainer: {
       flex: 1,

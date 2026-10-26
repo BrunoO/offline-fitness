@@ -9,6 +9,7 @@ interface IconButtonProps {
   onPress: () => void;
   textStyle?: object;
   buttonStyle?: object;
+  color?: string;
 }
 
 /**
@@ -20,6 +21,7 @@ interface IconButtonProps {
  * @param {() => void} props.onPress - The function to call when the button is pressed.
  * @param {TextStyle} [props.textStyle] - The optional style to apply to the label text.
  * @param {ViewStyle} [props.buttonStyle] - The optional style to apply to the button.
+ * @param {string} [props.color] - The optional color for the icon. Defaults to theme.text.
  *
  * @returns {JSX.Element} The rendered button component.
  */
@@ -28,12 +30,13 @@ export const IconButton = ({
   label,
   onPress,
   textStyle,
-  buttonStyle
+  buttonStyle,
+  color
 }: IconButtonProps): JSX.Element => {
   const theme = useTheme();
   return (
     <Pressable style={buttonStyle} onPress={onPress}>
-      <MaterialIcons name={icon} size={24} color={theme.text} />
+      <MaterialIcons name={icon} size={24} color={color ?? theme.text} />
       {label ? <Text style={textStyle}>{label}</Text> : null}
     </Pressable>
   );

@@ -49,7 +49,8 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     pressableText: {
       fontSize: 16,
-      flex: 1
+      flex: 1,
+      color: theme.text
     },
     itemRow: {
       flexDirection: 'row',
@@ -109,6 +110,7 @@ function RightAction({
     >
       <IconButton
         icon="edit"
+        color={theme.onPrimary}
         onPress={() => {
           editActivity(activity);
         }}
@@ -116,6 +118,7 @@ function RightAction({
       />
       <IconButton
         icon="delete"
+        color={theme.onPrimary}
         onPress={() => {
           deleteActivity(activity);
         }}

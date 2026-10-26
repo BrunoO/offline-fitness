@@ -205,7 +205,7 @@ const createStyles = (theme: ResolvedTheme) =>
       justifyContent: 'center'
     },
     saveButton: {
-      backgroundColor: theme.success
+      backgroundColor: theme.primary
     },
     cancelButton: {
       backgroundColor: theme.surfaceSunken,

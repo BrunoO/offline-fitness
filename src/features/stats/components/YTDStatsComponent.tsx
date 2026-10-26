@@ -63,7 +63,7 @@ const YTDStatsComponent: React.FC = () => {
   if (!ytdStats) {
     return (
       <View style={styles.container}>
-        <Text>Loading YTD stats...</Text>
+        <Text style={{ color: theme.textMuted }}>Loading YTD stats...</Text>
       </View>
     );
   }

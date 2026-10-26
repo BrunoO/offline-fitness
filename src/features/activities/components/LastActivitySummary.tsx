@@ -221,7 +221,7 @@ const createStyles = (theme: ResolvedTheme) =>
       fontWeight: 'bold'
     },
     stepperIconDisabled: {
-      color: theme.surfaceSunken
+      color: theme.textMuted
     },
     stepperInfo: {
       alignItems: 'center',

@@ -254,11 +254,21 @@ export function SettingsModal({
             </Text>
             <View style={styles.diagnosticsRow}>
               <Text style={styles.diagnosticsLabel}>Audio announcements</Text>
-              <Switch value={splitsAudioEnabled} onValueChange={handleToggleAudio} />
+              <Switch
+                value={splitsAudioEnabled}
+                onValueChange={handleToggleAudio}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={splitsAudioEnabled ? theme.onPrimary : theme.surfaceSunken}
+              />
             </View>
             <View style={styles.diagnosticsRow}>
               <Text style={styles.diagnosticsLabel}>Haptic feedback</Text>
-              <Switch value={splitsHapticEnabled} onValueChange={handleToggleHaptic} />
+              <Switch
+                value={splitsHapticEnabled}
+                onValueChange={handleToggleHaptic}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={splitsHapticEnabled ? theme.onPrimary : theme.surfaceSunken}
+              />
             </View>
             <Text style={styles.sectionNote}>Split interval</Text>
             <View style={styles.chipsRow}>
