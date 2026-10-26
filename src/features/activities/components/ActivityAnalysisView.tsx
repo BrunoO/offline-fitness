@@ -157,16 +157,24 @@ function SimilarActivitiesList({
             <View
               style={[
                 styles.similarActivityItem,
-                isSimilarByTrack ? { backgroundColor: theme.success } : null
+                isSimilarByTrack ? styles.similarActivityItemTrackMatch : null
               ]}
             >
-              <Text selectable>{activity.name}</Text>
-              <Text selectable>Date: {formatActivityLocalDateTime(activity)}</Text>
-              <Text selectable>Distance: {(activity.distance / 1000).toFixed(1)} km</Text>
+              <Text selectable style={styles.similarActivityItemTitle}>
+                {activity.name}
+              </Text>
+              <Text selectable style={styles.similarActivityItemText}>
+                Date: {formatActivityLocalDateTime(activity)}
+              </Text>
+              <Text selectable style={styles.similarActivityItemText}>
+                Distance: {(activity.distance / 1000).toFixed(1)} km
+              </Text>
               {similarByTrackInfo ? (
-                <Text selectable>Similarity: {similarByTrackInfo.similarity.toFixed(2)}</Text>
+                <Text selectable style={styles.similarActivityItemText}>
+                  Similarity: {similarByTrackInfo.similarity.toFixed(2)}
+                </Text>
               ) : null}
-              <Text selectable>
+              <Text selectable style={styles.similarActivityItemText}>
                 Average Speed:{' '}
                 {calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1)} km/h
               </Text>
@@ -282,7 +290,7 @@ function AltitudeChart({
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!altitudeDataXY) {
-    return <Text>No altitude data available</Text>;
+    return <Text style={{ color: theme.textMuted }}>No altitude data available</Text>;
   }
 
   return (
@@ -389,7 +397,7 @@ function ElevationGainChart({
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
   if (!elevationGain) {
-    return <Text>No elevation gain data available</Text>;
+    return <Text style={{ color: theme.textMuted }}>No elevation gain data available</Text>;
   }
 
   return (
@@ -425,7 +433,9 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
   const theme = useTheme();
   return (
     <View style={{ padding: 10 }}>
-      <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Activity Details:</Text>
+      <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.textStrong }}>
+        Activity Details:
+      </Text>
       {Object.entries(item).map(([key, value]) => {
         const valueString =
           typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
@@ -440,10 +450,10 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
               paddingBottom: 5
             }}
           >
-            <Text selectable style={{ fontWeight: 'bold', width: 150 }}>
+            <Text selectable style={{ fontWeight: 'bold', width: 150, color: theme.textStrong }}>
               {key}
             </Text>
-            <Text selectable style={{ flex: 1, flexWrap: 'wrap' }}>
+            <Text selectable style={{ flex: 1, flexWrap: 'wrap', color: theme.text }}>
               {valueString}
             </Text>
           </View>
@@ -484,8 +494,10 @@ function IoUThresholdModal({
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => {}}>
           <View style={styles.modalRow}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>IoU Threshold</Text>
-            <Text style={{ fontSize: 14 }}>{displayValue.toFixed(2)}</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.textStrong }}>
+              IoU Threshold
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.text }}>{displayValue.toFixed(2)}</Text>
           </View>
           <Slider
             minimumValue={0.5}
@@ -529,8 +541,12 @@ function TrackSimilarityModal({
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => {}}>
           <View style={styles.modalRow}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Track Similarity</Text>
-            <Text style={{ fontSize: 14 }}>{trackSimilarityThreshold.toFixed(2)}</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.textStrong }}>
+              Track Similarity
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.text }}>
+              {trackSimilarityThreshold.toFixed(2)}
+            </Text>
           </View>
           <Slider
             minimumValue={0}
@@ -716,7 +732,9 @@ export function ActivityAnalysisView({
             onExport={handleExport}
           />
           {exportProgress > 0 && exportProgress < 1 ? (
-            <Text>Exporting... {Math.round(exportProgress * 100)}%</Text>
+            <Text style={{ color: theme.textMuted, marginVertical: 4 }}>
+              Exporting... {Math.round(exportProgress * 100)}%
+            </Text>
           ) : null}
           <SimilarActivitiesList
             similarActivities={similarActivities}

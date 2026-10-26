@@ -14,6 +14,8 @@ export const createStyles = (theme: ResolvedTheme) =>
       padding: 10,
       backgroundColor: theme.surface,
       borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -26,10 +28,25 @@ export const createStyles = (theme: ResolvedTheme) =>
         }
       })
     },
+    similarActivityItemTrackMatch: {
+      backgroundColor: theme.successSoft,
+      borderColor: theme.success
+    },
+    similarActivityItemTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textStrong,
+      marginBottom: 2
+    },
+    similarActivityItemText: {
+      fontSize: 13,
+      color: theme.text
+    },
     similarActivityTitle: {
       fontSize: 18,
       fontWeight: 'bold',
-      marginBottom: 10
+      marginBottom: 10,
+      color: theme.textStrong
     },
     chip: {
       paddingHorizontal: 10,
