@@ -3,7 +3,17 @@ import { GpsTracker } from '@/features/recording/services/gpsTracker';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import { SheetFooter, createSheetFrameStyles } from '@/shared';
 import React, { useMemo } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -75,8 +85,14 @@ export function SettingsModal({
       }
     };
     void load();
+    const appStateSubscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        void load();
+      }
+    });
     return () => {
       isMounted = false;
+      appStateSubscription.remove();
     };
   }, [visible]);
 

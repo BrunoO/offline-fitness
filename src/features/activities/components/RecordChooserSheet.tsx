@@ -44,7 +44,7 @@ export function RecordChooserSheet({
           </View>
           <View style={styles.optionBody}>
             <Text style={styles.optionTitle}>Record</Text>
-            <Text style={styles.optionHint}>Track a walk, hike, ride or swim with GPS.</Text>
+            <Text style={styles.optionHint}>Track a run, walk, hike, ride or swim with GPS.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </Pressable>

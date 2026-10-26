@@ -41,6 +41,24 @@ export const createStyles = (theme: ResolvedTheme) =>
       gap: SPACING.xs,
       marginBottom: SPACING.sm
     },
+    liveStatsHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between'
+    },
+    rateToggleButton: {
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
+      borderRadius: RADIUS.chip,
+      borderWidth: 1,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: SPACING.xs
+    },
+    rateToggleLabel: {
+      color: theme.text,
+      fontSize: 11,
+      fontWeight: '600'
+    },
     cardLabel: {
       color: theme.textMuted,
       fontSize: 12,
@@ -285,11 +303,32 @@ export const createStyles = (theme: ResolvedTheme) =>
     recoveryRow: {
       alignItems: 'center',
       flexDirection: 'row',
+      gap: SPACING.sm,
       justifyContent: 'space-between',
       marginTop: SPACING.sm
     },
     recoveryInfo: {
       flex: 1
+    },
+    recoveryActions: {
+      flexDirection: 'row',
+      gap: SPACING.xs
+    },
+    recoverySaveButton: {
+      alignItems: 'center',
+      backgroundColor: theme.primary,
+      borderRadius: RADIUS.button,
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm
+    },
+    recoveryDiscardButton: {
+      alignItems: 'center',
+      backgroundColor: theme.danger,
+      borderRadius: RADIUS.button,
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm
     },
     recoveryTitle: {
       color: theme.text,

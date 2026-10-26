@@ -57,7 +57,10 @@ and no symlink to rot.
 ## The API
 
 ```ts
-getCapabilities(): Promise<{ canRecord; hasBarometer; canExemptBattery }>
+getCapabilities(): Promise<{ canRecord; hasBarometer; canExemptBattery; canSpeak; canVibrate }>
+requestIgnoreBatteryOptimization(): Promise<boolean>
+speak(text: string): Promise<void>
+vibrate(): Promise<void>
 startRecording(options: { profile; capture }): Promise<RecordingMeta>
 pauseRecording(): Promise<void>
 resumeRecording(): Promise<void>
@@ -67,6 +70,8 @@ getSessionMeta(sessionId?): Promise<RecordingMeta> // newest session when omitte
 listSessions(): Promise<RecordingMeta[]>
 markSessionSaved(sessionId, activityId): Promise<void>
 discardSession(sessionId): Promise<void>
+getStorageSize(): Promise<number>
+deleteAllSessions(): Promise<void>
 // events: onStateChange (the truth about the phase), onLocationUpdate (display only)
 ```
 
@@ -84,7 +89,12 @@ Errors carry codes: `E_SESSION_ACTIVE` (a recording is already running),
   "startedAtUtcMs": 1750000000000,
   "endedAtUtcMs": 1750000600000,
   "deviceUtcOffsetSeconds": 7200,
-  "capture": { "intervalMs": 2000, "minDistanceM": 2.5, "accuracyCeilingM": 15, "useBarometer": true },
+  "capture": {
+    "intervalMs": 2000,
+    "minDistanceM": 2.5,
+    "accuracyCeilingM": 15,
+    "useBarometer": true
+  },
   "pauses": [{ "startUtcMs": 1750000300000, "endUtcMs": 1750000400000 }],
   "fixCount": 30,
   "logUri": "file:///data/user/0/com.example.offlinefitness/files/recording/s-.../fixes.jsonl",
@@ -97,7 +107,20 @@ Errors carry codes: `E_SESSION_ACTIVE` (a recording is already running),
 pause/stop:
 
 ```json
-{"t":1750000001000,"lat":45.123456,"lon":6.654321,"ele":420.5,"geoid":45.2,"pressure":1013.2,"hAcc":4.5,"vAcc":6.0,"speed":1.4,"bearing":87.0,"source":"fused","accepted":true}
+{
+  "t": 1750000001000,
+  "lat": 45.123456,
+  "lon": 6.654321,
+  "ele": 420.5,
+  "geoid": 45.2,
+  "pressure": 1013.2,
+  "hAcc": 4.5,
+  "vAcc": 6.0,
+  "speed": 1.4,
+  "bearing": 87.0,
+  "source": "fused",
+  "accepted": true
+}
 ```
 
 `accepted` is metadata: the replay re-derives acceptance from `capture`, so a

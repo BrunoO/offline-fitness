@@ -170,6 +170,7 @@ class TrackingService : Service() {
         val meta = TrackingSession.meta ?: return
 
         meta.pauses.add(PauseInterval(startUtcMs = System.currentTimeMillis()))
+        lastLocation = null
         stopProvider()
         stopAltitude()
         releaseWakeLock()
@@ -291,8 +292,16 @@ class TrackingService : Service() {
         meta.fixCount = fixCount
 
         if (accepted) {
-            lastLocation?.let { previous -> distanceMeters += previous.distanceTo(location) }
-            lastLocation = location
+            val previous = lastLocation
+            if (previous == null) {
+                lastLocation = location
+            } else {
+                val stepMeters = previous.distanceTo(location)
+                if (stepMeters >= meta.capture.minDistanceMeters) {
+                    distanceMeters += stepMeters
+                    lastLocation = location
+                }
+            }
         }
 
         val liveStats = LiveStats(

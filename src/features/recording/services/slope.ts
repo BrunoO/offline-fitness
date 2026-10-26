@@ -5,10 +5,47 @@ export const SLOPE_WINDOW_MS = 15_000;
 export const SLOPE_MIN_DISTANCE_M = 5;
 export const SMOOTHING_ALPHA = 0.25;
 
-interface AltitudeSample {
+export interface AltitudeSample {
   readonly t: number;
   readonly distance: number;
   readonly altitude: number;
+}
+
+/**
+ * Updates a sliding distance/time window of smoothed altitude samples and
+ * returns the updated slope percentage (or `currentSlope` if distance delta is
+ * still under `SLOPE_MIN_DISTANCE_M`).
+ */
+export function updateSlopeWindow(
+  samples: AltitudeSample[],
+  cumulativeDistance: number,
+  smoothedAltitude: number,
+  timestampMs: number,
+  currentSlope: number | null
+): number | null {
+  samples.push({ t: timestampMs, distance: cumulativeDistance, altitude: smoothedAltitude });
+
+  while (samples.length > 2) {
+    const oldest = samples[0];
+    const distDiff = cumulativeDistance - oldest.distance;
+    const timeDiffMs = timestampMs - oldest.t;
+    if (distDiff > SLOPE_WINDOW_METERS || timeDiffMs > SLOPE_WINDOW_MS) {
+      samples.shift();
+    } else {
+      break;
+    }
+  }
+
+  if (samples.length >= 2) {
+    const oldest = samples[0];
+    const deltaDist = cumulativeDistance - oldest.distance;
+    const deltaAlt = smoothedAltitude - oldest.altitude;
+    if (deltaDist >= SLOPE_MIN_DISTANCE_M) {
+      return (deltaAlt / deltaDist) * 100;
+    }
+  }
+
+  return currentSlope;
 }
 
 /**
@@ -46,27 +83,13 @@ export class LiveSlopeCalculator {
         : SMOOTHING_ALPHA * eleM + (1 - SMOOTHING_ALPHA) * this.smoothedAltitude;
     this.smoothedAltitude = smoothed;
 
-    this.samples.push({ t: timestampMs, distance: distanceMeters, altitude: smoothed });
-
-    while (this.samples.length > 2) {
-      const oldest = this.samples[0];
-      const distDiff = distanceMeters - oldest.distance;
-      const timeDiffMs = timestampMs - oldest.t;
-      if (distDiff > SLOPE_WINDOW_METERS || timeDiffMs > SLOPE_WINDOW_MS) {
-        this.samples.shift();
-      } else {
-        break;
-      }
-    }
-
-    if (this.samples.length >= 2) {
-      const oldest = this.samples[0];
-      const deltaDist = distanceMeters - oldest.distance;
-      const deltaAlt = smoothed - oldest.altitude;
-      if (deltaDist >= SLOPE_MIN_DISTANCE_M) {
-        this.currentSlope = (deltaAlt / deltaDist) * 100;
-      }
-    }
+    this.currentSlope = updateSlopeWindow(
+      this.samples,
+      distanceMeters,
+      smoothed,
+      timestampMs,
+      this.currentSlope
+    );
 
     return this.currentSlope;
   }

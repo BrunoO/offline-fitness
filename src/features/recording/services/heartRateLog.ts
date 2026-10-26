@@ -43,6 +43,7 @@ export function readHeartRateLog(
   let skipped = 0;
   let offset = 0;
   let buffer = '';
+  const decoder = new TextDecoder();
 
   try {
     const totalSize = handle.size ?? 0;
@@ -53,7 +54,7 @@ export function readHeartRateLog(
       const bytes = handle.readBytes(toRead);
       offset += bytes.length;
 
-      buffer += new TextDecoder().decode(bytes);
+      buffer += decoder.decode(bytes, { stream: true });
 
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
@@ -71,6 +72,7 @@ export function readHeartRateLog(
       }
     }
 
+    buffer += decoder.decode();
     const trailing = buffer.trim();
     if (trailing) {
       try {

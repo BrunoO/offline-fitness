@@ -1,7 +1,7 @@
 import type { CaptureOptions, Profile } from './gpsTracker';
 
 /**
- * The four MVP profiles and the capture parameters each one uses.
+ * The five activity profiles and the capture parameters each one uses.
  *
  * The numbers are the ones the legacy `ActivityProfile` carried - the
  * behaviour did not change, the class did: profiles are app data now, and

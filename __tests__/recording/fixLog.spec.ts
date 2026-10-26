@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { GpsTracker } from '../../src/features/recording/services/gpsTracker';
 import type { FixLogEntry, RecordingMeta } from '../../src/features/recording/services/gpsTracker';
-import { readFixLog, sweepExpiredSessions } from '@/features/recording/services/fixLog';
+import {
+  discardSessionForActivity,
+  readFixLog,
+  sweepExpiredSessions
+} from '@/features/recording/services/fixLog';
 
 const LOG_URI = 'file:///tmp/fixes.jsonl';
 const SESSION_ID = 's-test-1';
@@ -174,5 +178,22 @@ describe('sweepExpiredSessions', () => {
 
     expect(discardSession).toHaveBeenCalledTimes(1);
     expect(discardSession).toHaveBeenCalledWith('old-saved');
+  });
+
+  it('discards the matching session when a recorded activity is deleted', async () => {
+    const listSessions = jest.fn().mockResolvedValue([
+      { sessionId: 's-1', savedActivityId: 'recorded-s-1', endedAtUtcMs: 1000 },
+      { sessionId: 's-2', savedActivityId: 'recorded-s-2', endedAtUtcMs: 2000 }
+    ]);
+    const discardSession = jest.fn().mockResolvedValue(undefined);
+    (GpsTracker.listSessions as jest.Mock).mockImplementation(listSessions);
+    (GpsTracker.discardSession as jest.Mock).mockImplementation(discardSession);
+
+    await discardSessionForActivity('123456'); // non-recorded activity -> no-op
+    expect(listSessions).not.toHaveBeenCalled();
+
+    await discardSessionForActivity('recorded-s-2');
+    expect(discardSession).toHaveBeenCalledTimes(1);
+    expect(discardSession).toHaveBeenCalledWith('s-2');
   });
 });

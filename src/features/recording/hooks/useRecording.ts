@@ -1,7 +1,7 @@
-import { simpleLogger } from '@/shared';
+import { simpleLogger, type Activity } from '@/shared';
 import { useActivitiesContext } from '@/features/activities';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { listUnfinishedSessions, readFixLog } from '../services/fixLog';
+import { listUnfinishedSessions, readFixLog, sweepExpiredSessions } from '../services/fixLog';
 import { heartRateLogUri, readHeartRateLog } from '../services/heartRateLog';
 import type {
   RecordingMeta,
@@ -26,10 +26,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const MODULE_UNAVAILABLE = 'The recording module is not available in this build.';
 
 const IDLE_STATE: RecordingState = { phase: 'idle' };
+const TIMER_TICK_MS = 1000;
+const FIX_FRESHNESS_MS = 950;
 
 export interface UseRecordingResult {
   capabilities: GpsTrackerCapabilities | null;
   state: RecordingState;
+  activeProfile: Profile | null;
   liveStats: LiveStats | null;
   summary: RecordingSummary | null;
   heartRateSummary: { average: number; max: number } | null;
@@ -38,6 +41,7 @@ export interface UseRecordingResult {
   isBusy: boolean;
   isSaving: boolean;
   unfinished: RecordingMeta[];
+  saveUnfinished: (sessionId: string) => Promise<void>;
   discardUnfinished: (sessionId: string) => Promise<void>;
   start: (profile: Profile) => Promise<void>;
   pause: () => Promise<void>;
@@ -54,6 +58,105 @@ const describeError = (cause: unknown, fallback: string): string => {
   return fallback;
 };
 
+interface StoppedSessionData {
+  readonly meta: RecordingMeta;
+  readonly summary: RecordingSummary;
+  readonly heartRateSummary: { average: number; max: number } | null;
+}
+
+const loadStoppedSessionData = async (
+  sessionId: string,
+  existingSummary: RecordingSummary | null
+): Promise<StoppedSessionData> => {
+  const meta = await GpsTracker.getSessionMeta(sessionId);
+  const { fixes, skipped } = readFixLog(meta.logUri, meta);
+  const { samples } = readHeartRateLog(heartRateLogUri(meta));
+  const replay = replaySession(meta, fixes, skipped, samples);
+
+  const summary: RecordingSummary = existingSummary ?? {
+    meta,
+    liveStats: {
+      elapsedSec: replay.stats.elapsedTimeSec,
+      distanceMeters: replay.stats.distanceMeters,
+      currentSpeedMps: replay.stats.averageSpeedMetersPerSec,
+      altitudeM: replay.stream.altitude?.data.at(-1) ?? null,
+      slopePercent: null,
+      gpsLost: false,
+      hAccM: null
+    }
+  };
+
+  const heartRateSummary =
+    replay.stats.averageHeartRate !== undefined && replay.stats.maxHeartRate !== undefined
+      ? {
+          average: Math.round(replay.stats.averageHeartRate),
+          max: Math.round(replay.stats.maxHeartRate)
+        }
+      : null;
+
+  return { meta, summary, heartRateSummary };
+};
+
+const persistSessionAsActivity = async (
+  sessionId: string,
+  name: string,
+  summary: RecordingSummary | null,
+  addActivity: (activity: Activity) => Promise<void>
+): Promise<void> => {
+  const meta = await GpsTracker.getSessionMeta(sessionId);
+  const { fixes, skipped } = readFixLog(meta.logUri, meta);
+  const { samples: heartRateSamples } = readHeartRateLog(heartRateLogUri(meta));
+  const replay = replaySession(meta, fixes, skipped, heartRateSamples);
+
+  // Shadow mode (dev only): compare the replay against the native display
+  // numbers and log a mismatch instead of failing the save.
+  if (__DEV__ && summary !== null) {
+    const nativeDistance = summary.liveStats.distanceMeters;
+    const nativeElapsed = summary.liveStats.elapsedSec;
+    if (
+      Math.abs(replay.stats.distanceMeters - nativeDistance) > 1 ||
+      Math.abs(replay.stats.elapsedTimeSec - nativeElapsed) > 1
+    ) {
+      simpleLogger.log('recording.shadow_mismatch', {
+        sessionId,
+        replayDistance: replay.stats.distanceMeters,
+        nativeDistance,
+        replayElapsed: replay.stats.elapsedTimeSec,
+        nativeElapsed
+      });
+    }
+  }
+
+  const activity = buildRecordedActivity({ meta, replay, name });
+
+  // Save order (§3.7): write the stream before the record, so a failure
+  // after the stream write leaves an unreferenced file (harmless, and
+  // overwritten on retry) instead of a record with a blank map.
+  writeStreamFile(activity.id, replay.stream);
+  await addActivity(activity);
+  heartRateService.detachRecording();
+  await GpsTracker.markSessionSaved(sessionId, activity.id);
+  void sweepExpiredSessions();
+};
+
+const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStats => {
+  if (prev !== null) {
+    return {
+      ...prev,
+      elapsedSec: prev.elapsedSec + 1
+    };
+  }
+  return {
+    elapsedSec: Math.max(0, Math.floor((Date.now() - startedAtUtcMs) / 1000)),
+    distanceMeters: 0,
+    currentSpeedMps: null,
+    altitudeM: null,
+    slopePercent: null,
+    gpsLost: false,
+    hAccM: null
+  };
+};
+
 /**
  * Drives the native recorder and the save flow.
  *
@@ -68,6 +171,7 @@ export function useRecording(): UseRecordingResult {
   const { addActivity } = useActivitiesContext();
   const [capabilities, setCapabilities] = useState<GpsTrackerCapabilities | null>(null);
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
+  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
   const [heartRateSummary, setHeartRateSummary] = useState<{ average: number; max: number } | null>(
@@ -79,6 +183,7 @@ export function useRecording(): UseRecordingResult {
   const summaryRef = useRef<RecordingSummary | null>(null);
   const splitDetectorRef = useRef<SplitDetector | null>(null);
   const slopeCalculatorRef = useRef<LiveSlopeCalculator | null>(null);
+  const lastFixWallMsRef = useRef<number>(0);
   useEffect(() => {
     summaryRef.current = summary;
   }, [summary]);
@@ -90,6 +195,35 @@ export function useRecording(): UseRecordingResult {
   useEffect(() => {
     let isMounted = true;
 
+    const hydrateActiveSession = async (nextState: RecordingState) => {
+      if (!nextState.sessionId) {
+        return;
+      }
+      try {
+        if (nextState.phase === 'stopped-unsaved') {
+          const loaded = await loadStoppedSessionData(nextState.sessionId, null);
+          if (isMounted) {
+            setActiveProfile(loaded.meta.profile);
+            setSummary(loaded.summary);
+            setHeartRateSummary(loaded.heartRateSummary);
+          }
+          return;
+        }
+        if (nextState.phase === 'recording' || nextState.phase === 'paused') {
+          const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
+          if (isMounted) {
+            setActiveProfile(meta.profile);
+            slopeCalculatorRef.current ??= new LiveSlopeCalculator(meta.profile);
+            if (nextState.phase === 'recording') {
+              heartRateService.attachRecording(meta);
+            }
+          }
+        }
+      } catch (cause: unknown) {
+        simpleLogger.error('Could not load the active session', cause);
+      }
+    };
+
     const loadState = async () => {
       try {
         const [nextCapabilities, nextState] = await Promise.all([
@@ -99,25 +233,7 @@ export function useRecording(): UseRecordingResult {
         if (isMounted) {
           setCapabilities(nextCapabilities);
           setState(nextState);
-          if (nextState.phase === 'stopped-unsaved' && nextState.sessionId) {
-            try {
-              const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
-              setSummary({
-                meta,
-                liveStats: {
-                  elapsedSec: 0,
-                  distanceMeters: 0,
-                  currentSpeedMps: null,
-                  altitudeM: null,
-                  slopePercent: null,
-                  gpsLost: false,
-                  hAccM: null
-                }
-              });
-            } catch (cause: unknown) {
-              simpleLogger.error('Could not load the stopped session', cause);
-            }
-          }
+          await hydrateActiveSession(nextState);
         }
       } catch (cause: unknown) {
         simpleLogger.error('Recording module unavailable', cause);
@@ -152,57 +268,73 @@ export function useRecording(): UseRecordingResult {
     };
   }, []);
 
+  // Keep the hero elapsed timer ticking every second while recording, even
+  // before the first GPS fix arrives or while waiting between GPS fixes.
+  useEffect(() => {
+    if (state.phase !== 'recording' || state.startedAtUtcMs === undefined) {
+      return;
+    }
+    const startedAtUtcMs = state.startedAtUtcMs;
+    const intervalId = setInterval(() => {
+      if (Date.now() - lastFixWallMsRef.current >= FIX_FRESHNESS_MS) {
+        setLiveStats(prev => tickLiveStats(prev, startedAtUtcMs));
+      }
+    }, TIMER_TICK_MS);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [state.phase, state.startedAtUtcMs]);
+
   useEffect(() => {
     let stateSubscription: { remove: () => void } | null = null;
     let locationSubscription: { remove: () => void } | null = null;
 
+    const handleExternalStateChange = async (nextState: RecordingState) => {
+      if (nextState.phase === 'paused') {
+        heartRateService.detachRecording();
+        return;
+      }
+      if (nextState.phase === 'recording' && nextState.sessionId !== undefined) {
+        try {
+          const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
+          setActiveProfile(meta.profile);
+          heartRateService.attachRecording(meta);
+        } catch (cause: unknown) {
+          simpleLogger.error('Could not re-attach session on resume', cause);
+        }
+        return;
+      }
+      // A stop triggered from outside the app (e.g. the notification's
+      // "Stop" button) still moves the session to stopped-unsaved, but the
+      // hook never called GpsTracker.stopRecording(), so the summary is
+      // missing. Load it from disk via replaySession so the LastSessionCard
+      // shows real distance/duration and the dev-only shadow comparison works.
+      if (
+        nextState.phase === 'stopped-unsaved' &&
+        nextState.sessionId !== undefined &&
+        summaryRef.current === null
+      ) {
+        heartRateService.detachRecording();
+        try {
+          const loaded = await loadStoppedSessionData(nextState.sessionId, summaryRef.current);
+          setActiveProfile(loaded.meta.profile);
+          if (summaryRef.current === null) {
+            setSummary(loaded.summary);
+          }
+          setHeartRateSummary(loaded.heartRateSummary);
+        } catch (cause: unknown) {
+          simpleLogger.error('Could not load the stopped session', cause);
+        }
+      }
+    };
+
     try {
       stateSubscription = gpsTrackerEvents.addStateListener(nextState => {
         setState(nextState);
-        // A stop triggered from outside the app (e.g. the notification's
-        // "Stop" button) still moves the session to stopped-unsaved, but the
-        // hook never called GpsTracker.stopRecording(), so the summary is
-        // missing. Load it from disk so the LastSessionCard and the dev-only
-        // shadow comparison keep working. Mirror stop(): detach HR and compute
-        // the HR summary.
-        if (
-          nextState.phase === 'stopped-unsaved' &&
-          nextState.sessionId !== undefined &&
-          summaryRef.current === null
-        ) {
-          heartRateService.detachRecording();
-          void (async () => {
-            try {
-              const meta = await GpsTracker.getSessionMeta(nextState.sessionId!);
-              if (summaryRef.current === null) {
-                setSummary({
-                  meta,
-                  liveStats: {
-                    elapsedSec: 0,
-                    distanceMeters: 0,
-                    currentSpeedMps: null,
-                    altitudeM: null,
-                    slopePercent: null,
-                    gpsLost: false,
-                    hAccM: null
-                  }
-                });
-              }
-              const { samples } = readHeartRateLog(heartRateLogUri(meta));
-              if (samples.length > 0) {
-                const avg = Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length);
-                const max = Math.max(...samples.map(x => x.bpm));
-                setHeartRateSummary({ average: avg, max });
-              } else {
-                setHeartRateSummary(null);
-              }
-            } catch (cause: unknown) {
-              simpleLogger.error('Could not load the stopped session', cause);
-            }
-          })();
-        }
+        void handleExternalStateChange(nextState);
       });
       locationSubscription = gpsTrackerEvents.addLocationListener(update => {
+        lastFixWallMsRef.current = Date.now();
         slopeCalculatorRef.current ??= new LiveSlopeCalculator();
         const slopePercent = slopeCalculatorRef.current.update(
           update.eleM,
@@ -254,6 +386,7 @@ export function useRecording(): UseRecordingResult {
           profile,
           capture: PROFILE_CAPTURE_OPTIONS[profile]
         });
+        setActiveProfile(profile);
         heartRateService.attachRecording(meta);
         const [audioRaw, hapticRaw, intervalRaw] = await Promise.all([
           AsyncStorage.getItem('splitsAudioEnabled'),
@@ -269,6 +402,7 @@ export function useRecording(): UseRecordingResult {
           intervalMeters: Number.isFinite(intervalMeters) ? intervalMeters : 1000
         });
         slopeCalculatorRef.current = new LiveSlopeCalculator(profile);
+        lastFixWallMsRef.current = 0;
         setLastSplit(null);
         setState({
           phase: 'recording',
@@ -290,6 +424,7 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       await GpsTracker.pauseRecording();
+      heartRateService.detachRecording();
       slopeCalculatorRef.current?.reset();
     } catch (cause: unknown) {
       simpleLogger.error('Could not pause recording', cause);
@@ -301,11 +436,15 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       await GpsTracker.resumeRecording();
+      if (state.sessionId) {
+        const meta = await GpsTracker.getSessionMeta(state.sessionId);
+        heartRateService.attachRecording(meta);
+      }
     } catch (cause: unknown) {
       simpleLogger.error('Could not resume recording', cause);
       setError(describeError(cause, 'Could not resume the recording.'));
     }
-  }, []);
+  }, [state.sessionId]);
 
   const stop = useCallback(async () => {
     setError(null);
@@ -318,15 +457,8 @@ export function useRecording(): UseRecordingResult {
       const recordingState = await GpsTracker.getRecordingState();
       const sessionId = recordingState.sessionId;
       if (sessionId) {
-        const meta = await GpsTracker.getSessionMeta(sessionId);
-        const { samples } = readHeartRateLog(heartRateLogUri(meta));
-        if (samples.length > 0) {
-          const avg = Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length);
-          const max = Math.max(...samples.map(x => x.bpm));
-          setHeartRateSummary({ average: avg, max });
-        } else {
-          setHeartRateSummary(null);
-        }
+        const loaded = await loadStoppedSessionData(sessionId, nextSummary);
+        setHeartRateSummary(loaded.heartRateSummary);
       }
     } catch (cause: unknown) {
       simpleLogger.error('Could not stop recording', cause);
@@ -345,42 +477,10 @@ export function useRecording(): UseRecordingResult {
       setIsSaving(true);
 
       try {
-        const meta = await GpsTracker.getSessionMeta(sessionId);
-        const { fixes, skipped } = readFixLog(meta.logUri, meta);
-        const { samples: heartRateSamples } = readHeartRateLog(heartRateLogUri(meta));
-        const replay = replaySession(meta, fixes, skipped, heartRateSamples);
-
-        // Shadow mode (dev only): compare the replay against the native display
-        // numbers and log a mismatch instead of failing the save.
-        if (__DEV__) {
-          const nativeDistance = summary?.liveStats.distanceMeters ?? 0;
-          const nativeElapsed = summary?.liveStats.elapsedSec ?? 0;
-          if (
-            Math.abs(replay.stats.distanceMeters - nativeDistance) > 1 ||
-            Math.abs(replay.stats.elapsedTimeSec - nativeElapsed) > 1
-          ) {
-            simpleLogger.log('recording.shadow_mismatch', {
-              sessionId,
-              replayDistance: replay.stats.distanceMeters,
-              nativeDistance,
-              replayElapsed: replay.stats.elapsedTimeSec,
-              nativeElapsed
-            });
-          }
-        }
-
-        const activity = buildRecordedActivity({ meta, replay, name });
-
-        // Save order (§3.7): write the stream before the record, so a failure
-        // after the stream write leaves an unreferenced file (harmless, and
-        // overwritten on retry) instead of a record with a blank map.
-        writeStreamFile(activity.id, replay.stream);
-        await addActivity(activity);
-        heartRateService.detachRecording();
-        await GpsTracker.markSessionSaved(sessionId, activity.id);
-
+        await persistSessionAsActivity(sessionId, name, summary, addActivity);
         setSummary(null);
         setHeartRateSummary(null);
+        setActiveProfile(null);
         setState(IDLE_STATE);
         setLiveStats(null);
         setLastSplit(null);
@@ -407,6 +507,7 @@ export function useRecording(): UseRecordingResult {
       splitDetectorRef.current = null;
       setSummary(null);
       setHeartRateSummary(null);
+      setActiveProfile(null);
       setState(IDLE_STATE);
       setLiveStats(null);
       setLastSplit(null);
@@ -415,6 +516,22 @@ export function useRecording(): UseRecordingResult {
       setError(describeError(cause, 'Could not discard the recording.'));
     }
   }, [state.sessionId]);
+
+  const saveUnfinished = useCallback(
+    async (sessionId: string) => {
+      setError(null);
+      setIsSaving(true);
+      try {
+        await persistSessionAsActivity(sessionId, '', null, addActivity);
+        setUnfinished(prev => prev.filter(item => item.sessionId !== sessionId));
+      } catch (cause: unknown) {
+        simpleLogger.error('Could not save unfinished session', cause);
+        setError(describeError(cause, 'Could not recover the unfinished recording.'));
+      }
+      setIsSaving(false);
+    },
+    [addActivity]
+  );
 
   const discardUnfinished = useCallback(async (sessionId: string) => {
     try {
@@ -428,6 +545,7 @@ export function useRecording(): UseRecordingResult {
   return {
     capabilities,
     state,
+    activeProfile,
     liveStats,
     summary,
     heartRateSummary,
@@ -436,6 +554,7 @@ export function useRecording(): UseRecordingResult {
     isBusy,
     isSaving,
     unfinished,
+    saveUnfinished,
     discardUnfinished,
     start,
     pause,

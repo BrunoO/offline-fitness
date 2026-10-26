@@ -37,6 +37,7 @@ export function readFixLog(
   let skipped = 0;
   let offset = 0;
   let buffer = '';
+  const decoder = new TextDecoder();
 
   try {
     const totalSize = handle.size ?? 0;
@@ -47,7 +48,7 @@ export function readFixLog(
       const bytes = handle.readBytes(toRead);
       offset += bytes.length;
 
-      buffer += new TextDecoder().decode(bytes);
+      buffer += decoder.decode(bytes, { stream: true });
 
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
@@ -65,6 +66,7 @@ export function readFixLog(
       }
     }
 
+    buffer += decoder.decode();
     const trailing = buffer.trim();
     if (trailing) {
       try {
@@ -103,6 +105,20 @@ export async function sweepExpiredSessions(): Promise<void> {
     meta => meta.savedActivityId != null && meta.endedAtUtcMs != null && meta.endedAtUtcMs < cutoff
   );
   await Promise.all(expired.map(meta => GpsTracker.discardSession(meta.sessionId)));
+}
+
+/**
+ * Deletes the fix-log session directory associated with a deleted activity
+ * (§3.5, §3.7). The reverse lookup `activityId → sessionId` uses
+ * `listSessions()` filtered on `savedActivityId`.
+ */
+export async function discardSessionForActivity(activityId: string): Promise<void> {
+  if (!activityId.startsWith('recorded-')) {
+    return;
+  }
+  const sessions = await GpsTracker.listSessions();
+  const matching = sessions.filter(meta => meta.savedActivityId === activityId);
+  await Promise.all(matching.map(meta => GpsTracker.discardSession(meta.sessionId)));
 }
 
 /**

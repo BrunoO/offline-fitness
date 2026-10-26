@@ -1,3 +1,4 @@
+import { discardSessionForActivity } from '@/features/recording';
 import { Activity, compareActivitiesByUtcDesc, simpleLogger } from '@/shared';
 import * as Storage from '@/shared/services/storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -156,6 +157,11 @@ export function useActivities() {
       await Storage.addActivityTombstone(String(activity.id));
     } catch (e) {
       simpleLogger.error('Could not record backup tombstone: ' + e);
+    }
+    try {
+      await discardSessionForActivity(String(activity.id));
+    } catch (e) {
+      simpleLogger.error('Could not discard recording session log: ' + e);
     }
     setGlobalActivities(prev => {
       // Maintain sorted order after deletion

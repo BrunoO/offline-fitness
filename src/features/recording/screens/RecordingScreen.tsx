@@ -11,12 +11,28 @@ import type {
   GpsTrackerCapabilities,
   LiveStats,
   Profile,
+  RecordingMeta,
   RecordingSummary
 } from '../services/gpsTracker';
 import { PROFILE_LABELS, PROFILES } from '../services/profiles';
 
+const PROFILE_ICONS: Record<Profile, string> = {
+  walking: 'walk-outline',
+  running: 'fitness-outline',
+  hiking: 'trail-sign-outline',
+  cycling: 'bicycle-outline',
+  swimming: 'water-outline'
+};
+
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
+const METERS_PER_100M = 100;
+const MIN_PACE_SPEED_MPS = 0.1;
+
+export type RateDisplayMode = 'pace' | 'speed';
+
+export const defaultRateModeForProfile = (profile: Profile): RateDisplayMode =>
+  profile === 'cycling' ? 'speed' : 'pace';
 
 const formatElapsed = (elapsedSec: number): string => {
   const hours = Math.floor(elapsedSec / SECONDS_PER_HOUR);
@@ -31,8 +47,27 @@ const formatElapsed = (elapsedSec: number): string => {
 const formatDistance = (meters: number): string =>
   `${(meters / METERS_PER_KILOMETER).toFixed(2)} km`;
 
-const formatSpeed = (metersPerSecond: number | null): string =>
+export const formatSpeed = (metersPerSecond: number | null): string =>
   metersPerSecond === null ? '—' : `${(metersPerSecond * 3.6).toFixed(1)} km/h`;
+
+export const formatPace = (metersPerSecond: number | null, profile: Profile): string => {
+  if (metersPerSecond === null || metersPerSecond < MIN_PACE_SPEED_MPS) {
+    return '—';
+  }
+  const unitMeters = profile === 'swimming' ? METERS_PER_100M : METERS_PER_KILOMETER;
+  const unitSuffix = profile === 'swimming' ? '/100m' : '/km';
+  const totalSeconds = Math.round(unitMeters / metersPerSecond);
+  const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
+  const seconds = totalSeconds % SECONDS_PER_MINUTE;
+  return `${minutes}:${seconds.toString().padStart(2, '0')} ${unitSuffix}`;
+};
+
+export const formatRate = (
+  metersPerSecond: number | null,
+  profile: Profile,
+  mode: RateDisplayMode
+): string =>
+  mode === 'pace' ? formatPace(metersPerSecond, profile) : formatSpeed(metersPerSecond);
 
 const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
@@ -79,6 +114,7 @@ export function RecordingScreen(): JSX.Element {
   const {
     capabilities,
     state,
+    activeProfile,
     liveStats,
     summary,
     heartRateSummary,
@@ -93,12 +129,17 @@ export function RecordingScreen(): JSX.Element {
     stop,
     save,
     discard,
+    saveUnfinished,
     discardUnfinished
   } = useRecording();
   const [profile, setProfile] = useState<Profile>('walking');
   // Which live stat is promoted to the hero (large) position. The user taps
   // a compact tile to promote it; tapping the hero cycles back to elapsed time.
   const [heroStat, setHeroStat] = useState<StatKey>('time');
+  const [rateOverride, setRateOverride] = useState<{
+    profile: Profile;
+    mode: RateDisplayMode;
+  } | null>(null);
 
   // Keep the screen awake only while a session is live.
   useEffect(() => {
@@ -114,6 +155,11 @@ export function RecordingScreen(): JSX.Element {
   }, [state.phase]);
 
   const isLive = state.phase === 'recording' || state.phase === 'paused';
+  const displayedProfile = activeProfile ?? profile;
+  const rateMode: RateDisplayMode =
+    rateOverride?.profile === displayedProfile
+      ? rateOverride.mode
+      : defaultRateModeForProfile(displayedProfile);
 
   return (
     <ScrollView
@@ -133,37 +179,14 @@ export function RecordingScreen(): JSX.Element {
       ) : null}
 
       {unfinished.length > 0 ? (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="time-outline" size={18} color={theme.warning ?? theme.textMuted} />
-            <Text style={styles.cardLabel}>Unfinished recording</Text>
-          </View>
-          {unfinished.map(session => (
-            <View key={session.sessionId} style={styles.recoveryRow}>
-              <View style={styles.recoveryInfo}>
-                <Text style={styles.recoveryTitle}>
-                  {PROFILE_LABELS[session.profile as Profile] ?? session.profile}
-                </Text>
-                <Text style={styles.cardHint}>
-                  {new Date(session.startedAtUtcMs).toLocaleString()}
-                </Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Discard unfinished recording"
-                onPress={() => {
-                  void discardUnfinished(session.sessionId);
-                }}
-                style={({ pressed }) => [
-                  styles.dangerButton,
-                  pressed ? styles.buttonPressed : null
-                ]}
-              >
-                <Text style={styles.dangerButtonLabel}>Discard</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
+        <UnfinishedRecoveryCard
+          unfinished={unfinished}
+          isSaving={isSaving}
+          onSave={saveUnfinished}
+          onDiscard={discardUnfinished}
+          styles={styles}
+          theme={theme}
+        />
       ) : null}
 
       <SessionCard phase={state.phase} liveStats={liveStats} styles={styles} theme={theme} />
@@ -171,6 +194,14 @@ export function RecordingScreen(): JSX.Element {
 
       <LiveStatsCard
         liveStats={liveStats}
+        profile={displayedProfile}
+        rateMode={rateMode}
+        onToggleRateMode={() => {
+          setRateOverride({
+            profile: displayedProfile,
+            mode: rateMode === 'pace' ? 'speed' : 'pace'
+          });
+        }}
         heroStat={heroStat}
         onPromote={setHeroStat}
         styles={styles}
@@ -189,10 +220,14 @@ export function RecordingScreen(): JSX.Element {
       {state.phase === 'idle' ? (
         <ProfileCard profile={profile} onSelect={setProfile} styles={styles} />
       ) : null}
-      {isLive && state.phase === 'recording' ? (
+      {isLive ? (
         <View style={styles.profileBadge}>
-          <Ionicons name="walk-outline" size={16} color={theme.primary} />
-          <Text style={styles.profileBadgeLabel}>{PROFILE_LABELS[profile]}</Text>
+          <Ionicons
+            name={PROFILE_ICONS[displayedProfile] as never}
+            size={16}
+            color={theme.primary}
+          />
+          <Text style={styles.profileBadgeLabel}>{PROFILE_LABELS[displayedProfile]}</Text>
         </View>
       ) : null}
 
@@ -334,15 +369,20 @@ interface StatDef {
   readonly icon: string;
 }
 
-const STAT_DEFS: readonly StatDef[] = [
+const getStatDefs = (rateMode: RateDisplayMode): readonly StatDef[] => [
   { key: 'time', label: 'Elapsed', icon: 'time-outline' },
   { key: 'distance', label: 'Distance', icon: 'map-outline' },
-  { key: 'speed', label: 'Speed', icon: 'speedometer-outline' },
+  { key: 'speed', label: rateMode === 'pace' ? 'Pace' : 'Speed', icon: 'speedometer-outline' },
   { key: 'altitude', label: 'Altitude', icon: 'triangle-outline' },
   { key: 'slope', label: 'Slope', icon: 'trending-up-outline' }
 ];
 
-const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
+const statValue = (
+  key: StatKey,
+  liveStats: LiveStats | null,
+  profile: Profile,
+  rateMode: RateDisplayMode
+): string => {
   if (!liveStats) {
     return key === 'time' ? '0:00' : '—';
   }
@@ -352,7 +392,7 @@ const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
     case 'distance':
       return formatDistance(liveStats.distanceMeters);
     case 'speed':
-      return formatSpeed(liveStats.currentSpeedMps);
+      return formatRate(liveStats.currentSpeedMps, profile, rateMode);
     case 'altitude':
       return formatAltitude(liveStats.altitudeM);
     case 'slope':
@@ -360,8 +400,18 @@ const statValue = (key: StatKey, liveStats: LiveStats | null): string => {
   }
 };
 
+const rateToggleText = (profile: Profile, rateMode: RateDisplayMode): string => {
+  if (rateMode === 'pace') {
+    return 'Show km/h';
+  }
+  return profile === 'swimming' ? 'Show /100m' : 'Show /km';
+};
+
 interface LiveStatsCardProps {
   readonly liveStats: LiveStats | null;
+  readonly profile: Profile;
+  readonly rateMode: RateDisplayMode;
+  readonly onToggleRateMode: () => void;
   readonly heroStat: StatKey;
   readonly onPromote: (key: StatKey) => void;
   readonly styles: Styles;
@@ -369,16 +419,30 @@ interface LiveStatsCardProps {
 
 function LiveStatsCard({
   liveStats,
+  profile,
+  rateMode,
+  onToggleRateMode,
   heroStat,
   onPromote,
   styles
 }: LiveStatsCardProps): JSX.Element {
-  const heroDef = STAT_DEFS.find(def => def.key === heroStat) ?? STAT_DEFS[0];
-  const compactDefs = STAT_DEFS.filter(def => def.key !== heroStat);
+  const statDefs = getStatDefs(rateMode);
+  const heroDef = statDefs.find(def => def.key === heroStat) ?? statDefs[0];
+  const compactDefs = statDefs.filter(def => def.key !== heroStat);
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardLabel}>Live stats</Text>
+      <View style={styles.liveStatsHeader}>
+        <Text style={styles.cardLabel}>Live stats</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={rateMode === 'pace' ? 'Switch to speed (km/h)' : 'Switch to pace'}
+          onPress={onToggleRateMode}
+          style={({ pressed }) => [styles.rateToggleButton, pressed ? styles.chipPressed : null]}
+        >
+          <Text style={styles.rateToggleLabel}>{rateToggleText(profile, rateMode)}</Text>
+        </Pressable>
+      </View>
       <Text style={styles.tapHint}>Tap a stat to enlarge it</Text>
       <Pressable
         accessibilityRole="button"
@@ -399,7 +463,7 @@ function LiveStatsCard({
           />
           <Text style={styles.heroLabel}>{heroDef.label}</Text>
         </View>
-        <Text style={styles.heroValue}>{statValue(heroStat, liveStats)}</Text>
+        <Text style={styles.heroValue}>{statValue(heroStat, liveStats, profile, rateMode)}</Text>
       </Pressable>
       <View style={styles.tiles}>
         {compactDefs.map(def => (
@@ -418,7 +482,7 @@ function LiveStatsCard({
               />
               <Text style={styles.tileLabel}>{def.label}</Text>
             </View>
-            <Text style={styles.tileValue}>{statValue(def.key, liveStats)}</Text>
+            <Text style={styles.tileValue}>{statValue(def.key, liveStats, profile, rateMode)}</Text>
           </Pressable>
         ))}
       </View>
@@ -649,6 +713,88 @@ function LastSessionCard({
       >
         <Text style={styles.discardLinkLabel}>Discard recording</Text>
       </Pressable>
+    </View>
+  );
+}
+
+interface UnfinishedRecoveryCardProps {
+  readonly unfinished: RecordingMeta[];
+  readonly isSaving: boolean;
+  readonly onSave: (sessionId: string) => Promise<void>;
+  readonly onDiscard: (sessionId: string) => Promise<void>;
+  readonly styles: Styles;
+  readonly theme: ResolvedTheme;
+}
+
+function UnfinishedRecoveryCard({
+  unfinished,
+  isSaving,
+  onSave,
+  onDiscard,
+  styles,
+  theme
+}: UnfinishedRecoveryCardProps): JSX.Element {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Ionicons name="time-outline" size={18} color={theme.warning ?? theme.textMuted} />
+        <Text style={styles.cardLabel}>Unfinished recording</Text>
+      </View>
+      {unfinished.map(session => (
+        <View key={session.sessionId} style={styles.recoveryRow}>
+          <View style={styles.recoveryInfo}>
+            <Text style={styles.recoveryTitle}>
+              {PROFILE_LABELS[session.profile as Profile] ?? session.profile}
+            </Text>
+            <Text style={styles.cardHint}>{new Date(session.startedAtUtcMs).toLocaleString()}</Text>
+          </View>
+          <View style={styles.recoveryActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save unfinished recording"
+              disabled={isSaving}
+              onPress={() => {
+                void onSave(session.sessionId);
+              }}
+              style={({ pressed }) => [
+                styles.recoverySaveButton,
+                isSaving ? styles.buttonDisabled : null,
+                pressed && !isSaving ? styles.buttonPressed : null
+              ]}
+            >
+              <Text style={styles.primaryButtonLabel}>Save</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Discard unfinished recording"
+              disabled={isSaving}
+              onPress={() => {
+                Alert.alert(
+                  'Discard unfinished recording?',
+                  'This deletes the track and all recorded fixes. This cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Discard',
+                      style: 'destructive',
+                      onPress: () => {
+                        void onDiscard(session.sessionId);
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={({ pressed }) => [
+                styles.recoveryDiscardButton,
+                isSaving ? styles.buttonDisabled : null,
+                pressed && !isSaving ? styles.buttonPressed : null
+              ]}
+            >
+              <Text style={styles.dangerButtonLabel}>Discard</Text>
+            </Pressable>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }

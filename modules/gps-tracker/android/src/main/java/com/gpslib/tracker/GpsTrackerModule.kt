@@ -67,9 +67,7 @@ class GpsTrackerModule : Module() {
             this@GpsTrackerModule.sendEvent(EVENT_STATE_CHANGE, state.toMap())
         }
 
-        override fun onLocationUpdate(update: LocationUpdate) {
-            this@GpsTrackerModule.sendEvent(EVENT_LOCATION_UPDATE, update.toMap())
-        }
+        override fun onLocationUpdate(update: LocationUpdate) = Unit
     }
 
     private val locationListener = object : TrackingSession.Listener {
@@ -265,6 +263,19 @@ class GpsTrackerModule : Module() {
 
         OnStopObserving(EVENT_LOCATION_UPDATE) {
             TrackingSession.removeListener(locationListener)
+        }
+
+        OnDestroy {
+            TrackingSession.removeListener(stateListener)
+            TrackingSession.removeListener(locationListener)
+            runCatching {
+                tts?.stop()
+                tts?.shutdown()
+            }
+            tts = null
+            isTtsReady = false
+            pendingSpeech = null
+            releaseAudioFocus()
         }
     }
 

@@ -297,34 +297,111 @@ describe('replaySession', () => {
     const result = replaySession(makeMeta(), fixes);
     expect(result.stats.elevationGainMeters).toBeGreaterThan(3.5);
   });
+
+  it('does not poison barometer baseline when early fixes lack GPS altitude', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, ele: null, pressure: 960.0 }),
+      fix({ t: 1_003_000, lat: 45.0001, lon: 6.0001, ele: 450.0, pressure: 960.0 }),
+      fix({ t: 1_006_000, lat: 45.0002, lon: 6.0002, ele: 450.0, pressure: 960.0 })
+    ];
+    const result = replaySession(makeMeta(), fixes);
+    expect(result.stream.altitude?.data[0]).toBeCloseTo(450, 0);
+    expect(result.stream.altitude?.data[1]).toBeCloseTo(450, 0);
+    expect(result.stats.elevationGainMeters).toBe(0);
+  });
+
+  it('does not accumulate straight-line distance across a manual pause', () => {
+    const meta = makeMeta({
+      pauses: [{ startUtcMs: 1_005_000, endUtcMs: 1_065_000 }]
+    });
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0 }),
+      fix({ t: 1_003_000, lat: 45.0001, lon: 6.0 }), // ~11.1 m before pause
+      // User walked 500 m while paused and resumed at t = 1_066_000
+      fix({ t: 1_066_000, lat: 45.0046, lon: 6.0 }),
+      fix({ t: 1_069_000, lat: 45.0047, lon: 6.0 }) // ~11.1 m after pause
+    ];
+    const result = replaySession(meta, fixes);
+    expect(result.stream.latlng?.data).toHaveLength(4);
+    expect(result.stats.distanceMeters).toBeLessThan(30);
+    expect(result.stats.distanceMeters).toBeGreaterThan(20);
+  });
+
+  it('does not double-subtract overlapping auto-pause and manual pause intervals', () => {
+    const meta = makeMeta({
+      pauses: [{ startUtcMs: 1_015_000, endUtcMs: 1_045_000 }]
+    });
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, speed: 1.4 }),
+      // Stationary from 1_003_000 to 1_014_000 (>10s auto-pause window before manual pause at 1_015_000)
+      fix({ t: 1_003_000, lat: 45.0, lon: 6.0, speed: 0.1 }),
+      fix({ t: 1_014_000, lat: 45.0, lon: 6.0, speed: 0.1 }),
+      // Resumed after manual pause at 1_046_000
+      fix({ t: 1_046_000, lat: 45.0001, lon: 6.0, speed: 1.4 }),
+      fix({ t: 1_050_000, lat: 45.0002, lon: 6.0, speed: 1.4 })
+    ];
+    const result = replaySession(meta, fixes);
+    // Elapsed = 50s, manual pause = 30s (15s..45s), auto-pause before manual pause = 12s (3s..15s)
+    // Moving time must be 50 - 30 - 12 = 8s (never negative or double-subtracted)
+    expect(result.stats.elapsedTimeSec).toBe(50);
+    expect(result.stats.movingTimeSec).toBe(8);
+  });
+
+  it('does not allow a corrupt speed-jump fix to update lastAccepted', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0, speed: 1.4 }),
+      // Wild GPS teleport 5 km away 3 seconds later -> rejected as speed-jump
+      fix({ t: 1_003_000, lat: 45.045, lon: 6.0, speed: null }),
+      // Next valid fix near the true start position -> must be accepted relative to fix #1
+      fix({ t: 1_006_000, lat: 45.0001, lon: 6.0, speed: 1.4 })
+    ];
+    const result = replaySession(makeMeta(), fixes);
+    expect(result.stream.latlng?.data).toHaveLength(2);
+    expect(result.rejected).toEqual([{ index: 1, reason: 'speed-jump' }]);
+    expect(result.stats.distanceMeters).toBeGreaterThan(10);
+    expect(result.stats.distanceMeters).toBeLessThan(15);
+  });
 });
 
 // Sanity: the fixtures parse through the real reader path.
 
 describe('replaySession heart rate', () => {
   it('aligns HR samples to accepted fixes and reports summary stats', () => {
-    const fixes = [
-      fix({ t: 1_000_000 }),
-      fix({ t: 1_010_000, lat: 45.0001, lon: 6.0001 })
-    ];
+    const fixes = [fix({ t: 1_000_000 }), fix({ t: 1_010_000, lat: 45.0001, lon: 6.0001 })];
     const samples = [
       { t: 1_000_000, bpm: 70 },
       { t: 1_010_000, bpm: 75 }
     ];
-    const result = replaySession(makeMeta(), fixes, 0, samples as any);
+    const result = replaySession(makeMeta(), fixes, 0, samples);
     expect(result.stream.heartrate?.data).toEqual([70, 75]);
     expect(result.stats.averageHeartRate).toBe(73);
     expect(result.stats.maxHeartRate).toBe(75);
   });
 
   it('writes null for fixes without a nearby HR sample', () => {
-    const fixes = [
-      fix({ t: 1_000_000 }),
-      fix({ t: 1_030_000, lat: 45.0001, lon: 6.0001 })
-    ];
+    const fixes = [fix({ t: 1_000_000 }), fix({ t: 1_030_000, lat: 45.0001, lon: 6.0001 })];
     const samples = [{ t: 1_000_000, bpm: 70 }];
-    const result = replaySession(makeMeta(), fixes, 0, samples as any);
+    const result = replaySession(makeMeta(), fixes, 0, samples);
     expect(result.stream.heartrate?.data).toEqual([70, null]);
     expect(result.stats.averageHeartRate).toBe(70);
+  });
+
+  it('excludes HR samples recorded during a manual pause from average and max HR', () => {
+    const meta = makeMeta({
+      pauses: [{ startUtcMs: 1_005_000, endUtcMs: 1_025_000 }]
+    });
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0 }),
+      fix({ t: 1_030_000, lat: 45.0001, lon: 6.0001 })
+    ];
+    const samples = [
+      { t: 1_000_000, bpm: 130 },
+      { t: 1_015_000, bpm: 195 }, // inside manual pause -> must be ignored
+      { t: 1_030_000, bpm: 140 }
+    ];
+    const result = replaySession(meta, fixes, 0, samples);
+    expect(result.stream.heartrate?.data).toEqual([130, 140]);
+    expect(result.stats.averageHeartRate).toBe(135);
+    expect(result.stats.maxHeartRate).toBe(140);
   });
 });

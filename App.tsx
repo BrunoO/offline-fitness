@@ -13,6 +13,7 @@ import {
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
 import { MapsScreen } from '@/features/maps';
+import { sweepExpiredSessions } from '@/features/recording';
 import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
@@ -69,6 +70,11 @@ function AppContent() {
     Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()])
       .catch(error => simpleLogger.error('Startup backfill error', error))
       .finally(() => setBackfillComplete(true));
+
+    // Sweep saved recording fix logs older than the 30-day retention window (D10).
+    sweepExpiredSessions().catch(error =>
+      simpleLogger.error('Startup recording session sweep error', error)
+    );
   }, []);
 
   // Once startup backfill completes, hide the native splash and smoothly fade out
