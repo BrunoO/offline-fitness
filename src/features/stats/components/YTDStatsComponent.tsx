@@ -32,6 +32,21 @@ const YTDStatsComponent: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
 
+  // Stable legend data array so VictoryLegend doesn't re-render on every render.
+  const legendData = useMemo(
+    () => [
+      {
+        name: `This Year (${new Date().getFullYear()})`,
+        symbol: { fill: theme.primary }
+      },
+      {
+        name: showFullPreviousYear ? `Full Year (${comparisonYear})` : `YTD (${comparisonYear})`,
+        symbol: { fill: theme.chartComparison }
+      }
+    ],
+    [showFullPreviousYear, comparisonYear, theme.primary, theme.chartComparison]
+  );
+
   const { activitiesMerged: processedActivities } = mergeActivities(
     Array.from(
       (() => {
@@ -44,16 +59,19 @@ const YTDStatsComponent: React.FC = () => {
     mergeSimilarActivities
   );
 
-  const availableTypes = (() => {
+  const availableTypes = useMemo(() => {
     const s = new Set<string>();
     for (const a of processedActivities) if (a.type) s.add(a.type);
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  })();
+  }, [processedActivities]);
 
-  const filteredActivities =
-    selectedTypes.size === 0
-      ? processedActivities
-      : processedActivities.filter(a => (a.type ? selectedTypes.has(a.type) : false));
+  const filteredActivities = useMemo(
+    () =>
+      selectedTypes.size === 0
+        ? processedActivities
+        : processedActivities.filter(a => (a.type ? selectedTypes.has(a.type) : false)),
+    [processedActivities, selectedTypes]
+  );
 
   const ytdStats: YTDStats | null =
     globalActivities.length === 0
@@ -169,24 +187,7 @@ const YTDStatsComponent: React.FC = () => {
         width={360}
         padding={{ top: 20, right: 0, bottom: 50, left: 0 }}
       >
-        <VictoryLegend
-          x={50}
-          y={0}
-          orientation="horizontal"
-          gutter={20}
-          data={[
-            {
-              name: `This Year (${new Date().getFullYear()})`,
-              symbol: { fill: theme.primary }
-            },
-            {
-              name: showFullPreviousYear
-                ? `Full Year (${comparisonYear})`
-                : `YTD (${comparisonYear})`,
-              symbol: { fill: theme.chartComparison }
-            }
-          ]}
-        />
+        <VictoryLegend x={50} y={0} orientation="horizontal" gutter={20} data={legendData} />
         {/* Quarter Background Areas */}
         {(() => {
           const maxY = Math.max(

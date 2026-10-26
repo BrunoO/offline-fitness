@@ -77,8 +77,16 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
     useActivitiesDataContext();
   const insets = useSafeAreaInsets();
   const isLocationGranted = useLocationPermission();
-  const activityTypesWithDistance = Array.from(activityTypes).filter(a => !isNoGpsActivity(a));
-  const activitiesWithDistance = allActivities.filter(a => !isNoGpsActivity(a.type));
+  // Filtered lists are O(n) over potentially large activity sets; memoize so
+  // they don't recompute on every render (e.g. region changes, toggles).
+  const activityTypesWithDistance = useMemo(
+    () => Array.from(activityTypes).filter(a => !isNoGpsActivity(a)),
+    [activityTypes]
+  );
+  const activitiesWithDistance = useMemo(
+    () => allActivities.filter(a => !isNoGpsActivity(a.type)),
+    [allActivities]
+  );
 
   const { minDate, maxDate } = minMaxDateRange(activitiesWithDistance);
 

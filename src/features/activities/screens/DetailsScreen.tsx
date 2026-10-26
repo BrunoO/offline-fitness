@@ -14,7 +14,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@/theme';
-import React, { JSX, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { JSX, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -188,16 +188,20 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     });
   }, [allActivities]);
 
-  const onDeleteActivity = (activity: Activity) => {
-    deleteActivity(activity);
-    try {
-      deleteStreamFiles(activity.id);
-    } catch (error) {
-      // The service already logged the detail; a failed stream cleanup must
-      // not blow up the user-facing delete action.
-      simpleLogger.error('Failed to delete stream files for deleted activity', error);
-    }
-  };
+  // Stable identity for the memoised ActivityListItem (deleteActivity from context).
+  const onDeleteActivity = useCallback(
+    (activity: Activity) => {
+      deleteActivity(activity);
+      try {
+        deleteStreamFiles(activity.id);
+      } catch (error) {
+        // The service already logged the detail; a failed stream cleanup must
+        // not blow up the user-facing delete action.
+        simpleLogger.error('Failed to delete stream files for deleted activity', error);
+      }
+    },
+    [deleteActivity]
+  );
 
   const keyExtractor = (item: Activity) => item.id;
 
@@ -277,28 +281,39 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     });
   };
 
-  const handleActivityPress = (activityId: string) => {
-    setSelectedActivity(prev => {
-      if (prev?.id === activityId) {
-        return null;
-      }
-      return allActivities.find(a => a.id === activityId) || null;
-    });
-  };
+  // Stable identity so the memoised ActivityListItem keeps its onPress ref
+  // across unrelated re-renders (e.g. while typing in search).
+  const handleActivityPress = useCallback(
+    (activityId: string) => {
+      setSelectedActivity(prev => {
+        if (prev?.id === activityId) {
+          return null;
+        }
+        return allActivities.find(a => a.id === activityId) || null;
+      });
+    },
+    [allActivities]
+  );
 
-  const renderItem = ({ item }: { item: Activity }) => (
-    <ActivityListItem
-      activity={item}
-      onPress={handleActivityPress}
-      selectedActivityId={selectedActivity?.id ?? null}
-      deleteActivity={onDeleteActivity}
-      editActivity={activity => {
-        setEditingActivity(activity);
-        setEditingName(activity.name ?? '');
-        setEditingElevation(String(activity.total_elevation_gain));
-        setEditError(null);
-      }}
-    />
+  // Stable identity for the memoised ActivityListItem (state setters are stable).
+  const handleEditActivity = useCallback((activity: Activity) => {
+    setEditingActivity(activity);
+    setEditingName(activity.name ?? '');
+    setEditingElevation(String(activity.total_elevation_gain));
+    setEditError(null);
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Activity }) => (
+      <ActivityListItem
+        activity={item}
+        onPress={handleActivityPress}
+        selectedActivityId={selectedActivity?.id ?? null}
+        deleteActivity={onDeleteActivity}
+        editActivity={handleEditActivity}
+      />
+    ),
+    [selectedActivity?.id, handleActivityPress, onDeleteActivity, handleEditActivity]
   );
 
   const clearSearch = () => {

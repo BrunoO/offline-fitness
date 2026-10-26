@@ -163,6 +163,10 @@ const renderItem = (weeklyGoal: string): ListRenderItem<WeekSummary> =>
     );
   };
 
+// Hoisted so FlashList receives a stable keyExtractor identity across renders
+// (an inline arrow would be a new function every render).
+const weekKeyExtractor = (item: WeekSummary): string => `${item.start_week}`;
+
 /**
  * A component for separating items in the list.
  * @returns A React component.
@@ -230,20 +234,24 @@ export function RecentWeeksScreen(): JSX.Element {
 
   const { numberRecentWeeks, weeklyGoal, useElapsedTime } = useSettings();
 
-  const wkData = weeklyData(
-    myActivitiesToUse,
-    allActivitiesToUse,
-    numberRecentWeeks,
-    useElapsedTime
+  // weeklyData aggregates all activities into ISO weeks (O(n * weeks)); memoize
+  // so it only re-runs when its inputs change instead of every render.
+  const wkData = useMemo(
+    () => weeklyData(myActivitiesToUse, allActivitiesToUse, numberRecentWeeks, useElapsedTime),
+    [myActivitiesToUse, allActivitiesToUse, numberRecentWeeks, useElapsedTime]
   );
+
+  // Bind the module-level renderItem factory to the current weeklyGoal, cached so
+  // FlashList keeps a stable renderItem identity (otherwise every row re-renders).
+  const renderItemBound = useMemo(() => renderItem(weeklyGoal), [weeklyGoal]);
 
   return (
     <View style={styles.container}>
       {wkData.length === 0 ? <ShowInProgress /> : null}
       <FlashList
         data={wkData}
-        renderItem={renderItem(weeklyGoal)}
-        keyExtractor={item => `${item.start_week}`}
+        renderItem={renderItemBound}
+        keyExtractor={weekKeyExtractor}
         ItemSeparatorComponent={ItemSeparator}
         ListEmptyComponent={ListEmpty}
         contentContainerStyle={styles.listContainer}

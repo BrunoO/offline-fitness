@@ -219,16 +219,21 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
     }
   }, [coordinates]);
 
-  const onMapReady = () => {
+  // Wrap in useCallback so MapView (native) keeps a stable callback identity;
+  // an inline function would be recreated every render and could trigger
+  // unnecessary native re-initialisation. (Compiler can't preserve identity
+  // across the native boundary contract.)
+  const onMapReady = React.useCallback(() => {
     setIsMapReady(true);
     // Sometimes calling immediately is fine
     fitToTrack();
-  };
+  }, [fitToTrack]);
 
-  const onMapLoaded = () => {
+  // Same rationale as onMapReady: stable identity for the native MapView prop.
+  const onMapLoaded = React.useCallback(() => {
     setIsMapReady(true);
     fitToTrack();
-  };
+  }, [fitToTrack]);
 
   // Fallback mechanism for map initialization issues
   React.useEffect(() => {
@@ -245,10 +250,11 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
     return undefined; // Explicit return for all code paths
   }, [coordinates, isMapReady, fitToTrack]);
 
+  // Stable identity for the native onLayout prop (see onMapReady rationale).
   // Fallback when layout completes (Fabric/new arch can delay readiness)
-  const onLayout = () => {
+  const onLayout = React.useCallback(() => {
     if (isMapReady) fitToTrack();
-  };
+  }, [isMapReady, fitToTrack]);
 
   // Final guard: when coordinates change and map is ready, try again on next tick
   React.useEffect(() => {

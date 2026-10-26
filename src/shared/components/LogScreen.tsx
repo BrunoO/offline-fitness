@@ -3,7 +3,7 @@ import { ResolvedTheme, useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { FlashList } from '@shopify/flash-list';
-import React, { JSX, useMemo, useState } from 'react';
+import React, { JSX, useCallback, useMemo, useState } from 'react';
 import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,20 +20,23 @@ export function LogScreen(): JSX.Element {
     setLogs([...simpleLogger.logs]);
   };
 
-  const getLevelColor = (level: LogLevel) => {
-    switch (level) {
-      case LogLevel.Error:
-        return themeColors.logLevel.Error;
-      case LogLevel.Warning:
-        return themeColors.logLevel.Warning;
-      case LogLevel.Info:
-        return themeColors.logLevel.Info;
-      default:
-        return themeColors.logLevel.Default;
-    }
-  };
+  const getLevelColor = useCallback(
+    (level: LogLevel) => {
+      switch (level) {
+        case LogLevel.Error:
+          return themeColors.logLevel.Error;
+        case LogLevel.Warning:
+          return themeColors.logLevel.Warning;
+        case LogLevel.Info:
+          return themeColors.logLevel.Info;
+        default:
+          return themeColors.logLevel.Default;
+      }
+    },
+    [themeColors]
+  );
 
-  const getLevelName = (level: LogLevel) => {
+  const getLevelName = useCallback((level: LogLevel) => {
     switch (level) {
       case LogLevel.Error:
         return 'ERROR';
@@ -44,11 +47,11 @@ export function LogScreen(): JSX.Element {
       default:
         return 'UNKNOWN';
     }
-  };
+  }, []);
 
-  const formatTimestamp = (date: Date) => {
+  const formatTimestamp = useCallback((date: Date) => {
     return date.toLocaleTimeString();
-  };
+  }, []);
 
   const handleClearLogs = () => {
     Alert.alert('Clear Logs', 'Are you sure you want to clear all logs?', [
@@ -101,42 +104,53 @@ export function LogScreen(): JSX.Element {
     }
   };
 
-  const handleCopyLogEntry = (log: LogEntry) => {
-    const timestamp = formatTimestamp(log.date);
-    const logText = `[${timestamp}] ${getLevelName(log.level)}: ${log.text}`;
+  const handleCopyLogEntry = useCallback(
+    (log: LogEntry) => {
+      const timestamp = formatTimestamp(log.date);
+      const logText = `[${timestamp}] ${getLevelName(log.level)}: ${log.text}`;
 
-    Clipboard.setString(logText);
-    Alert.alert('Copied', 'Log entry copied to clipboard.');
-  };
-
-  const renderLogItem = ({ item }: { item: LogEntry }) => (
-    <View
-      style={[
-        styles.logItem,
-        {
-          borderLeftColor: getLevelColor(item.level),
-          backgroundColor: themeColors.logItemBackground
-        }
-      ]}
-    >
-      <View style={styles.logHeader}>
-        <View style={styles.logHeaderLeft}>
-          <Text style={[styles.logLevel, { color: getLevelColor(item.level) }]} selectable={true}>
-            {getLevelName(item.level)}
-          </Text>
-          <Text style={[styles.logTime, { color: themeColors.timestamp }]} selectable={true}>
-            {formatTimestamp(item.date)}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.logCopyButton} onPress={() => handleCopyLogEntry(item)}>
-          <Ionicons name="copy-outline" size={16} color={themeColors.timestamp} />
-        </TouchableOpacity>
-      </View>
-      <Text style={[styles.logMessage, { color: themeColors.text }]} selectable={true}>
-        {item.text}
-      </Text>
-    </View>
+      Clipboard.setString(logText);
+      Alert.alert('Copied', 'Log entry copied to clipboard.');
+    },
+    [formatTimestamp, getLevelName]
   );
+
+  // Stable renderItem identity so FlashList doesn't re-render every row on each
+  // render (theme/logs changes would otherwise allocate a new function).
+  const renderLogItem = useCallback(
+    ({ item }: { item: LogEntry }) => (
+      <View
+        style={[
+          styles.logItem,
+          {
+            borderLeftColor: getLevelColor(item.level),
+            backgroundColor: themeColors.logItemBackground
+          }
+        ]}
+      >
+        <View style={styles.logHeader}>
+          <View style={styles.logHeaderLeft}>
+            <Text style={[styles.logLevel, { color: getLevelColor(item.level) }]} selectable={true}>
+              {getLevelName(item.level)}
+            </Text>
+            <Text style={[styles.logTime, { color: themeColors.timestamp }]} selectable={true}>
+              {formatTimestamp(item.date)}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.logCopyButton} onPress={() => handleCopyLogEntry(item)}>
+            <Ionicons name="copy-outline" size={16} color={themeColors.timestamp} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.logMessage, { color: themeColors.text }]} selectable={true}>
+          {item.text}
+        </Text>
+      </View>
+    ),
+    [styles, themeColors, getLevelColor, getLevelName, formatTimestamp, handleCopyLogEntry]
+  );
+
+  // Avoid allocating a reversed copy on every render when the order is unchanged.
+  const listData = useMemo(() => (isReversed ? [...logs].reverse() : logs), [logs, isReversed]);
 
   return (
     <View
@@ -201,7 +215,7 @@ export function LogScreen(): JSX.Element {
         </View>
       ) : (
         <FlashList
-          data={isReversed ? [...logs].reverse() : logs}
+          data={listData}
           renderItem={renderLogItem}
           keyExtractor={(item, index) => `${item.date.getTime()}-${index}`}
           style={styles.logsList}

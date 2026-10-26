@@ -73,8 +73,14 @@ export function RecentYearsScreen(): JSX.Element {
   // passing to yearlyData — yearlyData's internal Map is keyed strictly by
   // the provided type list, so an unrecognized type in allActivities would
   // silently produce NaN totals.
-  const myActivitiesWithGps = myActivitiesToUse.filter(t => !isNoGpsActivity(t));
-  const activitiesWithGps = allActivitiesToUse.filter(a => !isNoGpsActivity(a.type));
+  const myActivitiesWithGps = useMemo(
+    () => myActivitiesToUse.filter(t => !isNoGpsActivity(t)),
+    [myActivitiesToUse]
+  );
+  const activitiesWithGps = useMemo(
+    () => allActivitiesToUse.filter(a => !isNoGpsActivity(a.type)),
+    [allActivitiesToUse]
+  );
 
   // Duplicate 'Year' at end to keep year visible when horizontally scrolled
   const tableHoursHeaders = ['Year', ...myActivitiesToUse, 'Total', 'w/Ave.', 'Year'];
@@ -90,26 +96,30 @@ export function RecentYearsScreen(): JSX.Element {
   );
 
   // Use useElapsedTime to determine whether to use elapsed_time or moving_time
-  const dataTime = yearlyData(myActivitiesToUse, allActivitiesToUse, (a: Activity) =>
-    useElapsedTime ? a.elapsed_time : a.moving_time
+  const dataTime = useMemo(
+    () =>
+      yearlyData(myActivitiesToUse, allActivitiesToUse, (a: Activity) =>
+        useElapsedTime ? a.elapsed_time : a.moving_time
+      ),
+    [myActivitiesToUse, allActivitiesToUse, useElapsedTime]
   );
 
-  const dataHoursFormated = (() => {
+  const dataHoursFormated = useMemo(() => {
     const sortedDataTime = [...dataTime].sort(sortRowsOnYearDescending);
     const formattedTable = formatYearlyTable(sortedDataTime, seconds_to_label);
     return formattedTable.map(row => [...row, row[0]]);
-  })();
+  }, [dataTime]);
 
-  const dataDistances = (() => {
+  const dataDistances = useMemo(() => {
     return formatYearlyTable(
       yearlyData(myActivitiesWithGps, activitiesWithGps, (a: Activity) => a.distance).sort(
         sortRowsOnYearDescending
       ),
       (x: number) => formatThousands((x / 1000).toFixed(0))
     ).map(row => [...row, row[0]]);
-  })();
+  }, [myActivitiesWithGps, activitiesWithGps]);
 
-  const dataElevations = (() => {
+  const dataElevations = useMemo(() => {
     return formatYearlyTable(
       yearlyData(
         myActivitiesWithGps,
@@ -118,16 +128,20 @@ export function RecentYearsScreen(): JSX.Element {
       ).sort(sortRowsOnYearDescending),
       (x: number) => formatThousands((x / 1000).toFixed(1))
     ).map(row => [...row, row[0]]);
-  })();
+  }, [myActivitiesWithGps, activitiesWithGps]);
 
-  const dataDistancesToChart = myActivitiesWithGps.map((activity, indexActivity) => ({
-    id: indexActivity,
-    name: activity,
-    data: dataDistances.slice(0, -1).map((row: string[]) => ({
-      x: row[0],
-      y: Number.parseInt(row[indexActivity + 1].replace(/\s/g, ''), 10)
-    }))
-  }));
+  const dataDistancesToChart = useMemo(
+    () =>
+      myActivitiesWithGps.map((activity, indexActivity) => ({
+        id: indexActivity,
+        name: activity,
+        data: dataDistances.slice(0, -1).map((row: string[]) => ({
+          x: row[0],
+          y: Number.parseInt(row[indexActivity + 1].replace(/\s/g, ''), 10)
+        }))
+      })),
+    [myActivitiesWithGps, dataDistances]
+  );
 
   useEffect(() => {
     setLoading(false);

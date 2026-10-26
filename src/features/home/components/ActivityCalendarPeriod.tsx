@@ -10,7 +10,7 @@ import {
 import { activityIsoWeekKey, isoWeekKeyFromDateString } from '@/shared/utils/isoWeek';
 import { getISOWeekNumber } from '@/shared/utils/utils';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 
@@ -61,152 +61,161 @@ export function ActivityCalendarPeriod({
   const currentWeekNumber = getISOWeekNumber(selectedDate);
 
   // Handle week number press to navigate to RecentWeeksScreen - memoized for performance
-  const handleWeekNumberPress = () => {
+  const handleWeekNumberPress = useCallback(() => {
     if (navigation) {
       navigation.navigate('Stats');
     }
-  };
+  }, [navigation]);
 
-  // Pre-calculate week activities for all unique ISO weeks to avoid repeated calculations
-  const weekActivitiesMap = new Map<string, Activity[]>();
-  activities.forEach(activity => {
-    const weekKey = activityIsoWeekKey(activity);
+  // Heavy calendar marking (activity grouping, streak detection, goal evaluation)
+  // is O(n log n) over activities; memoize so it only re-runs when its inputs
+  // change instead of every render (the React Compiler cannot see across the
+  // mutable Map/Set accumulators used below).
+  const markedDates = useMemo(() => {
+    // Pre-calculate week activities for all unique ISO weeks to avoid repeated calculations
+    const weekActivitiesMap = new Map<string, Activity[]>();
+    activities.forEach(activity => {
+      const weekKey = activityIsoWeekKey(activity);
 
-    if (!weekActivitiesMap.has(weekKey)) {
-      weekActivitiesMap.set(weekKey, []);
-    }
-    weekActivitiesMap.get(weekKey)!.push(activity);
-  });
-
-  // Memoized function to check if weekly goal is achieved for a given date
-  const isWeeklyGoalAchieved = (date: string): boolean => {
-    const weekKey = isoWeekKeyFromDateString(`${date}T12:00:00`);
-    const weekActivities = weekActivitiesMap.get(weekKey) || [];
-
-    try {
-      return evaluateGoal(weeklyGoal, { activities: weekActivities });
-    } catch {
-      return false; // If goal evaluation fails, assume not achieved
-    }
-  };
-
-  const marks: { [key: string]: object } = {};
-
-  // Get today's date in YYYY-MM-DD format (device-local "today" is correct here)
-  const today = deviceTodayLocalDateString();
-
-  // Pre-process activities by athlete-local date
-  const activitiesByDate: { [key: string]: Activity[] } = {};
-  const dateCache = new Map<string, string>(); // Cache parsed dates
-
-  activities.forEach(activity => {
-    // Cache the date parsing to avoid repeated string operations
-    let date = dateCache.get(activity.id);
-    if (!date) {
-      date = activityLocalDate(activity);
-      dateCache.set(activity.id, date);
-    }
-
-    if (!activitiesByDate[date]) {
-      activitiesByDate[date] = [];
-    }
-    activitiesByDate[date].push(activity);
-  });
-
-  // Create period marks for activity streaks with optimized processing
-  const sortedDates = Object.keys(activitiesByDate).sort((a, b) => a.localeCompare(b));
-  const streaks: string[][] = [];
-  let currentStreak: string[] = [];
-
-  // Build streaks array (DST-safe whole-day math on athlete-local dates)
-  sortedDates.forEach((date, index) => {
-    const prevDate = index > 0 ? sortedDates[index - 1] : null;
-    const isConsecutive =
-      prevDate && localDateToDayNumber(date) - localDateToDayNumber(prevDate) === 1;
-
-    if (isConsecutive) {
-      currentStreak.push(date);
-    } else {
-      if (currentStreak.length > 0) {
-        streaks.push([...currentStreak]);
+      if (!weekActivitiesMap.has(weekKey)) {
+        weekActivitiesMap.set(weekKey, []);
       }
-      currentStreak = [date];
-    }
-  });
-
-  // Add the last streak
-  if (currentStreak.length > 0) {
-    streaks.push(currentStreak);
-  }
-
-  // Pre-calculate goal achievements for all unique weeks to avoid repeated evaluation
-  const goalAchievementCache = new Map<string, boolean>();
-  const getGoalAchievement = (date: string): boolean => {
-    if (goalAchievementCache.has(date)) {
-      return goalAchievementCache.get(date)!;
-    }
-    const result = isWeeklyGoalAchieved(date);
-    goalAchievementCache.set(date, result);
-    return result;
-  };
-
-  // Process all streaks in a single pass - with weekly goal color coding
-  streaks.forEach(streak => {
-    streak.forEach(streakDate => {
-      const goalAchieved = getGoalAchievement(streakDate);
-      const streakColor = goalAchieved ? theme.successSoft : theme.primarySoft;
-      marks[streakDate] = {
-        color: streakColor,
-        textColor: theme.textStrong
-      };
+      weekActivitiesMap.get(weekKey)!.push(activity);
     });
-  });
 
-  // Add today indicator
-  if (marks[today]) {
-    marks[today] = {
-      ...marks[today],
-      today: true,
-      marked: true,
-      dotColor: theme.primary
-    };
-  } else {
-    marks[today] = {
-      today: true,
-      marked: true,
-      dotColor: theme.primary
-    };
-  }
+    // Memoized function to check if weekly goal is achieved for a given date
+    const isWeeklyGoalAchieved = (date: string): boolean => {
+      const weekKey = isoWeekKeyFromDateString(`${date}T12:00:00`);
+      const weekActivities = weekActivitiesMap.get(weekKey) || [];
 
-  // Handle selected date
-  if (marks[selectedDate]) {
-    marks[selectedDate] = {
-      ...marks[selectedDate],
-      selected: true,
-      selectedColor: theme.primary,
-      selectedTextColor: theme.onPrimary
+      try {
+        return evaluateGoal(weeklyGoal, { activities: weekActivities });
+      } catch {
+        return false; // If goal evaluation fails, assume not achieved
+      }
     };
-  } else {
-    marks[selectedDate] = {
-      selected: true,
-      selectedColor: theme.primary,
-      selectedTextColor: theme.onPrimary
-    };
-  }
 
-  const markedDates = marks;
+    const marks: { [key: string]: object } = {};
+
+    // Get today's date in YYYY-MM-DD format (device-local "today" is correct here)
+    const today = deviceTodayLocalDateString();
+
+    // Pre-process activities by athlete-local date
+    const activitiesByDate: { [key: string]: Activity[] } = {};
+    const dateCache = new Map<string, string>(); // Cache parsed dates
+
+    activities.forEach(activity => {
+      // Cache the date parsing to avoid repeated string operations
+      let date = dateCache.get(activity.id);
+      if (!date) {
+        date = activityLocalDate(activity);
+        dateCache.set(activity.id, date);
+      }
+
+      if (!activitiesByDate[date]) {
+        activitiesByDate[date] = [];
+      }
+      activitiesByDate[date].push(activity);
+    });
+
+    // Create period marks for activity streaks with optimized processing
+    const sortedDates = Object.keys(activitiesByDate).sort((a, b) => a.localeCompare(b));
+    const streaks: string[][] = [];
+    let currentStreak: string[] = [];
+
+    // Build streaks array (DST-safe whole-day math on athlete-local dates)
+    sortedDates.forEach((date, index) => {
+      const prevDate = index > 0 ? sortedDates[index - 1] : null;
+      const isConsecutive =
+        prevDate && localDateToDayNumber(date) - localDateToDayNumber(prevDate) === 1;
+
+      if (isConsecutive) {
+        currentStreak.push(date);
+      } else {
+        if (currentStreak.length > 0) {
+          streaks.push([...currentStreak]);
+        }
+        currentStreak = [date];
+      }
+    });
+
+    // Add the last streak
+    if (currentStreak.length > 0) {
+      streaks.push(currentStreak);
+    }
+
+    // Pre-calculate goal achievements for all unique weeks to avoid repeated evaluation
+    const goalAchievementCache = new Map<string, boolean>();
+    const getGoalAchievement = (date: string): boolean => {
+      if (goalAchievementCache.has(date)) {
+        return goalAchievementCache.get(date)!;
+      }
+      const result = isWeeklyGoalAchieved(date);
+      goalAchievementCache.set(date, result);
+      return result;
+    };
+
+    // Process all streaks in a single pass - with weekly goal color coding
+    streaks.forEach(streak => {
+      streak.forEach(streakDate => {
+        const goalAchieved = getGoalAchievement(streakDate);
+        const streakColor = goalAchieved ? theme.successSoft : theme.primarySoft;
+        marks[streakDate] = {
+          color: streakColor,
+          textColor: theme.textStrong
+        };
+      });
+    });
+
+    // Add today indicator
+    if (marks[today]) {
+      marks[today] = {
+        ...marks[today],
+        today: true,
+        marked: true,
+        dotColor: theme.primary
+      };
+    } else {
+      marks[today] = {
+        today: true,
+        marked: true,
+        dotColor: theme.primary
+      };
+    }
+
+    // Handle selected date
+    if (marks[selectedDate]) {
+      marks[selectedDate] = {
+        ...marks[selectedDate],
+        selected: true,
+        selectedColor: theme.primary,
+        selectedTextColor: theme.onPrimary
+      };
+    } else {
+      marks[selectedDate] = {
+        selected: true,
+        selectedColor: theme.primary,
+        selectedTextColor: theme.onPrimary
+      };
+    }
+
+    return marks;
+  }, [activities, theme, weeklyGoal, selectedDate]);
 
   /**
    * Handles the press event on a day in the calendar.
    */
-  const handleDayPress = (day: DateData) => {
-    const dayActivities = activities.filter(a => activityLocalDate(a) === day.dateString);
-    if (dayActivities.length > 0) {
-      onDayPress(dayActivities[0]);
-    } else {
-      onEmptyDayPress?.(day.dateString);
-    }
-  };
+  const handleDayPress = useCallback(
+    (day: DateData) => {
+      const dayActivities = activities.filter(a => activityLocalDate(a) === day.dateString);
+      if (dayActivities.length > 0) {
+        onDayPress(dayActivities[0]);
+      } else {
+        onEmptyDayPress?.(day.dateString);
+      }
+    },
+    [activities, onDayPress, onEmptyDayPress]
+  );
 
   return (
     <Calendar

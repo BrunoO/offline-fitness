@@ -208,6 +208,31 @@ function SpeedTrendChart({
 }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
+
+  // Scatter data is a sort+map over activities; memoize so VictoryScatter keeps
+  // a stable data reference (the compiler can't see through the chained calls).
+  const scatterData = useMemo(
+    () =>
+      [item, ...similarActivities].sort(compareActivitiesByUtcAsc).map(a => ({
+        x: new Date(activityUtcMs(a)),
+        y: calculateSpeedKmh(a.distance, a.moving_time),
+        activity: a
+      })),
+    [item, similarActivities]
+  );
+
+  // Precompute qualifying track ids so the per-point fill check is O(1)
+  // instead of O(n) per point (O(n^2) overall).
+  const qualifyingTrackIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const entry of similarActivitiesByTrack) {
+      if (entry.similarity >= trackSimilarityThreshold) {
+        ids.add(entry.activity.id);
+      }
+    }
+    return ids;
+  }, [similarActivitiesByTrack, trackSimilarityThreshold]);
+
   if (similarActivities.length === 0) return <></>;
 
   return (
@@ -233,23 +258,14 @@ function SpeedTrendChart({
         }}
       />
       <VictoryScatter
-        data={[item, ...similarActivities].sort(compareActivitiesByUtcAsc).map(a => ({
-          x: new Date(activityUtcMs(a)),
-          y: calculateSpeedKmh(a.distance, a.moving_time),
-          activity: a
-        }))}
+        data={scatterData}
         style={{
           data: {
             fill: ({ datum }) => {
               if (datum.activity.id === item.id) {
                 return theme.danger;
               }
-              if (
-                similarActivitiesByTrack.some(
-                  a =>
-                    a.activity.id === datum.activity.id && a.similarity >= trackSimilarityThreshold
-                )
-              ) {
+              if (qualifyingTrackIds.has(datum.activity.id)) {
                 return theme.success;
               }
               return theme.info;

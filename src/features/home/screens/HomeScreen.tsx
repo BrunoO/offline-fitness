@@ -101,31 +101,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     current: 0,
     best: 0
   });
-  const [achievementsStartDate, setAchievementsStartDate] = useState<Date | null>(null);
-
-  const [weeklySummary, setWeeklySummary] = useState<{
-    totalHours: number;
-    totalDistanceKm: number;
-    totalElevationM: number;
-  }>({
-    totalHours: 0,
-    totalDistanceKm: 0,
-    totalElevationM: 0
-  });
-
-  const [recentAchievements, setRecentAchievements] = useState<{
-    longestDistanceKm: number;
-    longestDistanceName: string | null;
-    biggestClimbM: number;
-    biggestClimbName: string | null;
-    longestWeekKm: number;
-  }>({
-    longestDistanceKm: 0,
-    longestDistanceName: null,
-    biggestClimbM: 0,
-    biggestClimbName: null,
-    longestWeekKm: 0
-  });
+  // achievementsStartDate is now derived (see useMemo below).
 
   // Tracks whether we've already selected the initial activity to avoid
   // re-running initialization when the user selects a different activity.
@@ -236,11 +212,10 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     }
   }, [globalActivities, weeklyGoal]);
 
-  // Weekly summary for current ISO week
-  useEffect(() => {
+  // Weekly summary for current ISO week (derived, not state + effect).
+  const weeklySummary = useMemo(() => {
     if (globalActivities.length === 0) {
-      setWeeklySummary({ totalHours: 0, totalDistanceKm: 0, totalElevationM: 0 });
-      return;
+      return { totalHours: 0, totalDistanceKm: 0, totalElevationM: 0 };
     }
 
     // Reuse weeklyData and only look at the most recent week
@@ -249,8 +224,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     ) as string[];
     const weeks = weeklyData(activityTypes, globalActivities, 1, useElapsedTime);
     if (weeks.length === 0) {
-      setWeeklySummary({ totalHours: 0, totalDistanceKm: 0, totalElevationM: 0 });
-      return;
+      return { totalHours: 0, totalDistanceKm: 0, totalElevationM: 0 };
     }
 
     const mostRecent = weeks[0];
@@ -258,45 +232,32 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     const totalDistanceKm = (mostRecent.extraValues.get('dist') ?? 0) / 1000;
     const totalElevationM = mostRecent.extraValues.get('elev') ?? 0;
 
-    setWeeklySummary({
-      totalHours,
-      totalDistanceKm,
-      totalElevationM
-    });
+    return { totalHours, totalDistanceKm, totalElevationM };
   }, [globalActivities, useElapsedTime]);
 
-  // Recent achievements (across all activities)
-  useEffect(() => {
+  // Recent achievements (across all activities) — derived, not state + effect.
+  const { recentAchievements, achievementsStartDate } = useMemo(() => {
+    const empty = {
+      longestDistanceKm: 0,
+      longestDistanceName: null,
+      biggestClimbM: 0,
+      biggestClimbName: null,
+      longestWeekKm: 0
+    };
     if (globalActivities.length === 0) {
-      setRecentAchievements({
-        longestDistanceKm: 0,
-        longestDistanceName: null,
-        biggestClimbM: 0,
-        biggestClimbName: null,
-        longestWeekKm: 0
-      });
-      return;
+      return { recentAchievements: empty, achievementsStartDate: null };
     }
 
     // Limit to activities in the last 3 months
     const threshold = new Date();
     threshold.setMonth(threshold.getMonth() - 3);
-    setAchievementsStartDate(threshold);
 
     const recentActivities = globalActivities.filter(
       activity => activityUtcMs(activity) >= threshold.getTime()
     );
 
     if (recentActivities.length === 0) {
-      setAchievementsStartDate(threshold);
-      setRecentAchievements({
-        longestDistanceKm: 0,
-        longestDistanceName: null,
-        biggestClimbM: 0,
-        biggestClimbName: null,
-        longestWeekKm: 0
-      });
-      return;
+      return { recentAchievements: empty, achievementsStartDate: threshold };
     }
 
     let longestDistanceKm = 0;
@@ -334,13 +295,16 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
       }
     }
 
-    setRecentAchievements({
-      longestDistanceKm,
-      longestDistanceName,
-      biggestClimbM,
-      biggestClimbName,
-      longestWeekKm
-    });
+    return {
+      recentAchievements: {
+        longestDistanceKm,
+        longestDistanceName,
+        biggestClimbM,
+        biggestClimbName,
+        longestWeekKm
+      },
+      achievementsStartDate: threshold
+    };
   }, [globalActivities, numberRecentWeeks, useElapsedTime]);
 
   const handleActivityChange = (activity: Activity) => {
