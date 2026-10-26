@@ -35,6 +35,7 @@ export interface UseRecordingResult {
   activeProfile: Profile | null;
   liveStats: LiveStats | null;
   summary: RecordingSummary | null;
+  splits?: SplitEvent[];
   heartRateSummary: { average: number; max: number } | null;
   lastSplit: SplitEvent | null;
   error: string | null;
@@ -61,29 +62,53 @@ const describeError = (cause: unknown, fallback: string): string => {
 interface StoppedSessionData {
   readonly meta: RecordingMeta;
   readonly summary: RecordingSummary;
+  readonly splits: SplitEvent[];
   readonly heartRateSummary: { average: number; max: number } | null;
 }
+
+const readSplitIntervalMeters = async (): Promise<number> => {
+  try {
+    const raw = await AsyncStorage.getItem('splitsIntervalMeters');
+    const parsed = raw ? Number.parseInt(raw, 10) : 1000;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000;
+  } catch {
+    return 1000;
+  }
+};
 
 const loadStoppedSessionData = async (
   sessionId: string,
   existingSummary: RecordingSummary | null
 ): Promise<StoppedSessionData> => {
-  const meta = await GpsTracker.getSessionMeta(sessionId);
+  const [meta, splitIntervalMeters] = await Promise.all([
+    GpsTracker.getSessionMeta(sessionId),
+    readSplitIntervalMeters()
+  ]);
   const { fixes, skipped } = readFixLog(meta.logUri, meta);
   const { samples } = readHeartRateLog(heartRateLogUri(meta));
-  const replay = replaySession(meta, fixes, skipped, samples);
+  const replay = replaySession(meta, fixes, skipped, samples, splitIntervalMeters);
 
-  const summary: RecordingSummary = existingSummary ?? {
-    meta,
+  const baseLiveStats: LiveStats = existingSummary?.liveStats ?? {
+    elapsedSec: replay.stats.elapsedTimeSec,
+    distanceMeters: replay.stats.distanceMeters,
+    currentSpeedMps: replay.stats.averageSpeedMetersPerSec,
+    altitudeM: replay.stream.altitude?.data.at(-1) ?? null,
+    slopePercent: null,
+    elevationGainM: replay.stats.elevationGainMeters,
+    gpsLost: false,
+    hAccM: null
+  };
+
+  const summary: RecordingSummary = {
+    meta: existingSummary?.meta ?? meta,
     liveStats: {
-      elapsedSec: replay.stats.elapsedTimeSec,
-      distanceMeters: replay.stats.distanceMeters,
-      currentSpeedMps: replay.stats.averageSpeedMetersPerSec,
-      altitudeM: replay.stream.altitude?.data.at(-1) ?? null,
-      slopePercent: null,
+      ...baseLiveStats,
+      movingTimeSec: replay.stats.movingTimeSec,
       elevationGainM: replay.stats.elevationGainMeters,
-      gpsLost: false,
-      hAccM: null
+      currentSpeedMps:
+        replay.stats.averageSpeedMetersPerSec > 0
+          ? replay.stats.averageSpeedMetersPerSec
+          : baseLiveStats.currentSpeedMps
     }
   };
 
@@ -95,7 +120,7 @@ const loadStoppedSessionData = async (
         }
       : null;
 
-  return { meta, summary, heartRateSummary };
+  return { meta, summary, splits: replay.splits, heartRateSummary };
 };
 
 const persistSessionAsActivity = async (
@@ -176,6 +201,7 @@ export function useRecording(): UseRecordingResult {
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
+  const [splits, setSplits] = useState<SplitEvent[]>([]);
   const [heartRateSummary, setHeartRateSummary] = useState<{ average: number; max: number } | null>(
     null
   );
@@ -210,6 +236,7 @@ export function useRecording(): UseRecordingResult {
           if (isMounted) {
             setActiveProfile(loaded.meta.profile);
             setSummary(loaded.summary);
+            setSplits(loaded.splits);
             setHeartRateSummary(loaded.heartRateSummary);
           }
           return;
@@ -330,6 +357,7 @@ export function useRecording(): UseRecordingResult {
           if (summaryRef.current === null) {
             setSummary(loaded.summary);
           }
+          setSplits(loaded.splits);
           setHeartRateSummary(loaded.heartRateSummary);
         } catch (cause: unknown) {
           simpleLogger.error('Could not load the stopped session', cause);
@@ -418,6 +446,7 @@ export function useRecording(): UseRecordingResult {
         );
         lastFixWallMsRef.current = 0;
         setLastSplit(null);
+        setSplits([]);
         setState({
           phase: 'recording',
           sessionId: meta.sessionId,
@@ -472,6 +501,8 @@ export function useRecording(): UseRecordingResult {
       const sessionId = recordingState.sessionId;
       if (sessionId) {
         const loaded = await loadStoppedSessionData(sessionId, nextSummary);
+        setSummary(loaded.summary);
+        setSplits(loaded.splits);
         setHeartRateSummary(loaded.heartRateSummary);
       }
     } catch (cause: unknown) {
@@ -493,6 +524,7 @@ export function useRecording(): UseRecordingResult {
       try {
         await persistSessionAsActivity(sessionId, name, summary, addActivity);
         setSummary(null);
+        setSplits([]);
         setHeartRateSummary(null);
         setActiveProfile(null);
         setState(IDLE_STATE);
@@ -520,6 +552,7 @@ export function useRecording(): UseRecordingResult {
       await GpsTracker.discardSession(sessionId);
       splitDetectorRef.current = null;
       setSummary(null);
+      setSplits([]);
       setHeartRateSummary(null);
       setActiveProfile(null);
       setState(IDLE_STATE);
@@ -562,6 +595,7 @@ export function useRecording(): UseRecordingResult {
     activeProfile,
     liveStats,
     summary,
+    splits,
     heartRateSummary,
     lastSplit,
     error,

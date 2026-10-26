@@ -14,6 +14,7 @@ import type {
   RecordingMeta,
   RecordingSummary
 } from '../services/gpsTracker';
+import type { SplitEvent } from '../services/splits';
 import { PROFILE_LABELS, PROFILES } from '../services/profiles';
 
 const PROFILE_ICONS: Record<Profile, string> = {
@@ -89,6 +90,19 @@ export const formatElevationGain = (
   return `+${Math.round(meters)} m`;
 };
 
+export const formatSplitDistance = (meters: number): string =>
+  meters < 950 ? `${Math.round(meters)} m` : `${(meters / METERS_PER_KILOMETER).toFixed(2)} km`;
+
+export const formatSplitRate = (
+  split: SplitEvent,
+  profile: Profile,
+  rateMode: RateDisplayMode
+): string => {
+  const speedMps =
+    split.splitDurationMs > 0 ? (split.splitDistanceMeters * 1000) / split.splitDurationMs : null;
+  return formatRate(speedMps, profile, rateMode);
+};
+
 const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
@@ -137,6 +151,7 @@ export function RecordingScreen(): JSX.Element {
     activeProfile,
     liveStats,
     summary,
+    splits = [],
     heartRateSummary,
     lastSplit,
     error,
@@ -272,6 +287,9 @@ export function RecordingScreen(): JSX.Element {
       {state.phase === 'stopped-unsaved' ? (
         <LastSessionCard
           summary={summary}
+          splits={splits}
+          profile={displayedProfile}
+          rateMode={rateMode}
           heartRateSummary={heartRateSummary}
           onSave={save}
           onDiscard={discard}
@@ -646,6 +664,9 @@ function RecordingActions({
 
 interface LastSessionCardProps {
   readonly summary: RecordingSummary | null;
+  readonly splits: SplitEvent[];
+  readonly profile: Profile;
+  readonly rateMode: RateDisplayMode;
   readonly heartRateSummary: { average: number; max: number } | null;
   readonly onSave: (name: string) => Promise<void>;
   readonly onDiscard: () => Promise<void>;
@@ -654,8 +675,62 @@ interface LastSessionCardProps {
   readonly theme: ResolvedTheme;
 }
 
+const computeSummaryAverageSpeedMps = (summary: RecordingSummary | null): number | null => {
+  if (!summary) {
+    return null;
+  }
+  if (summary.liveStats.currentSpeedMps != null && summary.liveStats.currentSpeedMps > 0) {
+    return summary.liveStats.currentSpeedMps;
+  }
+  const activeSeconds = summary.liveStats.movingTimeSec ?? summary.liveStats.elapsedSec;
+  if (activeSeconds <= 0 || summary.liveStats.distanceMeters <= 0) {
+    return null;
+  }
+  return summary.liveStats.distanceMeters / activeSeconds;
+};
+
+function SplitsBreakdownTable({
+  splits,
+  profile,
+  rateMode,
+  styles
+}: {
+  readonly splits: SplitEvent[];
+  readonly profile: Profile;
+  readonly rateMode: RateDisplayMode;
+  readonly styles: Styles;
+}): JSX.Element | null {
+  if (splits.length === 0) {
+    return null;
+  }
+  return (
+    <View style={styles.splitsSection}>
+      <Text style={styles.cardLabel}>Splits</Text>
+      <View style={styles.splitsHeaderRow}>
+        <Text style={styles.splitHeaderLabel}>Split</Text>
+        <Text style={styles.splitHeaderLabel}>Distance</Text>
+        <Text style={styles.splitHeaderLabel}>Time</Text>
+        <Text style={styles.splitHeaderLabelRight}>{rateMode === 'pace' ? 'Pace' : 'Speed'}</Text>
+      </View>
+      {splits.map(split => (
+        <View key={split.splitNumber} style={styles.splitRow}>
+          <Text style={styles.splitCellText}>{`#${split.splitNumber}`}</Text>
+          <Text style={styles.splitCellText}>{formatSplitDistance(split.splitDistanceMeters)}</Text>
+          <Text style={styles.splitCellText}>
+            {formatElapsed(Math.round(split.splitDurationMs / 1000))}
+          </Text>
+          <Text style={styles.splitCellTextRight}>{formatSplitRate(split, profile, rateMode)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function LastSessionCard({
   summary,
+  splits,
+  profile,
+  rateMode,
   heartRateSummary,
   onSave,
   onDiscard,
@@ -664,9 +739,15 @@ function LastSessionCard({
   theme
 }: LastSessionCardProps): JSX.Element {
   const [name, setName] = useState('');
-  const fixCount = summary?.meta.fixCount ?? 0;
+  const sessionProfile = (summary?.meta?.profile as Profile | undefined) ?? profile;
   const distanceKm = summary ? (summary.liveStats.distanceMeters / 1000).toFixed(2) : '—';
+  const movingSec = summary?.liveStats.movingTimeSec ?? summary?.liveStats.elapsedSec;
+  const movingTime = movingSec !== undefined ? formatElapsed(movingSec) : '—';
   const duration = summary ? formatElapsed(summary.liveStats.elapsedSec) : '—';
+  const avgRate = formatRate(computeSummaryAverageSpeedMps(summary), sessionProfile, rateMode);
+  const elevGain = summary
+    ? formatElevationGain(summary.liveStats.elevationGainM, sessionProfile)
+    : '—';
 
   return (
     <View style={styles.card}>
@@ -676,16 +757,24 @@ function LastSessionCard({
       </View>
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>{fixCount}</Text>
-          <Text style={styles.summaryLabel}>fixes</Text>
-        </View>
-        <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{distanceKm} km</Text>
           <Text style={styles.summaryLabel}>distance</Text>
         </View>
         <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{movingTime}</Text>
+          <Text style={styles.summaryLabel}>moving time</Text>
+        </View>
+        <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{duration}</Text>
           <Text style={styles.summaryLabel}>duration</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{avgRate}</Text>
+          <Text style={styles.summaryLabel}>{rateMode === 'pace' ? 'avg pace' : 'avg speed'}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{elevGain}</Text>
+          <Text style={styles.summaryLabel}>elev gain</Text>
         </View>
         {heartRateSummary ? (
           <View style={styles.summaryItem}>
@@ -696,6 +785,12 @@ function LastSessionCard({
           </View>
         ) : null}
       </View>
+      <SplitsBreakdownTable
+        splits={splits}
+        profile={sessionProfile}
+        rateMode={rateMode}
+        styles={styles}
+      />
       <TextInput
         value={name}
         onChangeText={setName}

@@ -626,7 +626,8 @@ function buildStreamSet(ctx: ReplayContext): EncodableStreamSet {
 function createReplayContext(
   meta: RecordingMeta,
   fixes: FixLogEntry[],
-  heartRateSamples: HeartRateSample[]
+  heartRateSamples: HeartRateSample[],
+  splitIntervalMeters: number
 ): ReplayContext {
   const isSwimming = meta.profile === 'swimming';
   const filterOptions =
@@ -661,7 +662,11 @@ function createReplayContext(
     autoPauseGaps: [],
     splits: [],
     autoPausedCount: 0,
-    splitDetector: new SplitDetector({ audioEnabled: false, hapticEnabled: false }),
+    splitDetector: new SplitDetector({
+      audioEnabled: false,
+      hapticEnabled: false,
+      intervalMeters: splitIntervalMeters
+    }),
     firstKnownEle,
     lastKnownEle: null,
     firstKnownGeoid,
@@ -674,9 +679,10 @@ export function replaySession(
   meta: RecordingMeta,
   fixes: FixLogEntry[],
   skipped = 0,
-  heartRateSamples: HeartRateSample[] = []
+  heartRateSamples: HeartRateSample[] = [],
+  splitIntervalMeters = 1000
 ): ReplayResult {
-  const ctx = createReplayContext(meta, fixes, heartRateSamples);
+  const ctx = createReplayContext(meta, fixes, heartRateSamples, splitIntervalMeters);
   const isSwimming = ctx.isSwimming;
 
   for (let i = 0; i < fixes.length; i++) {

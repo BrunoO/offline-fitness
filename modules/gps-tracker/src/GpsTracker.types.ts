@@ -64,6 +64,7 @@ export interface RecordingState {
 /** Live numbers for the screen. The canonical ones come from the replay. */
 export interface LiveStats {
   elapsedSec: number;
+  movingTimeSec?: number | null;
   distanceMeters: number;
   currentSpeedMps: number | null;
   altitudeM: number | null;

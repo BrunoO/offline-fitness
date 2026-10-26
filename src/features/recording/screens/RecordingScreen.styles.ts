@@ -337,21 +337,74 @@ export const createStyles = (theme: ResolvedTheme) =>
     },
     summaryRow: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginTop: SPACING.md
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginTop: SPACING.md,
+      rowGap: SPACING.md
     },
     summaryItem: {
-      alignItems: 'center'
+      alignItems: 'center',
+      minWidth: '30%'
     },
     summaryValue: {
       color: theme.text,
-      fontSize: 20,
+      fontSize: 18,
+      fontVariant: ['tabular-nums'],
       fontWeight: '700'
     },
     summaryLabel: {
       color: theme.textMuted,
       fontSize: 12,
       marginTop: SPACING.xs
+    },
+    splitsSection: {
+      borderTopColor: theme.border,
+      borderTopWidth: 1,
+      marginTop: SPACING.md,
+      paddingTop: SPACING.md
+    },
+    splitsHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: SPACING.xs,
+      marginTop: SPACING.xs
+    },
+    splitHeaderLabel: {
+      color: theme.textMuted,
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '600',
+      textTransform: 'uppercase'
+    },
+    splitHeaderLabelRight: {
+      color: theme.textMuted,
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '600',
+      textAlign: 'right',
+      textTransform: 'uppercase'
+    },
+    splitRow: {
+      borderTopColor: theme.border,
+      borderTopWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: SPACING.xs
+    },
+    splitCellText: {
+      color: theme.text,
+      flex: 1,
+      fontSize: 13,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '500'
+    },
+    splitCellTextRight: {
+      color: theme.text,
+      flex: 1,
+      fontSize: 13,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '600',
+      textAlign: 'right'
     },
     errorCard: {
       alignItems: 'center',

@@ -238,4 +238,116 @@ describe('RecordingScreen', () => {
     expect(getByText('3.6 km/h')).toBeTruthy();
     expect(getByText('Show /100m')).toBeTruthy();
   });
+
+  it('renders richer post-workout summary and splits breakdown table in stopped-unsaved phase', () => {
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: true },
+      state: { phase: 'stopped-unsaved', sessionId: 's-done' },
+      activeProfile: 'running',
+      liveStats: null,
+      summary: {
+        sessionId: 's-done',
+        fixCount: 180,
+        logUri: 'file:///tmp/s-done/fixes.jsonl',
+        meta: {
+          sessionId: 's-done',
+          profile: 'running',
+          startedAtUtcMs: 1_700_000_000_000,
+          deviceUtcOffsetSeconds: 3600,
+          capture: {
+            intervalMs: 2000,
+            minDistanceM: 3,
+            accuracyCeilingM: 20,
+            useBarometer: true
+          },
+          pauses: [],
+          fixCount: 180,
+          logUri: 'file:///tmp/s-done/fixes.jsonl',
+          libraryVersion: '0.1.0'
+        },
+        liveStats: {
+          elapsedSec: 660,
+          movingTimeSec: 600,
+          distanceMeters: 2500,
+          currentSpeedMps: 2500 / 600,
+          altitudeM: 310,
+          elevationGainM: 42,
+          gpsLost: false,
+          hAccM: 4
+        }
+      },
+      heartRateSummary: { average: 152, max: 171 },
+      splits: [
+        {
+          splitNumber: 1,
+          splitDistanceMeters: 1000,
+          splitDurationMs: 235_000,
+          paceSecondsPerKm: 235,
+          paceFormatted: '3:55 /km',
+          totalDistanceMeters: 1000,
+          totalElapsedTimeMs: 235_000
+        },
+        {
+          splitNumber: 2,
+          splitDistanceMeters: 1000,
+          splitDurationMs: 245_000,
+          paceSecondsPerKm: 245,
+          paceFormatted: '4:05 /km',
+          totalDistanceMeters: 2000,
+          totalElapsedTimeMs: 480_000
+        },
+        {
+          splitNumber: 3,
+          splitDistanceMeters: 500,
+          splitDurationMs: 125_000,
+          paceSecondsPerKm: 250,
+          paceFormatted: '4:10 /km',
+          totalDistanceMeters: 2500,
+          totalElapsedTimeMs: 605_000
+        }
+      ],
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save: jest.fn(),
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByText } = render(wrap(<RecordingScreen />));
+
+    // Summary grid items
+    expect(getByText('2.50 km')).toBeTruthy();
+    expect(getByText('distance')).toBeTruthy();
+    expect(getByText('10:00')).toBeTruthy();
+    expect(getByText('moving time')).toBeTruthy();
+    expect(getByText('11:00')).toBeTruthy();
+    expect(getByText('duration')).toBeTruthy();
+    expect(getByText('4:00 /km')).toBeTruthy();
+    expect(getByText('avg pace')).toBeTruthy();
+    expect(getByText('+42 m')).toBeTruthy();
+    expect(getByText('elev gain')).toBeTruthy();
+    expect(getByText('152/171')).toBeTruthy();
+    expect(getByText('HR avg/max')).toBeTruthy();
+
+    // Splits breakdown table
+    expect(getByText('Splits')).toBeTruthy();
+    expect(getByText('#1')).toBeTruthy();
+    expect(getByText('3:55')).toBeTruthy();
+    expect(getByText('3:55 /km')).toBeTruthy();
+    expect(getByText('#2')).toBeTruthy();
+    expect(getByText('4:05')).toBeTruthy();
+    expect(getByText('4:05 /km')).toBeTruthy();
+    expect(getByText('#3')).toBeTruthy();
+    expect(getByText('500 m')).toBeTruthy();
+    expect(getByText('2:05')).toBeTruthy();
+    expect(getByText('4:10 /km')).toBeTruthy();
+  });
 });
