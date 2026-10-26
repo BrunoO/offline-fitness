@@ -1,5 +1,7 @@
 import { LatLng } from '@/shared';
 
+export type FlyoverCameraMode = 'follow' | 'north-up' | 'overview';
+
 export interface FlyoverPoint {
   /** Geographic coordinate latitude in degrees */
   latitude: number;

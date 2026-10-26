@@ -6,15 +6,29 @@ import { Modal, Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'r
 import MapView, { MapType, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlyoverPlayback } from '../hooks/useFlyoverPlayback';
-import { getFlyoverPointAtTime } from '../services/flyoverInterpolator';
-import { FlyoverPoint, FlyoverTrack } from '../types/flyover.types';
+import {
+  computeAdaptiveZoom,
+  computeLookAheadBearing,
+  getFlyoverPointAtTime,
+  haversineDistance,
+  interpolateAngle,
+  shortestAngularDifference
+} from '../services/flyoverInterpolator';
+import { FlyoverCameraMode, FlyoverPoint, FlyoverTrack } from '../types/flyover.types';
 import FlyoverControls from './FlyoverControls';
 import FlyoverHeader from './FlyoverHeader';
 import FlyoverHud from './FlyoverHud';
 
-const CAMERA_UPDATE_THROTTLE_MS = 100;
-const CAMERA_DURATION_MS = 120;
-const DEFAULT_CAMERA_ZOOM = 16.5;
+const CAMERA_UPDATE_THROTTLE_MS = 450;
+const CAMERA_DURATION_MS = 500;
+const FOLLOW_CAMERA_PITCH = 45;
+const NORTH_UP_CAMERA_PITCH = 35;
+const HEADING_DEADBAND_DEGREES = 15;
+const HEADING_DAMPING_FACTOR = 0.35;
+const LAZY_FOLLOW_FRACTION = 0.025;
+const MIN_LAZY_FOLLOW_METERS = 30;
+const MAX_LAZY_FOLLOW_METERS = 400;
+const OVERVIEW_PADDING = { top: 140, right: 48, bottom: 180, left: 48 };
 
 export interface FlyoverModalProps {
   visible: boolean;
@@ -29,6 +43,12 @@ const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
   terrain: 'standard',
   standard: 'hybrid',
   mutedStandard: 'hybrid'
+};
+
+const NEXT_CAMERA_MODE: Record<FlyoverCameraMode, FlyoverCameraMode> = {
+  follow: 'north-up',
+  'north-up': 'overview',
+  overview: 'follow'
 };
 
 const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bottomInset: number) =>
@@ -131,17 +151,105 @@ function FlyoverMapLayers({
   );
 }
 
-function animateToPoint(map: MapView | null, point: FlyoverPoint | null): void {
-  if (!map || !point) return;
+interface CameraAnimationParams {
+  map: MapView | null;
+  point: FlyoverPoint | null;
+  track: FlyoverTrack;
+  cameraMode: FlyoverCameraMode;
+  force: boolean;
+  lastHeadingRef: React.MutableRefObject<number | null>;
+  lastCenterRef: React.MutableRefObject<LatLng | null>;
+}
+
+function fitMapToOverview(map: MapView | null, coordinates: LatLng[] | undefined): void {
+  if (!map || !coordinates || coordinates.length < 2) return;
+  map.fitToCoordinates(coordinates, {
+    edgePadding: OVERVIEW_PADDING,
+    animated: true
+  });
+}
+
+function resolveDampedHeading(
+  track: FlyoverTrack,
+  point: FlyoverPoint,
+  force: boolean,
+  lastHeadingRef: React.MutableRefObject<number | null>
+): number {
+  const targetHeading = computeLookAheadBearing(track, point);
+  if (force || lastHeadingRef.current === null) {
+    lastHeadingRef.current = targetHeading;
+    return targetHeading;
+  }
+  const diff = Math.abs(shortestAngularDifference(lastHeadingRef.current, targetHeading));
+  if (diff < HEADING_DEADBAND_DEGREES) {
+    return lastHeadingRef.current;
+  }
+  const nextHeading = interpolateAngle(
+    lastHeadingRef.current,
+    targetHeading,
+    HEADING_DAMPING_FACTOR
+  );
+  lastHeadingRef.current = nextHeading;
+  return nextHeading;
+}
+
+function shouldSkipNorthUpPan(
+  point: FlyoverPoint,
+  totalDistance: number,
+  force: boolean,
+  lastCenterRef: React.MutableRefObject<LatLng | null>
+): boolean {
+  if (force || !lastCenterRef.current) {
+    return false;
+  }
+  const threshold = Math.max(
+    MIN_LAZY_FOLLOW_METERS,
+    Math.min(MAX_LAZY_FOLLOW_METERS, totalDistance * LAZY_FOLLOW_FRACTION)
+  );
+  return haversineDistance(lastCenterRef.current, point) < threshold;
+}
+
+function animateCameraByMode({
+  map,
+  point,
+  track,
+  cameraMode,
+  force,
+  lastHeadingRef,
+  lastCenterRef
+}: CameraAnimationParams): void {
+  if (!map || !point || cameraMode === 'overview') return;
+
+  const zoom = computeAdaptiveZoom(track.totalDistance);
+
+  if (cameraMode === 'north-up') {
+    if (shouldSkipNorthUpPan(point, track.totalDistance, force, lastCenterRef)) {
+      return;
+    }
+    const center = { latitude: point.latitude, longitude: point.longitude };
+    lastCenterRef.current = center;
+    lastHeadingRef.current = 0;
+    map.animateCamera(
+      {
+        center,
+        heading: 0,
+        pitch: NORTH_UP_CAMERA_PITCH,
+        zoom
+      },
+      { duration: CAMERA_DURATION_MS }
+    );
+    return;
+  }
+
+  const heading = resolveDampedHeading(track, point, force, lastHeadingRef);
+  const center = { latitude: point.latitude, longitude: point.longitude };
+  lastCenterRef.current = center;
   map.animateCamera(
     {
-      center: {
-        latitude: point.latitude,
-        longitude: point.longitude
-      },
-      heading: point.smoothBearing,
-      pitch: point.pitch,
-      zoom: DEFAULT_CAMERA_ZOOM
+      center,
+      heading,
+      pitch: FOLLOW_CAMERA_PITCH,
+      zoom
     },
     { duration: CAMERA_DURATION_MS }
   );
@@ -168,8 +276,11 @@ export default function FlyoverModal({
   );
 
   const [mapType, setMapType] = useState<MapType>('hybrid');
+  const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
   const mapRef = useRef<MapView | null>(null);
   const lastCameraUpdateRef = useRef(0);
+  const lastHeadingRef = useRef<number | null>(null);
+  const lastCenterRef = useRef<LatLng | null>(null);
   const wasPlayingBeforeScrubRef = useRef(false);
 
   const playback = useFlyoverPlayback(stream, { autoPlay: false, loop: false });
@@ -195,24 +306,45 @@ export default function FlyoverModal({
     setMapType(current => NEXT_MAP_TYPE[current] ?? 'hybrid');
   }, []);
 
-  const updateCamera = useCallback(
-    (force = false) => {
-      if (!currentPoint || !mapRef.current) return;
+  const applyCameraForPoint = useCallback(
+    (targetPoint: FlyoverPoint | null, mode: FlyoverCameraMode, force: boolean) => {
+      if (!mapRef.current) return;
+      if (mode === 'overview') {
+        if (force) {
+          fitMapToOverview(mapRef.current, stream?.coordinates);
+        }
+        return;
+      }
+      if (!targetPoint) return;
       const now = Date.now();
       if (!force && now - lastCameraUpdateRef.current < CAMERA_UPDATE_THROTTLE_MS) {
         return;
       }
       lastCameraUpdateRef.current = now;
-      animateToPoint(mapRef.current, currentPoint);
+      animateCameraByMode({
+        map: mapRef.current,
+        point: targetPoint,
+        track: playback.track,
+        cameraMode: mode,
+        force,
+        lastHeadingRef,
+        lastCenterRef
+      });
     },
-    [currentPoint]
+    [playback.track, stream?.coordinates]
   );
 
+  const cycleCameraMode = useCallback(() => {
+    const nextMode = NEXT_CAMERA_MODE[cameraMode];
+    setCameraMode(nextMode);
+    applyCameraForPoint(currentPoint, nextMode, true);
+  }, [cameraMode, currentPoint, applyCameraForPoint]);
+
   useEffect(() => {
-    if (visible && currentPoint) {
-      updateCamera();
+    if (visible && currentPoint && cameraMode !== 'overview') {
+      applyCameraForPoint(currentPoint, cameraMode, false);
     }
-  }, [visible, currentPoint, updateCamera]);
+  }, [visible, currentPoint, cameraMode, applyCameraForPoint]);
 
   const handleSlidingStart = useCallback(() => {
     wasPlayingBeforeScrubRef.current = isPlaying;
@@ -223,41 +355,32 @@ export default function FlyoverModal({
     (targetProgress: number) => {
       seekTo(targetProgress);
       const targetPoint = resolvePointAtProgress(playback.track, targetProgress);
-      if (targetPoint && mapRef.current) {
-        const now = Date.now();
-        if (now - lastCameraUpdateRef.current >= CAMERA_UPDATE_THROTTLE_MS) {
-          lastCameraUpdateRef.current = now;
-          animateToPoint(mapRef.current, targetPoint);
-        }
-      }
+      applyCameraForPoint(targetPoint, cameraMode, false);
     },
-    [seekTo, playback.track]
+    [seekTo, playback.track, cameraMode, applyCameraForPoint]
   );
 
   const handleSlidingComplete = useCallback(
     (targetProgress: number) => {
       seekTo(targetProgress);
       const targetPoint = resolvePointAtProgress(playback.track, targetProgress);
-      lastCameraUpdateRef.current = Date.now();
-      if (targetPoint && mapRef.current) {
-        animateToPoint(mapRef.current, targetPoint);
-      }
+      applyCameraForPoint(targetPoint, cameraMode, true);
       if (wasPlayingBeforeScrubRef.current) {
         play();
       }
     },
-    [seekTo, playback.track, play]
+    [seekTo, playback.track, cameraMode, applyCameraForPoint, play]
   );
 
   const onMapReady = useCallback(() => {
-    if (currentPoint && mapRef.current) {
-      animateToPoint(mapRef.current, currentPoint);
-    }
-  }, [currentPoint]);
+    applyCameraForPoint(currentPoint, cameraMode, true);
+  }, [currentPoint, cameraMode, applyCameraForPoint]);
 
   const handleClose = useCallback(() => {
     pause();
     seekTo(0);
+    lastHeadingRef.current = null;
+    lastCenterRef.current = null;
     onClose();
   }, [pause, seekTo, onClose]);
 
@@ -303,8 +426,10 @@ export default function FlyoverModal({
             <FlyoverHeader
               title={title}
               mapType={mapType}
+              cameraMode={cameraMode}
               onClose={handleClose}
               onCycleMapType={cycleMapType}
+              onCycleCameraMode={cycleCameraMode}
               topInset={insets.top}
             />
 
@@ -338,8 +463,10 @@ export default function FlyoverModal({
             <FlyoverHeader
               title={title}
               mapType={mapType}
+              cameraMode={cameraMode}
               onClose={handleClose}
               onCycleMapType={cycleMapType}
+              onCycleCameraMode={cycleCameraMode}
               topInset={insets.top}
             />
             <View style={styles.emptyContainer}>

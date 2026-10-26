@@ -3,6 +3,8 @@ import {
   buildFlyoverTrack,
   calculateBearing,
   circularMean,
+  computeAdaptiveZoom,
+  computeLookAheadBearing,
   getFlyoverPointAtProgress,
   getFlyoverPointAtTime,
   haversineDistance,
@@ -441,6 +443,38 @@ describe('speed calculation realism and stream alignment', () => {
       const kmh = pt.speed * 3.6;
       expect(kmh).toBeLessThan(25);
     }
+  });
+});
+
+describe('computeLookAheadBearing and computeAdaptiveZoom', () => {
+  it('smooths switchbacks by computing bearing toward a macro look-ahead point', () => {
+    // Switchback route overall heading due North (lat 45.0 -> 45.01, lon 5.0),
+    // with an initial sharp East-West zig-zag in the first 30m
+    const stream: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.0001, longitude: 5.0002 }, // sharp East (~54 deg)
+        { latitude: 45.0002, longitude: 5.0 }, // back to meridian
+        { latitude: 45.005, longitude: 5.0 },
+        { latitude: 45.01, longitude: 5.0 }
+      ],
+      altitude: [100, 105, 110, 150, 200],
+      time: [0, 10, 20, 100, 200]
+    };
+
+    const track = buildFlyoverTrack(stream);
+    const lookAheadBearing = computeLookAheadBearing(track, track.points[0]);
+    // Despite starting with an East segment (~54 deg), the macro look-ahead points due North (~0 deg)
+    expect(Math.min(lookAheadBearing, 360 - lookAheadBearing)).toBeLessThan(5);
+  });
+
+  it('scales adaptive zoom down as total route distance increases', () => {
+    expect(computeAdaptiveZoom(300)).toBe(16.5);
+    expect(computeAdaptiveZoom(1_500)).toBe(16.0);
+    expect(computeAdaptiveZoom(5_000)).toBe(15.2);
+    expect(computeAdaptiveZoom(20_000)).toBe(14.5);
+    expect(computeAdaptiveZoom(50_000)).toBe(14.0);
+    expect(computeAdaptiveZoom(120_000)).toBe(13.5);
   });
 });
 

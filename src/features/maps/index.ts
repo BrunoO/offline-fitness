@@ -22,6 +22,7 @@ export { useFlyoverPlayback } from './hooks/useFlyoverPlayback';
 
 // Flyover Mathematics & Data Pipeline
 export type {
+  FlyoverCameraMode,
   FlyoverPipelineOptions,
   FlyoverPlaybackOptions,
   FlyoverPlaybackState,
@@ -32,6 +33,8 @@ export {
   buildFlyoverTrack,
   calculateBearing,
   circularMean,
+  computeAdaptiveZoom,
+  computeLookAheadBearing,
   getFlyoverPointAtProgress,
   getFlyoverPointAtTime,
   haversineDistance,

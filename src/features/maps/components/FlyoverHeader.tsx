@@ -3,14 +3,29 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MapType } from 'react-native-maps';
+import { FlyoverCameraMode } from '../types/flyover.types';
 
 export interface FlyoverHeaderProps {
   title: string;
   mapType: MapType;
+  cameraMode?: FlyoverCameraMode;
   onClose: () => void;
   onCycleMapType: () => void;
+  onCycleCameraMode?: () => void;
   topInset: number;
 }
+
+const CAMERA_MODE_LABEL: Record<FlyoverCameraMode, string> = {
+  follow: 'Follow',
+  'north-up': 'North-Up',
+  overview: 'Overview'
+};
+
+const CAMERA_MODE_ICON: Record<FlyoverCameraMode, React.ComponentProps<typeof Ionicons>['name']> = {
+  follow: 'videocam-outline',
+  'north-up': 'compass-outline',
+  overview: 'scan-outline'
+};
 
 const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number) =>
   StyleSheet.create({
@@ -75,12 +90,16 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number) =>
 export default function FlyoverHeader({
   title,
   mapType,
+  cameraMode = 'follow',
   onClose,
   onCycleMapType,
+  onCycleCameraMode,
   topInset
 }: Readonly<FlyoverHeaderProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, topInset), [theme, topInset]);
+  const modeLabel = CAMERA_MODE_LABEL[cameraMode];
+  const modeIcon = CAMERA_MODE_ICON[cameraMode];
 
   return (
     <View style={styles.headerBar}>
@@ -99,6 +118,18 @@ export default function FlyoverHeader({
       </View>
 
       <View style={styles.headerActions}>
+        {onCycleCameraMode ? (
+          <TouchableOpacity
+            style={styles.mapTypeButton}
+            onPress={onCycleCameraMode}
+            accessibilityRole="button"
+            accessibilityLabel={`Camera mode: ${modeLabel}. Tap to change.`}
+          >
+            <Ionicons name={modeIcon} size={16} color={theme.text} />
+            <Text style={styles.mapTypeText}>{modeLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <TouchableOpacity
           style={styles.mapTypeButton}
           onPress={onCycleMapType}

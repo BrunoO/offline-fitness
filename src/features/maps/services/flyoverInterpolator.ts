@@ -584,3 +584,59 @@ export function resampleTrackByDistance(
   resampled.push(points.at(-1)!);
   return resampled;
 }
+
+const LOOK_AHEAD_FRACTION = 0.08;
+const MIN_LOOK_AHEAD_METERS = 150;
+const MAX_LOOK_AHEAD_METERS = 2000;
+const MIN_CHORD_MOVEMENT_METERS = 5;
+
+/**
+ * Computes a macro look-ahead chord bearing from the current point to a point
+ * further along the route (8% of total distance, clamped to [150m, 2000m]).
+ * This cancels out switchbacks, hairpins, and local GPS zig-zags so the camera
+ * follows the macro direction of travel without rotational whip.
+ *
+ * @param track The precomputed FlyoverTrack.
+ * @param currentPoint The current interpolated FlyoverPoint.
+ * @returns Macro look-ahead bearing in degrees [0, 360).
+ */
+export function computeLookAheadBearing(track: FlyoverTrack, currentPoint: FlyoverPoint): number {
+  if (track.points.length < 2 || track.totalDistance <= 0) {
+    return currentPoint.smoothBearing;
+  }
+
+  const lookAheadDist = Math.max(
+    MIN_LOOK_AHEAD_METERS,
+    Math.min(MAX_LOOK_AHEAD_METERS, track.totalDistance * LOOK_AHEAD_FRACTION)
+  );
+  const targetDist = Math.min(track.totalDistance, currentPoint.distance + lookAheadDist);
+  const targetProgress = targetDist / track.totalDistance;
+  const aheadPoint = getFlyoverPointAtProgress(track, targetProgress);
+
+  if (!aheadPoint) {
+    return currentPoint.smoothBearing;
+  }
+
+  const chordDist = haversineDistance(currentPoint, aheadPoint);
+  if (chordDist < MIN_CHORD_MOVEMENT_METERS) {
+    return currentPoint.smoothBearing;
+  }
+
+  return calculateBearing(currentPoint, aheadPoint);
+}
+
+/**
+ * Computes an adaptive Google Maps zoom level based on total route distance,
+ * keeping a wider perspective on long rides and closer framing on short tracks.
+ *
+ * @param totalDistanceMeters Total route distance in meters.
+ * @returns Recommended camera zoom level in [13.5, 16.5].
+ */
+export function computeAdaptiveZoom(totalDistanceMeters: number): number {
+  if (totalDistanceMeters <= 500) return 16.5;
+  if (totalDistanceMeters <= 2_000) return 16.0;
+  if (totalDistanceMeters <= 10_000) return 15.2;
+  if (totalDistanceMeters <= 30_000) return 14.5;
+  if (totalDistanceMeters <= 80_000) return 14.0;
+  return 13.5;
+}

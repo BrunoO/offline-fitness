@@ -20,6 +20,8 @@ jest.mock('@expo/vector-icons', () => ({
 
 const mockAnimateCamera = (MapsModule as unknown as { __mockAnimateCamera: jest.Mock })
   .__mockAnimateCamera;
+const mockFitToCoordinates = (MapsModule as unknown as { __mockFitToCoordinates: jest.Mock })
+  .__mockFitToCoordinates;
 
 const initialMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -45,6 +47,7 @@ const sampleStream: ActivityStream = {
 describe('FlyoverModal', () => {
   beforeEach(() => {
     mockAnimateCamera.mockClear();
+    mockFitToCoordinates.mockClear();
   });
 
   it('renders modal content with custom title when visible', () => {
@@ -147,10 +150,53 @@ describe('FlyoverModal', () => {
     expect(mockAnimateCamera).toHaveBeenCalledWith(
       expect.objectContaining({
         center: { latitude: 45.0, longitude: 5.0 },
+        pitch: 45,
         zoom: 16.5
       }),
-      { duration: 120 }
+      { duration: 500 }
     );
+  });
+
+  it('cycles through Follow, North-Up, and Overview camera modes', () => {
+    const { getByText, getByLabelText } = render(
+      wrap(
+        <FlyoverModal
+          visible={true}
+          onClose={jest.fn()}
+          stream={sampleStream}
+          title="Morning Run"
+        />
+      )
+    );
+
+    // Default mode is Follow
+    expect(getByText('Follow')).toBeTruthy();
+
+    const cameraModeBtn = getByLabelText(/Camera mode:/);
+    mockAnimateCamera.mockClear();
+    fireEvent.press(cameraModeBtn);
+
+    // Second mode is North-Up (heading locked to 0, pitch 35)
+    expect(getByText('North-Up')).toBeTruthy();
+    expect(mockAnimateCamera).toHaveBeenCalledWith(
+      expect.objectContaining({
+        heading: 0,
+        pitch: 35
+      }),
+      { duration: 500 }
+    );
+
+    // Third mode is Overview (fits entire track, does not call animateCamera)
+    mockAnimateCamera.mockClear();
+    mockFitToCoordinates.mockClear();
+    fireEvent.press(getByLabelText(/Camera mode:/));
+    expect(getByText('Overview')).toBeTruthy();
+    expect(mockFitToCoordinates).toHaveBeenCalledTimes(1);
+    expect(mockAnimateCamera).not.toHaveBeenCalled();
+
+    // Cycles back to Follow
+    fireEvent.press(getByLabelText(/Camera mode:/));
+    expect(getByText('Follow')).toBeTruthy();
   });
 
   it('resets progress to 0 when modal is closed after scrubbing', () => {
