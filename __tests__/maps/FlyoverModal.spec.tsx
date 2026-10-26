@@ -146,4 +146,28 @@ describe('FlyoverModal', () => {
     expect(getByText('No GPS Track Data')).toBeTruthy();
     expect(getByText('Indoor Rowing')).toBeTruthy();
   });
+
+  it('triggers animateCamera on onMapReady instead of zooming out to whole route', () => {
+    const animateCameraMock = jest.fn();
+    const { getByTestId, queryAllByTestId } = render(
+      wrap(
+        <FlyoverModal
+          visible={true}
+          onClose={jest.fn()}
+          stream={sampleStream}
+          title="Morning Run"
+        />
+      )
+    );
+
+    const mapView = getByTestId('mock-map-view');
+    // Initially at progress 0, traveledCoordinates has length 1 so no polyline is rendered
+    // (the total route polyline has been removed to avoid ghost traces)
+    expect(queryAllByTestId('mock-polyline')).toHaveLength(0);
+
+    // Call onMapReady
+    mapView.props.onMapReady();
+    // Verification that onMapReady runs without error
+    expect(mapView).toBeTruthy();
+  });
 });

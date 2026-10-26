@@ -15,7 +15,6 @@ import FlyoverHud from './FlyoverHud';
 const CAMERA_UPDATE_THROTTLE_MS = 100;
 const CAMERA_DURATION_MS = 120;
 const DEFAULT_CAMERA_ZOOM = 16.5;
-const MAP_PADDING = { top: 120, right: 40, bottom: 220, left: 40 };
 
 export interface FlyoverModalProps {
   visible: boolean;
@@ -95,30 +94,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
   });
 
 interface FlyoverMapLayersProps {
-  streamCoordinates?: LatLng[];
   traveledCoordinates: LatLng[];
   currentPoint: FlyoverPoint | null;
-  scheme: 'light' | 'dark';
   primaryColor: string;
   markerContainerStyle: StyleProp<ViewStyle>;
 }
 
 function FlyoverMapLayers({
-  streamCoordinates,
   traveledCoordinates,
   currentPoint,
-  scheme,
   primaryColor,
   markerContainerStyle
 }: Readonly<FlyoverMapLayersProps>) {
-  const fullRouteColor = scheme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.35)';
-
   return (
     <>
-      {streamCoordinates && streamCoordinates.length > 1 ? (
-        <Polyline coordinates={streamCoordinates} strokeColor={fullRouteColor} strokeWidth={4} />
-      ) : null}
-
       {traveledCoordinates.length > 1 ? (
         <Polyline coordinates={traveledCoordinates} strokeColor={primaryColor} strokeWidth={5} />
       ) : null}
@@ -261,13 +250,10 @@ export default function FlyoverModal({
   );
 
   const onMapReady = useCallback(() => {
-    if (stream?.coordinates && stream.coordinates.length > 0 && mapRef.current) {
-      mapRef.current.fitToCoordinates(stream.coordinates, {
-        edgePadding: MAP_PADDING,
-        animated: false
-      });
+    if (currentPoint && mapRef.current) {
+      animateToPoint(mapRef.current, currentPoint);
     }
-  }, [stream]);
+  }, [currentPoint]);
 
   const handleClose = useCallback(() => {
     pause();
@@ -296,8 +282,8 @@ export default function FlyoverModal({
               initialRegion={{
                 latitude: initialCoord.latitude,
                 longitude: initialCoord.longitude,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005
               }}
               onMapReady={onMapReady}
               showsCompass={false}
@@ -306,10 +292,8 @@ export default function FlyoverModal({
               rotateEnabled
             >
               <FlyoverMapLayers
-                streamCoordinates={stream?.coordinates}
                 traveledCoordinates={traveledCoordinates}
                 currentPoint={currentPoint}
-                scheme={theme.scheme}
                 primaryColor={theme.primary}
                 markerContainerStyle={styles.markerContainer}
               />

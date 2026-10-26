@@ -178,7 +178,7 @@ export function calculateAdaptiveTolerance(
   const deltaLngM = (maxLng - minLng) * METERS_PER_DEGREE_LAT * Math.cos(midLatRad);
   const spanMeters = Math.hypot(deltaLatM, deltaLngM);
 
-  const isSwim = Boolean(activityType && activityType.toLowerCase().includes('swim'));
+  const isSwim = Boolean(activityType?.toLowerCase().includes('swim'));
 
   let tolMeters: number;
   if (isSwim) {
