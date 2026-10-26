@@ -34,6 +34,60 @@ function getDayOfYear(date: Date): number {
   return Math.floor(diff / oneDay);
 }
 
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+];
+
+function groupActivitiesByDay(activities: Activity[]): { [key: number]: Activity[] } {
+  const byDay: { [key: number]: Activity[] } = {};
+  for (const activity of activities) {
+    const day = activityDayOfYear(activity);
+    if (!byDay[day]) {
+      byDay[day] = [];
+    }
+    byDay[day].push(activity);
+  }
+  return byDay;
+}
+
+interface DayAccumulation {
+  distance: number;
+  time: number;
+  elevation: number;
+  count: number;
+}
+
+function accumulateDayActivities(
+  dayActivities: Activity[],
+  useElapsedTime: boolean
+): DayAccumulation {
+  let distance = 0;
+  let time = 0;
+  let elevation = 0;
+  for (const activity of dayActivities) {
+    distance += Number.isFinite(activity.distance) ? activity.distance : 0;
+    const rawTime = useElapsedTime
+      ? (activity.elapsed_time ?? activity.moving_time)
+      : activity.moving_time;
+    time += Number.isFinite(rawTime) ? rawTime : 0;
+    elevation += Number.isFinite(activity.total_elevation_gain)
+      ? activity.total_elevation_gain
+      : 0;
+  }
+  return { distance, time, elevation, count: dayActivities.length };
+}
+
 function processYearData(
   activities: Activity[],
   year: number,
@@ -48,53 +102,22 @@ function processYearData(
   let cumulativeElevation = 0;
   let cumulativeActivities = 0;
 
-  const activitiesByDay: { [key: number]: Activity[] } = {};
-  for (const activity of yearActivities) {
-    const day = activityDayOfYear(activity);
-    if (!activitiesByDay[day]) {
-      activitiesByDay[day] = [];
-    }
-    activitiesByDay[day].push(activity);
-  }
-
-  const monthNames = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ];
+  const activitiesByDay = groupActivitiesByDay(yearActivities);
 
   const date = new Date(year, 0, 1);
   for (let day = 1; day <= maxDayOfYear; day++) {
     date.setDate(day);
-    if (activitiesByDay[day]) {
-      for (const activity of activitiesByDay[day]) {
-        const distance = Number.isFinite(activity.distance) ? activity.distance : 0;
-        const rawTime = useElapsedTime
-          ? (activity.elapsed_time ?? activity.moving_time)
-          : activity.moving_time;
-        const time = Number.isFinite(rawTime) ? rawTime : 0;
-        const elevation = Number.isFinite(activity.total_elevation_gain)
-          ? activity.total_elevation_gain
-          : 0;
-        cumulativeDistance += distance;
-        cumulativeTime += time;
-        cumulativeElevation += elevation;
-      }
-      cumulativeActivities += activitiesByDay[day].length;
+    const dayActivities = activitiesByDay[day];
+    if (dayActivities) {
+      const acc = accumulateDayActivities(dayActivities, useElapsedTime);
+      cumulativeDistance += acc.distance;
+      cumulativeTime += acc.time;
+      cumulativeElevation += acc.elevation;
+      cumulativeActivities += acc.count;
     }
 
     const month = date.getMonth() + 1;
     const quarter = Math.ceil(month / 3);
-    const quarterLabel = `Q${quarter}`;
 
     data.push({
       dayOfYear: day,
@@ -104,9 +127,9 @@ function processYearData(
       activities: cumulativeActivities,
       label: `${day}`,
       month: month,
-      monthLabel: monthNames[date.getMonth()],
+      monthLabel: MONTH_NAMES[date.getMonth()],
       quarter: quarter,
-      quarterLabel: quarterLabel
+      quarterLabel: `Q${quarter}`
     });
   }
 
