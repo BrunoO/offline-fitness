@@ -14,10 +14,13 @@ export { useProcessedActivities } from './hooks/useProcessedActivities';
 
 // Types
 export type { StreamSet } from './types/stravaActivityStream.model';
+export type { CompressStreamOptions } from './services/fetchAndStoreStreams';
 
 // Services
 export {
+  calculateAdaptiveTolerance,
   calculateAndStoreMissingBoundingBoxes,
+  compressStreamSet,
   correctSwimElevationGain,
   countStreamsStatus,
   deleteStreamFiles,

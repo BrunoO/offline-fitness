@@ -127,8 +127,93 @@ interface IndexedPoint {
   idx: number;
 }
 
-export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
-  if (!streamSet.latlng?.data || streamSet.latlng.data.length === 0) {
+const METERS_PER_DEGREE_LAT = 111_139;
+const DEFAULT_SIMPLIFY_TOLERANCE_DEG = 0.0001; // ~11.1 meters (legacy baseline)
+const SWIM_MIN_TOLERANCE_METERS = 0.8;
+const SWIM_MAX_TOLERANCE_METERS = 1.5;
+const GENERAL_MIN_TOLERANCE_METERS = 1.5;
+const GENERAL_MAX_TOLERANCE_METERS = 10.0;
+const SPAN_DIVISOR = 1200;
+
+export interface CompressStreamOptions {
+  /** Explicit simplification tolerance in degrees. If omitted, calculated adaptively. */
+  tolerance?: number;
+  /** Activity type (e.g. 'Swim', 'Run', 'Ride') to guide adaptive limits. */
+  activityType?: string;
+}
+
+/**
+ * Calculates an adaptive Ramer-Douglas-Peucker simplification tolerance in degrees
+ * based on the spatial scale of the track and the activity type.
+ *
+ * Shorter tracks (like swims, track workouts, or short runs) receive a fine-grained
+ * tolerance (~0.8-1.5m for swims, ~1.5m for short runs) to preserve turns, laps,
+ * and curves without corner-cutting. Large tracks (like 100km rides) scale up to
+ * ~10m (~0.00009°) to prevent excessive point counts on mobile maps.
+ */
+export function calculateAdaptiveTolerance(
+  rawLatLng: readonly [number, number][],
+  activityType?: string
+): number {
+  if (rawLatLng.length <= 2) {
+    return DEFAULT_SIMPLIFY_TOLERANCE_DEG;
+  }
+
+  let minLat = rawLatLng[0][0];
+  let maxLat = rawLatLng[0][0];
+  let minLng = rawLatLng[0][1];
+  let maxLng = rawLatLng[0][1];
+
+  for (let i = 1; i < rawLatLng.length; i++) {
+    const lat = rawLatLng[i][0];
+    const lng = rawLatLng[i][1];
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+
+  const midLatRad = ((minLat + maxLat) / 2) * (Math.PI / 180);
+  const deltaLatM = (maxLat - minLat) * METERS_PER_DEGREE_LAT;
+  const deltaLngM = (maxLng - minLng) * METERS_PER_DEGREE_LAT * Math.cos(midLatRad);
+  const spanMeters = Math.hypot(deltaLatM, deltaLngM);
+
+  const isSwim = Boolean(activityType && activityType.toLowerCase().includes('swim'));
+
+  let tolMeters: number;
+  if (isSwim) {
+    tolMeters = Math.max(
+      SWIM_MIN_TOLERANCE_METERS,
+      Math.min(SWIM_MAX_TOLERANCE_METERS, spanMeters / SPAN_DIVISOR)
+    );
+  } else {
+    tolMeters = Math.max(
+      GENERAL_MIN_TOLERANCE_METERS,
+      Math.min(GENERAL_MAX_TOLERANCE_METERS, spanMeters / SPAN_DIVISOR)
+    );
+  }
+
+  return tolMeters / METERS_PER_DEGREE_LAT;
+}
+
+function buildAlignedSeries(
+  simplified: readonly IndexedPoint[],
+  rawAlt?: number[],
+  rawTime?: number[],
+  rawHr?: (number | null)[]
+) {
+  const altitude = rawAlt ? simplified.map(p => rawAlt[p.idx] ?? 0) : [];
+  const time = rawTime ? simplified.map(p => rawTime[p.idx] ?? 0) : [];
+  const heartrate = rawHr ? simplified.map(p => rawHr[p.idx] ?? null) : undefined;
+  return { altitude, time, heartrate };
+}
+
+export const compressStreamSet = (
+  streamSet: StreamSet,
+  options?: CompressStreamOptions
+): ActivityStream => {
+  const rawLatLng = streamSet.latlng?.data;
+  if (!rawLatLng || rawLatLng.length === 0) {
     return {
       coordinates: [],
       altitude: streamSet.altitude?.data ?? [],
@@ -137,10 +222,12 @@ export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
     };
   }
 
-  const rawLatLng = streamSet.latlng.data;
   const rawAlt = streamSet.altitude?.data;
   const rawTime = streamSet.time?.data;
   const rawHr = streamSet.heartrate?.data;
+
+  const tolerance =
+    options?.tolerance ?? calculateAdaptiveTolerance(rawLatLng, options?.activityType);
 
   // Convert to format expected by simplify-js, attaching original index
   // so that altitude, time, and heartrate stay aligned with simplified vertices.
@@ -150,26 +237,20 @@ export const compressStreamSet = (streamSet: StreamSet): ActivityStream => {
     idx
   }));
 
-  const simplified = simplify(points, 0.0001, true) as unknown as IndexedPoint[];
+  const simplified = simplify(points, tolerance, true) as unknown as IndexedPoint[];
 
   const coordinatesResult: LatLng[] = simplified.map(point => ({
     latitude: point.y,
     longitude: point.x
   }));
 
-  const altitudeResult: number[] = rawAlt ? simplified.map(point => rawAlt[point.idx] ?? 0) : [];
-
-  const timeResult: number[] = rawTime ? simplified.map(point => rawTime[point.idx] ?? 0) : [];
-
-  const heartrateResult: (number | null)[] | undefined = rawHr
-    ? simplified.map(point => rawHr[point.idx] ?? null)
-    : undefined;
+  const { altitude, time, heartrate } = buildAlignedSeries(simplified, rawAlt, rawTime, rawHr);
 
   return {
     coordinates: coordinatesResult,
-    altitude: altitudeResult,
-    time: timeResult,
-    heartrate: heartrateResult
+    altitude,
+    time,
+    heartrate
   };
 };
 
@@ -221,7 +302,7 @@ const loadOneActivityStream = async (
   }
   try {
     const stream = await readStreamFile<StreamSet>(file); // NOSONAR - sequential disk read avoids OOM on large sets
-    const compressedStream = compressStreamSet(stream);
+    const compressedStream = compressStreamSet(stream, { activityType: activity.type });
     if (!activity.bounding_box && compressedStream.coordinates.length > 0) {
       activity.bounding_box = calculateBoundingBox(compressedStream.coordinates);
       if (activity.bounding_box) {
@@ -272,7 +353,7 @@ export const loadStreamForActivity = async (activity: Activity): Promise<Activit
 
   try {
     const stream = await readStreamFile<StreamSet>(file);
-    return compressStreamSet(stream);
+    return compressStreamSet(stream, { activityType: activity.type });
   } catch (error) {
     simpleLogger.error(`Error reading stream for activity ${activity.id}:`, error);
     return null;
@@ -351,7 +432,7 @@ async function backfillBoundingBox(activity: Activity): Promise<boolean> {
       return false;
     }
     const stream = await readStreamFile<StreamSet>(file);
-    const compressedStream = compressStreamSet(stream);
+    const compressedStream = compressStreamSet(stream, { activityType: activity.type });
     if (compressedStream.coordinates.length === 0) {
       return false;
     }

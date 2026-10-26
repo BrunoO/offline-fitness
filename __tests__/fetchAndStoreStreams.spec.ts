@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { APP_CONFIG } from '../src/constants';
 import {
+  calculateAdaptiveTolerance,
   compressStreamSet,
   countStreamsStatus,
   getActivityStreams,
@@ -71,6 +72,91 @@ describe('fetchAndStoreStreams', () => {
       expect(compressed.time).toEqual([0, 20]);
       expect(compressed.altitude).toEqual([100, 120]);
       expect(compressed.heartrate).toEqual([130, 140]);
+    });
+
+    it('preserves fine turns for swim tracks with adaptive tolerance', () => {
+      // 50m pool swim track with 4 laps of 25m:
+      // ~0.00022 degrees lat is ~25m.
+      // Small lateral deviation of ~4 meters (~0.000036 deg).
+      // Under legacy 0.0001 (~11m) tolerance, the lateral turn would be completely deleted.
+      // Under adaptive swim tolerance (~0.8-1.5m), the turn is preserved.
+      const swimStreamSet: StreamSet = {
+        latlng: {
+          data: [
+            [45.0, 5.0],
+            [45.0001, 5.00004], // 4m deviation at midpoint of first lap
+            [45.00022, 5.0], // turn at end of 25m pool
+            [45.00011, 5.00004], // return lap
+            [45.0, 5.0] // back to start
+          ],
+          original_size: 5,
+          resolution: 'high',
+          series_type: 'distance'
+        },
+        time: { data: [0, 10, 25, 40, 55], original_size: 5, resolution: 'high', series_type: 'distance' }
+      };
+
+      const compressed = compressStreamSet(swimStreamSet, { activityType: 'Swim' });
+      // All 5 points should be preserved because lateral deviation (4m) exceeds the swim tolerance (~0.8m)
+      expect(compressed.coordinates.length).toBe(5);
+    });
+
+    it('respects explicit tolerance option override', () => {
+      const streamSet: StreamSet = {
+        latlng: {
+          data: [
+            [45.0, 5.0],
+            [45.0001, 5.00005],
+            [45.0002, 5.0]
+          ],
+          original_size: 3,
+          resolution: 'high',
+          series_type: 'distance'
+        }
+      };
+
+      // With huge tolerance, middle point is removed
+      const wideCompressed = compressStreamSet(streamSet, { tolerance: 0.1 });
+      expect(wideCompressed.coordinates).toHaveLength(2);
+
+      // With tiny tolerance, middle point is retained
+      const tightCompressed = compressStreamSet(streamSet, { tolerance: 0.0000001 });
+      expect(tightCompressed.coordinates).toHaveLength(3);
+    });
+  });
+
+  describe('calculateAdaptiveTolerance', () => {
+    it('returns default tolerance for tracks with 2 or fewer points', () => {
+      expect(calculateAdaptiveTolerance([])).toBe(0.0001);
+      expect(calculateAdaptiveTolerance([[45.0, 5.0]])).toBe(0.0001);
+      expect(calculateAdaptiveTolerance([[45.0, 5.0], [45.001, 5.001]])).toBe(0.0001);
+    });
+
+    it('computes tight tolerance for short swim tracks', () => {
+      // 100m track: span ~0.0009 degrees
+      const swimPoints: [number, number][] = [
+        [45.0, 5.0],
+        [45.0004, 5.0004],
+        [45.0008, 5.0008]
+      ];
+
+      const tolerance = calculateAdaptiveTolerance(swimPoints, 'Swim');
+      // ~0.8m / 111139 ≈ 7.2e-6 degrees
+      expect(tolerance).toBeLessThan(0.00002);
+      expect(tolerance).toBeGreaterThan(0.000005);
+    });
+
+    it('computes capped tolerance for long ride tracks', () => {
+      // 50km ride: span ~0.45 degrees
+      const ridePoints: [number, number][] = [
+        [45.0, 5.0],
+        [45.2, 5.2],
+        [45.4, 5.4]
+      ];
+
+      const tolerance = calculateAdaptiveTolerance(ridePoints, 'Ride');
+      // 10.0m / 111139 ≈ 9.0e-5 degrees
+      expect(tolerance).toBeCloseTo(10.0 / 111_139, 6);
     });
   });
   describe('getActivityStreams', () => {
