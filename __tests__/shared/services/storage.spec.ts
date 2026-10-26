@@ -224,6 +224,34 @@ describe('storage', () => {
       expect(loadedActivities[0].moving_time).toBe(swimActivity.elapsed_time);
     });
 
+    it('should skip corrupt or missing activity entries while loading valid ones', async () => {
+      const corruptKey = `${STORAGE_KEYS.ACTIVITY_PREFIX}corrupt`;
+      const missingKey = `${STORAGE_KEYS.ACTIVITY_PREFIX}missing`;
+      const nullJsonKey = `${STORAGE_KEYS.ACTIVITY_PREFIX}null`;
+      const activityEntries: [string, string | null][] = [
+        [activityKey1, JSON.stringify(activity1)],
+        [corruptKey, '{not-valid-json'],
+        [missingKey, null],
+        [nullJsonKey, 'null'],
+        [activityKey2, JSON.stringify(activity2)]
+      ];
+      (AsyncStorage.multiGet as jest.Mock).mockResolvedValue(activityEntries);
+
+      const loadedActivities = await loadAllActivities([
+        activityKey1,
+        corruptKey,
+        missingKey,
+        nullJsonKey,
+        activityKey2
+      ]);
+
+      expect(loadedActivities).toEqual([activity1, activity2]);
+      expect(mockedSimpleLogger.error).toHaveBeenCalledTimes(1);
+      expect(mockedSimpleLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining(`ERROR parsing activity ${corruptKey}`)
+      );
+    });
+
     it('should remove all activities', async () => {
       const allKeys = [activityKey1, activityKey2, 'some_other_key'];
       (AsyncStorage.getAllKeys as jest.Mock).mockResolvedValue(allKeys);

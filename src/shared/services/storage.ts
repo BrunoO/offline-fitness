@@ -226,21 +226,32 @@ export const loadAllActivities = async (keys: readonly string[]): Promise<Activi
   simpleLogger.log('trying to load #keys=' + keys.length);
   try {
     const values = await AsyncStorage.multiGet(keys);
-    return values.map(([, value]) => {
-      const activity = JSON.parse(value!);
-      if (activity.type === 'Swim') {
-        // strava does not support swimming activities
-        // this is a workaround
-        // they just recommend to use a watch instead of the app
-        // in my case elapsed_time is a good enough approx of moving_time
-        //
-        // Since `applySwimMovingTime` the importers store this canonically,
-        // so for imported records this is a no-op that also protects the
-        // backup md5 (push hashes what it loads). It still matters for
-        // records written by older builds.
-        activity.moving_time = activity.elapsed_time;
+    return values.flatMap(([key, value]) => {
+      if (value === null) {
+        return [];
       }
-      return activity;
+      try {
+        const activity = JSON.parse(value) as Activity | null;
+        if (!activity || typeof activity !== 'object') {
+          return [];
+        }
+        if (activity.type === 'Swim') {
+          // strava does not support swimming activities
+          // this is a workaround
+          // they just recommend to use a watch instead of the app
+          // in my case elapsed_time is a good enough approx of moving_time
+          //
+          // Since `applySwimMovingTime` the importers store this canonically,
+          // so for imported records this is a no-op that also protects the
+          // backup md5 (push hashes what it loads). It still matters for
+          // records written by older builds.
+          activity.moving_time = activity.elapsed_time;
+        }
+        return [activity];
+      } catch (e) {
+        simpleLogger.error(`ERROR parsing activity ${key} ${e}`);
+        return [];
+      }
     });
   } catch (e) {
     simpleLogger.error('ERROR loading all activities ' + e);

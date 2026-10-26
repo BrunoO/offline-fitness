@@ -280,8 +280,8 @@ async function propagateLocalTombstones(
   for (const [id, deletedAt] of tombstoneEntries) {
     const age = now - Date.parse(deletedAt);
     if (!Number.isFinite(age)) {
-      await Storage.storeActivityTombstones({}); // NOSONAR - resets corrupt log before immediate loop break
-      break; // Corrupt log: drop it rather than delete blind.
+      await Storage.storeActivityTombstones({}); // NOSONAR - resets corrupt log before immediate return
+      return remoteDeletedAt; // Corrupt log: drop it rather than delete blind.
     }
     try {
       if (age > TOMBSTONE_RETENTION_MS) {

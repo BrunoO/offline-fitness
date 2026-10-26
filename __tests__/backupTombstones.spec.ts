@@ -219,6 +219,26 @@ describe('deletion tombstones', () => {
       expect(summary.deletedRemote).toBe(0);
       expect(mockStorage.storeActivityTombstones).toHaveBeenCalledWith({});
     });
+
+    it('resets a corrupt tombstone log to empty without re-persisting the corrupt entry', async () => {
+      mockTransport.getDavFile.mockResolvedValue(
+        JSON.stringify({ activityMd5: {}, streamMd5: {} })
+      );
+      mockStorage.getAllActivitiesKeys.mockResolvedValue([]);
+      mockStorage.loadAllActivities.mockResolvedValue([]);
+      mockStorage.retrieveActivityTombstones.mockResolvedValue({
+        '7': 'not-a-valid-date',
+        '8': new Date().toISOString()
+      });
+      mockStorage.storeActivityTombstones.mockResolvedValue(undefined);
+
+      const summary = await pushBackupNow();
+
+      expect(mockTransport.deleteDavFile).not.toHaveBeenCalled();
+      expect(summary.deletedRemote).toBe(0);
+      expect(mockStorage.storeActivityTombstones).toHaveBeenCalledTimes(1);
+      expect(mockStorage.storeActivityTombstones).toHaveBeenCalledWith({});
+    });
   });
 
   describe('pull (honoring remote tombstones)', () => {

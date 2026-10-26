@@ -175,6 +175,9 @@ const persistSessionAsActivity = async (
   // Save order (§3.7): write the stream before the record, so a failure
   // after the stream write leaves an unreferenced file (harmless, and
   // overwritten on retry) instead of a record with a blank map.
+  // `writeStreamFile` is synchronous (expo-file-system JSI File.write /
+  // Directory.create), so no `await` is needed: it either finishes on disk
+  // or throws before `addActivity` is called.
   writeStreamFile(activity.id, replay.stream);
   await addActivity(activity);
   heartRateService.detachRecording();
