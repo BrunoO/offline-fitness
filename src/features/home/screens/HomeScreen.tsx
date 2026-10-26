@@ -1,4 +1,4 @@
-import { useTheme } from '@/theme';
+import { ResolvedTheme, useTheme } from '@/theme';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -53,6 +53,234 @@ const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
  * @param navigation The navigation object.
  * @returns A React component.
  */
+interface RecentAchievements {
+  longestDistanceKm: number;
+  longestDistanceName: string | null;
+  longestDistanceId: string | null;
+  biggestClimbM: number;
+  biggestClimbName: string | null;
+  biggestClimbId: string | null;
+  longestWeekKm: number;
+}
+
+function computeRecentAchievements(
+  globalActivities: readonly Activity[],
+  numberRecentWeeks: number,
+  useElapsedTime: boolean
+): { recentAchievements: RecentAchievements; achievementsStartDate: Date | null } {
+  const empty: RecentAchievements = {
+    longestDistanceKm: 0,
+    longestDistanceName: null,
+    longestDistanceId: null,
+    biggestClimbM: 0,
+    biggestClimbName: null,
+    biggestClimbId: null,
+    longestWeekKm: 0
+  };
+  if (globalActivities.length === 0) {
+    return { recentAchievements: empty, achievementsStartDate: null };
+  }
+
+  // Limit to activities in the last 3 months
+  const threshold = new Date();
+  threshold.setMonth(threshold.getMonth() - 3);
+
+  const recentActivities = globalActivities.filter(
+    activity => activityUtcMs(activity) >= threshold.getTime()
+  );
+
+  if (recentActivities.length === 0) {
+    return { recentAchievements: empty, achievementsStartDate: threshold };
+  }
+
+  let longestDistanceKm = 0;
+  let longestDistanceName: string | null = null;
+  let longestDistanceId: string | null = null;
+  let biggestClimbM = 0;
+  let biggestClimbName: string | null = null;
+  let biggestClimbId: string | null = null;
+
+  for (const activity of recentActivities) {
+    const distanceKm = activity.distance / 1000;
+    if (distanceKm > longestDistanceKm) {
+      longestDistanceKm = distanceKm;
+      longestDistanceName = activity.name;
+      longestDistanceId = activity.id;
+    }
+
+    if (activity.total_elevation_gain > biggestClimbM) {
+      biggestClimbM = activity.total_elevation_gain;
+      biggestClimbName = activity.name;
+      biggestClimbId = activity.id;
+    }
+  }
+
+  // Compute longest recent week by total distance
+  const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort((a, b) =>
+    a.localeCompare(b)
+  ) as string[];
+  const weeks = weeklyData(activityTypes, recentActivities, numberRecentWeeks, useElapsedTime);
+
+  let longestWeekKm = 0;
+  if (weeks.length > 0) {
+    for (const week of weeks) {
+      const dist = week.extraValues.get('dist') ?? 0;
+      const distanceKm = dist / 1000;
+      if (distanceKm > longestWeekKm) {
+        longestWeekKm = distanceKm;
+      }
+    }
+  }
+
+  return {
+    recentAchievements: {
+      longestDistanceKm,
+      longestDistanceName,
+      longestDistanceId,
+      biggestClimbM,
+      biggestClimbName,
+      biggestClimbId,
+      longestWeekKm
+    },
+    achievementsStartDate: threshold
+  };
+}
+
+interface AchievementRowProps {
+  readonly label: string;
+  readonly valueText: string | null;
+  readonly activityName?: string | null;
+  readonly activityId?: string | null;
+  readonly onSelectActivity?: (activityId: string | null) => void;
+  readonly theme: ResolvedTheme;
+  readonly styles: ReturnType<typeof createStyles>;
+}
+
+function AchievementRow({
+  label,
+  valueText,
+  activityName,
+  activityId,
+  onSelectActivity,
+  theme,
+  styles
+}: AchievementRowProps): React.JSX.Element {
+  const isInteractive = Boolean(activityId && onSelectActivity);
+  const formattedValue = achievementLabel(valueText, activityName);
+
+  return (
+    <TouchableOpacity
+      style={styles.infoRow}
+      activeOpacity={isInteractive ? 0.7 : 1}
+      onPress={() => onSelectActivity?.(activityId ?? null)}
+      disabled={!isInteractive}
+      accessibilityRole={isInteractive ? 'button' : undefined}
+      accessibilityLabel={
+        isInteractive ? `View details for ${label.toLowerCase()}: ${activityName ?? ''}` : undefined
+      }
+    >
+      <Text
+        style={[styles.infoValue, isInteractive ? { flex: 1, marginRight: 8 } : null]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {label} {formattedValue}
+      </Text>
+      {isInteractive ? <Ionicons name="chevron-forward" size={16} color={theme.textMuted} /> : null}
+    </TouchableOpacity>
+  );
+}
+
+interface RecentAchievementsSectionProps {
+  readonly recentAchievements: RecentAchievements;
+  readonly achievementsStartDate: Date | null;
+  readonly onSelectActivity: (activityId: string | null) => void;
+  readonly onSeeAll: () => void;
+  readonly theme: ResolvedTheme;
+  readonly styles: ReturnType<typeof createStyles>;
+}
+
+function RecentAchievementsSection({
+  recentAchievements,
+  achievementsStartDate,
+  onSelectActivity,
+  onSeeAll,
+  theme,
+  styles
+}: RecentAchievementsSectionProps): React.JSX.Element {
+  const longestDistanceValue =
+    recentAchievements.longestDistanceKm > 0
+      ? `${recentAchievements.longestDistanceKm.toFixed(1)} km`
+      : null;
+  const biggestClimbValue =
+    recentAchievements.biggestClimbM > 0
+      ? `${recentAchievements.biggestClimbM.toFixed(0)} m`
+      : null;
+  const longestWeekValue =
+    recentAchievements.longestWeekKm > 0
+      ? `${recentAchievements.longestWeekKm.toFixed(1)} km`
+      : null;
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Text style={styles.sectionTitle}>Recent Achievements</Text>
+          <TouchableOpacity
+            onPress={onSeeAll}
+            accessibilityRole="button"
+            accessibilityLabel="See all personal records"
+          >
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
+        {achievementsStartDate ? (
+          <Text style={styles.sectionSubtitle}>
+            since{' '}
+            {achievementsStartDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.infoCard}>
+        <AchievementRow
+          label="Longest activity"
+          valueText={longestDistanceValue}
+          activityName={recentAchievements.longestDistanceName}
+          activityId={recentAchievements.longestDistanceId}
+          onSelectActivity={onSelectActivity}
+          theme={theme}
+          styles={styles}
+        />
+        <AchievementRow
+          label="Biggest climb"
+          valueText={biggestClimbValue}
+          activityName={recentAchievements.biggestClimbName}
+          activityId={recentAchievements.biggestClimbId}
+          onSelectActivity={onSelectActivity}
+          theme={theme}
+          styles={styles}
+        />
+        <AchievementRow
+          label="Longest week"
+          valueText={longestWeekValue}
+          theme={theme}
+          styles={styles}
+        />
+      </View>
+    </View>
+  );
+}
+
 /** Formats an achievement with its optional activity name; 'N/A' when unrecorded. */
 function achievementLabel(valueText: string | null, name?: string | null): string {
   if (valueText === null) return 'N/A';
@@ -236,76 +464,18 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   }, [globalActivities, useElapsedTime]);
 
   // Recent achievements (across all activities) — derived, not state + effect.
-  const { recentAchievements, achievementsStartDate } = useMemo(() => {
-    const empty = {
-      longestDistanceKm: 0,
-      longestDistanceName: null,
-      biggestClimbM: 0,
-      biggestClimbName: null,
-      longestWeekKm: 0
-    };
-    if (globalActivities.length === 0) {
-      return { recentAchievements: empty, achievementsStartDate: null };
-    }
+  const { recentAchievements, achievementsStartDate } = useMemo(
+    () => computeRecentAchievements(globalActivities, numberRecentWeeks, useElapsedTime),
+    [globalActivities, numberRecentWeeks, useElapsedTime]
+  );
 
-    // Limit to activities in the last 3 months
-    const threshold = new Date();
-    threshold.setMonth(threshold.getMonth() - 3);
-
-    const recentActivities = globalActivities.filter(
-      activity => activityUtcMs(activity) >= threshold.getTime()
-    );
-
-    if (recentActivities.length === 0) {
-      return { recentAchievements: empty, achievementsStartDate: threshold };
-    }
-
-    let longestDistanceKm = 0;
-    let longestDistanceName: string | null = null;
-    let biggestClimbM = 0;
-    let biggestClimbName: string | null = null;
-
-    for (const activity of recentActivities) {
-      const distanceKm = activity.distance / 1000;
-      if (distanceKm > longestDistanceKm) {
-        longestDistanceKm = distanceKm;
-        longestDistanceName = activity.name;
-      }
-
-      if (activity.total_elevation_gain > biggestClimbM) {
-        biggestClimbM = activity.total_elevation_gain;
-        biggestClimbName = activity.name;
-      }
-    }
-
-    // Compute longest recent week by total distance
-    const activityTypes = Array.from(new Set(recentActivities.map(a => a.type))).sort((a, b) =>
-      a.localeCompare(b)
-    ) as string[];
-    const weeks = weeklyData(activityTypes, recentActivities, numberRecentWeeks, useElapsedTime);
-
-    let longestWeekKm = 0;
-    if (weeks.length > 0) {
-      for (const week of weeks) {
-        const dist = week.extraValues.get('dist') ?? 0; // meters
-        const distanceKm = dist / 1000; // convert to kilometers
-        if (distanceKm > longestWeekKm) {
-          longestWeekKm = distanceKm;
-        }
-      }
-    }
-
-    return {
-      recentAchievements: {
-        longestDistanceKm,
-        longestDistanceName,
-        biggestClimbM,
-        biggestClimbName,
-        longestWeekKm
-      },
-      achievementsStartDate: threshold
-    };
-  }, [globalActivities, numberRecentWeeks, useElapsedTime]);
+  const goToActivity = (activityId: string | null) => {
+    if (!activityId) return;
+    navigation.navigate('Details', {
+      allActivities: globalActivities,
+      selectedActivityId: activityId
+    });
+  };
 
   const handleActivityChange = (activity: Activity) => {
     simpleLogger.log('Activity selection changed', {
@@ -629,70 +799,14 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         {/* End of Recent Activity Section */}
 
         {/* Recent Achievements Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Text style={styles.sectionTitle}>Recent Achievements</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Stats', { screen: 'RecordsScreen' })}
-                accessibilityRole="button"
-                accessibilityLabel="See all personal records"
-              >
-                <Text style={styles.seeAllText}>See all</Text>
-              </TouchableOpacity>
-            </View>
-            {achievementsStartDate ? (
-              <Text style={styles.sectionSubtitle}>
-                since{' '}
-                {achievementsStartDate.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </Text>
-            ) : null}
-          </View>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
-                Longest activity{' '}
-                {achievementLabel(
-                  recentAchievements.longestDistanceKm > 0
-                    ? `${recentAchievements.longestDistanceKm.toFixed(1)} km`
-                    : null,
-                  recentAchievements.longestDistanceName
-                )}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
-                Biggest climb{' '}
-                {achievementLabel(
-                  recentAchievements.biggestClimbM > 0
-                    ? `${recentAchievements.biggestClimbM.toFixed(0)} m`
-                    : null,
-                  recentAchievements.biggestClimbName
-                )}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">
-                Longest week{' '}
-                {achievementLabel(
-                  recentAchievements.longestWeekKm > 0
-                    ? `${recentAchievements.longestWeekKm.toFixed(1)} km`
-                    : null
-                )}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <RecentAchievementsSection
+          recentAchievements={recentAchievements}
+          achievementsStartDate={achievementsStartDate}
+          onSelectActivity={goToActivity}
+          onSeeAll={() => navigation.navigate('Stats', { screen: 'RecordsScreen' })}
+          theme={theme}
+          styles={styles}
+        />
         {/* End of Recent Achievements Section */}
 
         <HomeActivityMapSection
