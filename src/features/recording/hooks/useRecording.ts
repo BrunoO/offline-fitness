@@ -81,6 +81,7 @@ const loadStoppedSessionData = async (
       currentSpeedMps: replay.stats.averageSpeedMetersPerSec,
       altitudeM: replay.stream.altitude?.data.at(-1) ?? null,
       slopePercent: null,
+      elevationGainM: replay.stats.elevationGainMeters,
       gpsLost: false,
       hAccM: null
     }
@@ -152,6 +153,7 @@ const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStat
     currentSpeedMps: null,
     altitudeM: null,
     slopePercent: null,
+    elevationGainM: 0,
     gpsLost: false,
     hAccM: null
   };
@@ -195,7 +197,10 @@ export function useRecording(): UseRecordingResult {
   useEffect(() => {
     let isMounted = true;
 
-    const hydrateActiveSession = async (nextState: RecordingState) => {
+    const hydrateActiveSession = async (
+      nextState: RecordingState,
+      nextCapabilities: GpsTrackerCapabilities
+    ) => {
       if (!nextState.sessionId) {
         return;
       }
@@ -213,7 +218,10 @@ export function useRecording(): UseRecordingResult {
           const meta = await GpsTracker.getSessionMeta(nextState.sessionId);
           if (isMounted) {
             setActiveProfile(meta.profile);
-            slopeCalculatorRef.current ??= new LiveSlopeCalculator(meta.profile);
+            slopeCalculatorRef.current ??= new LiveSlopeCalculator(
+              meta.profile,
+              Boolean(nextCapabilities.hasBarometer && meta.capture.useBarometer)
+            );
             if (nextState.phase === 'recording') {
               heartRateService.attachRecording(meta);
             }
@@ -233,7 +241,7 @@ export function useRecording(): UseRecordingResult {
         if (isMounted) {
           setCapabilities(nextCapabilities);
           setState(nextState);
-          await hydrateActiveSession(nextState);
+          await hydrateActiveSession(nextState, nextCapabilities);
         }
       } catch (cause: unknown) {
         simpleLogger.error('Recording module unavailable', cause);
@@ -292,6 +300,7 @@ export function useRecording(): UseRecordingResult {
     const handleExternalStateChange = async (nextState: RecordingState) => {
       if (nextState.phase === 'paused') {
         heartRateService.detachRecording();
+        slopeCalculatorRef.current?.onPause();
         return;
       }
       if (nextState.phase === 'recording' && nextState.sessionId !== undefined) {
@@ -341,12 +350,14 @@ export function useRecording(): UseRecordingResult {
           update.distanceMeters,
           update.t
         );
+        const elevationGainM = slopeCalculatorRef.current.getElevationGain();
         setLiveStats({
           elapsedSec: update.elapsedSec,
           distanceMeters: update.distanceMeters,
           currentSpeedMps: update.speedMps,
           altitudeM: update.eleM,
           slopePercent,
+          elevationGainM,
           gpsLost: update.gpsLost,
           hAccM: update.hAccM
         });
@@ -401,7 +412,10 @@ export function useRecording(): UseRecordingResult {
           hapticEnabled,
           intervalMeters: Number.isFinite(intervalMeters) ? intervalMeters : 1000
         });
-        slopeCalculatorRef.current = new LiveSlopeCalculator(profile);
+        slopeCalculatorRef.current = new LiveSlopeCalculator(
+          profile,
+          Boolean(capabilities?.hasBarometer && PROFILE_CAPTURE_OPTIONS[profile].useBarometer)
+        );
         lastFixWallMsRef.current = 0;
         setLastSplit(null);
         setState({
@@ -417,7 +431,7 @@ export function useRecording(): UseRecordingResult {
 
       setIsBusy(false);
     },
-    [requestPermissions]
+    [requestPermissions, capabilities]
   );
 
   const pause = useCallback(async () => {
@@ -425,7 +439,7 @@ export function useRecording(): UseRecordingResult {
     try {
       await GpsTracker.pauseRecording();
       heartRateService.detachRecording();
-      slopeCalculatorRef.current?.reset();
+      slopeCalculatorRef.current?.onPause();
     } catch (cause: unknown) {
       simpleLogger.error('Could not pause recording', cause);
       setError(describeError(cause, 'Could not pause the recording.'));

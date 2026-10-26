@@ -70,6 +70,7 @@ export interface LiveStats {
   gpsLost: boolean;
   hAccM: number | null;
   slopePercent?: number | null;
+  elevationGainM?: number | null;
 }
 
 export interface RecordingSummary {

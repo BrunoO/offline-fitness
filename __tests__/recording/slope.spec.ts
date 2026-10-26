@@ -74,5 +74,22 @@ describe('LiveSlopeCalculator', () => {
 
     calc.reset();
     expect(calc.getSlope()).toBeNull();
+    expect(calc.getElevationGain()).toBe(0);
+  });
+
+  it('accumulates elevation gain with hysteresis and preserves it across onPause()', () => {
+    const calc = new LiveSlopeCalculator('hiking', true); // barometer threshold = 1.5 m
+    calc.update(100, 0, 1000);
+    calc.update(110, 10, 2000); // smoothed = 102.5 (+2.5 m >= 1.5 m threshold)
+    const gainBeforePause = calc.getElevationGain();
+    expect(gainBeforePause).toBeCloseTo(2.5, 2);
+
+    calc.onPause();
+    expect(calc.getSlope()).toBeNull();
+    expect(calc.getElevationGain()).toBeCloseTo(gainBeforePause, 2);
+
+    // Resuming at a higher altitude (e.g. chairlift during pause) re-anchors without adding pause climb
+    calc.update(500, 10, 60_000);
+    expect(calc.getElevationGain()).toBeCloseTo(gainBeforePause, 2);
   });
 });

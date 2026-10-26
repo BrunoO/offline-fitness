@@ -69,6 +69,26 @@ export const formatRate = (
 ): string =>
   mode === 'pace' ? formatPace(metersPerSecond, profile) : formatSpeed(metersPerSecond);
 
+export const computeAverageSpeedMps = (liveStats: LiveStats): number | null => {
+  if (liveStats.elapsedSec <= 0 || liveStats.distanceMeters <= 0) {
+    return null;
+  }
+  return liveStats.distanceMeters / liveStats.elapsedSec;
+};
+
+export const formatElevationGain = (
+  meters: number | null | undefined,
+  profile: Profile
+): string => {
+  if (profile === 'swimming') {
+    return '0 m';
+  }
+  if (meters == null) {
+    return '—';
+  }
+  return `+${Math.round(meters)} m`;
+};
+
 const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
@@ -361,7 +381,7 @@ function SessionCard({ phase, liveStats, styles, theme }: SessionCardProps): JSX
   );
 }
 
-type StatKey = 'time' | 'distance' | 'speed' | 'altitude' | 'slope';
+type StatKey = 'time' | 'distance' | 'speed' | 'avgSpeed' | 'elevationGain' | 'altitude' | 'slope';
 
 interface StatDef {
   readonly key: StatKey;
@@ -373,6 +393,12 @@ const getStatDefs = (rateMode: RateDisplayMode): readonly StatDef[] => [
   { key: 'time', label: 'Elapsed', icon: 'time-outline' },
   { key: 'distance', label: 'Distance', icon: 'map-outline' },
   { key: 'speed', label: rateMode === 'pace' ? 'Pace' : 'Speed', icon: 'speedometer-outline' },
+  {
+    key: 'avgSpeed',
+    label: rateMode === 'pace' ? 'Avg pace' : 'Avg speed',
+    icon: 'analytics-outline'
+  },
+  { key: 'elevationGain', label: 'Elev gain', icon: 'arrow-up-outline' },
   { key: 'altitude', label: 'Altitude', icon: 'triangle-outline' },
   { key: 'slope', label: 'Slope', icon: 'trending-up-outline' }
 ];
@@ -393,6 +419,10 @@ const statValue = (
       return formatDistance(liveStats.distanceMeters);
     case 'speed':
       return formatRate(liveStats.currentSpeedMps, profile, rateMode);
+    case 'avgSpeed':
+      return formatRate(computeAverageSpeedMps(liveStats), profile, rateMode);
+    case 'elevationGain':
+      return formatElevationGain(liveStats.elevationGainM, profile);
     case 'altitude':
       return formatAltitude(liveStats.altitudeM);
     case 'slope':

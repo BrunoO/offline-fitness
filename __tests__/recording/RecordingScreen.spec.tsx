@@ -3,7 +3,9 @@ import { render, fireEvent } from '@testing-library/react-native';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import {
   RecordingScreen,
+  computeAverageSpeedMps,
   defaultRateModeForProfile,
+  formatElevationGain,
   formatPace,
   formatSpeed
 } from '@/features/recording/screens/RecordingScreen';
@@ -43,11 +45,12 @@ describe('RecordingScreen', () => {
       state: { phase: 'recording' },
       activeProfile: 'running',
       liveStats: {
-        elapsedSec: 125,
+        elapsedSec: 500,
         distanceMeters: 2500,
         currentSpeedMps: 5.5,
         altitudeM: 320,
         slopePercent: 4.5,
+        elevationGainM: 85.4,
         gpsLost: false,
         hAccM: 3
       },
@@ -70,23 +73,37 @@ describe('RecordingScreen', () => {
 
     const { getByText, getByLabelText } = render(wrap(<RecordingScreen />));
 
-    // Hero stat defaults to Elapsed time (125s -> 2:05)
-    expect(getByText('2:05')).toBeTruthy();
+    // Hero stat defaults to Elapsed time (500s -> 8:20)
+    expect(getByText('8:20')).toBeTruthy();
     expect(getByText('Elapsed')).toBeTruthy();
     expect(getByText('Running')).toBeTruthy();
 
-    // Compact tiles show distance, running pace (5.5 m/s -> 3:02 /km), altitude, and slope
+    // Compact tiles show distance, pace (5.5 m/s -> 3:02 /km), avg pace (2500m / 500s = 5.0 m/s -> 3:20 /km), elev gain (+85 m), altitude, and slope
     expect(getByText('2.50 km')).toBeTruthy();
     expect(getByText('Pace')).toBeTruthy();
     expect(getByText('3:02 /km')).toBeTruthy();
+    expect(getByText('Avg pace')).toBeTruthy();
+    expect(getByText('3:20 /km')).toBeTruthy();
+    expect(getByText('Elev gain')).toBeTruthy();
+    expect(getByText('+85 m')).toBeTruthy();
     expect(getByText('320 m')).toBeTruthy();
     expect(getByText('+4.5%')).toBeTruthy();
     expect(getByText('Slope')).toBeTruthy();
 
-    // User can toggle Pace -> Speed (km/h)
+    // User can toggle Pace -> Speed (km/h) for both instantaneous and average tiles
     fireEvent.press(getByLabelText('Switch to speed (km/h)'));
     expect(getByText('Speed')).toBeTruthy();
     expect(getByText('19.8 km/h')).toBeTruthy();
+    expect(getByText('Avg speed')).toBeTruthy();
+    expect(getByText('18.0 km/h')).toBeTruthy();
+
+    // Promote Elev gain to hero stat
+    fireEvent.press(getByLabelText('Enlarge Elev gain'));
+    expect(getByLabelText('Promote Elev gain (currently enlarged)')).toBeTruthy();
+
+    // Promote Avg speed to hero stat
+    fireEvent.press(getByLabelText('Enlarge Avg speed'));
+    expect(getByLabelText('Promote Avg speed (currently enlarged)')).toBeTruthy();
 
     // Promote Slope to hero stat
     fireEvent.press(getByLabelText('Enlarge Slope'));
@@ -164,6 +181,19 @@ describe('RecordingScreen', () => {
     expect(formatPace(null, 'walking')).toBe('—');
     expect(formatSpeed(5.5)).toBe('19.8 km/h');
     expect(formatSpeed(null)).toBe('—');
+    expect(formatElevationGain(142.6, 'hiking')).toBe('+143 m');
+    expect(formatElevationGain(null, 'hiking')).toBe('—');
+    expect(formatElevationGain(50, 'swimming')).toBe('0 m');
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 0,
+        distanceMeters: 100,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBeNull();
 
     mockUseRecording.mockReturnValue({
       capabilities: { canRecord: true },
@@ -171,7 +201,7 @@ describe('RecordingScreen', () => {
       activeProfile: 'swimming',
       liveStats: {
         elapsedSec: 60,
-        distanceMeters: 75,
+        distanceMeters: 60,
         currentSpeedMps: 1.25,
         altitudeM: null,
         slopePercent: null,
@@ -198,10 +228,14 @@ describe('RecordingScreen', () => {
     const { getByText, getByLabelText } = render(wrap(<RecordingScreen />));
     expect(getByText('Pace')).toBeTruthy();
     expect(getByText('1:20 /100m')).toBeTruthy();
+    expect(getByText('Avg pace')).toBeTruthy();
+    expect(getByText('1:40 /100m')).toBeTruthy();
 
     fireEvent.press(getByLabelText('Switch to speed (km/h)'));
     expect(getByText('Speed')).toBeTruthy();
     expect(getByText('4.5 km/h')).toBeTruthy();
+    expect(getByText('Avg speed')).toBeTruthy();
+    expect(getByText('3.6 km/h')).toBeTruthy();
     expect(getByText('Show /100m')).toBeTruthy();
   });
 });

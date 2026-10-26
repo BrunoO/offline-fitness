@@ -956,3 +956,6 @@ A comprehensive code review was performed, covering technical debt, architecture
   - Fixed duplicate `onLocationUpdate` emission in `GpsTrackerModule.stateListener` and added an `OnDestroy` block to remove session listeners, shut down `TextToSpeech`, and release audio focus.
 - **Sport-Appropriate Pace (`min/km` & `min/100m`) vs. Speed (`km/h`) (`RecordingScreen.tsx`, `RecordingScreen.styles.ts`)**:
   - Defaulted the live rate tile to **Pace (`min/km`)** for Running, Walking, and Hiking, **Pace (`min/100m`)** for Swimming, and **Speed (`km/h`)** for Cycling, with a `Show km/h` / `Show /km` (`Show /100m`) toggle button in `LiveStatsCard` and a minimum speed guard (`0.1 m/s`) so stationary fixes display `—`.
+- **Live Cumulative Elevation Gain (`D+`) & Average Pace/Speed Tiles (`slope.ts`, `useRecording.ts`, `RecordingScreen.tsx`)**:
+  - Added hysteresis-based cumulative elevation gain tracking (`getElevationGain()`) and pause-aware anchor resetting (`onPause()`) to `LiveSlopeCalculator`, sharing `HYSTERESIS_THRESHOLD_BARO_M` (`1.5 m`) and `HYSTERESIS_THRESHOLD_GPS_M` (`3.5 m`) with `replaySession.ts`.
+  - Added promotable **Avg pace** / **Avg speed** (`avgSpeed`) and **Elev gain** (`elevationGain`, `+XX m`) tiles to `LiveStatsCard`.

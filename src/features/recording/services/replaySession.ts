@@ -3,15 +3,18 @@ import type { FilterOptions } from './profiles';
 import type { FixLogEntry, Profile, RecordingMeta } from './gpsTracker';
 import type { HeartRateSample } from '../types/heartRate';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
-import { SMOOTHING_ALPHA, updateSlopeWindow } from './slope';
+import {
+  HYSTERESIS_THRESHOLD_BARO_M,
+  HYSTERESIS_THRESHOLD_GPS_M,
+  SMOOTHING_ALPHA,
+  updateSlopeWindow
+} from './slope';
 import type { AltitudeSample } from './slope';
 import { SplitDetector } from './splits';
 import type { SplitEvent } from './splits';
 
 const BARO_WEIGHT_GPS = 0.15;
 const BARO_WEIGHT_BARO = 0.85;
-const HYSTERESIS_THRESHOLD_BARO_M = 1.5;
-const HYSTERESIS_THRESHOLD_GPS_M = 3.5;
 const AUTO_PAUSE_THRESHOLD_MPS = 0.8 / 3.6;
 const AUTO_PAUSE_DURATION_MS = 3_000;
 
