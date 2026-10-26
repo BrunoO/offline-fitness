@@ -123,6 +123,18 @@ export const formatSplitRate = (
   return formatRate(speedMps, profile, rateMode);
 };
 
+export const parseSwimDistanceOverride = (raw: string): number | undefined => {
+  const trimmed = raw.trim().replaceAll(',', '.');
+  if (trimmed === '') {
+    return undefined;
+  }
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  return value;
+};
+
 const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
@@ -253,8 +265,8 @@ export function RecordingScreen({
     void saveLastRecordingProfile(nextProfile);
   };
 
-  const handleSave = async (name: string) => {
-    const savedActivity = await save(name);
+  const handleSave = async (name: string, distanceOverrideMeters?: number) => {
+    const savedActivity = await save(name, distanceOverrideMeters);
     navigateToActivityDetails(navigation, savedActivity?.id);
   };
 
@@ -932,25 +944,42 @@ interface LastSessionCardProps {
   readonly profile: Profile;
   readonly rateMode: RateDisplayMode;
   readonly heartRateSummary: { average: number; max: number } | null;
-  readonly onSave: (name: string) => Promise<void>;
+  readonly onSave: (name: string, distanceOverrideMeters?: number) => Promise<void>;
   readonly onDiscard: () => Promise<void>;
   readonly isSaving: boolean;
   readonly styles: Styles;
   readonly theme: ResolvedTheme;
 }
 
-const computeSummaryAverageSpeedMps = (summary: RecordingSummary | null): number | null => {
+const computeSummaryAverageSpeedMps = (
+  summary: RecordingSummary | null,
+  distanceOverrideMeters?: number
+): number | null => {
   if (!summary) {
     return null;
+  }
+  const activeSeconds = summary.liveStats.movingTimeSec ?? summary.liveStats.elapsedSec;
+  if (distanceOverrideMeters !== undefined) {
+    if (activeSeconds <= 0 || distanceOverrideMeters <= 0) {
+      return null;
+    }
+    return distanceOverrideMeters / activeSeconds;
   }
   if (summary.liveStats.currentSpeedMps != null && summary.liveStats.currentSpeedMps > 0) {
     return summary.liveStats.currentSpeedMps;
   }
-  const activeSeconds = summary.liveStats.movingTimeSec ?? summary.liveStats.elapsedSec;
   if (activeSeconds <= 0 || summary.liveStats.distanceMeters <= 0) {
     return null;
   }
   return summary.liveStats.distanceMeters / activeSeconds;
+};
+
+const formatSummaryDistanceKm = (
+  summary: RecordingSummary | null,
+  distanceOverrideMeters?: number
+): string => {
+  const effectiveMeters = distanceOverrideMeters ?? summary?.liveStats.distanceMeters;
+  return effectiveMeters !== undefined ? (effectiveMeters / METERS_PER_KILOMETER).toFixed(2) : '—';
 };
 
 function SplitsBreakdownTable({
@@ -1003,12 +1032,21 @@ function LastSessionCard({
   theme
 }: LastSessionCardProps): JSX.Element {
   const [name, setName] = useState('');
+  const [distanceOverrideText, setDistanceOverrideText] = useState('');
   const sessionProfile = (summary?.meta?.profile as Profile | undefined) ?? profile;
-  const distanceKm = summary ? (summary.liveStats.distanceMeters / 1000).toFixed(2) : '—';
+  const isSwimSession = sessionProfile === 'swimming';
+  const distanceOverrideMeters = isSwimSession
+    ? parseSwimDistanceOverride(distanceOverrideText)
+    : undefined;
+  const distanceKm = formatSummaryDistanceKm(summary, distanceOverrideMeters);
   const movingSec = summary?.liveStats.movingTimeSec ?? summary?.liveStats.elapsedSec;
   const movingTime = movingSec !== undefined ? formatElapsed(movingSec) : '—';
   const duration = summary ? formatElapsed(summary.liveStats.elapsedSec) : '—';
-  const avgRate = formatRate(computeSummaryAverageSpeedMps(summary), sessionProfile, rateMode);
+  const avgRate = formatRate(
+    computeSummaryAverageSpeedMps(summary, distanceOverrideMeters),
+    sessionProfile,
+    rateMode
+  );
   const elevGain = summary
     ? formatElevationGain(summary.liveStats.elevationGainM, sessionProfile)
     : '—';
@@ -1055,6 +1093,17 @@ function LastSessionCard({
         rateMode={rateMode}
         styles={styles}
       />
+      {isSwimSession ? (
+        <TextInput
+          accessibilityLabel="Swim distance in meters"
+          value={distanceOverrideText}
+          onChangeText={setDistanceOverrideText}
+          keyboardType="numeric"
+          placeholder="Distance in meters (optional override)"
+          placeholderTextColor={theme.textMuted}
+          style={styles.input}
+        />
+      ) : null}
       <TextInput
         value={name}
         onChangeText={setName}
@@ -1067,7 +1116,7 @@ function LastSessionCard({
         accessibilityLabel="Save as activity"
         disabled={isSaving}
         onPress={() => {
-          void onSave(name);
+          void onSave(name, distanceOverrideMeters);
         }}
         style={({ pressed }) => [
           styles.primaryButton,

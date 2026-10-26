@@ -1,3 +1,4 @@
+import { buildRecordedActivity } from '@/features/recording/services/buildRecordedActivity';
 import { replaySession } from '@/features/recording/services/replaySession';
 import type { FixLogEntry, RecordingMeta } from '@/features/recording/services/gpsTracker';
 
@@ -403,5 +404,53 @@ describe('replaySession heart rate', () => {
     expect(result.stream.heartrate?.data).toEqual([130, 140]);
     expect(result.stats.averageHeartRate).toBe(135);
     expect(result.stats.maxHeartRate).toBe(140);
+  });
+});
+
+describe('buildRecordedActivity', () => {
+  it('applies distanceOverrideMeters for swims and recalculates average_speed from elapsed time', () => {
+    const meta = makeMeta({
+      profile: 'swimming',
+      startedAtUtcMs: 1_700_000_000_000,
+      endedAtUtcMs: 1_700_001_800_000 // 1800 seconds (30 min)
+    });
+    const replay = replaySession(meta, []);
+
+    const activity = buildRecordedActivity({
+      meta,
+      replay,
+      name: 'Pool Swim 1500m',
+      distanceOverrideMeters: 1500
+    });
+
+    expect(activity.type).toBe('Swim');
+    expect(activity.name).toBe('Pool Swim 1500m');
+    expect(activity.distance).toBe(1500);
+    expect(activity.elapsed_time).toBe(1800);
+    expect(activity.moving_time).toBe(1800);
+    expect(activity.average_speed).toBeCloseTo(1500 / 1800, 6);
+    expect(activity.total_elevation_gain).toBe(0);
+  });
+
+  it('falls back to replay distance and speed when distanceOverrideMeters is undefined', () => {
+    const fixes = [
+      fix({ t: 1_000_000, lat: 45.0, lon: 6.0 }),
+      fix({ t: 1_010_000, lat: 45.0001, lon: 6.0 })
+    ];
+    const meta = makeMeta({
+      profile: 'swimming',
+      startedAtUtcMs: 1_000_000,
+      endedAtUtcMs: 1_010_000
+    });
+    const replay = replaySession(meta, fixes);
+
+    const activity = buildRecordedActivity({
+      meta,
+      replay,
+      name: ''
+    });
+
+    expect(activity.distance).toBe(replay.stats.distanceMeters);
+    expect(activity.average_speed).toBe(replay.stats.averageSpeedMetersPerSec);
   });
 });

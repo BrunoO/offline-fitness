@@ -967,3 +967,8 @@ A comprehensive code review was performed, covering technical debt, architecture
 - **Live Cumulative Elevation Gain (`D+`) & Average Pace/Speed Tiles (`slope.ts`, `useRecording.ts`, `RecordingScreen.tsx`)**:
   - Added hysteresis-based cumulative elevation gain tracking (`getElevationGain()`) and pause-aware anchor resetting (`onPause()`) to `LiveSlopeCalculator`, sharing `HYSTERESIS_THRESHOLD_BARO_M` (`1.5 m`) and `HYSTERESIS_THRESHOLD_GPS_M` (`3.5 m`) with `replaySession.ts`.
   - Added promotable **Avg pace** / **Avg speed** (`avgSpeed`) and **Elev gain** (`elevationGain`, `+XX m`) tiles to `LiveStatsCard`.
+- **Richer Post-Workout Summary, Splits Breakdown, Profile Persistence, Audio Announcements & Swim Distance Override (`RecordingScreen.tsx`, `useRecording.ts`, `buildRecordedActivity.ts`, `profiles.ts`, `splits.ts`)**:
+  - Expanded `LastSessionCard` with moving time, elapsed duration, average pace/speed, elevation gain (`D+`), average/max heart rate, and a `SplitsBreakdownTable` rendered from `replay.splits`.
+  - Persisted the last-used recording sport profile in `AsyncStorage` (`recording.lastProfile`) and navigated directly to the saved activity's `Details` screen upon saving.
+  - Enriched spoken audio split announcements with sport-appropriate rate (`km/h` for cycling, `min/km` otherwise), total elapsed time, and live BLE heart rate.
+  - Added an optional **Swim distance in meters** override input in `LastSessionCard` for swimming sessions so swimmers can enter their exact pool or open-water distance (`distanceOverrideMeters`), live-updating the summary distance and `/100m` pace preview and persisting the overridden distance and recalculated `average_speed` on the saved `Activity`.

@@ -8,7 +8,8 @@ import {
   defaultRateModeForProfile,
   formatElevationGain,
   formatPace,
-  formatSpeed
+  formatSpeed,
+  parseSwimDistanceOverride
 } from '@/features/recording/screens/RecordingScreen';
 
 const mockAsyncStore = new Map<string, string>();
@@ -580,11 +581,93 @@ describe('RecordingScreen', () => {
     fireEvent.press(getStoppedLabel('Save as activity'));
 
     await waitFor(() => {
-      expect(save).toHaveBeenCalledWith('');
+      expect(save).toHaveBeenCalledWith('', undefined);
       expect(navigate).toHaveBeenCalledWith('Details', {
         allActivities: undefined,
         selectedActivityId: 'recorded-1700000000000-1'
       });
+    });
+  });
+
+  it('allows overriding distance in meters on save for swimming and live-updates summary distance and /100m pace', async () => {
+    expect(parseSwimDistanceOverride('')).toBeUndefined();
+    expect(parseSwimDistanceOverride('   ')).toBeUndefined();
+    expect(parseSwimDistanceOverride('-100')).toBeUndefined();
+    expect(parseSwimDistanceOverride('abc')).toBeUndefined();
+    expect(parseSwimDistanceOverride('1500')).toBe(1500);
+    expect(parseSwimDistanceOverride('1250,5')).toBe(1250.5);
+
+    const save = jest.fn().mockResolvedValue({ id: 'recorded-1700000000000-2' });
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: true },
+      state: { phase: 'stopped-unsaved', sessionId: 's-swim' },
+      activeProfile: 'swimming',
+      liveStats: null,
+      summary: {
+        meta: {
+          sessionId: 's-swim',
+          profile: 'swimming',
+          startedAtUtcMs: 1_700_000_000_000,
+          deviceUtcOffsetSeconds: 3600,
+          capture: {
+            intervalMs: 3000,
+            minDistanceM: 4,
+            accuracyCeilingM: 30,
+            useBarometer: false
+          },
+          pauses: [],
+          fixCount: 0,
+          logUri: 'file:///tmp/s-swim/fixes.jsonl',
+          libraryVersion: '0.1.0'
+        },
+        liveStats: {
+          elapsedSec: 1800,
+          movingTimeSec: 1800,
+          distanceMeters: 0,
+          currentSpeedMps: 0,
+          altitudeM: null,
+          elevationGainM: 0,
+          gpsLost: true,
+          hAccM: null
+        }
+      },
+      splits: [],
+      heartRateSummary: { average: 138, max: 156 },
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save,
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByText, getByLabelText, getByPlaceholderText } = render(wrap(<RecordingScreen />));
+
+    // Before entering an override, GPS distance is 0.00 km and pace is '—'
+    expect(getByText('0.00 km')).toBeTruthy();
+    const swimDistanceInput = getByLabelText('Swim distance in meters');
+    expect(swimDistanceInput).toBeTruthy();
+
+    // Enter 1500 meters -> 1.50 km in 1800s (30:00) = 2:00 /100m
+    fireEvent.changeText(swimDistanceInput, '1500');
+    expect(getByText('1.50 km')).toBeTruthy();
+    expect(getByText('2:00 /100m')).toBeTruthy();
+
+    fireEvent.changeText(
+      getByPlaceholderText('Name this activity (optional)'),
+      'Morning Pool Swim'
+    );
+    fireEvent.press(getByLabelText('Save as activity'));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith('Morning Pool Swim', 1500);
     });
   });
 });

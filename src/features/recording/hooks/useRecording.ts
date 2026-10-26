@@ -48,7 +48,7 @@ export interface UseRecordingResult {
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
-  save: (name: string) => Promise<Activity | null>;
+  save: (name: string, distanceOverrideMeters?: number) => Promise<Activity | null>;
   discard: () => Promise<void>;
 }
 
@@ -144,7 +144,8 @@ const persistSessionAsActivity = async (
   sessionId: string,
   name: string,
   summary: RecordingSummary | null,
-  addActivity: (activity: Activity) => Promise<void>
+  addActivity: (activity: Activity) => Promise<void>,
+  distanceOverrideMeters?: number
 ): Promise<Activity> => {
   const meta = await GpsTracker.getSessionMeta(sessionId);
   const { fixes, skipped } = readFixLog(meta.logUri, meta);
@@ -170,7 +171,7 @@ const persistSessionAsActivity = async (
     }
   }
 
-  const activity = buildRecordedActivity({ meta, replay, name });
+  const activity = buildRecordedActivity({ meta, replay, name, distanceOverrideMeters });
 
   // Save order (§3.7): write the stream before the record, so a failure
   // after the stream write leaves an unreferenced file (harmless, and
@@ -524,7 +525,7 @@ export function useRecording(): UseRecordingResult {
   }, []);
 
   const save = useCallback(
-    async (name: string): Promise<Activity | null> => {
+    async (name: string, distanceOverrideMeters?: number): Promise<Activity | null> => {
       const sessionId = state.sessionId;
       if (sessionId === undefined) {
         return null;
@@ -535,7 +536,13 @@ export function useRecording(): UseRecordingResult {
       let savedActivity: Activity | null = null;
 
       try {
-        savedActivity = await persistSessionAsActivity(sessionId, name, summary, addActivity);
+        savedActivity = await persistSessionAsActivity(
+          sessionId,
+          name,
+          summary,
+          addActivity,
+          distanceOverrideMeters
+        );
         setSummary(null);
         setSplits([]);
         setHeartRateSummary(null);

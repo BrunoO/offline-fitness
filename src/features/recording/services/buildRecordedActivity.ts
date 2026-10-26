@@ -28,6 +28,7 @@ export interface BuildRecordedActivityArgs {
   meta: RecordingMeta;
   replay: ReplayResult;
   name: string;
+  distanceOverrideMeters?: number;
 }
 
 /**
@@ -46,8 +47,41 @@ export interface BuildRecordedActivityArgs {
  * launch - a storage write per swim, and a backup push that disagrees with
  * the record until it happens.
  */
+const resolveDistanceAndSpeed = (
+  replay: ReplayResult,
+  movingTimeSec: number,
+  distanceOverrideMeters?: number
+): { distanceMeters: number; averageSpeed: number } => {
+  if (
+    typeof distanceOverrideMeters === 'number' &&
+    Number.isFinite(distanceOverrideMeters) &&
+    distanceOverrideMeters >= 0
+  ) {
+    return {
+      distanceMeters: distanceOverrideMeters,
+      averageSpeed: movingTimeSec > 0 ? distanceOverrideMeters / movingTimeSec : 0
+    };
+  }
+  return {
+    distanceMeters: replay.stats.distanceMeters,
+    averageSpeed: replay.stats.averageSpeedMetersPerSec
+  };
+};
+
+const extractStreamGeometry = (replay: ReplayResult) => {
+  const latlng = replay.stream.latlng?.data ?? [];
+  const altitude = replay.stream.altitude?.data ?? [];
+  return {
+    startLatLng: latlng.length > 0 ? latlng[0] : [],
+    endLatLng: latlng.length > 0 ? latlng.at(-1)! : [],
+    boundingBox: trackBoundingBox(latlng),
+    elevHigh: altitude.length > 0 ? Math.max(...altitude) : 0,
+    elevLow: altitude.length > 0 ? Math.min(...altitude) : 0
+  };
+};
+
 export function buildRecordedActivity(args: BuildRecordedActivityArgs): Activity {
-  const { meta, replay, name } = args;
+  const { meta, replay, name, distanceOverrideMeters } = args;
   const startUtcMs = meta.startedAtUtcMs;
   const type = profileToActivityType(meta.profile);
   const isSwim = type === 'Swim';
@@ -67,15 +101,12 @@ export function buildRecordedActivity(args: BuildRecordedActivityArgs): Activity
   const durationSec = replay.stats.elapsedTimeSec;
   const movingTime = isSwim ? durationSec : replay.stats.movingTimeSec;
   const elevationGain = isSwim ? 0 : replay.stats.elevationGainMeters;
-
-  const latlng = replay.stream.latlng?.data ?? [];
-  const altitude = replay.stream.altitude?.data ?? [];
-  const startLatLng = latlng.length > 0 ? latlng[0] : [];
-  const endLatLng = latlng.length > 0 ? latlng.at(-1)! : [];
-  const boundingBox = trackBoundingBox(latlng);
-
-  const elevHigh = altitude.length > 0 ? Math.max(...altitude) : 0;
-  const elevLow = altitude.length > 0 ? Math.min(...altitude) : 0;
+  const { distanceMeters, averageSpeed } = resolveDistanceAndSpeed(
+    replay,
+    movingTime,
+    distanceOverrideMeters
+  );
+  const { startLatLng, endLatLng, boundingBox, elevHigh, elevLow } = extractStreamGeometry(replay);
 
   const counter = meta.sessionId.split('-').pop() ?? '0';
 
@@ -92,11 +123,11 @@ export function buildRecordedActivity(args: BuildRecordedActivityArgs): Activity
     start_month: month - 1,
     start_day: day,
     start_week: week_of_year(year, month - 1, day),
-    distance: replay.stats.distanceMeters,
+    distance: distanceMeters,
     elapsed_time: durationSec,
     moving_time: movingTime,
     type,
-    average_speed: replay.stats.averageSpeedMetersPerSec,
+    average_speed: averageSpeed,
     total_elevation_gain: elevationGain,
     average_heartrate: replay.stats.averageHeartRate,
     max_heartrate: replay.stats.maxHeartRate,
