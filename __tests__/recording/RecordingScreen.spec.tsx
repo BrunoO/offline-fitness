@@ -1,6 +1,7 @@
 import React from 'react';
-import { render, fireEvent, act } from '@testing-library/react-native';
+import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '@/theme/ThemeProvider';
+import { saveLastRecordingProfile } from '@/features/recording/services/profiles';
 import {
   RecordingScreen,
   computeAverageSpeedMps,
@@ -9,6 +10,14 @@ import {
   formatPace,
   formatSpeed
 } from '@/features/recording/screens/RecordingScreen';
+
+const mockAsyncStore = new Map<string, string>();
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async (key: string) => mockAsyncStore.get(key) ?? null),
+  setItem: jest.fn(async (key: string, value: string) => {
+    mockAsyncStore.set(key, value);
+  })
+}));
 
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons'
@@ -36,6 +45,7 @@ const wrap = (ui: React.ReactElement) => <ThemeProvider>{ui}</ThemeProvider>;
 
 describe('RecordingScreen', () => {
   beforeEach(() => {
+    mockAsyncStore.clear();
     jest.clearAllMocks();
   });
 
@@ -495,6 +505,86 @@ describe('RecordingScreen', () => {
 
       expect(getByLabelText('Resume recording')).toBeTruthy();
       expect(getByLabelText('Stop recording')).toBeTruthy();
+    });
+  });
+
+  it('restores last-used profile from AsyncStorage, persists changes, and navigates to Details on save', async () => {
+    await saveLastRecordingProfile('cycling');
+    const start = jest.fn().mockResolvedValue(undefined);
+
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: true },
+      state: { phase: 'idle' },
+      activeProfile: null,
+      liveStats: null,
+      summary: null,
+      splits: [],
+      heartRateSummary: null,
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start,
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save: jest.fn(),
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByLabelText, unmount } = render(wrap(<RecordingScreen />));
+
+    // Restores 'cycling' from AsyncStorage so Start uses 'cycling'
+    await waitFor(() => {
+      expect(getByLabelText('Cycling').props.accessibilityState?.selected).toBe(true);
+    });
+
+    // Selecting 'Hiking' updates selection and persists to AsyncStorage
+    fireEvent.press(getByLabelText('Hiking'));
+    fireEvent.press(getByLabelText('Start recording'));
+    expect(start).toHaveBeenCalledWith('hiking');
+    unmount();
+
+    // Saving a stopped session navigates to Details with selectedActivityId
+    const save = jest.fn().mockResolvedValue({ id: 'recorded-1700000000000-1' });
+    const navigate = jest.fn();
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: true },
+      state: { phase: 'stopped-unsaved', sessionId: 's-done' },
+      activeProfile: 'hiking',
+      liveStats: null,
+      summary: null,
+      splits: [],
+      heartRateSummary: null,
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save,
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByLabelText: getStoppedLabel } = render(
+      wrap(<RecordingScreen navigation={{ navigate }} />)
+    );
+    fireEvent.press(getStoppedLabel('Save as activity'));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith('');
+      expect(navigate).toHaveBeenCalledWith('Details', {
+        allActivities: undefined,
+        selectedActivityId: 'recorded-1700000000000-1'
+      });
     });
   });
 });

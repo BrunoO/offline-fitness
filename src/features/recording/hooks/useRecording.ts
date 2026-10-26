@@ -13,7 +13,7 @@ import type {
 } from '../services/gpsTracker';
 import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import { buildRecordedActivity } from '../services/buildRecordedActivity';
-import { PROFILE_CAPTURE_OPTIONS } from '../services/profiles';
+import { PROFILE_CAPTURE_OPTIONS, saveLastRecordingProfile } from '../services/profiles';
 import { replaySession } from '../services/replaySession';
 import { LiveSlopeCalculator } from '../services/slope';
 import { SplitDetector } from '../services/splits';
@@ -42,13 +42,13 @@ export interface UseRecordingResult {
   isBusy: boolean;
   isSaving: boolean;
   unfinished: RecordingMeta[];
-  saveUnfinished: (sessionId: string) => Promise<void>;
+  saveUnfinished: (sessionId: string) => Promise<Activity | null>;
   discardUnfinished: (sessionId: string) => Promise<void>;
   start: (profile: Profile) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
-  save: (name: string) => Promise<void>;
+  save: (name: string) => Promise<Activity | null>;
   discard: () => Promise<void>;
 }
 
@@ -128,7 +128,7 @@ const persistSessionAsActivity = async (
   name: string,
   summary: RecordingSummary | null,
   addActivity: (activity: Activity) => Promise<void>
-): Promise<void> => {
+): Promise<Activity> => {
   const meta = await GpsTracker.getSessionMeta(sessionId);
   const { fixes, skipped } = readFixLog(meta.logUri, meta);
   const { samples: heartRateSamples } = readHeartRateLog(heartRateLogUri(meta));
@@ -163,6 +163,7 @@ const persistSessionAsActivity = async (
   heartRateService.detachRecording();
   await GpsTracker.markSessionSaved(sessionId, activity.id);
   void sweepExpiredSessions();
+  return activity;
 };
 
 const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStats => {
@@ -426,6 +427,7 @@ export function useRecording(): UseRecordingResult {
           capture: PROFILE_CAPTURE_OPTIONS[profile]
         });
         setActiveProfile(profile);
+        void saveLastRecordingProfile(profile);
         heartRateService.attachRecording(meta);
         const [audioRaw, hapticRaw, intervalRaw] = await Promise.all([
           AsyncStorage.getItem('splitsAudioEnabled'),
@@ -512,17 +514,18 @@ export function useRecording(): UseRecordingResult {
   }, []);
 
   const save = useCallback(
-    async (name: string) => {
+    async (name: string): Promise<Activity | null> => {
       const sessionId = state.sessionId;
       if (sessionId === undefined) {
-        return;
+        return null;
       }
 
       setError(null);
       setIsSaving(true);
+      let savedActivity: Activity | null = null;
 
       try {
-        await persistSessionAsActivity(sessionId, name, summary, addActivity);
+        savedActivity = await persistSessionAsActivity(sessionId, name, summary, addActivity);
         setSummary(null);
         setSplits([]);
         setHeartRateSummary(null);
@@ -536,6 +539,7 @@ export function useRecording(): UseRecordingResult {
       }
 
       setIsSaving(false);
+      return savedActivity;
     },
     [state.sessionId, summary, addActivity]
   );
@@ -565,17 +569,19 @@ export function useRecording(): UseRecordingResult {
   }, [state.sessionId]);
 
   const saveUnfinished = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string): Promise<Activity | null> => {
       setError(null);
       setIsSaving(true);
+      let savedActivity: Activity | null = null;
       try {
-        await persistSessionAsActivity(sessionId, '', null, addActivity);
+        savedActivity = await persistSessionAsActivity(sessionId, '', null, addActivity);
         setUnfinished(prev => prev.filter(item => item.sessionId !== sessionId));
       } catch (cause: unknown) {
         simpleLogger.error('Could not save unfinished session', cause);
         setError(describeError(cause, 'Could not recover the unfinished recording.'));
       }
       setIsSaving(false);
+      return savedActivity;
     },
     [addActivity]
   );

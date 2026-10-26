@@ -1,12 +1,53 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants';
 import {
+  DEFAULT_RECORDING_PROFILE,
+  isRecordingProfile,
+  loadLastRecordingProfile,
   PROFILE_CAPTURE_OPTIONS,
   PROFILE_FILTER_OPTIONS,
-  PROFILES
+  PROFILES,
+  saveLastRecordingProfile
 } from '@/features/recording/services/profiles';
 
+const mockStore = new Map<string, string>();
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async (key: string) => mockStore.get(key) ?? null),
+  setItem: jest.fn(async (key: string, value: string) => {
+    mockStore.set(key, value);
+  })
+}));
+
 describe('recording profiles', () => {
-  it('exposes the four MVP profiles in a stable order', () => {
+  beforeEach(() => {
+    mockStore.clear();
+    jest.clearAllMocks();
+  });
+
+  it('exposes the five profiles in a stable order and defaults to running', () => {
     expect(PROFILES).toEqual(['walking', 'running', 'hiking', 'cycling', 'swimming']);
+    expect(DEFAULT_RECORDING_PROFILE).toBe('running');
+  });
+
+  it('persists and loads the last-used recording profile in AsyncStorage', async () => {
+    expect(await loadLastRecordingProfile()).toBe('running');
+
+    await saveLastRecordingProfile('cycling');
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      STORAGE_KEYS.RECORDING_LAST_PROFILE,
+      'cycling'
+    );
+    expect(await loadLastRecordingProfile()).toBe('cycling');
+
+    await saveLastRecordingProfile('swimming');
+    expect(await loadLastRecordingProfile()).toBe('swimming');
+
+    // Corrupted / unknown profile falls back to 'running'
+    mockStore.set(STORAGE_KEYS.RECORDING_LAST_PROFILE, 'kayaking');
+    expect(await loadLastRecordingProfile()).toBe('running');
+    expect(isRecordingProfile('hiking')).toBe(true);
+    expect(isRecordingProfile('kayaking')).toBe(false);
+    expect(isRecordingProfile(null)).toBe(false);
   });
 
   it('freezes the capture numbers copied verbatim from ActivityProfile.kt', () => {

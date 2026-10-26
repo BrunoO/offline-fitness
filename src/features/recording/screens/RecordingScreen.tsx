@@ -1,6 +1,6 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import { SPACING, METERS_PER_KILOMETER, createStyles } from './RecordingScreen.styles';
-import React, { JSX, useEffect, useMemo, useRef, useState } from 'react';
+import React, { JSX, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -15,9 +15,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { NavigationContext } from '@react-navigation/native';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
 import { HeartRateCard } from '@/features/heart-rate';
+import type { RootDrawerParamList } from '@/shared';
 import type {
   GpsTrackerCapabilities,
   LiveStats,
@@ -26,7 +29,13 @@ import type {
   RecordingSummary
 } from '../services/gpsTracker';
 import type { SplitEvent } from '../services/splits';
-import { PROFILE_LABELS, PROFILES } from '../services/profiles';
+import {
+  DEFAULT_RECORDING_PROFILE,
+  loadLastRecordingProfile,
+  PROFILE_LABELS,
+  PROFILES,
+  saveLastRecordingProfile
+} from '../services/profiles';
 
 const PROFILE_ICONS: Record<Profile, string> = {
   walking: 'walk-outline',
@@ -145,6 +154,22 @@ const gpsAccuracyColor = (meters: number, theme: ResolvedTheme): string => {
   return theme.danger;
 };
 
+const navigateToActivityDetails = (
+  navigation: Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'> | undefined,
+  activityId: string | undefined
+): void => {
+  if (activityId) {
+    navigation?.navigate('Details', {
+      allActivities: undefined,
+      selectedActivityId: activityId
+    });
+  }
+};
+
+export interface RecordingScreenProps {
+  readonly navigation?: Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'>;
+}
+
 /**
  * Recording screen: profiles, live stats, save/discard flow.
  *
@@ -152,10 +177,16 @@ const gpsAccuracyColor = (meters: number, theme: ResolvedTheme): string => {
  * speed/altitude tertiary. Action buttons use colour to convey intent
  * (primary = start/save, danger = stop/discard, secondary = pause/resume).
  */
-export function RecordingScreen(): JSX.Element {
+export function RecordingScreen({
+  navigation: navigationProp
+}: RecordingScreenProps = {}): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const navContext = useContext(NavigationContext);
+  const navigation =
+    navigationProp ??
+    (navContext as Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'> | undefined);
   const {
     capabilities,
     state,
@@ -178,7 +209,7 @@ export function RecordingScreen(): JSX.Element {
     saveUnfinished,
     discardUnfinished
   } = useRecording();
-  const [profile, setProfile] = useState<Profile>('walking');
+  const [profile, setProfile] = useState<Profile>(DEFAULT_RECORDING_PROFILE);
   // Which live stat is promoted to the hero (large) position. The user taps
   // a compact tile to promote it; tapping the hero cycles back to elapsed time.
   const [heroStat, setHeroStat] = useState<StatKey>('time');
@@ -187,28 +218,51 @@ export function RecordingScreen(): JSX.Element {
     mode: RateDisplayMode;
   } | null>(null);
   const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const isLive = state.phase === 'recording' || state.phase === 'paused';
 
-  // Automatically reset screen lock if session is no longer live.
   useEffect(() => {
-    if (state.phase !== 'recording' && state.phase !== 'paused') {
-      setIsScreenLocked(false);
+    if (state.phase !== 'idle') {
+      return;
     }
+    let isMounted = true;
+    void loadLastRecordingProfile().then(savedProfile => {
+      if (isMounted && savedProfile !== DEFAULT_RECORDING_PROFILE) {
+        setProfile(savedProfile);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [state.phase]);
 
-  // Keep the screen awake only while a session is live.
+  // Keep the screen awake only while a session is live, and unlock when no longer live.
   useEffect(() => {
-    const isLive = state.phase === 'recording' || state.phase === 'paused';
     if (isLive) {
       void activateKeepAwakeAsync();
     } else {
+      setIsScreenLocked(false);
       void deactivateKeepAwake();
     }
     return () => {
       void deactivateKeepAwake();
     };
-  }, [state.phase]);
+  }, [isLive]);
 
-  const isLive = state.phase === 'recording' || state.phase === 'paused';
+  const handleSelectProfile = (nextProfile: Profile) => {
+    setProfile(nextProfile);
+    void saveLastRecordingProfile(nextProfile);
+  };
+
+  const handleSave = async (name: string) => {
+    const savedActivity = await save(name);
+    navigateToActivityDetails(navigation, savedActivity?.id);
+  };
+
+  const handleSaveUnfinished = async (sessionId: string) => {
+    const savedActivity = await saveUnfinished(sessionId);
+    navigateToActivityDetails(navigation, savedActivity?.id);
+  };
+
   const displayedProfile = activeProfile ?? profile;
   const rateMode: RateDisplayMode =
     rateOverride?.profile === displayedProfile
@@ -236,7 +290,7 @@ export function RecordingScreen(): JSX.Element {
         <UnfinishedRecoveryCard
           unfinished={unfinished}
           isSaving={isSaving}
-          onSave={saveUnfinished}
+          onSave={handleSaveUnfinished}
           onDiscard={discardUnfinished}
           styles={styles}
           theme={theme}
@@ -279,7 +333,7 @@ export function RecordingScreen(): JSX.Element {
       ) : null}
 
       {state.phase === 'idle' ? (
-        <ProfileCard profile={profile} onSelect={setProfile} styles={styles} />
+        <ProfileCard profile={profile} onSelect={handleSelectProfile} styles={styles} />
       ) : null}
       {isLive ? (
         <View style={styles.profileBadge}>
@@ -325,7 +379,7 @@ export function RecordingScreen(): JSX.Element {
           profile={displayedProfile}
           rateMode={rateMode}
           heartRateSummary={heartRateSummary}
-          onSave={save}
+          onSave={handleSave}
           onDiscard={discard}
           isSaving={isSaving}
           styles={styles}
@@ -333,28 +387,40 @@ export function RecordingScreen(): JSX.Element {
         />
       ) : null}
 
-      {error ? (
-        <View style={styles.errorCard}>
-          <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
-          <Text style={styles.error}>{error}</Text>
-          {error.toLowerCase().includes('permission') ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void Linking.openSettings();
-              }}
-              style={styles.linkButton}
-            >
-              <Text style={styles.linkButtonLabel}>Open settings</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+      {error ? <ErrorCard error={error} styles={styles} theme={theme} /> : null}
     </ScrollView>
   );
 }
 
 type Styles = ReturnType<typeof createStyles>;
+
+function ErrorCard({
+  error,
+  styles,
+  theme
+}: {
+  readonly error: string;
+  readonly styles: Styles;
+  readonly theme: ResolvedTheme;
+}): JSX.Element {
+  return (
+    <View style={styles.errorCard}>
+      <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
+      <Text style={styles.error}>{error}</Text>
+      {error.toLowerCase().includes('permission') ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            void Linking.openSettings();
+          }}
+          style={styles.linkButton}
+        >
+          <Text style={styles.linkButtonLabel}>Open settings</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 interface SessionCardProps {
   readonly phase: string;
@@ -608,6 +674,7 @@ function ProfileCard({ profile, onSelect, styles }: ProfileCardProps): JSX.Eleme
             <Pressable
               key={candidate}
               accessibilityRole="button"
+              accessibilityLabel={PROFILE_LABELS[candidate]}
               accessibilityState={{ selected: isSelected }}
               onPress={() => onSelect(candidate)}
               style={({ pressed }) => [

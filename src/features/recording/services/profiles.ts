@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants';
 import type { CaptureOptions, Profile } from './gpsTracker';
 
 /**
@@ -8,6 +10,31 @@ import type { CaptureOptions, Profile } from './gpsTracker';
  * the service only receives the four values the capture loop needs.
  */
 export const PROFILES: Profile[] = ['walking', 'running', 'hiking', 'cycling', 'swimming'];
+
+export const DEFAULT_RECORDING_PROFILE: Profile = 'running';
+
+export function isRecordingProfile(value: unknown): value is Profile {
+  return typeof value === 'string' && (PROFILES as readonly string[]).includes(value);
+}
+
+/** Loads the last-used recording profile from AsyncStorage, defaulting to `'running'`. */
+export async function loadLastRecordingProfile(): Promise<Profile> {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEYS.RECORDING_LAST_PROFILE);
+    return isRecordingProfile(saved) ? saved : DEFAULT_RECORDING_PROFILE;
+  } catch {
+    return DEFAULT_RECORDING_PROFILE;
+  }
+}
+
+/** Persists the user's selected recording profile in AsyncStorage. */
+export async function saveLastRecordingProfile(profile: Profile): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.RECORDING_LAST_PROFILE, profile);
+  } catch {
+    // Ignore storage write errors so profile selection remains non-fatal.
+  }
+}
 
 export const PROFILE_CAPTURE_OPTIONS: Record<Profile, CaptureOptions> = {
   walking: {

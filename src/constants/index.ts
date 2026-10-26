@@ -44,5 +44,6 @@ export const STORAGE_KEYS = {
   WEBDAV_TOMBSTONES: 'webdav_tombstones',
   MANUAL_LAST_TYPE: 'manual_last_type',
   MANUAL_CUSTOM_TYPES: 'manual_custom_types',
+  RECORDING_LAST_PROFILE: 'recording_last_profile',
   ACTIVITY_PREFIX: 'a_'
 } as const;
