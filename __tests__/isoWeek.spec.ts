@@ -1,6 +1,7 @@
 import { Activity } from '@/shared';
 import {
   activityIsoWeekKey,
+  activityStoredWeekKey,
   isoWeekKeyFromDateString,
   isoWeekKeyFromLocalParts
 } from '@/shared/utils/isoWeek';
@@ -60,5 +61,23 @@ describe('isoWeek activity bucketing', () => {
     // Note: true UTC instant is still Sunday May 10 — only the local day is Monday.
     const monday = makeActivity('2026-05-11T00:30:00+02:00', '2026-05-10T22:30:00Z');
     expect(activityIsoWeekKey(monday)).toBe('2026-W20');
+  });
+
+  it('aligns activityStoredWeekKey with activityIsoWeekKey on Jan 1-3 belonging to previous ISO year (W52/W53)', () => {
+    // Sunday 2023-01-01 belongs to 2022-W52; Friday 2021-01-01 belongs to 2020-W53
+    const jan2023 = makeActivity('2023-01-01T10:00:00+01:00', '2023-01-01T09:00:00Z');
+    expect(activityIsoWeekKey(jan2023)).toBe('2022-W52');
+    expect(activityStoredWeekKey(jan2023)).toBe('2022-W52');
+
+    const jan2021 = makeActivity('2021-01-01T10:00:00+01:00', '2021-01-01T09:00:00Z');
+    expect(activityIsoWeekKey(jan2021)).toBe('2020-W53');
+    expect(activityStoredWeekKey(jan2021)).toBe('2020-W53');
+  });
+
+  it('aligns activityStoredWeekKey with activityIsoWeekKey on Dec 29-31 belonging to next ISO year (W01)', () => {
+    // Monday 2025-12-29 belongs to 2026-W01
+    const dec2025 = makeActivity('2025-12-29T10:00:00+01:00', '2025-12-29T09:00:00Z');
+    expect(activityIsoWeekKey(dec2025)).toBe('2026-W01');
+    expect(activityStoredWeekKey(dec2025)).toBe('2026-W01');
   });
 });

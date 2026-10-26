@@ -71,10 +71,12 @@ export function activityIsoWeekKey(activity: Activity): string {
  * Legacy bucket key from stored activity fields (used before weeklyData alignment).
  */
 export function activityStoredWeekKey(activity: Activity): string {
-  const isoYear =
-    activity.start_month === 11 && activity.start_week === 1
-      ? activity.start_year + 1
-      : activity.start_year;
+  let isoYear = activity.start_year;
+  if (activity.start_month === 11 && activity.start_week === 1) {
+    isoYear = activity.start_year + 1;
+  } else if (activity.start_month === 0 && activity.start_week >= 52) {
+    isoYear = activity.start_year - 1;
+  }
   return formatIsoWeekKey(isoYear, activity.start_week);
 }
 
