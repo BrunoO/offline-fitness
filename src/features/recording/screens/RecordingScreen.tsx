@@ -1,7 +1,18 @@
 import { ResolvedTheme, useTheme } from '@/theme';
 import { SPACING, METERS_PER_KILOMETER, createStyles } from './RecordingScreen.styles';
-import React, { JSX, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View, Linking } from 'react-native';
+import React, { JSX, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Easing,
+  Linking,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  Vibration,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -175,6 +186,14 @@ export function RecordingScreen(): JSX.Element {
     profile: Profile;
     mode: RateDisplayMode;
   } | null>(null);
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+
+  // Automatically reset screen lock if session is no longer live.
+  useEffect(() => {
+    if (state.phase !== 'recording' && state.phase !== 'paused') {
+      setIsScreenLocked(false);
+    }
+  }, [state.phase]);
 
   // Keep the screen awake only while a session is live.
   useEffect(() => {
@@ -224,7 +243,13 @@ export function RecordingScreen(): JSX.Element {
         />
       ) : null}
 
-      <SessionCard phase={state.phase} liveStats={liveStats} styles={styles} theme={theme} />
+      <SessionCard
+        phase={state.phase}
+        liveStats={liveStats}
+        isLocked={isScreenLocked}
+        styles={styles}
+        theme={theme}
+      />
       <HeartRateCard />
 
       <LiveStatsCard
@@ -239,6 +264,7 @@ export function RecordingScreen(): JSX.Element {
         }}
         heroStat={heroStat}
         onPromote={setHeroStat}
+        isLocked={isScreenLocked}
         styles={styles}
       />
 
@@ -269,6 +295,7 @@ export function RecordingScreen(): JSX.Element {
       <RecordingActions
         phase={state.phase}
         isBusy={isBusy}
+        isLocked={isScreenLocked}
         onStart={() => {
           void start(profile);
         }}
@@ -281,7 +308,14 @@ export function RecordingScreen(): JSX.Element {
         onStop={() => {
           void stop();
         }}
+        onLock={() => {
+          setIsScreenLocked(true);
+        }}
+        onUnlock={() => {
+          setIsScreenLocked(false);
+        }}
         styles={styles}
+        theme={theme}
       />
 
       {state.phase === 'stopped-unsaved' ? (
@@ -325,6 +359,7 @@ type Styles = ReturnType<typeof createStyles>;
 interface SessionCardProps {
   readonly phase: string;
   readonly liveStats: LiveStats | null;
+  readonly isLocked: boolean;
   readonly styles: Styles;
   readonly theme: ResolvedTheme;
 }
@@ -380,17 +415,25 @@ function GpsStatusRow({
   return null;
 }
 
-function SessionCard({ phase, liveStats, styles, theme }: SessionCardProps): JSX.Element {
+function SessionCard({ phase, liveStats, isLocked, styles, theme }: SessionCardProps): JSX.Element {
   const phaseColor = phaseColorFor(phase, theme);
 
   return (
     <View style={styles.card}>
-      <View style={styles.sessionHeader}>
-        <View style={[styles.statusDot, { backgroundColor: phaseColor }]} />
-        <Text style={styles.phase}>{PHASE_LABEL[phase] ?? phase}</Text>
-        {phase === 'recording' ? (
-          <View style={styles.recordingPulse}>
-            <Ionicons name="radio-button-on" size={12} color={theme.danger} />
+      <View style={styles.sessionHeaderRow}>
+        <View style={styles.sessionHeader}>
+          <View style={[styles.statusDot, { backgroundColor: phaseColor }]} />
+          <Text style={styles.phase}>{PHASE_LABEL[phase] ?? phase}</Text>
+          {phase === 'recording' ? (
+            <View style={styles.recordingPulse}>
+              <Ionicons name="radio-button-on" size={12} color={theme.danger} />
+            </View>
+          ) : null}
+        </View>
+        {isLocked ? (
+          <View style={styles.sessionLockBadge}>
+            <Ionicons name="lock-closed" size={12} color={theme.primary} />
+            <Text style={styles.sessionLockBadgeLabel}>Screen locked</Text>
           </View>
         ) : null}
       </View>
@@ -462,6 +505,7 @@ interface LiveStatsCardProps {
   readonly onToggleRateMode: () => void;
   readonly heroStat: StatKey;
   readonly onPromote: (key: StatKey) => void;
+  readonly isLocked?: boolean;
   readonly styles: Styles;
 }
 
@@ -472,6 +516,7 @@ function LiveStatsCard({
   onToggleRateMode,
   heroStat,
   onPromote,
+  isLocked = false,
   styles
 }: LiveStatsCardProps): JSX.Element {
   const statDefs = getStatDefs(rateMode);
@@ -485,16 +530,23 @@ function LiveStatsCard({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={rateMode === 'pace' ? 'Switch to speed (km/h)' : 'Switch to pace'}
+          disabled={isLocked}
           onPress={onToggleRateMode}
-          style={({ pressed }) => [styles.rateToggleButton, pressed ? styles.chipPressed : null]}
+          style={({ pressed }) => [
+            styles.rateToggleButton,
+            pressed && !isLocked ? styles.chipPressed : null
+          ]}
         >
           <Text style={styles.rateToggleLabel}>{rateToggleText(profile, rateMode)}</Text>
         </Pressable>
       </View>
-      <Text style={styles.tapHint}>Tap a stat to enlarge it</Text>
+      <Text style={styles.tapHint}>
+        {isLocked ? 'Screen locked · Touch controls disabled' : 'Tap a stat to enlarge it'}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Promote ${heroDef.label} (currently enlarged)`}
+        disabled={isLocked}
         onPress={() => {
           // Tapping the hero cycles back to elapsed time.
           if (heroStat !== 'time') {
@@ -519,8 +571,9 @@ function LiveStatsCard({
             key={def.key}
             accessibilityRole="button"
             accessibilityLabel={`Enlarge ${def.label}`}
+            disabled={isLocked}
             onPress={() => onPromote(def.key)}
-            style={({ pressed }) => [styles.tile, pressed ? styles.tilePressed : null]}
+            style={({ pressed }) => [styles.tile, pressed && !isLocked ? styles.tilePressed : null]}
           >
             <View style={styles.tileHeader}>
               <Ionicons
@@ -574,25 +627,137 @@ function ProfileCard({ profile, onSelect, styles }: ProfileCardProps): JSX.Eleme
   );
 }
 
+const HOLD_DURATION_MS = 1500;
+
+interface HoldToUnlockControlProps {
+  readonly onUnlock: () => void;
+  readonly styles: Styles;
+  readonly theme: ResolvedTheme;
+}
+
+function HoldToUnlockControl({ onUnlock, styles, theme }: HoldToUnlockControlProps): JSX.Element {
+  const [showHint, setShowHint] = useState(false);
+  const [progress] = useState(() => new Animated.Value(0));
+  const isUnlockedRef = useRef(false);
+  const hintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHintTimeout = () => {
+    if (hintTimeoutRef.current) {
+      clearTimeout(hintTimeoutRef.current);
+      hintTimeoutRef.current = null;
+    }
+  };
+
+  const handlePressIn = () => {
+    clearHintTimeout();
+    setShowHint(false);
+    isUnlockedRef.current = false;
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: HOLD_DURATION_MS,
+      easing: Easing.linear,
+      useNativeDriver: false
+    }).start(({ finished }) => {
+      if (finished) {
+        isUnlockedRef.current = true;
+        try {
+          Vibration.vibrate(80);
+        } catch {
+          // Ignore vibration failures if unsupported on device/platform
+        }
+        onUnlock();
+      }
+    });
+  };
+
+  const handlePressOut = () => {
+    progress.stopAnimation();
+    if (!isUnlockedRef.current) {
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: false
+      }).start();
+      setShowHint(true);
+      clearHintTimeout();
+      hintTimeoutRef.current = setTimeout(() => {
+        setShowHint(false);
+      }, 2500);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      progress.stopAnimation();
+      clearHintTimeout();
+    };
+  }, [progress]);
+
+  const fillWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%']
+  });
+
+  return (
+    <View style={styles.unlockContainer}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Hold to unlock screen"
+        accessibilityHint="Press and hold for 1.5 seconds to unlock the screen"
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.unlockButton}
+      >
+        <Animated.View style={[styles.unlockProgressFill, { width: fillWidth }]} />
+        <View style={styles.unlockContent}>
+          <Ionicons name="lock-closed" size={20} color={theme.primary} />
+          <View style={styles.unlockTextColumn}>
+            <Text style={styles.unlockButtonLabel}>Hold to unlock</Text>
+            <Text style={styles.unlockSubtext}>Press and hold for 1.5s</Text>
+          </View>
+        </View>
+      </Pressable>
+      {showHint ? <Text style={styles.unlockHint}>Keep holding until unlocked</Text> : null}
+    </View>
+  );
+}
+
 interface RecordingActionsProps {
   readonly phase: string;
   readonly isBusy: boolean;
+  readonly isLocked: boolean;
   readonly onStart: () => void;
   readonly onPause: () => void;
   readonly onResume: () => void;
   readonly onStop: () => void;
+  readonly onLock: () => void;
+  readonly onUnlock: () => void;
   readonly styles: Styles;
+  readonly theme: ResolvedTheme;
 }
 
 function RecordingActions({
   phase,
   isBusy,
+  isLocked,
   onStart,
   onPause,
   onResume,
   onStop,
-  styles
+  onLock,
+  onUnlock,
+  styles,
+  theme
 }: RecordingActionsProps): JSX.Element {
+  if (isLocked) {
+    return (
+      <View style={styles.actions}>
+        <HoldToUnlockControl onUnlock={onUnlock} styles={styles} theme={theme} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.actions}>
       {phase === 'idle' ? (
@@ -612,51 +777,83 @@ function RecordingActions({
         </Pressable>
       ) : null}
       {phase === 'recording' ? (
-        <View style={styles.actionRow}>
+        <>
+          <View style={styles.actionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pause recording"
+              onPress={onPause}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                pressed ? styles.buttonPressedLight : null
+              ]}
+            >
+              <Ionicons
+                name="pause"
+                size={18}
+                color={styles.secondaryButtonLabel.color as string}
+              />
+              <Text style={styles.secondaryButtonLabel}>Pause</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Stop recording"
+              onPress={onStop}
+              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
+            >
+              <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
+              <Text style={styles.dangerButtonLabel}>Stop</Text>
+            </Pressable>
+          </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Pause recording"
-            onPress={onPause}
+            accessibilityLabel="Lock screen against accidental touches"
+            onPress={onLock}
             style={({ pressed }) => [
-              styles.secondaryButton,
+              styles.lockScreenButton,
               pressed ? styles.buttonPressedLight : null
             ]}
           >
-            <Ionicons name="pause" size={18} color={styles.secondaryButtonLabel.color as string} />
-            <Text style={styles.secondaryButtonLabel}>Pause</Text>
+            <Ionicons name="lock-closed-outline" size={18} color={theme.text} />
+            <Text style={styles.lockScreenButtonLabel}>Lock screen (pocket & rain safe)</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Stop recording"
-            onPress={onStop}
-            style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-          >
-            <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
-            <Text style={styles.dangerButtonLabel}>Stop</Text>
-          </Pressable>
-        </View>
+        </>
       ) : null}
       {phase === 'paused' ? (
-        <View style={styles.actionRow}>
+        <>
+          <View style={styles.actionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Resume recording"
+              onPress={onResume}
+              style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
+            >
+              <Ionicons name="play" size={18} color={styles.primaryButtonLabel.color as string} />
+              <Text style={styles.primaryButtonLabel}>Resume</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Stop recording"
+              onPress={onStop}
+              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
+            >
+              <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
+              <Text style={styles.dangerButtonLabel}>Stop</Text>
+            </Pressable>
+          </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Resume recording"
-            onPress={onResume}
-            style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
+            accessibilityLabel="Lock screen against accidental touches"
+            onPress={onLock}
+            style={({ pressed }) => [
+              styles.lockScreenButton,
+              pressed ? styles.buttonPressedLight : null
+            ]}
           >
-            <Ionicons name="play" size={18} color={styles.primaryButtonLabel.color as string} />
-            <Text style={styles.primaryButtonLabel}>Resume</Text>
+            <Ionicons name="lock-closed-outline" size={18} color={theme.text} />
+            <Text style={styles.lockScreenButtonLabel}>Lock screen (pocket & rain safe)</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Stop recording"
-            onPress={onStop}
-            style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-          >
-            <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
-            <Text style={styles.dangerButtonLabel}>Stop</Text>
-          </Pressable>
-        </View>
+        </>
       ) : null}
     </View>
   );

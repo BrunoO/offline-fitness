@@ -66,10 +66,31 @@ export const createStyles = (theme: ResolvedTheme) =>
       letterSpacing: 0.6,
       textTransform: 'uppercase'
     },
+    sessionHeaderRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between'
+    },
     sessionHeader: {
       alignItems: 'center',
       flexDirection: 'row',
       gap: SPACING.sm
+    },
+    sessionLockBadge: {
+      alignItems: 'center',
+      backgroundColor: theme.primarySoft,
+      borderColor: theme.border,
+      borderRadius: RADIUS.chip,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: SPACING.xs
+    },
+    sessionLockBadgeLabel: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600'
     },
     statusDot: {
       borderRadius: 6,
@@ -192,9 +213,72 @@ export const createStyles = (theme: ResolvedTheme) =>
     },
     actionRow: {
       flexDirection: 'row',
+      gap: SPACING.sm
+    },
+    lockScreenButton: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: RADIUS.button,
+      borderWidth: 1,
+      flexDirection: 'row',
       gap: SPACING.sm,
-      marginHorizontal: SPACING.lg,
-      marginTop: SPACING.lg
+      justifyContent: 'center',
+      marginTop: SPACING.sm,
+      paddingVertical: SPACING.md
+    },
+    lockScreenButtonLabel: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '600'
+    },
+    unlockContainer: {
+      alignItems: 'center',
+      width: '100%'
+    },
+    unlockButton: {
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: RADIUS.button,
+      borderWidth: 1,
+      overflow: 'hidden',
+      position: 'relative',
+      width: '100%'
+    },
+    unlockProgressFill: {
+      backgroundColor: theme.primarySoft,
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+      top: 0
+    },
+    unlockContent: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: SPACING.md,
+      justifyContent: 'center',
+      paddingVertical: SPACING.md
+    },
+    unlockTextColumn: {
+      alignItems: 'flex-start'
+    },
+    unlockButtonLabel: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '700'
+    },
+    unlockSubtext: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+      marginTop: 2
+    },
+    unlockHint: {
+      color: theme.textMuted,
+      fontSize: 13,
+      fontStyle: 'italic',
+      marginTop: SPACING.xs,
+      textAlign: 'center'
     },
     primaryButton: {
       alignItems: 'center',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, act } from '@testing-library/react-native';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import {
   RecordingScreen,
@@ -349,5 +349,152 @@ describe('RecordingScreen', () => {
     expect(getByText('500 m')).toBeTruthy();
     expect(getByText('2:05')).toBeTruthy();
     expect(getByText('4:10 /km')).toBeTruthy();
+  });
+
+  describe('Pocket / Rain Lock Mode', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      act(() => {
+        jest.clearAllTimers();
+      });
+      jest.useRealTimers();
+    });
+
+    it('locks screen, disables ghost touches, shows hint on transient tap, and unlocks on 1.5s hold', () => {
+      mockUseRecording.mockReturnValue({
+        capabilities: { canRecord: true },
+        state: { phase: 'recording' },
+        activeProfile: 'running',
+        liveStats: {
+          elapsedSec: 300,
+          distanceMeters: 1000,
+          currentSpeedMps: 4.0,
+          altitudeM: 200,
+          slopePercent: 2.0,
+          elevationGainM: 30,
+          gpsLost: false,
+          hAccM: 5
+        },
+        summary: null,
+        heartRateSummary: null,
+        lastSplit: null,
+        error: null,
+        isBusy: false,
+        isSaving: false,
+        unfinished: [],
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        save: jest.fn(),
+        discard: jest.fn(),
+        saveUnfinished: jest.fn(),
+        discardUnfinished: jest.fn()
+      });
+
+      const { getByText, getByLabelText, queryByText, queryByLabelText } = render(
+        wrap(<RecordingScreen />)
+      );
+
+      // Unlocked state: action buttons are visible
+      expect(getByLabelText('Pause recording')).toBeTruthy();
+      expect(getByLabelText('Stop recording')).toBeTruthy();
+      expect(getByLabelText('Lock screen against accidental touches')).toBeTruthy();
+      expect(queryByText('Screen locked')).toBeNull();
+
+      // Lock screen
+      fireEvent.press(getByLabelText('Lock screen against accidental touches'));
+
+      // Screen locked state: normal action buttons replaced by Hold to unlock
+      expect(queryByLabelText('Pause recording')).toBeNull();
+      expect(queryByLabelText('Stop recording')).toBeNull();
+      expect(getByText('Screen locked')).toBeTruthy();
+      expect(getByText('Screen locked · Touch controls disabled')).toBeTruthy();
+
+      const unlockButton = getByLabelText('Hold to unlock screen');
+      expect(unlockButton).toBeTruthy();
+
+      // Stats remain visible and alive
+      expect(getByText('5:00')).toBeTruthy();
+      expect(getByText('1.00 km')).toBeTruthy();
+      expect(getByText('4:10 /km')).toBeTruthy();
+
+      // Touching stat tiles while locked does not promote or toggle
+      const elevTile = getByLabelText('Enlarge Elev gain');
+      expect(elevTile.props.accessibilityState?.disabled).toBe(true);
+
+      // Transient tap (pressIn followed immediately by pressOut) does not unlock
+      fireEvent(unlockButton, 'pressIn');
+      act(() => {
+        jest.advanceTimersByTime(300);
+      });
+      fireEvent(unlockButton, 'pressOut');
+
+      // Still locked, and early-release hint is shown
+      expect(getByText('Keep holding until unlocked')).toBeTruthy();
+      expect(queryByLabelText('Pause recording')).toBeNull();
+
+      // Hold continuously for 1.5 seconds to unlock
+      fireEvent(unlockButton, 'pressIn');
+      act(() => {
+        jest.advanceTimersByTime(1500);
+      });
+
+      // Screen is now unlocked: normal controls restored
+      expect(getByLabelText('Pause recording')).toBeTruthy();
+      expect(getByLabelText('Stop recording')).toBeTruthy();
+      expect(getByLabelText('Lock screen against accidental touches')).toBeTruthy();
+      expect(queryByText('Screen locked')).toBeNull();
+      expect(queryByText('Hold to unlock')).toBeNull();
+    });
+
+    it('allows locking during paused phase and restores Resume/Stop on unlock', () => {
+      mockUseRecording.mockReturnValue({
+        capabilities: { canRecord: true },
+        state: { phase: 'paused' },
+        activeProfile: 'cycling',
+        liveStats: null,
+        summary: null,
+        heartRateSummary: null,
+        lastSplit: null,
+        error: null,
+        isBusy: false,
+        isSaving: false,
+        unfinished: [],
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        save: jest.fn(),
+        discard: jest.fn(),
+        saveUnfinished: jest.fn(),
+        discardUnfinished: jest.fn()
+      });
+
+      const { getByText, getByLabelText, queryByLabelText } = render(wrap(<RecordingScreen />));
+
+      // In paused phase, lock button is available
+      expect(getByLabelText('Resume recording')).toBeTruthy();
+      expect(getByLabelText('Stop recording')).toBeTruthy();
+      fireEvent.press(getByLabelText('Lock screen against accidental touches'));
+
+      // Locked: Resume and Stop are replaced
+      expect(queryByLabelText('Resume recording')).toBeNull();
+      expect(queryByLabelText('Stop recording')).toBeNull();
+      expect(getByText('Screen locked')).toBeTruthy();
+
+      // Full hold unlocks and restores Resume/Stop
+      const unlockButton = getByLabelText('Hold to unlock screen');
+      fireEvent(unlockButton, 'pressIn');
+      act(() => {
+        jest.advanceTimersByTime(1500);
+      });
+
+      expect(getByLabelText('Resume recording')).toBeTruthy();
+      expect(getByLabelText('Stop recording')).toBeTruthy();
+    });
   });
 });
