@@ -100,6 +100,10 @@ export class LiveSlopeCalculator {
         this.gainMeters += delta;
         this.anchorAltitude = smoothed;
       } else if (delta <= -this.hysteresisThresholdM) {
+        // Move the hysteresis anchor down on descents so subsequent climbs from
+        // the bottom are counted toward D+. Unlike `replaySession.ts`, we do
+        // not accumulate a separate `loss` (D-) counter here because `LiveStats`
+        // only surfaces cumulative elevation gain (`D+`).
         this.anchorAltitude = smoothed;
       }
     }
