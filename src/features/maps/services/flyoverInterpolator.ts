@@ -257,17 +257,17 @@ interface StepMetrics {
 }
 
 /**
- * Computes incremental distance, bearing, and speed between two consecutive track points.
+ * Computes incremental bearing and speed between two consecutive track points.
  */
 function computeStepMetrics(
   prev: LatLng,
   curr: LatLng,
+  dist: number,
   prevTime: number,
   currTime: number,
   minMovement: number,
   lastBearing: number
 ): StepMetrics {
-  const dist = haversineDistance(prev, curr);
   const bearing = dist >= minMovement ? calculateBearing(prev, curr) : lastBearing;
   const deltaTime = currTime - prevTime;
   const rawSpeed = deltaTime > 0 ? dist / deltaTime : 0;
@@ -314,37 +314,32 @@ function buildIntermediatePoints(
     minAlt = Math.min(minAlt, alt);
     maxAlt = Math.max(maxAlt, alt);
 
-    let stepDist = 0;
     let stepBearing = lastBearing;
     let stepSpeed = 0;
+    let time: number;
 
     if (i > 0) {
       const prev = coords[i - 1];
-      const stepDistPre = haversineDistance(coords[i - 1], curr);
-      const prevTime = resolvePointTime(i - 1, coords.length, stream.time, cumulativeDistance);
-      const approxCurrTime = resolvePointTime(
-        i,
-        coords.length,
-        stream.time,
-        cumulativeDistance + stepDistPre
-      );
+      const stepDist = haversineDistance(prev, curr);
+      const prevTime = points[i - 1].time;
+      cumulativeDistance += stepDist;
+      time = resolvePointTime(i, coords.length, stream.time, cumulativeDistance);
       const metrics = computeStepMetrics(
         prev,
         curr,
+        stepDist,
         prevTime,
-        approxCurrTime,
+        time,
         minMovement,
         lastBearing
       );
-      stepDist = metrics.dist;
       stepBearing = metrics.bearing;
       stepSpeed = metrics.speed;
-      cumulativeDistance += stepDist;
       lastBearing = stepBearing;
       maxSpd = Math.max(maxSpd, stepSpeed);
+    } else {
+      time = resolvePointTime(0, coords.length, stream.time, 0);
     }
-
-    const time = resolvePointTime(i, coords.length, stream.time, cumulativeDistance);
 
     points.push({
       lat: curr.latitude,

@@ -143,10 +143,12 @@ jest.mock('expo-file-system', () => {
 jest.mock('react-native-maps', () => {
   const React = require('react');
   const { View } = require('react-native');
+  const mockAnimateCamera = jest.fn();
+  const mockFitToCoordinates = jest.fn();
   const MockMapView = React.forwardRef((props, ref) => {
     React.useImperativeHandle(ref, () => ({
-      animateCamera: jest.fn(),
-      fitToCoordinates: jest.fn()
+      animateCamera: mockAnimateCamera,
+      fitToCoordinates: mockFitToCoordinates
     }));
     return <View testID="mock-map-view" {...props}>{props.children}</View>;
   });
@@ -158,7 +160,9 @@ jest.mock('react-native-maps', () => {
     Marker: props => <View testID="mock-marker" {...props}>{props.children}</View>,
     Polyline: props => <View testID="mock-polyline" {...props} />,
     Heatmap: props => <View testID="mock-heatmap" {...props} />,
-    PROVIDER_GOOGLE: 'google'
+    PROVIDER_GOOGLE: 'google',
+    __mockAnimateCamera: mockAnimateCamera,
+    __mockFitToCoordinates: mockFitToCoordinates
   };
 });
 

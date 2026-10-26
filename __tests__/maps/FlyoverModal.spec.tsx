@@ -3,6 +3,8 @@ import { ActivityStream } from '@/shared';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
+import * as MapsModule from 'react-native-maps';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 jest.mock('@react-native-community/slider', () => {
   const React = require('react');
@@ -16,36 +18,8 @@ jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons'
 }));
 
-jest.mock('react-native-maps', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  const MockMapView = React.forwardRef((props: any, ref: any) => {
-    React.useImperativeHandle(ref, () => ({
-      animateCamera: jest.fn(),
-      fitToCoordinates: jest.fn()
-    }));
-    return (
-      <View testID="mock-map-view" {...props}>
-        {props.children}
-      </View>
-    );
-  });
-  MockMapView.displayName = 'MockMapView';
-  return {
-    __esModule: true,
-    default: MockMapView,
-    MapView: MockMapView,
-    Marker: (props: any) => (
-      <View testID="mock-marker" {...props}>
-        {props.children}
-      </View>
-    ),
-    Polyline: (props: any) => <View testID="mock-polyline" {...props} />,
-    PROVIDER_GOOGLE: 'google'
-  };
-});
-
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+const mockAnimateCamera = (MapsModule as unknown as { __mockAnimateCamera: jest.Mock })
+  .__mockAnimateCamera;
 
 const initialMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -69,6 +43,10 @@ const sampleStream: ActivityStream = {
 };
 
 describe('FlyoverModal', () => {
+  beforeEach(() => {
+    mockAnimateCamera.mockClear();
+  });
+
   it('renders modal content with custom title when visible', () => {
     const { getByText, getByTestId } = render(
       wrap(
@@ -148,7 +126,6 @@ describe('FlyoverModal', () => {
   });
 
   it('triggers animateCamera on onMapReady instead of zooming out to whole route', () => {
-    const animateCameraMock = jest.fn();
     const { getByTestId, queryAllByTestId } = render(
       wrap(
         <FlyoverModal
@@ -165,9 +142,37 @@ describe('FlyoverModal', () => {
     // (the total route polyline has been removed to avoid ghost traces)
     expect(queryAllByTestId('mock-polyline')).toHaveLength(0);
 
-    // Call onMapReady
+    mockAnimateCamera.mockClear();
     mapView.props.onMapReady();
-    // Verification that onMapReady runs without error
-    expect(mapView).toBeTruthy();
+    expect(mockAnimateCamera).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: { latitude: 45.0, longitude: 5.0 },
+        zoom: 16.5
+      }),
+      { duration: 120 }
+    );
+  });
+
+  it('resets progress to 0 when modal is closed after scrubbing', () => {
+    const onClose = jest.fn();
+    const { getByTestId, getByLabelText } = render(
+      wrap(
+        <FlyoverModal
+          visible={true}
+          onClose={onClose}
+          stream={sampleStream}
+          title="Morning Run"
+        />
+      )
+    );
+
+    const slider = getByTestId('mock-slider');
+    fireEvent(slider, 'onValueChange', 0.5);
+    expect(getByTestId('mock-slider').props.value).toBe(0.5);
+
+    const closeBtn = getByLabelText('Close flyover');
+    fireEvent.press(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(getByTestId('mock-slider').props.value).toBe(0);
   });
 });

@@ -51,6 +51,31 @@ function deriveTraveledCoordinates(
   return result;
 }
 
+interface ResolvedPlaybackOptions {
+  initialSpeed: number;
+  autoPlay: boolean;
+  loop: boolean;
+  smoothingWindow?: number;
+  defaultPitch?: number;
+  minMovementMeters?: number;
+  targetDurationSeconds: number;
+}
+
+function resolvePlaybackOptions(options?: FlyoverPlaybackOptions): ResolvedPlaybackOptions {
+  return {
+    initialSpeed: options?.initialSpeed ?? DEFAULT_SPEED_MULTIPLIER,
+    autoPlay: options?.autoPlay ?? false,
+    loop: options?.loop ?? false,
+    smoothingWindow: options?.smoothingWindow,
+    defaultPitch: options?.defaultPitch,
+    minMovementMeters: options?.minMovementMeters,
+    targetDurationSeconds: Math.max(
+      1,
+      options?.targetDurationSeconds ?? DEFAULT_TARGET_DURATION_SECONDS
+    )
+  };
+}
+
 /**
  * Custom hook managing the playback state, controls, and frame advancement of a route flyover.
  * @param stream Source activity stream containing coordinates, altitude, and time.
@@ -61,16 +86,15 @@ export function useFlyoverPlayback(
   stream: ActivityStream | undefined | null,
   options?: FlyoverPlaybackOptions
 ): FlyoverPlaybackState {
-  const initialSpeed = options?.initialSpeed ?? DEFAULT_SPEED_MULTIPLIER;
-  const autoPlay = options?.autoPlay ?? false;
-  const loop = options?.loop ?? false;
-  const smoothingWindow = options?.smoothingWindow;
-  const defaultPitch = options?.defaultPitch;
-  const minMovementMeters = options?.minMovementMeters;
-  const targetDurationSeconds = Math.max(
-    1,
-    options?.targetDurationSeconds ?? DEFAULT_TARGET_DURATION_SECONDS
-  );
+  const {
+    initialSpeed,
+    autoPlay,
+    loop,
+    smoothingWindow,
+    defaultPitch,
+    minMovementMeters,
+    targetDurationSeconds
+  } = resolvePlaybackOptions(options);
 
   const track = useMemo(
     () =>
@@ -87,12 +111,23 @@ export function useFlyoverPlayback(
   const [speedMultiplier, setSpeedMultiplier] = useState(
     Math.max(MIN_SPEED_MULTIPLIER, initialSpeed)
   );
+  const [prevStream, setPrevStream] = useState(stream);
+
+  if (stream !== prevStream) {
+    setPrevStream(stream);
+    setProgress(PROGRESS_START);
+    setIsPlaying(autoPlay && track.totalDuration > 0);
+  }
 
   const animFrameIdRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
   const speedRef = useRef(speedMultiplier);
   const progressRef = useRef(progress);
   const targetDurationRef = useRef(targetDurationSeconds);
+
+  useEffect(() => {
+    lastTimestampRef.current = null;
+  }, [stream]);
 
   useEffect(() => {
     speedRef.current = speedMultiplier;

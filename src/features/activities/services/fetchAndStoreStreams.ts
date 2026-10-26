@@ -255,37 +255,6 @@ export const compressStreamSet = (
 };
 
 /**
- * Loads the most recent stream from the file system.
- * @returns A promise that resolves to the most recent stream, or null if no streams are found.
- */
-export const loadMostRecentStream = async (): Promise<ActivityStream | null> => {
-  const folder = streamsFolder();
-  if (!folder?.exists) {
-    return null;
-  }
-  const files = folder.list();
-  const jsonFiles = files.filter(file => file.name.endsWith('.json') || file.name.endsWith('.bin'));
-
-  if (jsonFiles.length === 0) {
-    return null;
-  }
-
-  const mostRecentFile = jsonFiles.reduce((latest, file) => {
-    const latestTime = Number.parseInt(latest.name.split('.')[0], 10);
-    const fileTime = Number.parseInt(file.name.split('.')[0], 10);
-    return fileTime > latestTime ? file : latest;
-  }, jsonFiles[0]);
-
-  try {
-    const stream = await readStreamFile<StreamSet>(mostRecentFile as File);
-    return compressStreamSet(stream);
-  } catch (error) {
-    simpleLogger.error('Failed to parse most recent stream file — file may be corrupt:', error);
-    return null;
-  }
-};
-
-/**
  * Gets the streams for all activities.
  * @param allActivities The activities to get the streams for.
  * @returns A promise that resolves to an array of enriched activities.

@@ -257,8 +257,9 @@ export default function FlyoverModal({
 
   const handleClose = useCallback(() => {
     pause();
+    seekTo(0);
     onClose();
-  }, [pause, onClose]);
+  }, [pause, seekTo, onClose]);
 
   const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
   const hasValidTrack = Boolean(stream?.coordinates && stream.coordinates.length >= 2);

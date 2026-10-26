@@ -268,4 +268,34 @@ describe('useFlyoverPlayback', () => {
     });
     expect(result.current.speedMultiplier).toBe(1);
   });
+
+  it('resets progress and playback state when stream changes to a different activity', () => {
+    const secondStream: ActivityStream = {
+      coordinates: [
+        { latitude: 46.0, longitude: 6.0 },
+        { latitude: 46.002, longitude: 6.002 }
+      ],
+      altitude: [500, 600],
+      time: [0, 40]
+    };
+
+    const { result, rerender } = renderHook(
+      ({ activeStream }: { activeStream: ActivityStream }) => useFlyoverPlayback(activeStream),
+      { initialProps: { activeStream: sampleStream } }
+    );
+
+    act(() => {
+      result.current.seekTo(0.6);
+      result.current.play();
+    });
+    expect(result.current.progress).toBe(0.6);
+    expect(result.current.isPlaying).toBe(true);
+
+    rerender({ activeStream: secondStream });
+
+    expect(result.current.progress).toBe(0);
+    expect(result.current.isPlaying).toBe(false);
+    expect(result.current.currentPoint?.latitude).toBe(46.0);
+    expect(result.current.totalDurationSeconds).toBe(40);
+  });
 });

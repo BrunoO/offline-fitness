@@ -1,10 +1,12 @@
 import { APP_CONFIG } from '@/constants';
 import { ActivityStream, LatLng } from '@/shared';
+import { useTheme } from '@/theme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { calculateBearing } from '../services/flyoverInterpolator';
 import FlyoverModal from './FlyoverModal';
 
 export type MiniMapComponentProps = {
@@ -25,24 +27,6 @@ const FILL_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.FILL_PRIMARY;
 // Arrow colors (semi-transparent to be lighter than polylines)
 const ARROW_PRIMARY_COLOR = 'rgba(255, 0, 0, 0.6)';
 const ARROW_OVERLAY_COLOR = 'rgba(0, 0, 255, 0.6)';
-
-/**
- * A component for displaying a mini map of an activity on Android.
- * @param props The component props.
- * @returns A React component.
- */
-const calculateBearing = (p1: LatLng, p2: LatLng) => {
-  const lat1 = p1.latitude * (Math.PI / 180);
-  const lon1 = p1.longitude * (Math.PI / 180);
-  const lat2 = p2.latitude * (Math.PI / 180);
-  const lon2 = p2.longitude * (Math.PI / 180);
-
-  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-  const bearing = (Math.atan2(y, x) * 180) / Math.PI;
-  return (bearing + 360) % 360;
-};
 
 const calculateSmoothBearing = (track: LatLng[], index: number, windowSize: number = 3) => {
   // Calculate the window size based on available points
@@ -131,12 +115,53 @@ function MiniMapLayers({ coordinates, overlayCoordinates }: Readonly<MiniMapLaye
   );
 }
 
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    container: {
+      width: '100%',
+      aspectRatio: 4 / 3,
+      position: 'relative'
+    },
+    map: {
+      flex: 1,
+      width: '100%'
+    },
+    flyoverPill: {
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor:
+        theme.scheme === 'dark' ? 'rgba(24, 24, 27, 0.88)' : 'rgba(255, 255, 255, 0.92)',
+      paddingVertical: 5,
+      paddingHorizontal: 9,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 4,
+      zIndex: 10
+    },
+    flyoverPillText: {
+      color: theme.textStrong,
+      fontSize: 11,
+      fontWeight: '700'
+    }
+  });
+
 type MiniMapFlyoverProps = {
   visible: boolean;
   onOpen: () => void;
   onClose: () => void;
   stream: ActivityStream | undefined;
   title?: string;
+  theme: ReturnType<typeof useTheme>;
+  styles: ReturnType<typeof createStyles>;
 };
 
 function MiniMapFlyover({
@@ -144,7 +169,9 @@ function MiniMapFlyover({
   onOpen,
   onClose,
   stream,
-  title
+  title,
+  theme,
+  styles
 }: Readonly<MiniMapFlyoverProps>) {
   return (
     <>
@@ -154,7 +181,7 @@ function MiniMapFlyover({
         accessibilityRole="button"
         accessibilityLabel="Open route flyover"
       >
-        <Ionicons name="airplane" size={13} color="#FFFFFF" />
+        <Ionicons name="airplane" size={13} color={theme.primary} />
         <Text style={styles.flyoverPillText}>Flyover</Text>
       </TouchableOpacity>
       <FlyoverModal visible={visible} onClose={onClose} stream={stream} title={title} />
@@ -163,6 +190,8 @@ function MiniMapFlyover({
 }
 
 export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const mapRef = React.useRef<MapView>(null);
   const coordinates: LatLng[] | undefined = props.stream?.coordinates;
   const [isFlyoverOpen, setIsFlyoverOpen] = React.useState(false);
@@ -294,45 +323,10 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
           onClose={() => setIsFlyoverOpen(false)}
           stream={props.stream}
           title={props.title}
+          theme={theme}
+          styles={styles}
         />
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    position: 'relative'
-  },
-  map: {
-    flex: 1,
-    width: '100%'
-  },
-  flyoverPill: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(24, 24, 27, 0.88)',
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10
-  },
-  flyoverPillText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700'
-  }
-});
