@@ -298,4 +298,49 @@ describe('useFlyoverPlayback', () => {
     expect(result.current.currentPoint?.latitude).toBe(46.0);
     expect(result.current.totalDurationSeconds).toBe(40);
   });
+
+  it('does not leak stale frame progress when stream changes during autoPlay or after seekTo in the same frame', () => {
+    const sameDurationSecondStream: ActivityStream = {
+      coordinates: [
+        { latitude: 46.0, longitude: 6.0 },
+        { latitude: 46.002, longitude: 6.002 }
+      ],
+      altitude: [500, 600],
+      time: [0, 20] // Same 20s duration as sampleStream
+    };
+
+    const { result, rerender } = renderHook(
+      ({ activeStream }: { activeStream: ActivityStream }) =>
+        useFlyoverPlayback(activeStream, { autoPlay: true }),
+      { initialProps: { activeStream: sampleStream } }
+    );
+
+    act(() => {
+      result.current.seekTo(0.6);
+      triggerNextFrame(1000);
+    });
+
+    // Switch to another stream with identical duration while autoPlay is active
+    rerender({ activeStream: sameDurationSecondStream });
+    expect(result.current.progress).toBe(0);
+
+    // First frame on new stream establishes baseline timestamp at progress 0
+    act(() => {
+      triggerNextFrame(1100);
+    });
+    expect(result.current.progress).toBe(0);
+
+    // Next frame advances from 0, not from stale 0.6
+    act(() => {
+      triggerNextFrame(1300); // 200ms delta -> 0.2 / 30
+    });
+    expect(result.current.progress).toBeCloseTo(0.2 / 30, 4);
+
+    // Calling seekTo followed by a frame in the same act() block uses the new seek position
+    act(() => {
+      result.current.seekTo(0.1);
+      triggerNextFrame(1500); // 200ms delta from 0.1 -> 0.1 + 0.2 / 30
+    });
+    expect(result.current.progress).toBeCloseTo(0.1 + 0.2 / 30, 4);
+  });
 });

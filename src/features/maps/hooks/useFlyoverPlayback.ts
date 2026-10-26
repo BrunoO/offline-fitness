@@ -127,6 +127,7 @@ export function useFlyoverPlayback(
 
   useEffect(() => {
     lastTimestampRef.current = null;
+    progressRef.current = PROGRESS_START;
   }, [stream]);
 
   useEffect(() => {
@@ -161,7 +162,10 @@ export function useFlyoverPlayback(
 
   const play = useCallback(() => {
     if (track.totalDuration <= 0) return;
-    setProgress(prev => (prev >= PROGRESS_END ? PROGRESS_START : prev));
+    if (progressRef.current >= PROGRESS_END) {
+      progressRef.current = PROGRESS_START;
+      setProgress(PROGRESS_START);
+    }
     setIsPlaying(true);
   }, [track.totalDuration]);
 
@@ -174,7 +178,10 @@ export function useFlyoverPlayback(
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      setProgress(prev => (prev >= PROGRESS_END ? PROGRESS_START : prev));
+      if (progressRef.current >= PROGRESS_END) {
+        progressRef.current = PROGRESS_START;
+        setProgress(PROGRESS_START);
+      }
       setIsPlaying(true);
     }
   }, [isPlaying, track.totalDuration]);
@@ -182,6 +189,7 @@ export function useFlyoverPlayback(
   const seekTo = useCallback((targetProgress: number) => {
     if (!Number.isFinite(targetProgress)) return;
     const clamped = Math.max(PROGRESS_START, Math.min(PROGRESS_END, targetProgress));
+    progressRef.current = clamped;
     setProgress(clamped);
   }, []);
 
@@ -205,6 +213,7 @@ export function useFlyoverPlayback(
 
   const restart = useCallback(() => {
     lastTimestampRef.current = null;
+    progressRef.current = PROGRESS_START;
     setProgress(PROGRESS_START);
     if (track.totalDuration > 0) {
       setIsPlaying(true);
@@ -234,12 +243,15 @@ export function useFlyoverPlayback(
         if (nextProgress >= PROGRESS_END) {
           if (loop) {
             const wrappedProgress = nextProgress - Math.floor(nextProgress);
+            progressRef.current = wrappedProgress;
             setProgress(wrappedProgress);
           } else {
+            progressRef.current = PROGRESS_END;
             setProgress(PROGRESS_END);
             setIsPlaying(false);
           }
         } else {
+          progressRef.current = nextProgress;
           setProgress(nextProgress);
         }
       }
@@ -257,7 +269,7 @@ export function useFlyoverPlayback(
       }
       lastTimestampRef.current = null;
     };
-  }, [isPlaying, totalDurationSeconds, loop]);
+  }, [isPlaying, totalDurationSeconds, loop, stream]);
 
   return {
     track,

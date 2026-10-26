@@ -173,7 +173,7 @@ export type WeekIdentifier = {
  */
 export function lastWeeksFrom(date: Date, numberWeeks: number): WeekIdentifier[] {
   const result = [];
-  const currentDay = date;
+  const currentDay = new Date(date);
   while (result.length < numberWeeks) {
     const year = currentDay.getFullYear();
     const month = currentDay.getMonth();

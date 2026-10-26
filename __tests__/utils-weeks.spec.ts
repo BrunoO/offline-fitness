@@ -39,6 +39,11 @@ describe('lastWeeksFrom', () => {
     expect(weekId.weekNumber).toBe(1);
     expect(weekId.year).toBe(2025);
   });
+  it('should not mutate the caller Date argument', () => {
+    const initialTime = May23.getTime();
+    Utils.lastWeeksFrom(May23, 4);
+    expect(May23.getTime()).toBe(initialTime);
+  });
 });
 
 describe('week_of_year', () => {
