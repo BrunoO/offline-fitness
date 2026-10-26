@@ -39,6 +39,8 @@ export function RecordsScreen(): JSX.Element {
     });
   };
 
+  // Aggregate all-time extremes/streaks over the full activity set; memoize so
+  // it doesn't recompute on every render.
   const records = useMemo<RecordItem[]>(() => {
     if (globalActivities.length === 0) return [];
     const extremes = computeActivityExtremes(globalActivities);
@@ -48,6 +50,7 @@ export function RecordsScreen(): JSX.Element {
     return buildRecordItems(extremes, longestWeekKm, dayStreak.best, weekStreak.best);
   }, [globalActivities, numberRecentWeeks, useElapsedTime]);
 
+  // Best distance per activity type; memoize (O(n) scan + sort).
   const byType = useMemo(() => {
     const map = new Map<
       string,

@@ -139,9 +139,10 @@ export function RecentMonthsScreen(): JSX.Element {
   const { numberRecentMonths, useElapsedTime } = useSettings();
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
-  const activityTypes = Array.from(myActivitiesDiscovered).sort((a, b) =>
-    a.localeCompare(b)
-  ) as string[];
+  const activityTypes = useMemo(
+    () => Array.from(myActivitiesDiscovered).sort((a, b) => a.localeCompare(b)) as string[],
+    [myActivitiesDiscovered]
+  );
   const { myActivitiesToUse, allActivitiesToUse } = useProcessedActivities(
     activityTypes,
     globalActivities
@@ -154,16 +155,25 @@ export function RecentMonthsScreen(): JSX.Element {
 
   // Intentionally no effect syncing selectedActivities to myActivitiesToUse
 
-  const source =
-    selectedActivities.size === 0
-      ? allActivitiesToUse
-      : allActivitiesToUse.filter(a => selectedActivities.has(a.type));
-  const mData = monthlyData2(
-    source,
-    (a: Activity) => a.distance,
-    (a: Activity) => a.total_elevation_gain,
-    numberRecentMonths,
-    useElapsedTime
+  // Derived (not state + effect): filter by selected activity types, then
+  // aggregate into monthly buckets (O(n * months)).
+  const source = useMemo(
+    () =>
+      selectedActivities.size === 0
+        ? allActivitiesToUse
+        : allActivitiesToUse.filter(a => selectedActivities.has(a.type)),
+    [selectedActivities, allActivitiesToUse]
+  );
+  const mData = useMemo(
+    () =>
+      monthlyData2(
+        source,
+        (a: Activity) => a.distance,
+        (a: Activity) => a.total_elevation_gain,
+        numberRecentMonths,
+        useElapsedTime
+      ),
+    [source, numberRecentMonths, useElapsedTime]
   );
 
   // Filtering handled by ChipMultiSelect
