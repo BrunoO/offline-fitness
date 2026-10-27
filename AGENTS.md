@@ -189,9 +189,23 @@ semantically invisible to tsc. Non-negotiable discipline:
 ### Required Reading Before Structural Changes
 
 **MUST READ these documents before making architectural changes:**
-1. **`docs/architecture.md`** - System architecture, import patterns, circular dependency rules
-2. **`docs/status.md`** - Current project status, recent changes, known issues
-3. **This file (`AGENTS.md`)** - Operational rules and constraints
+1. **`docs/ontology.md`** - Formal domain, geophysical, spatial, kinematic, storage, and governance ontology (invariants, formulas, coordinate systems, and negative space)
+2. **`docs/architecture.md`** - System architecture, import patterns, circular dependency rules
+3. **`docs/status.md`** - Current project status, recent changes, known issues
+4. **This file (`AGENTS.md`)** - Operational rules and constraints
+
+**Domain-to-Ontology Lookup Table** — Before modifying code in any of these areas, read the corresponding section of `docs/ontology.md`:
+
+| Task / Domain Area | `docs/ontology.md` Section & Invariant Prefix |
+| --- | --- |
+| Activity creation (import / recorded / manual), sport types, `NO_GPS_ACTIVITY_TYPES`, `mergeActivities`, swim canonicalization | **§1 Core Domain Entities & Activity Origin Taxonomy (`ONT-DOM-*`)** |
+| Dates, `start_date_local` (mislabeled-`Z` trap), `local_date` vs. `start_timestamp_utc`, DST day math, ISO-8601 weeks | **§2 Temporal & Calendar Algebra (`ONT-TIME-*`)** |
+| Altitude, WGS 84 ellipsoid vs. geoid vs. MSL, NMEA GGA backfill, barometer fusion (`0.85/0.15`), EMA, hysteresis (`1.5m`/`3.5m`), slope | **§3 Geophysical, Geodetic & Barometric Ontology (`ONT-GEO-*`)** |
+| Coordinates (`[lat, lon]` vs. `LatLng` vs. `{x, y}`), Haversine, 3D flyover bearing/circular mean, RDP simplification, bounding boxes, Needleman-Wunsch track similarity, `geo-tz` | **§4 Spatial, Cartographic & Geopolitical Ontology (`ONT-SPATIAL-*`)** |
+| GPS recording, 5 sport profile envelopes, pre/post auto-pause filter order, pause subtraction, BLE heart rate (`±10s`, `null` vs. `0`), metric-only splits, crash recovery | **§5 Kinematic, Biometric & Recording Session Ontology (`ONT-KIN-*`)** |
+| `AsyncStorage` (`a_<id>`), `'OF'` v1 binary stream codec, 30-day fix logs, WebDAV `collection.json` (`schemaVersion: 2`), tombstones, 500-item chunked ZIP export | **§6 Storage, Binary Codec, WebDAV Sync & Export Contracts (`ONT-STORE-*`)** |
+| Barrel vs. relative imports, 6 cycle exceptions, Portable Import Core boundary, split `ActivitiesContext`, root sheet mounting, lazy `Directory` init, `runWithCleanup`, `useTheme()` WCAG AA | **§7 Architecture, State Management, UI/Theme & React Compiler Rules (`ONT-ARCH-*`, `ONT-UI-*`)** |
+| `GoalService` `expr-eval` sandbox, streak recency windows, retired/forbidden features (Negative Space), verification gates | **§8 Analytics, Goal DSL, Negative Space & Executable Gates (`ONT-GOV-*`)** |
 
 ### Key Architecture Principles
 
@@ -282,6 +296,7 @@ import logo from '@/assets/logo.png'; // ❌ Use relative path
 - `import CustomDrawer from '@/shared/components/CustomDrawer'`
 - `import MiniMapComponent from '@/features/maps/components/MiniMapComponent'`
 - `import ButtonList from '@/features/home/components/ButtonList'`
+- `import { RecordChooserSheet } from '@/features/activities/components/RecordChooserSheet'`
 - `import { RecordingScreen } from '@/features/recording/screens/RecordingScreen'`
 - `trackComparison` functions from `@/shared/services/trackComparison`
 
@@ -409,6 +424,19 @@ If you modify:
 - New circular dependencies introduced
 
 **Update `docs/architecture.md`** to reflect the changes.
+
+### Ontology Changes
+
+If you modify or introduce:
+- Domain entities, activity origins, sport type categories, or canonicalization rules (`ONT-DOM-*`)
+- Date/time/timezone handling or ISO-8601 week bucketing (`ONT-TIME-*`)
+- Geophysical, barometric, geoid, hysteresis, or slope formulas/constants (`ONT-GEO-*`)
+- Coordinate shapes, quantization scales, spatial algorithms, or track alignment (`ONT-SPATIAL-*`)
+- Sport profile thresholds, pause algebra, BLE heart-rate alignment, or split rules (`ONT-KIN-*`)
+- Storage keys, binary stream codec flags/layout, WebDAV schema/tombstones, or export chunking (`ONT-STORE-*`)
+- Module/portability boundaries, cycle exceptions, or retired/forbidden concepts (`ONT-ARCH-*`, `ONT-UI-*`, `ONT-GOV-*`)
+
+**Update `docs/ontology.md`** in the same change and use the `codebase-ontology` skill (`.agents/skills/codebase-ontology/SKILL.md`) to verify graph alignment and prevent ontological drift.
 
 ## Common Pitfalls to Avoid
 
