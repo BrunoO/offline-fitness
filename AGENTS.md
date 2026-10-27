@@ -25,7 +25,7 @@ This document provides essential context and rules for AI agents working on this
 
 ### Build & Deployment
 
-- **EAS Build**: We use `eas build` with authentication token. **I have only 30 free builds per month** - **ALWAYS ask for confirmation before launching an `eas build` command.**
+- **Builds are local only**: We do not use EAS Build. All builds run locally (`npx expo prebuild`, `npm run build:local*`, `npx expo run:android`/`run:ios`). There is no remote build quota to worry about.
 - **Local Development**: Agents may freely run:
   - `npx expo start` (dev server)
   - `npx expo start --android` / `--ios` (platform-specific)

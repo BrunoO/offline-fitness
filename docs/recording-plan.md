@@ -403,7 +403,7 @@ in this app's build.
 - `modules/gps-tracker/` with `expo-module.config.json`, a `GpsTrackerModule.kt` exposing
   `getCapabilities` + `start`/`stop` that forward to a *stub* service which emits `onTick`.
 - `npx expo prebuild --platform android`, then `npm run android:dev` (debug build) or
-  `npm run build:local` (release; bumps `versionCode`) — **ask before any `eas build`**.
+  `npm run build:local` (release; bumps `versionCode`).
 - **Exit:** on a real device, `onTick` events arrive; the notification shows; `getCapabilities`
   answers from JS. Delete the stub service body in Phase 1.
 

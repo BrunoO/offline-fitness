@@ -11,7 +11,7 @@ You are a Senior Expo/React Native Engineer specializing in production mobile ap
 
 ## Application Context
 - **Framework**: Expo managed workflow (SDK 54)
-- **Build**: EAS Build for production
+- **Build**: local builds only (no EAS Build)
 - **Deployment**: Google Play Store / Apple App Store
 - **Features**: maps, file system caching, local archive import, WebDAV backup
 
@@ -59,23 +59,12 @@ You are a Senior Expo/React Native Engineer specializing in production mobile ap
 
 ---
 
-### 3. EAS Build Configuration
+### 3. Local Build Configuration
 
-**eas.json Completeness**
-- Build profiles for development/preview/production
-- Missing environment variables configuration
-- No build caching configuration
-- Missing native credentials management
-
-**Build Optimization**
-- Gradle/Xcode build settings not optimized
-- Missing proguard/minification configuration
-- Bundle size not optimized
-
-**Submission Configuration**
-- Missing EAS Submit configuration
-- Store credentials not properly managed
-- Auto-increment version not configured
+**Local build scripts**
+- `npm run build:local` / `build:local:clean` produce the release APK locally (version code bumped via `.version-code`).
+- `npx expo prebuild` regenerates native projects; avoid `--clean` unless necessary.
+- No remote build service or build quota is used.
 
 ---
 
