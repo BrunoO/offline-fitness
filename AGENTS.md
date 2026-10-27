@@ -218,6 +218,7 @@ semantically invisible to tsc. Non-negotiable discipline:
    │   ├── heart-rate/      # BLE heart-rate (Polar H10): service, card, permissions, hooks
    │   ├── home/            # Home screen, launcher buttons
    │   ├── maps/            # Map visualization (MiniMapComponent)
+   │   ├── profile/         # User profile: optional age + dated body-weight history, CSV import
    │   ├── recording/       # GPS recording: fix-log reader, replay, save flow, screen (wraps modules/gps-tracker)
    │   ├── stats/           # Charts, statistics screens, SettingsProvider
    │   └── strava-import/   # Archive-conversion core (CSV/GPX/ZIP/mapping), run by the desktop tool

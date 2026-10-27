@@ -130,6 +130,8 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **User profile screen (age + weight history)**: added a dedicated `Profile` drawer item and screen (`src/features/profile/`) with optional age and a dated body-weight history (add/delete entries, default today, many tuples). Includes an "Import CSV" modal (paste `date,weight` rows, header ignored, per-date replace) for preparing weight data in a file. Storage lives in device-local AsyncStorage (`userProfile`), so it stays optional and private. All gates green.
+
 - **Codebase & domain ontology (`docs/ontology.md` + `codebase-ontology` skill)**: created `docs/ontology.md` defining the 8-section formal ontology of the repository — Core Domain Entities & Activity Origin Taxonomy (`ONT-DOM-*`), Temporal & Calendar Algebra (`ONT-TIME-*`), Geophysical, Geodetic & Barometric Ontology (`ONT-GEO-*`), Spatial, Cartographic & Geopolitical Ontology (`ONT-SPATIAL-*`), Kinematic, Biometric & Recording Session Ontology (`ONT-KIN-*`), Storage, Binary Codec, WebDAV Sync & Export Contracts (`ONT-STORE-*`), Architecture, State Management, UI/Theme & React Compiler Rules (`ONT-ARCH-*`, `ONT-UI-*`), and Analytics, Goal DSL, Negative Space & Executable Gates (`ONT-GOV-*`). Added a compact Domain-to-Ontology lookup table and update trigger rules to `AGENTS.md`, and created `.agents/skills/codebase-ontology/SKILL.md` for pre-change invariant checks, ontology maintenance, and drift auditing.
 
 - **GPS recording bug fixes & live/post-workout UX enhancements**:

@@ -13,6 +13,7 @@ import {
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
 import { MapsScreen } from '@/features/maps';
+import { ProfileScreen } from '@/features/profile';
 import { sweepExpiredSessions } from '@/features/recording';
 import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
 import { SettingsProvider, StatsTab } from '@/features/stats';
@@ -132,6 +133,11 @@ function AppContent() {
               name="Maps"
               component={MapsScreen}
               options={getDrawerIconOptions('map-outline')}
+            />
+            <Drawer.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={getDrawerIconOptions('person-outline')}
             />
             <Drawer.Screen
               name="Stats"

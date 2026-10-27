@@ -198,7 +198,12 @@ graph TB
    - **Portable import core** (Phase 0 of `docs/desktop-import-plan.md`): the conversion code the desktop tool reuses — `csvParser`, `gpxParser`, `textDecode`, `activityMapper`, `entryNames`, `zipReader`, `types/import.types`, `shared/services/streamCodec` (the binary payload codec), `shared/services/SimpleLogger`, `backup/services/webdavTransport`, `@/constants` and the utils/types they reach — carries no expo or React Native _value_ imports. In practice: `activityMapper` takes `week_of_year` from `@/shared/utils/utils` and types from `@/shared/types/types` directly (never the `@/shared` barrel, which re-exports RN components), `utils.ts` does likewise, and `types.ts` spells its navigation import `import type` so it is erased at build time. The guard is `__tests__/stravaImport/importCorePortability.spec.ts`, a static check that fails the day a barrel or platform import creeps back into the graph; it covers the tool's own modules (`scripts/strava-import-tool/`) by the same rules, and its Phase 5 scan refuses any reference to the deleted in-app importer inside `src/`.
    - **Desktop seeder** (`npm run tool:seed`, `scripts/strava-import-tool/`): converts a Strava export ZIP into a WebDAV backup collection on a computer — the only ingestion path — so the archive never touches the phone, which only runs _Restore_. It reuses the app's own conversion graph _and_ its `webdavTransport`, which makes the tool's files byte-identical to what the phone pushes — the md5 dedup then skips them. Contract details (marker with `schemaVersion` claimed first, `sync-state.json` written last, tombstones honored, zone per GPS start with `--tz` fallback) are asserted in `__tests__/desktopImport/`; see `docs/desktop-import-plan.md`.
 
-9. **Import Structure & Best Practices**
+9. **User Profile** (`src/features/profile/`)
+   - A dedicated drawer screen (`ProfileScreen`) storing optional physiology data in device-local AsyncStorage under the `userProfile` key: optional `age` (years) and a `weightEntries` array of `{ date: YYYY-MM-DD, weightKg }` tuples (newest first, de-duplicated by date). Kept device-local (not in the WebDAV collection) so it stays optional and private.
+   - Provides manual entry (add/delete weight entries, default date = today) plus an "Import CSV" modal that parses pasted `date,weight` rows (header ignored, per-date replace) — paste-based to avoid a native file picker.
+   - Consumers (HR zones, calories, TRIMP, predicted max HR) should read `loadUserProfile()` and gate features behind presence of the required value.
+
+10. **Import Structure & Best Practices**
 
    ### Barrel Exports Usage
    - All features, shared components, and constants use barrel exports

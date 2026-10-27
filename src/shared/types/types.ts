@@ -52,6 +52,7 @@ export type RootDrawerParamList = {
   Stats: NavigatorScreenParams<StatsTabParamList> | undefined;
   Logs: undefined;
   Maps: undefined;
+  Profile: undefined;
   Details:
     | {
         allActivities?: Activity[];

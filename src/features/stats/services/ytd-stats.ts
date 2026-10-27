@@ -81,9 +81,7 @@ function accumulateDayActivities(
       ? (activity.elapsed_time ?? activity.moving_time)
       : activity.moving_time;
     time += Number.isFinite(rawTime) ? rawTime : 0;
-    elevation += Number.isFinite(activity.total_elevation_gain)
-      ? activity.total_elevation_gain
-      : 0;
+    elevation += Number.isFinite(activity.total_elevation_gain) ? activity.total_elevation_gain : 0;
   }
   return { distance, time, elevation, count: dayActivities.length };
 }

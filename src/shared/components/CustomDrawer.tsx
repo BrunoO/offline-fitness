@@ -102,6 +102,14 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         icon={getIconOptions('settings-outline')}
       />
       <DrawerItem
+        label="Profile"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          props.navigation.navigate('Profile');
+        }}
+        icon={getIconOptions('person-outline')}
+      />
+      <DrawerItem
         label="Export Data"
         onPress={handleExportData}
         icon={getIconOptions('download-outline')}
