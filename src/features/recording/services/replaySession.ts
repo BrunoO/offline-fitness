@@ -4,8 +4,13 @@ import type { FixLogEntry, Profile, RecordingMeta } from './gpsTracker';
 import type { HeartRateSample } from '../types/heartRate';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
 import {
+  BARO_WEIGHT_BARO,
+  BARO_WEIGHT_GPS,
+  barometricAltitude,
   HYSTERESIS_THRESHOLD_BARO_M,
   HYSTERESIS_THRESHOLD_GPS_M,
+  SLOPE_DEADBAND_BARO_M,
+  SLOPE_DEADBAND_GPS_M,
   SMOOTHING_ALPHA,
   updateSlopeWindow
 } from './slope';
@@ -13,8 +18,6 @@ import type { AltitudeSample } from './slope';
 import { SplitDetector } from './splits';
 import type { SplitEvent } from './splits';
 
-const BARO_WEIGHT_GPS = 0.15;
-const BARO_WEIGHT_BARO = 0.85;
 const AUTO_PAUSE_THRESHOLD_MPS = 0.8 / 3.6;
 const AUTO_PAUSE_DURATION_MS = 3_000;
 
@@ -96,10 +99,6 @@ function createAltitudeState(): AltitudeState {
     cumulativeDistance: 0,
     slope: 0
   };
-}
-
-function barometricAltitude(pressureHpa: number): number {
-  return 44330 * (1 - Math.pow(pressureHpa / 1013.25, 0.1903));
 }
 
 function fuseBarometer(state: AltitudeState, msl: number | null, pressure: number): number {
@@ -198,14 +197,21 @@ function sampleAltitude(
     return { smoothed, gain: 0, loss: 0 };
   }
 
-  // Derive hysteresis threshold per fix: fixes with barometric pressure use
-  // the tighter 1.5m deadband, while GPS-only fixes use 3.5m to absorb vertical drift.
+  // Derive hysteresis threshold and slope deadband per fix: fixes with barometric
+  // pressure use tighter thresholds, while GPS-only fixes use wider deadbands to absorb vertical drift.
   const threshold =
     location.pressure != null ? HYSTERESIS_THRESHOLD_BARO_M : HYSTERESIS_THRESHOLD_GPS_M;
+  const slopeDeadband = location.pressure != null ? SLOPE_DEADBAND_BARO_M : SLOPE_DEADBAND_GPS_M;
   applyHysteresis(state, smoothed, isSwimming, threshold);
   state.slope =
-    updateSlopeWindow(state.samples, state.cumulativeDistance, smoothed, location.t, state.slope) ??
-    0;
+    updateSlopeWindow(
+      state.samples,
+      state.cumulativeDistance,
+      smoothed,
+      location.t,
+      state.slope,
+      slopeDeadband
+    ) ?? 0;
 
   return { smoothed, gain: state.gain, loss: state.loss };
 }

@@ -43,6 +43,7 @@ sonar-results/
 
 # Personal / local
 todo.txt
+*.db
 .claude/
 path/
 example_activity.json

@@ -319,6 +319,7 @@ class TrackingService : Service() {
                 lat = location.latitude,
                 lon = location.longitude,
                 eleM = sample?.mslAltitudeMeters ?: sample?.rawAltitudeMeters,
+                pressureHpa = sample?.pressureHpa,
                 speedMps = liveStats.currentSpeedMps,
                 elapsedSec = liveStats.elapsedSec,
                 distanceMeters = liveStats.distanceMeters,

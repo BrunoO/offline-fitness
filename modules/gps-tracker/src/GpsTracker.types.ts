@@ -85,6 +85,7 @@ export interface LocationUpdate {
   lat: number;
   lon: number;
   eleM: number | null;
+  pressureHpa?: number | null;
   speedMps: number | null;
   elapsedSec: number;
   distanceMeters: number;

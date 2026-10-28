@@ -119,7 +119,7 @@ flowchart LR
     GeoidSub --> Fusion
     Fusion --> EMA["1-Pole EMA Smoothing<br/>alpha = 0.25"]
     EMA --> Hyst["Adaptive Deadband Hysteresis<br/>1.5m (Baro) vs 3.5m (GPS-only)<br/>Anchor reset on manual pause"]
-    EMA --> Slope["Sliding-Window Grade (%)<br/>max 30m / 15s, min 5m"]
+    EMA --> Slope["Sliding-Window Grade (%)<br/>OLS fit max 45m / 60s, min 10m<br/>Deadband 0.4m (Baro) / 1.0m (GPS)"]
 ```
 
 ### 3.1 Vertical Datums: WGS 84 Ellipsoid ($h$) vs. Geoid ($N$) vs. Orthometric MSL ($H$)
@@ -153,9 +153,14 @@ flowchart LR
   * **GPS-only (`fix.pressure == null`):** `HYSTERESIS_THRESHOLD_GPS_M = 3.5` m (absorbs $\pm 2\text{–}3\text{ m}$ GPS vertical multipath random walk on flat terrain).
   * **Manual Pause Anchor Reset:** When crossing a manual pause boundary (`handleManualPauseBoundary` in `replaySession.ts` and `LiveSlopeCalculator.onPause` in `slope.ts`), `anchor` **must** be reset to `null` so elevation changes while paused (e.g., riding a ski lift or driving) are not counted as climb or descent.
   * **Chart Display Hysteresis:** `ActivityAnalysisView.tsx` applies a `1.5 m` deadband when computing the cumulative elevation gain series for charts, and forces all points to `0` when `activity.total_elevation_gain === 0`.
-* **`ONT-GEO-07` — Sliding-Window Terrain Slope (`updateSlopeWindow` in `slope.ts`):**
-  * Maintains a FIFO buffer of `{ t, distance, altitude }` samples pruned when $\Delta\text{distance} > 30\text{ m}$ (`SLOPE_WINDOW_METERS`) or $\Delta t > 15,000\text{ ms}$ (`SLOPE_WINDOW_MS`).
-  * Emits grade percentage $\frac{\Delta\text{altitude}}{\Delta\text{distance}} \times 100$ only when $\Delta\text{distance} \ge 5\text{ m}$ (`SLOPE_MIN_DISTANCE_M`), holding the previous slope otherwise to avoid division-by-small-distance spikes.
+* **`ONT-GEO-07` — Sliding-Window Terrain Slope (`updateSlopeWindow` and `LiveSlopeCalculator` in `slope.ts`):**
+  * Maintains a FIFO buffer of `{ t, distance, altitude }` samples pruned when $\Delta\text{distance} > 45\text{ m}$ (`SLOPE_WINDOW_METERS`) or $\Delta t > 60,000\text{ ms}$ (`SLOPE_WINDOW_MS`), preserving at least `SLOPE_MIN_DISTANCE_M` baseline.
+  * Filters out stationary duplicate-distance fixes (`distance <= lastDistance`).
+  * In `LiveSlopeCalculator`, fuses live barometric pressure via `fuseBarometer` (`0.85 * baro + 0.15 * gps`) when available from `LocationUpdate.pressureHpa`.
+  * Computes slope via Ordinary Least Squares (OLS) linear regression across all samples in the window, then applies a sensor-adaptive vertical deadband (soft-thresholding):
+    * **With barometric pressure:** `SLOPE_DEADBAND_BARO_M = 0.4` m.
+    * **GPS-only:** `SLOPE_DEADBAND_GPS_M = 1.0` m (suppresses $\pm 2\text{ m}$ flat-ground GPS vertical wander down to $\sim 0.0\%\pm 0.5\%$).
+  * Emits grade percentage $\frac{\Delta\text{altitude}_{\text{effective}}}{\max(\Delta\text{distance}, \text{SLOPE_WINDOW_METERS} / 2)} \times 100$ only when $\Delta\text{distance} \ge 10\text{ m}$ (`SLOPE_MIN_DISTANCE_M`), holding the previous slope otherwise to avoid division-by-small-distance spikes.
 
 ---
 

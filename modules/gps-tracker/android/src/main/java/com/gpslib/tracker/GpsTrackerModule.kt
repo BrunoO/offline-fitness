@@ -500,6 +500,7 @@ private fun LocationUpdate.toMap(): Map<String, Any?> = mapOf(
     "lat" to lat,
     "lon" to lon,
     "eleM" to eleM,
+    "pressureHpa" to pressureHpa,
     "speedMps" to speedMps?.toDouble(),
     "elapsedSec" to elapsedSec,
     "distanceMeters" to distanceMeters,

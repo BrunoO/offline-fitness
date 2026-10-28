@@ -75,6 +75,7 @@ data class LocationUpdate(
     val lat: Double,
     val lon: Double,
     val eleM: Double?,
+    val pressureHpa: Double? = null,
     val speedMps: Float?,
     val elapsedSec: Long,
     val distanceMeters: Double,

@@ -400,14 +400,16 @@ export function useRecording(): UseRecordingResult {
         const slopePercent = slopeCalculatorRef.current.update(
           update.eleM,
           update.distanceMeters,
-          update.t
+          update.t,
+          update.pressureHpa
         );
         const elevationGainM = slopeCalculatorRef.current.getElevationGain();
+        const smoothedAltitudeM = slopeCalculatorRef.current.getSmoothedAltitude();
         setLiveStats({
           elapsedSec: update.elapsedSec,
           distanceMeters: update.distanceMeters,
           currentSpeedMps: update.speedMps,
-          altitudeM: update.eleM,
+          altitudeM: smoothedAltitudeM ?? update.eleM,
           slopePercent,
           elevationGainM,
           gpsLost: update.gpsLost,
