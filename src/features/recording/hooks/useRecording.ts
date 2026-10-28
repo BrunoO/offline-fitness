@@ -196,6 +196,7 @@ const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStat
   }
   return {
     elapsedSec: Math.max(0, Math.floor((Date.now() - startedAtUtcMs) / 1000)),
+    movingTimeSec: 0,
     distanceMeters: 0,
     currentSpeedMps: null,
     altitudeM: null,
@@ -205,6 +206,34 @@ const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStat
     hAccM: null
   };
 };
+
+function computeDisplayDistance(
+  hasMoved: boolean,
+  isMoving: boolean,
+  currentDistance: number,
+  lastDistance: number
+): number {
+  if (!hasMoved) {
+    return 0;
+  }
+  return isMoving ? currentDistance : lastDistance;
+}
+
+function updateMovingTime(
+  lastTimestampMs: number | null,
+  currentTimestampMs: number,
+  isCurrentlyMoving: boolean,
+  currentMovingTimeSec: number
+): number {
+  if (lastTimestampMs === null) {
+    return currentMovingTimeSec;
+  }
+  const deltaSec = (currentTimestampMs - lastTimestampMs) / 1000;
+  if (deltaSec > 0 && deltaSec <= 5 && isCurrentlyMoving) {
+    return currentMovingTimeSec + deltaSec;
+  }
+  return currentMovingTimeSec;
+}
 
 /**
  * Drives the native recorder and the save flow.
@@ -238,6 +267,10 @@ export function useRecording(): UseRecordingResult {
   const splitDetectorRef = useRef<SplitDetector | null>(null);
   const slopeCalculatorRef = useRef<LiveSlopeCalculator | null>(null);
   const lastFixWallMsRef = useRef<number>(0);
+  const movingTimeSecRef = useRef<number>(0);
+  const lastFixTimestampMsRef = useRef<number | null>(null);
+  const lastMovingDistanceMetersRef = useRef<number>(0);
+  const isMovingRef = useRef<boolean>(false);
   useEffect(() => {
     summaryRef.current = summary;
   }, [summary]);
@@ -400,23 +433,47 @@ export function useRecording(): UseRecordingResult {
       });
       locationSubscription = gpsTrackerEvents.addLocationListener(update => {
         lastFixWallMsRef.current = Date.now();
+        const profile = activeProfileRef.current;
+        const stationaryThreshold = profile ? (PROFILE_STATIONARY_SPEED[profile] ?? 0.4) : 0.4;
+        const isCurrentlyMoving = update.speedMps != null && update.speedMps >= stationaryThreshold;
+        const liveSpeedMps = isCurrentlyMoving ? update.speedMps : 0;
+
+        movingTimeSecRef.current = updateMovingTime(
+          lastFixTimestampMsRef.current,
+          update.t,
+          isCurrentlyMoving,
+          movingTimeSecRef.current
+        );
+        lastFixTimestampMsRef.current = update.t;
+
+        if (isCurrentlyMoving) {
+          isMovingRef.current = true;
+          lastMovingDistanceMetersRef.current = update.distanceMeters;
+        }
+
+        const displayDistanceMeters = computeDisplayDistance(
+          isMovingRef.current,
+          isCurrentlyMoving,
+          update.distanceMeters,
+          lastMovingDistanceMetersRef.current
+        );
+
         slopeCalculatorRef.current ??= new LiveSlopeCalculator();
         const slopePercent = slopeCalculatorRef.current.update(
           update.eleM,
-          update.distanceMeters,
+          displayDistanceMeters,
           update.t,
           update.pressureHpa,
           update.speedMps
         );
         const elevationGainM = slopeCalculatorRef.current.getElevationGain();
         const smoothedAltitudeM = slopeCalculatorRef.current.getSmoothedAltitude();
-        const profile = activeProfileRef.current;
-        const stationaryThreshold = profile ? (PROFILE_STATIONARY_SPEED[profile] ?? 0.4) : 0.4;
-        const liveSpeedMps =
-          update.speedMps != null && update.speedMps < stationaryThreshold ? 0 : update.speedMps;
+        const liveMovingTimeSec = Math.round(movingTimeSecRef.current);
+
         setLiveStats({
           elapsedSec: update.elapsedSec,
-          distanceMeters: update.distanceMeters,
+          movingTimeSec: liveMovingTimeSec,
+          distanceMeters: displayDistanceMeters,
           currentSpeedMps: liveSpeedMps,
           altitudeM: smoothedAltitudeM ?? update.eleM,
           slopePercent,
@@ -426,7 +483,7 @@ export function useRecording(): UseRecordingResult {
         });
         const detector = splitDetectorRef.current;
         if (detector) {
-          const event = detector.checkSplit(update.distanceMeters, update.elapsedSec * 1000);
+          const event = detector.checkSplit(displayDistanceMeters, update.elapsedSec * 1000);
           if (event) {
             setLastSplit(event);
           }
@@ -469,6 +526,10 @@ export function useRecording(): UseRecordingResult {
           Boolean(capabilities?.hasBarometer && PROFILE_CAPTURE_OPTIONS[profile].useBarometer)
         );
         lastFixWallMsRef.current = 0;
+        movingTimeSecRef.current = 0;
+        lastFixTimestampMsRef.current = null;
+        lastMovingDistanceMetersRef.current = 0;
+        isMovingRef.current = false;
         setLastSplit(null);
         setSplits([]);
         setState({
@@ -493,6 +554,7 @@ export function useRecording(): UseRecordingResult {
       await GpsTracker.pauseRecording();
       heartRateService.detachRecording();
       slopeCalculatorRef.current?.onPause();
+      lastFixTimestampMsRef.current = null;
     } catch (cause: unknown) {
       simpleLogger.error('Could not pause recording', cause);
       setError(describeError(cause, 'Could not pause the recording.'));
@@ -503,6 +565,7 @@ export function useRecording(): UseRecordingResult {
     setError(null);
     try {
       await GpsTracker.resumeRecording();
+      lastFixTimestampMsRef.current = null;
       if (state.sessionId) {
         const meta = await GpsTracker.getSessionMeta(state.sessionId);
         heartRateService.attachRecording(meta);

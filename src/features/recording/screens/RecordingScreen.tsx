@@ -99,10 +99,11 @@ const formatRate = (
   mode === 'pace' ? formatPace(metersPerSecond, profile) : formatSpeed(metersPerSecond);
 
 export const computeAverageSpeedMps = (liveStats: LiveStats): number | null => {
-  if (liveStats.elapsedSec <= 0 || liveStats.distanceMeters < MIN_DISTANCE_FOR_AVG_SPEED_M) {
+  const activeSec = liveStats.movingTimeSec ?? liveStats.elapsedSec;
+  if (activeSec <= 0 || liveStats.distanceMeters < MIN_DISTANCE_FOR_AVG_SPEED_M) {
     return null;
   }
-  return liveStats.distanceMeters / liveStats.elapsedSec;
+  return liveStats.distanceMeters / activeSec;
 };
 
 export const formatElevationGain = (

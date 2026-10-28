@@ -333,7 +333,7 @@ describe('pullBackupNow (restore)', () => {
         return JSON.stringify({ activityMd5: { '9.json': 'x' } });
       }
       if (name === 'profile.json') {
-        return null;
+        throw new RealTransportError('not found', 404);
       }
       return '<html>login page</html>';
     });

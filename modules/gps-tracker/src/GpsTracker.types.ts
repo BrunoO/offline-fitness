@@ -88,6 +88,7 @@ export interface LocationUpdate {
   pressureHpa?: number | null;
   speedMps: number | null;
   elapsedSec: number;
+  movingTimeSec?: number | null;
   distanceMeters: number;
   gpsLost: boolean;
   hAccM: number | null;

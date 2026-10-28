@@ -488,6 +488,7 @@ private fun RecordingState.toMap(): Map<String, Any?> = mapOf(
 
 private fun LiveStats.toMap(): Map<String, Any?> = mapOf(
     "elapsedSec" to elapsedSec,
+    "movingTimeSec" to movingTimeSec,
     "distanceMeters" to distanceMeters,
     "currentSpeedMps" to currentSpeedMps?.toDouble(),
     "altitudeM" to altitudeM,
@@ -503,6 +504,7 @@ private fun LocationUpdate.toMap(): Map<String, Any?> = mapOf(
     "pressureHpa" to pressureHpa,
     "speedMps" to speedMps?.toDouble(),
     "elapsedSec" to elapsedSec,
+    "movingTimeSec" to movingTimeSec,
     "distanceMeters" to distanceMeters,
     "gpsLost" to gpsLost,
     "hAccM" to hAccM?.toDouble()

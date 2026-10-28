@@ -81,13 +81,15 @@ function AppContent() {
 
         // Backfill runs in the background after first paint, then activities
         // reload so any bounding_box / elevation corrections land in state.
-        Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()])
-          .catch(error => simpleLogger.error('Startup backfill error', error))
-          .then(() =>
-            reloadActivitiesFromLocalStorage().catch(error =>
-              simpleLogger.error('Failed to reload activities after backfill', error)
-            )
-          );
+        const runBackgroundBackfill = async () => {
+          try {
+            await Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()]);
+            await reloadActivitiesFromLocalStorage();
+          } catch (error) {
+            simpleLogger.error('Startup backfill error', error);
+          }
+        };
+        void runBackgroundBackfill();
       });
 
     // Sweep saved recording fix logs older than the 30-day retention window (D10).

@@ -51,6 +51,7 @@ data class RecordingState(
  */
 data class LiveStats(
     val elapsedSec: Long = 0L,
+    val movingTimeSec: Long = 0L,
     val distanceMeters: Double = 0.0,
     val currentSpeedMps: Float? = null,
     val altitudeM: Double? = null,
@@ -78,6 +79,7 @@ data class LocationUpdate(
     val pressureHpa: Double? = null,
     val speedMps: Float?,
     val elapsedSec: Long,
+    val movingTimeSec: Long = 0L,
     val distanceMeters: Double,
     val gpsLost: Boolean = false,
     val hAccM: Float? = null

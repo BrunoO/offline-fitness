@@ -226,6 +226,39 @@ describe('RecordingScreen', () => {
         hAccM: null
       })
     ).toBe(1);
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 40,
+        movingTimeSec: 0,
+        distanceMeters: 40,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBeNull();
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 40,
+        movingTimeSec: 20,
+        distanceMeters: 40,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBe(2);
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 80,
+        movingTimeSec: 20,
+        distanceMeters: 40,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBe(2);
 
     mockUseRecording.mockReturnValue({
       capabilities: { canRecord: true },

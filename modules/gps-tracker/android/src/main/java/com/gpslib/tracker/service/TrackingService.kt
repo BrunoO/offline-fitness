@@ -59,6 +59,7 @@ class TrackingService : Service() {
 
     private var lastLocation: Location? = null
     private var distanceMeters = 0.0
+    private var movingTimeSec = 0L
     private var fixCount = 0
     private var lastMetaWriteMs = 0L
     private var lastNotificationMs = 0L
@@ -146,6 +147,7 @@ class TrackingService : Service() {
         writer = FixLogWriter(storage.fixesFile(sessionId)).also { it.open() }
         lastLocation = null
         distanceMeters = 0.0
+        movingTimeSec = 0L
         fixCount = 0
         lastMetaWriteMs = startedAtMs
         lastNotificationMs = startedAtMs
@@ -291,6 +293,10 @@ class TrackingService : Service() {
         fixCount += 1
         meta.fixCount = fixCount
 
+        val threshold = profileStationaryThreshold()
+        val rawSpeed = if (location.hasSpeed()) location.speed else null
+        val currentSpeed = if (rawSpeed != null && rawSpeed < threshold) 0f else rawSpeed
+
         if (accepted) {
             val previous = lastLocation
             if (previous == null) {
@@ -300,16 +306,17 @@ class TrackingService : Service() {
                 if (stepMeters >= meta.capture.minDistanceMeters && !isStationaryDrift(location, stepMeters, previous)) {
                     distanceMeters += stepMeters
                     lastLocation = location
+                    val dt = (location.time - previous.time).coerceAtLeast(0L) / 1000L
+                    if (dt in 1L..5L && currentSpeed > 0f) {
+                        movingTimeSec += dt
+                    }
                 }
             }
         }
 
-        val threshold = profileStationaryThreshold()
-        val rawSpeed = if (location.hasSpeed()) location.speed else null
-        val currentSpeed = if (rawSpeed != null && rawSpeed < threshold) 0f else rawSpeed
-
         val liveStats = LiveStats(
             elapsedSec = elapsedSeconds(meta, now),
+            movingTimeSec = movingTimeSec,
             distanceMeters = distanceMeters,
             currentSpeedMps = currentSpeed,
             altitudeM = sample?.mslAltitudeMeters ?: sample?.rawAltitudeMeters,
@@ -326,6 +333,7 @@ class TrackingService : Service() {
                 pressureHpa = sample?.pressureHpa,
                 speedMps = liveStats.currentSpeedMps,
                 elapsedSec = liveStats.elapsedSec,
+                movingTimeSec = movingTimeSec,
                 distanceMeters = liveStats.distanceMeters,
                 gpsLost = gpsLost,
                 hAccM = liveStats.hAccM
@@ -607,6 +615,7 @@ class TrackingService : Service() {
                         eleM = null,
                         speedMps = null,
                         elapsedSec = TrackingSession.liveStats.elapsedSec,
+                        movingTimeSec = TrackingSession.liveStats.movingTimeSec,
                         distanceMeters = TrackingSession.liveStats.distanceMeters,
                         gpsLost = true,
                         hAccM = null
