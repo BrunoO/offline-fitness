@@ -170,7 +170,11 @@ export function ProfileScreen(): JSX.Element {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator
+      >
         <Text style={styles.title}>Profile</Text>
         <Text style={styles.note}>
           Optional. Used for heart-rate stats (zones, calories, predicted max HR). Leave blank to
