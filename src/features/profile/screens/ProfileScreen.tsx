@@ -248,21 +248,23 @@ export function ProfileScreen(): JSX.Element {
         {profile.weightEntries.length === 0 ? (
           <Text style={styles.muted}>No weight entries yet.</Text>
         ) : (
-          profile.weightEntries.map(entry => (
-            <View key={entry.date} style={styles.entryRow}>
-              <View>
-                <Text style={styles.entryDate}>{entry.date}</Text>
-                <Text style={styles.entryWeight}>{entry.weightKg} kg</Text>
+          <ScrollView style={styles.entriesList} showsVerticalScrollIndicator nestedScrollEnabled>
+            {profile.weightEntries.map(entry => (
+              <View key={entry.date} style={styles.entryRow}>
+                <View>
+                  <Text style={styles.entryDate}>{entry.date}</Text>
+                  <Text style={styles.entryWeight}>{entry.weightKg} kg</Text>
+                </View>
+                <Pressable
+                  onPress={() => handleDeleteEntry(entry.date)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete entry ${entry.date}`}
+                >
+                  <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                </Pressable>
               </View>
-              <Pressable
-                onPress={() => handleDeleteEntry(entry.date)}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete entry ${entry.date}`}
-              >
-                <Ionicons name="trash-outline" size={20} color={theme.danger} />
-              </Pressable>
-            </View>
-          ))
+            ))}
+          </ScrollView>
         )}
 
         <Pressable onPress={() => setShowImport(true)} style={styles.secondaryButton}>
@@ -438,6 +440,9 @@ const createStyles = (theme: ResolvedTheme) =>
       paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: theme.border
+    },
+    entriesList: {
+      maxHeight: 240
     },
     entryDate: {
       color: theme.text,
