@@ -76,11 +76,13 @@ const formatDistance = (meters: number): string =>
   `${(meters / METERS_PER_KILOMETER).toFixed(2)} km`;
 
 export const formatSpeed = (metersPerSecond: number | null): string =>
-  metersPerSecond === null ? '—' : `${(metersPerSecond * 3.6).toFixed(1)} km/h`;
+  metersPerSecond === null || !Number.isFinite(metersPerSecond)
+    ? '—'
+    : `${(metersPerSecond * 3.6).toFixed(1)} km/h`;
 
 export const formatPace = (metersPerSecond: number | null, profile: Profile): string => {
   const minSpeed = MIN_PACE_SPEED_BY_PROFILE[profile] ?? 0.4;
-  if (metersPerSecond === null || metersPerSecond < minSpeed) {
+  if (metersPerSecond === null || !Number.isFinite(metersPerSecond) || metersPerSecond < minSpeed) {
     return '—';
   }
   const unitMeters = profile === 'swimming' ? METERS_PER_100M : METERS_PER_KILOMETER;
@@ -100,7 +102,12 @@ const formatRate = (
 
 export const computeAverageSpeedMps = (liveStats: LiveStats): number | null => {
   const activeSec = liveStats.movingTimeSec ?? liveStats.elapsedSec;
-  if (activeSec <= 0 || liveStats.distanceMeters < MIN_DISTANCE_FOR_AVG_SPEED_M) {
+  if (
+    !Number.isFinite(activeSec) ||
+    activeSec <= 0 ||
+    !Number.isFinite(liveStats.distanceMeters) ||
+    liveStats.distanceMeters < MIN_DISTANCE_FOR_AVG_SPEED_M
+  ) {
     return null;
   }
   return liveStats.distanceMeters / activeSec;
@@ -148,7 +155,7 @@ const formatAltitude = (meters: number | null): string =>
   meters === null ? '—' : `${Math.round(meters)} m`;
 
 const formatSlope = (slopePercent: number | null | undefined): string => {
-  if (slopePercent == null) {
+  if (slopePercent == null || !Number.isFinite(slopePercent)) {
     return '—';
   }
   const sign = slopePercent >= 0 ? '+' : '';

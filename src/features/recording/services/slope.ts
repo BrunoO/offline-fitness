@@ -117,7 +117,8 @@ export function updateSlopeWindow(
       if (fittedDeltaAlt !== null) {
         const effectiveDeltaAlt = applyVerticalDeadband(fittedDeltaAlt, deadbandMeters);
         const effectiveDist = Math.max(spanDist, SLOPE_WINDOW_METERS / 2);
-        return (effectiveDeltaAlt / effectiveDist) * 100;
+        const rawSlope = (effectiveDeltaAlt / effectiveDist) * 100;
+        return Math.max(-50, Math.min(50, rawSlope));
       }
     }
   }

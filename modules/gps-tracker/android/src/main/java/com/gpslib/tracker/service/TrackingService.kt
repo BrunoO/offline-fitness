@@ -307,7 +307,7 @@ class TrackingService : Service() {
                     distanceMeters += stepMeters
                     lastLocation = location
                     val dt = (location.time - previous.time).coerceAtLeast(0L) / 1000L
-                    if (dt in 1L..5L && currentSpeed > 0f) {
+                    if (dt in 1L..5L && currentSpeed != null && currentSpeed > 0f) {
                         movingTimeSec += dt
                     }
                 }
@@ -372,8 +372,7 @@ class TrackingService : Service() {
         } else {
             0f
         }
-        val accuracy = if (location.hasAccuracy()) location.accuracy else 3.0f
-        return speed < threshold && stepMeters < maxOf(accuracy, 3.0f)
+        return speed < threshold
     }
 
     /** Wall clock minus the manual pauses. Display only; the replay owns the truth. */

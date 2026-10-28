@@ -182,7 +182,9 @@ export class SplitDetector {
     const intervalDurationMs = Math.max(0, totalElapsedMs - this.lastSplitElapsedMs);
     const distanceTraveledKm = distanceSinceLastSplit / 1000.0;
     const paceSecondsPerKm =
-      distanceTraveledKm > 0 ? intervalDurationMs / 1000 / distanceTraveledKm : 0;
+      distanceTraveledKm > 0 && Number.isFinite(intervalDurationMs / distanceTraveledKm)
+        ? intervalDurationMs / 1000 / distanceTraveledKm
+        : 0;
     const minutes = Math.floor(paceSecondsPerKm / 60);
     const seconds = Math.floor(paceSecondsPerKm % 60);
     const paceFormatted = `${minutes}:${String(seconds).padStart(2, '0')}`;

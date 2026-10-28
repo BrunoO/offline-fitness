@@ -18,7 +18,6 @@ import type { AltitudeSample } from './slope';
 import { SplitDetector } from './splits';
 import type { SplitEvent } from './splits';
 
-const AUTO_PAUSE_THRESHOLD_MPS = 0.8 / 3.6;
 const AUTO_PAUSE_DURATION_MS = 3_000;
 
 const roundCoordinate = (value: number): number => Math.round(value * 1e6) / 1e6;
@@ -224,7 +223,8 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const clampedA = Math.min(1, Math.max(0, a));
+  const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
   return R * c;
 }
 
@@ -246,7 +246,7 @@ function isStationaryDrift(
   } else {
     speed = 0;
   }
-  return speed < filterOptions.stationarySpeedThreshold && dist < Math.max(fix.hAcc, 3);
+  return speed < filterOptions.stationarySpeedThreshold;
 }
 
 function preAutoPauseFilterReason(
@@ -367,7 +367,7 @@ function handleManualPauseBoundary(ctx: ReplayContext, fix: FixLogEntry): void {
 }
 
 function handleAutoPause(ctx: ReplayContext, fix: FixLogEntry, speed: number): boolean {
-  if (speed < AUTO_PAUSE_THRESHOLD_MPS) {
+  if (speed < ctx.filterOptions.stationarySpeedThreshold) {
     ctx.belowThresholdSince ??= fix.t;
     if (
       ctx.autoPausedSince === null &&

@@ -68,15 +68,30 @@ const resolveDistanceAndSpeed = (
   };
 };
 
+function findMinMaxAltitude(altitude: readonly number[]): { elevHigh: number; elevLow: number } {
+  if (altitude.length === 0) {
+    return { elevHigh: 0, elevLow: 0 };
+  }
+  let elevHigh = altitude[0];
+  let elevLow = altitude[0];
+  for (let i = 1; i < altitude.length; i++) {
+    const a = altitude[i];
+    if (a > elevHigh) elevHigh = a;
+    if (a < elevLow) elevLow = a;
+  }
+  return { elevHigh, elevLow };
+}
+
 const extractStreamGeometry = (replay: ReplayResult) => {
   const latlng = replay.stream.latlng?.data ?? [];
   const altitude = replay.stream.altitude?.data ?? [];
+  const { elevHigh, elevLow } = findMinMaxAltitude(altitude);
   return {
     startLatLng: latlng.length > 0 ? latlng[0] : [],
     endLatLng: latlng.length > 0 ? latlng.at(-1)! : [],
     boundingBox: trackBoundingBox(latlng),
-    elevHigh: altitude.length > 0 ? Math.max(...altitude) : 0,
-    elevLow: altitude.length > 0 ? Math.min(...altitude) : 0
+    elevHigh,
+    elevLow
   };
 };
 
