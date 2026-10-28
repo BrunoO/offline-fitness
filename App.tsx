@@ -36,10 +36,10 @@ void SplashScreen.preventAutoHideAsync();
 
 // Set the animation options. This is optional.
 SplashScreen.setOptions({
-  // Shorter native fade so the splash doesn't linger; the in-app splash
-  // (Reanimated) handles the final cross-fade on top.
-  duration: 300,
-  fade: true
+  // No native fade: hand off instantly to the in-app splash, which fades
+  // quickly via Reanimated. Keeps the perceived startup snappy.
+  duration: 0,
+  fade: false
 });
 
 const Drawer = createDrawerNavigator<RootDrawerParamList>();
@@ -48,7 +48,6 @@ function AppContent() {
   const theme = useTheme();
   const navigationTheme = useMemo(() => createNavigationTheme(theme), [theme]);
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
-  const [backfillComplete, setBackfillComplete] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const fadeAnim = useSharedValue(1);
@@ -65,43 +64,37 @@ function AppContent() {
     // Log app startup
     simpleLogger.log('🚀 Offline Fitness app started successfully');
 
-    // Run backfills sequentially before loading activities from local storage, so any
-    // bounding_box / elevation corrections written to AsyncStorage are visible in the
-    // first in-memory load.
-    Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()])
-      .catch(error => simpleLogger.error('Startup backfill error', error))
-      .finally(() => setBackfillComplete(true));
+    // Load activities first so the UI can paint without waiting for the
+    // (potentially slow) bounding-box / elevation backfill. The splash stays
+    // visible until this first load completes.
+    reloadActivitiesFromLocalStorage()
+      .catch(error => simpleLogger.error('Failed to reload activities from local storage', error))
+      .finally(() => {
+        void SplashScreen.hideAsync().catch(() => undefined);
+        simpleLogger.log('✨ App UI loaded and ready');
+        // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue mutation is expected
+        fadeAnim.value = withTiming(0, { duration: 150 }, finished => {
+          if (finished) {
+            scheduleOnRN(setSplashVisible, false);
+          }
+        });
+
+        // Backfill runs in the background after first paint, then activities
+        // reload so any bounding_box / elevation corrections land in state.
+        Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()])
+          .catch(error => simpleLogger.error('Startup backfill error', error))
+          .then(() =>
+            reloadActivitiesFromLocalStorage().catch(error =>
+              simpleLogger.error('Failed to reload activities after backfill', error)
+            )
+          );
+      });
 
     // Sweep saved recording fix logs older than the 30-day retention window (D10).
     sweepExpiredSessions().catch(error =>
       simpleLogger.error('Startup recording session sweep error', error)
     );
-  }, []);
-
-  // Once startup backfill completes, hide the native splash and smoothly fade out
-  // our in-app splash (which takes the background tint of the active palette).
-  useEffect(() => {
-    if (backfillComplete) {
-      void SplashScreen.hideAsync().catch(() => undefined);
-      simpleLogger.log('✨ App UI loaded and ready');
-      // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue mutation is expected
-      fadeAnim.value = withTiming(0, { duration: 350 }, finished => {
-        if (finished) {
-          scheduleOnRN(setSplashVisible, false);
-        }
-      });
-    }
-  }, [backfillComplete, fadeAnim]);
-
-  useEffect(() => {
-    if (backfillComplete) {
-      // Activities come from a Strava archive import; no network call is needed.
-      // A storage failure here must not pass as unhandled rejection.
-      reloadActivitiesFromLocalStorage().catch(error =>
-        simpleLogger.error('Failed to reload activities from local storage', error)
-      );
-    }
-  }, [backfillComplete, reloadActivitiesFromLocalStorage]);
+  }, [reloadActivitiesFromLocalStorage]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

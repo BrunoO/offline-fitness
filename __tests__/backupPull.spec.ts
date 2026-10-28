@@ -332,6 +332,9 @@ describe('pullBackupNow (restore)', () => {
       if (name === 'sync-state.json') {
         return JSON.stringify({ activityMd5: { '9.json': 'x' } });
       }
+      if (name === 'profile.json') {
+        return null;
+      }
       return '<html>login page</html>';
     });
     mockStorage.getAllActivitiesKeys.mockResolvedValue([]);

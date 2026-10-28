@@ -581,9 +581,15 @@ async function fetchStreamContent(
 async function restoreUserProfile(config: WebDavConfig, summary: RestoreSummary): Promise<void> {
   try {
     const content = await getDavFile(config, APP_CONFIG.BACKUP_PROFILE_FILE);
+    if (!content) {
+      return;
+    }
     const remoteProfile = JSON.parse(content) as UserProfile;
+    if (!remoteProfile || typeof remoteProfile !== 'object') {
+      return;
+    }
     const localProfile = await loadUserProfile();
-    const age = localProfile.age ?? remoteProfile.age;
+    const age = localProfile?.age ?? remoteProfile?.age;
     const byDate = new Map<string, { date: string; weightKg: number }>();
     for (const entry of remoteProfile.weightEntries ?? []) {
       byDate.set(entry.date, entry);

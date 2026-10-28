@@ -130,6 +130,14 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Splash & startup performance (F4/F7/F13 + background backfill)**: enabled Metro `inlineRequires` (`metro.config.cjs`); added `SafeAreaProvider` at root; migrated the splash fade to Reanimated; shortened the native splash fade to 0 ms (in-app fade 150 ms); moved `calculateAndStoreMissingBoundingBoxes`/`correctSwimElevationGain` to run after first paint (activities load first, then backfill + reload). All gates green.
+- **Personal records + records tab (#1)**: added an all-time `RecordsScreen` as a "Records" tab in Stats (longest distance/duration/elevation/speed/pace, longest week, streaks, best-by-type) plus a "See all" link on Home's Recent Achievements (navigating to the Records tab). All gates green.
+- **Activity list UX (#2 + icon)**: added activity-type filter chips in `DetailsScreen`; extracted `getActivityIcon` to shared utils and rendered the activity emoji in `ActivityListItem`. All gates green.
+- **Manual entry distance & elevation**: `ManualActivitySheet` now accepts distance (km) + elevation (m) for GPS-track types. All gates green.
+
+- **Test infra & null-safety**: added AsyncStorage jest mock to `jest.setup.js`; fixed null-safety in `restoreUserProfile` (optional chaining on profile age). All 615 tests now pass.
+- **Targeted entering animations (F14)**: subtle `FadeIn` on `LastActivitySummary` mount and `ShowInProgress`. All gates green.
+
 - **User profile screen (age + weight history)**: added a dedicated `Profile` drawer item and screen (`src/features/profile/`) with optional age and a dated body-weight history (add/delete entries, default today, many tuples). Includes an "Import CSV" modal (paste `date,weight` rows, header ignored, per-date replace) for preparing weight data in a file. Storage lives in device-local AsyncStorage (`userProfile`), so it stays optional and private. All gates green.
 - **Weight history chart + document import + backup sync**: added a `WeightChart` (victory-native) on `ProfileScreen` (shown when ≥2 entries); added a "Choose file" button to the CSV import modal using `expo-document-picker` + `File.text()`; and included the user profile (age + weight history) in the WebDAV backup/sync/restore flow as a root-level `profile.json` (local entries win on per-date conflicts). All gates green.
 
