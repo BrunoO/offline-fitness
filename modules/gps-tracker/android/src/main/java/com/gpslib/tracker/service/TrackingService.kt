@@ -297,7 +297,7 @@ class TrackingService : Service() {
                 lastLocation = location
             } else {
                 val stepMeters = previous.distanceTo(location)
-                if (stepMeters >= meta.capture.minDistanceMeters) {
+                if (stepMeters >= meta.capture.minDistanceMeters && !isStationaryDrift(location, stepMeters)) {
                     distanceMeters += stepMeters
                     lastLocation = location
                 }
@@ -336,6 +336,22 @@ class TrackingService : Service() {
             updateNotification()
             lastNotificationMs = now
         }
+    }
+
+    /**
+     * Mirrors replaySession.isStationaryDrift so stationary GPS wander while sitting on a desk
+     * or standing still does not accumulate fake distance into live display counters.
+     */
+    private fun isStationaryDrift(location: Location, stepMeters: Float): Boolean {
+        if (!location.hasSpeed()) return false
+        val threshold = when (TrackingSession.meta?.profile?.lowercase(Locale.US)) {
+            "cycling" -> 0.8f
+            "hiking" -> 0.3f
+            "running" -> 0.5f
+            else -> 0.4f
+        }
+        val accuracy = if (location.hasAccuracy()) location.accuracy else 3.0f
+        return location.speed < threshold && stepMeters < maxOf(accuracy, 3.0f)
     }
 
     /** Wall clock minus the manual pauses. Display only; the replay owns the truth. */

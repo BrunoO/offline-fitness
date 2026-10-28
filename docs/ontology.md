@@ -155,7 +155,8 @@ flowchart LR
   * **Chart Display Hysteresis:** `ActivityAnalysisView.tsx` applies a `1.5 m` deadband when computing the cumulative elevation gain series for charts, and forces all points to `0` when `activity.total_elevation_gain === 0`.
 * **`ONT-GEO-07` — Sliding-Window Terrain Slope (`updateSlopeWindow` and `LiveSlopeCalculator` in `slope.ts`):**
   * Maintains a FIFO buffer of `{ t, distance, altitude }` samples pruned when $\Delta\text{distance} > 45\text{ m}$ (`SLOPE_WINDOW_METERS`) or $\Delta t > 60,000\text{ ms}$ (`SLOPE_WINDOW_MS`), preserving at least `SLOPE_MIN_DISTANCE_M` baseline.
-  * Filters out stationary duplicate-distance fixes (`distance <= lastDistance`).
+  * In `TrackingService.kt`, suppresses stationary GPS drift steps (`location.speed < threshold && stepMeters < max(accuracy, 3)`), keeping distance at 0 when the device is not moving.
+  * In `LiveSlopeCalculator`, detects stationary state (`speed < stationarySpeedThreshold`). While stationary, no samples are pushed and slope clears to `null` (`—`) when stationary or after `STATIONARY_HOLD_MS = 5,000` ms, preventing phantom grades while standing still or sitting at a desk.
   * In `LiveSlopeCalculator`, fuses live barometric pressure via `fuseBarometer` (`0.85 * baro + 0.15 * gps`) when available from `LocationUpdate.pressureHpa`.
   * Computes slope via Ordinary Least Squares (OLS) linear regression across all samples in the window, then applies a sensor-adaptive vertical deadband (soft-thresholding):
     * **With barometric pressure:** `SLOPE_DEADBAND_BARO_M = 0.4` m.

@@ -130,10 +130,9 @@ export function ProfileScreen(): JSX.Element {
     for (const e of entries) byDate.set(e.date, e);
     const nextEntries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
     void persist({ ...profile, weightEntries: nextEntries });
-    Alert.alert(
-      'Imported',
-      `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} imported${errors.length ? ` (${errors.length} skipped)` : ''}.`
-    );
+    const suffix = entries.length === 1 ? 'y' : 'ies';
+    const skippedMsg = errors.length > 0 ? ` (${errors.length} skipped)` : '';
+    Alert.alert('Imported', `${entries.length} entr${suffix} imported${skippedMsg}.`);
     setCsvText('');
     setShowImport(false);
   }, [csvText, persist, profile]);
@@ -269,7 +268,7 @@ export function ProfileScreen(): JSX.Element {
             {importErrors.length > 0 ? (
               <ScrollView style={styles.errorBox}>
                 {importErrors.map((e, i) => (
-                  <Text key={i} style={styles.errorText}>
+                  <Text key={`${e}-${i}`} style={styles.errorText}>
                     {e}
                   </Text>
                 ))}

@@ -401,7 +401,8 @@ export function useRecording(): UseRecordingResult {
           update.eleM,
           update.distanceMeters,
           update.t,
-          update.pressureHpa
+          update.pressureHpa,
+          update.speedMps
         );
         const elevationGainM = slopeCalculatorRef.current.getElevationGain();
         const smoothedAltitudeM = slopeCalculatorRef.current.getSmoothedAltitude();

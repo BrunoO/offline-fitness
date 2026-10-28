@@ -10,6 +10,15 @@ export const BARO_WEIGHT_GPS = 0.15;
 export const BARO_WEIGHT_BARO = 0.85;
 export const HYSTERESIS_THRESHOLD_BARO_M = 1.5;
 export const HYSTERESIS_THRESHOLD_GPS_M = 3.5;
+export const STATIONARY_HOLD_MS = 5_000;
+
+export const PROFILE_STATIONARY_SPEED: Record<Profile, number> = {
+  walking: 0.4,
+  running: 0.5,
+  hiking: 0.3,
+  cycling: 0.8,
+  swimming: 0.5
+};
 
 export interface AltitudeSample {
   readonly t: number;
@@ -135,9 +144,12 @@ export class LiveSlopeCalculator {
   private baselineBaro: number | null = null;
   private gainMeters = 0;
   private currentSlope: number | null = null;
+  private stationarySince: number | null = null;
+  private hasMoved = false;
   private readonly isSwimming: boolean;
   private readonly useBarometer: boolean;
   private readonly hysteresisThresholdM: number;
+  private readonly stationarySpeedThreshold: number;
 
   constructor(profile: Profile = 'walking', useBarometer = false) {
     this.isSwimming = profile === 'swimming';
@@ -145,6 +157,7 @@ export class LiveSlopeCalculator {
     this.hysteresisThresholdM = useBarometer
       ? HYSTERESIS_THRESHOLD_BARO_M
       : HYSTERESIS_THRESHOLD_GPS_M;
+    this.stationarySpeedThreshold = PROFILE_STATIONARY_SPEED[profile] ?? 0.4;
   }
 
   private resolveEstimatedAltitude(
@@ -187,17 +200,48 @@ export class LiveSlopeCalculator {
     }
   }
 
+  private isStationarySpeed(
+    speedMps: number | null | undefined,
+    distanceMeters: number,
+    timestampMs: number
+  ): boolean {
+    let speed = speedMps;
+    if (speed === undefined || speed === null) {
+      const last = this.samples.at(-1);
+      if (last != null) {
+        const deltaSec = (timestampMs - last.t) / 1000;
+        speed = deltaSec > 0 ? (distanceMeters - last.distance) / deltaSec : 0;
+      }
+    }
+    return speed != null && speed < this.stationarySpeedThreshold;
+  }
+
+  private handleStationary(timestampMs: number): number | null {
+    this.stationarySince ??= timestampMs;
+    if (!this.hasMoved || timestampMs - this.stationarySince >= STATIONARY_HOLD_MS) {
+      this.currentSlope = null;
+    }
+    return this.currentSlope;
+  }
+
   update(
     eleM: number | null,
     distanceMeters: number,
     timestampMs: number,
-    pressureHpa?: number | null
+    pressureHpa?: number | null,
+    speedMps?: number | null
   ): number | null {
     if (this.isSwimming) {
       this.currentSlope = 0;
       this.gainMeters = 0;
       return 0;
     }
+
+    if (this.isStationarySpeed(speedMps, distanceMeters, timestampMs)) {
+      return this.handleStationary(timestampMs);
+    }
+    this.stationarySince = null;
+
     const estimated = this.resolveEstimatedAltitude(eleM, pressureHpa);
     if (estimated == null) {
       return this.currentSlope;
@@ -226,6 +270,13 @@ export class LiveSlopeCalculator {
       deadbandMeters
     );
 
+    if (
+      this.samples.length >= 2 &&
+      distanceMeters - this.samples[0].distance >= SLOPE_MIN_DISTANCE_M
+    ) {
+      this.hasMoved = true;
+    }
+
     return this.currentSlope;
   }
 
@@ -238,6 +289,8 @@ export class LiveSlopeCalculator {
     this.smoothedAltitude = null;
     this.anchorAltitude = null;
     this.currentSlope = null;
+    this.stationarySince = null;
+    this.hasMoved = false;
   }
 
   reset(): void {

@@ -75,13 +75,46 @@ describe('LiveSlopeCalculator', () => {
     for (let i = 0; i < elevations.length; i++) {
       const dist = i * stepM;
       const t = 1000 + i * 2000;
-      const slope = calc.update(elevations[i], dist, t);
+      // Walking speed ~1.3 m/s
+      const slope = calc.update(elevations[i], dist, t, null, 1.3);
       if (dist >= SLOPE_MIN_DISTANCE_M) {
         expect(slope).not.toBeNull();
         // The slope must stay tightly contained around 0%, never swinging to -5% or +3%
         expect(Math.abs(slope!)).toBeLessThanOrEqual(0.5);
       }
     }
+  });
+
+  it('reports null slope when phone is stationary (not moving) for 40 seconds', () => {
+    // Phone sitting stationary on a table for 40 seconds (walking profile).
+    // Speed is 0.0 m/s (or GPS wander < 0.4 m/s).
+    // GPS altitude wanders downwards from 210m to 207.5m.
+    const calc = new LiveSlopeCalculator('walking');
+    for (let i = 0; i <= 20; i++) {
+      const t = 1000 + i * 2000; // 0s .. 40s
+      const alt = 210.0 - (i * 2.5) / 20; // 210.0 down to 207.5
+      // Even if stationary GPS drift reports small distance steps:
+      const dist = i * 0.5; // drifts up to 10m
+      const slope = calc.update(alt, dist, t, null, 0.0);
+      // Slope must remain null ('—'), NEVER calculating a phantom -6.6% slope
+      expect(slope).toBeNull();
+    }
+  });
+
+  it('holds slope briefly when stopping then clears to null after stationary hold duration', () => {
+    const calc = new LiveSlopeCalculator('walking');
+    // Active walk up a 10% hill: alt 100 -> 103 over 25m at 1.4 m/s
+    calc.update(100, 0, 1000, null, 1.4);
+    const activeSlope = calc.update(112, 25, 2000, null, 1.4);
+    expect(activeSlope).toBeCloseTo(8.0, 1);
+
+    // User stops moving at t = 3000 (speed = 0)
+    const heldSlope = calc.update(112, 25, 3000, null, 0.0);
+    expect(heldSlope).toBe(activeSlope); // held briefly
+
+    // After 6 seconds stationary (t = 9000, > 5s hold duration)
+    const expiredSlope = calc.update(112, 25, 9000, null, 0.0);
+    expect(expiredSlope).toBeNull();
   });
 
   it('ignores duplicate-distance updates when stationary', () => {
