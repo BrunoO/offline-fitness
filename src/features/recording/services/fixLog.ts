@@ -1,7 +1,7 @@
-import { File } from 'expo-file-system';
 import type { FixLogEntry, RecordingMeta } from '../services/gpsTracker';
 import { GpsTracker } from '../services/gpsTracker';
 import { FIX_LOG_RETENTION_DAYS } from '../config';
+import { DEFAULT_CHUNK_SIZE, readChunkedJsonl } from './chunkedJsonlReader';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -30,54 +30,7 @@ export function readFixLog(
   meta: RecordingMeta,
   chunkSize: number = DEFAULT_CHUNK_SIZE
 ): ReadFixLogResult {
-  const file = new File(logUri);
-  const handle = file.open();
-
-  const fixes: FixLogEntry[] = [];
-  let skipped = 0;
-  let offset = 0;
-  let buffer = '';
-  const decoder = new TextDecoder();
-
-  try {
-    const totalSize = handle.size ?? 0;
-    while (offset < totalSize) {
-      const toRead = Math.min(chunkSize, totalSize - offset);
-      handle.offset = offset;
-
-      const bytes = handle.readBytes(toRead);
-      offset += bytes.length;
-
-      buffer += decoder.decode(bytes, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-        try {
-          fixes.push(JSON.parse(trimmed) as FixLogEntry);
-        } catch {
-          skipped += 1;
-        }
-      }
-    }
-
-    buffer += decoder.decode();
-    const trailing = buffer.trim();
-    if (trailing) {
-      try {
-        fixes.push(JSON.parse(trailing) as FixLogEntry);
-      } catch {
-        skipped += 1;
-      }
-    }
-  } finally {
-    handle.close();
-  }
+  const { records: fixes, skipped } = readChunkedJsonl<FixLogEntry>(logUri, chunkSize);
 
   let recovered = false;
   if (meta.endedAtUtcMs == null && fixes.length > 0) {
@@ -87,8 +40,6 @@ export function readFixLog(
 
   return { fixes, skipped, recovered };
 }
-
-const DEFAULT_CHUNK_SIZE = 256 * 1024;
 
 /**
  * Deletes sessions whose fix logs are past the retention window (D10).

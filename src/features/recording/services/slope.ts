@@ -1,4 +1,5 @@
 import type { Profile } from './gpsTracker';
+import { PROFILE_FILTER_OPTIONS } from './profiles';
 
 export const SLOPE_WINDOW_METERS = 45;
 export const SLOPE_WINDOW_MS = 60_000;
@@ -13,11 +14,11 @@ export const HYSTERESIS_THRESHOLD_GPS_M = 3.5;
 export const STATIONARY_HOLD_MS = 5_000;
 
 export const PROFILE_STATIONARY_SPEED: Record<Profile, number> = {
-  walking: 0.4,
-  running: 0.5,
-  hiking: 0.3,
-  cycling: 0.8,
-  swimming: 0.3
+  walking: PROFILE_FILTER_OPTIONS.walking.stationarySpeedThreshold,
+  running: PROFILE_FILTER_OPTIONS.running.stationarySpeedThreshold,
+  hiking: PROFILE_FILTER_OPTIONS.hiking.stationarySpeedThreshold,
+  cycling: PROFILE_FILTER_OPTIONS.cycling.stationarySpeedThreshold,
+  swimming: PROFILE_FILTER_OPTIONS.swimming.stationarySpeedThreshold
 };
 
 export interface AltitudeSample {

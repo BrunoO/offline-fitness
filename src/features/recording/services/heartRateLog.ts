@@ -1,8 +1,7 @@
 import { File } from 'expo-file-system';
 import type { RecordingMeta } from './gpsTracker';
 import type { HeartRateSample } from '../types/heartRate';
-
-const DEFAULT_CHUNK_SIZE = 256 * 1024;
+import { DEFAULT_CHUNK_SIZE, readChunkedJsonl } from './chunkedJsonlReader';
 
 export interface ReadHeartRateLogResult {
   samples: HeartRateSample[];
@@ -33,58 +32,7 @@ export function readHeartRateLog(
   logUri: string,
   chunkSize: number = DEFAULT_CHUNK_SIZE
 ): ReadHeartRateLogResult {
-  const file = new File(logUri);
-  if (!file.exists) {
-    return { samples: [], skipped: 0 };
-  }
-  const handle = file.open();
-
-  const samples: HeartRateSample[] = [];
-  let skipped = 0;
-  let offset = 0;
-  let buffer = '';
-  const decoder = new TextDecoder();
-
-  try {
-    const totalSize = handle.size ?? 0;
-    while (offset < totalSize) {
-      const toRead = Math.min(chunkSize, totalSize - offset);
-      handle.offset = offset;
-
-      const bytes = handle.readBytes(toRead);
-      offset += bytes.length;
-
-      buffer += decoder.decode(bytes, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-        try {
-          samples.push(JSON.parse(trimmed) as HeartRateSample);
-        } catch {
-          skipped += 1;
-        }
-      }
-    }
-
-    buffer += decoder.decode();
-    const trailing = buffer.trim();
-    if (trailing) {
-      try {
-        samples.push(JSON.parse(trailing) as HeartRateSample);
-      } catch {
-        skipped += 1;
-      }
-    }
-  } finally {
-    handle.close();
-  }
-
+  const { records: samples, skipped } = readChunkedJsonl<HeartRateSample>(logUri, chunkSize);
   samples.sort((a, b) => a.t - b.t);
   return { samples, skipped };
 }

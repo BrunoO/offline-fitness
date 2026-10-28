@@ -32,6 +32,7 @@ import type { SplitEvent } from '../services/splits';
 import {
   DEFAULT_RECORDING_PROFILE,
   loadLastRecordingProfile,
+  PROFILE_FILTER_OPTIONS,
   PROFILE_LABELS,
   PROFILES,
   saveLastRecordingProfile
@@ -49,11 +50,11 @@ const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 const METERS_PER_100M = 100;
 export const MIN_PACE_SPEED_BY_PROFILE: Record<Profile, number> = {
-  walking: 0.4,
-  running: 0.5,
-  hiking: 0.3,
-  cycling: 0.8,
-  swimming: 0.3
+  walking: PROFILE_FILTER_OPTIONS.walking.stationarySpeedThreshold,
+  running: PROFILE_FILTER_OPTIONS.running.stationarySpeedThreshold,
+  hiking: PROFILE_FILTER_OPTIONS.hiking.stationarySpeedThreshold,
+  cycling: PROFILE_FILTER_OPTIONS.cycling.stationarySpeedThreshold,
+  swimming: PROFILE_FILTER_OPTIONS.swimming.stationarySpeedThreshold
 };
 export const MIN_DISTANCE_FOR_AVG_SPEED_M = 25;
 
