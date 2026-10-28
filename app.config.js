@@ -14,7 +14,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function buildConfig({ config }) {
+function buildConfig({ config = {} } = {}) {
   const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!googleMapsApiKey) {
     console.warn(
@@ -25,7 +25,7 @@ function buildConfig({ config }) {
   // Per-developer identity. The fallbacks are the placeholders committed to the
   // repository, so a fresh clone builds with a neutral id until .env is filled in.
   // Note: `config` is app.json's `expo` object already unwrapped by Expo.
-  const androidPackage = process.env.ANDROID_PACKAGE || config.android.package;
+  const androidPackage = process.env.ANDROID_PACKAGE || config?.android?.package;
   if (!process.env.ANDROID_PACKAGE) {
     console.warn(
       '[app.config] ANDROID_PACKAGE is not set: building with the placeholder application id. ' +
@@ -33,14 +33,14 @@ function buildConfig({ config }) {
     );
   }
 
-  const iosBundleId = process.env.IOS_BUNDLE_ID || config.ios.bundleIdentifier;
+  const iosBundleId = process.env.IOS_BUNDLE_ID || config?.ios?.bundleIdentifier;
   if (!process.env.IOS_BUNDLE_ID) {
     console.warn('[app.config] IOS_BUNDLE_ID is not set: building with the placeholder bundle id.');
   }
 
   // Version code lives in a gitignored file so builds never dirty app.json.
   // Fall back to app.json's value (committed baseline) on a fresh clone.
-  let versionCode = config.android?.versionCode;
+  let versionCode = config?.android?.versionCode;
   const versionFilePath = path.resolve(process.cwd(), '.version-code');
   if (fs.existsSync(versionFilePath)) {
     const parsed = Number.parseInt(fs.readFileSync(versionFilePath, 'utf8').trim(), 10);
@@ -52,18 +52,18 @@ function buildConfig({ config }) {
   return {
     ...config,
     android: {
-      ...config.android,
+      ...config?.android,
       versionCode,
       package: androidPackage,
       config: {
-        ...config.android.config,
+        ...config?.android?.config,
         googleMaps: {
           apiKey: googleMapsApiKey ?? ''
         }
       }
     },
     ios: {
-      ...config.ios,
+      ...config?.ios,
       bundleIdentifier: iosBundleId
     }
   };

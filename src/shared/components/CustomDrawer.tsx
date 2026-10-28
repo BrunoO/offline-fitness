@@ -19,7 +19,7 @@ import { useActivitiesContext, useManualEntry } from '@/features/activities';
  */
 export type IoniconName = keyof typeof Ionicons.glyphMap;
 
-export function getIconOptions(iconName: IoniconName) {
+function getIconOptions(iconName: IoniconName) {
   // The tint comes from the navigation theme, which follows the active palette.
   const makeIcon = ({ size, color }: { focused: boolean; size: number; color: string }) => (
     <Ionicons name={iconName} size={size} color={color} />

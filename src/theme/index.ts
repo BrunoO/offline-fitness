@@ -14,7 +14,7 @@ export {
   PALETTE_ORDER
 } from './palettes';
 export { resolveTheme, resolveThemeById } from './resolve';
-export { PALETTE_STORAGE_KEY, ThemeProvider, useThemeContext } from './ThemeProvider';
+export { ThemeProvider, useThemeContext } from './ThemeProvider';
 export type { ThemeContextValue } from './ThemeProvider';
 export { useTheme } from './useTheme';
 export type {

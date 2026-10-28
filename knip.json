@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "App.tsx",
+    "src/features/*/index.ts",
+    "src/theme/index.ts",
+    "src/shared/index.ts"
+  ],
+  "ignoreDependencies": [
+    "@react-native/assets-registry",
+    "react-native-svg",
+    "expo-dev-client",
+    "expo-updates",
+    "expo-modules-core",
+    "victory-legend",
+    "babel-plugin-react-compiler",
+    "eslint-plugin-react",
+    "eslint-plugin-react-hooks",
+    "typescript-eslint"
+  ],
+  "ignoreBinaries": [
+    "adb"
+  ],
+  "rules": {
+    "types": "off"
+  }
+}

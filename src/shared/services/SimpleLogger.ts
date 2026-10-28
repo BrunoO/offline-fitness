@@ -65,7 +65,7 @@ function serialiseLogArguments(values: unknown[]): string {
 /**
  * A simple logger class.
  */
-export class Logger {
+class Logger {
   logs: LogEntry[] = [];
   private creationDate: Date = new Date();
   private previousEntryDate: Date = this.creationDate;

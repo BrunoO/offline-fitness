@@ -226,44 +226,6 @@ export function weeklyData(
  * Results include only activities that fall within the specified month range.
  */
 
-/**
- * Generates monthly statistics for activities over the last 13 months based on a specified field.
- *
- * @param allActivities - Array of activity objects containing the data to analyze
- * @param activityField - Accessor function to extract the numeric field to analyze from activities
- * @returns Array of objects containing:
- *  - month: Date object representing the first day of the month
- *  - distance: Sum of the specified activity field for the month, divided by 1000
- *
- * The data covers the last 13 months up to the current date.
- * Results include only activities that fall within the specified month range.
- */
-export function monthlyData(allActivities: Activity[], activityField: ActivityAccessor<number>) {
-  const recentMonths = lastMonthsFrom(new Date(), 13);
-
-  const recentActivities = allActivities.filter(activity =>
-    isMonthBetween(activity.start_year, activity.start_month, recentMonths.at(-1)!, recentMonths[0])
-  );
-
-  const allMonthsDistanceMap = new Map<number, number>();
-  recentActivities.forEach(a => {
-    const keyDate = new Date(a.start_year, a.start_month, 1).getTime();
-    if (!allMonthsDistanceMap.has(keyDate)) {
-      allMonthsDistanceMap.set(keyDate, 0);
-    }
-    allMonthsDistanceMap.set(
-      keyDate,
-      allMonthsDistanceMap.get(keyDate)! + finiteOrZero(activityField(a))
-    );
-  });
-
-  const arr = Array.from(allMonthsDistanceMap, function (entry) {
-    return { month: new Date(entry[0]), distance: entry[1] / 1000.0 };
-  });
-
-  return arr;
-}
-
 export type MonthSummary = {
   month: Date;
   distance: number;

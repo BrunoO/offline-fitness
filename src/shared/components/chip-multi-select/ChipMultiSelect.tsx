@@ -92,5 +92,3 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.onPrimary
     }
   });
-
-export default ChipMultiSelect;

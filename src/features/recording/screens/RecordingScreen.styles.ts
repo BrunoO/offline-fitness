@@ -2,7 +2,7 @@ import { ResolvedTheme } from '@/theme';
 import { StyleSheet } from 'react-native';
 
 export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
-export const RADIUS = { card: 16, pill: 24, chip: 20, button: 14 } as const;
+const RADIUS = { card: 16, pill: 24, chip: 20, button: 14 } as const;
 export const METERS_PER_KILOMETER = 1000;
 
 export const createStyles = (theme: ResolvedTheme) =>

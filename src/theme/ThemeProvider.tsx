@@ -14,7 +14,7 @@ import { resolveThemeById } from './resolve';
 import { ColorScheme, ResolvedTheme } from './types';
 
 /** The AsyncStorage key the selected palette is persisted under. */
-export const PALETTE_STORAGE_KEY = 'paletteId';
+const PALETTE_STORAGE_KEY = 'paletteId';
 
 export interface ThemeContextValue {
   /** The resolved theme every component should read its colours from. */
@@ -25,7 +25,7 @@ export interface ThemeContextValue {
   setPaletteId: (id: string) => void;
 }
 
-export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 /**
  * Provides the resolved theme to the whole app.

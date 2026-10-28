@@ -83,7 +83,7 @@ export const formatPace = (metersPerSecond: number | null, profile: Profile): st
   return `${minutes}:${seconds.toString().padStart(2, '0')} ${unitSuffix}`;
 };
 
-export const formatRate = (
+const formatRate = (
   metersPerSecond: number | null,
   profile: Profile,
   mode: RateDisplayMode
@@ -110,10 +110,10 @@ export const formatElevationGain = (
   return `+${Math.round(meters)} m`;
 };
 
-export const formatSplitDistance = (meters: number): string =>
+const formatSplitDistance = (meters: number): string =>
   meters < 950 ? `${Math.round(meters)} m` : `${(meters / METERS_PER_KILOMETER).toFixed(2)} km`;
 
-export const formatSplitRate = (
+const formatSplitRate = (
   split: SplitEvent,
   profile: Profile,
   rateMode: RateDisplayMode

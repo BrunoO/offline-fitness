@@ -69,7 +69,7 @@ export function evaluateGoal(expression: string, data: WeekData): boolean {
   return Boolean(result);
 }
 
-export const validActivityFields = [
+const validActivityFields = [
   'average_speed',
   'distance',
   'elapsed_time',
@@ -96,7 +96,7 @@ export const validActivityFields = [
   'utc_offset'
 ];
 
-export type ValidActivityField = (typeof validActivityFields)[number];
+type ValidActivityField = (typeof validActivityFields)[number];
 
 function isValidActivityField(fieldName: string): fieldName is ValidActivityField {
   return (validActivityFields as readonly string[]).includes(fieldName);

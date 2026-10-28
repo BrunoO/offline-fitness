@@ -191,7 +191,7 @@ export function normalizeHeader(value: string): string {
  * Resolves every field to a column index. Alias matches win; the known
  * positional layout is only used for fields whose header is unrecognized.
  */
-export function resolveColumns(header: string[]): {
+function resolveColumns(header: string[]): {
   columns: Partial<Record<FieldKey, number>>;
   unresolved: FieldKey[];
   usedFallback: boolean;

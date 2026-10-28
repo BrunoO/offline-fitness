@@ -46,6 +46,9 @@ This document provides essential context and rules for AI agents working on this
 7. Check for circular dependency warnings in build output
 8. Run `scripts/sonar_gate.sh --scan` - the task is only complete at 0 open Sonar issues (see "Sonar Quality Gate")
 
+**Recommended Non-Blocking Guardrail:**
+- Run `npm run check:knip` to check for dead code, unused files, and redundant dependencies (configured in `knip.json`).
+
 **Linting Rules:**
 - Use `npx expo lint --fix` to automatically fix issues
 - Never disable linting rules without discussion
