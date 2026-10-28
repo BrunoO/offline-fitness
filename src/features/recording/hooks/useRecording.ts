@@ -15,7 +15,7 @@ import { GpsTracker, gpsTrackerEvents } from '../services/gpsTracker';
 import { buildRecordedActivity } from '../services/buildRecordedActivity';
 import { PROFILE_CAPTURE_OPTIONS, saveLastRecordingProfile } from '../services/profiles';
 import { replaySession } from '../services/replaySession';
-import { LiveSlopeCalculator } from '../services/slope';
+import { LiveSlopeCalculator, PROFILE_STATIONARY_SPEED } from '../services/slope';
 import { SplitDetector } from '../services/splits';
 import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
@@ -221,6 +221,10 @@ export function useRecording(): UseRecordingResult {
   const [capabilities, setCapabilities] = useState<GpsTrackerCapabilities | null>(null);
   const [state, setState] = useState<RecordingState>(IDLE_STATE);
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const activeProfileRef = useRef<Profile | null>(null);
+  useEffect(() => {
+    activeProfileRef.current = activeProfile;
+  }, [activeProfile]);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [summary, setSummary] = useState<RecordingSummary | null>(null);
   const [splits, setSplits] = useState<SplitEvent[]>([]);
@@ -406,10 +410,14 @@ export function useRecording(): UseRecordingResult {
         );
         const elevationGainM = slopeCalculatorRef.current.getElevationGain();
         const smoothedAltitudeM = slopeCalculatorRef.current.getSmoothedAltitude();
+        const profile = activeProfileRef.current;
+        const stationaryThreshold = profile ? (PROFILE_STATIONARY_SPEED[profile] ?? 0.4) : 0.4;
+        const liveSpeedMps =
+          update.speedMps != null && update.speedMps < stationaryThreshold ? 0 : update.speedMps;
         setLiveStats({
           elapsedSec: update.elapsedSec,
           distanceMeters: update.distanceMeters,
-          currentSpeedMps: update.speedMps,
+          currentSpeedMps: liveSpeedMps,
           altitudeM: smoothedAltitudeM ?? update.eleM,
           slopePercent,
           elevationGainM,

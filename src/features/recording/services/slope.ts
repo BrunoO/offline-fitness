@@ -17,7 +17,7 @@ export const PROFILE_STATIONARY_SPEED: Record<Profile, number> = {
   running: 0.5,
   hiking: 0.3,
   cycling: 0.8,
-  swimming: 0.5
+  swimming: 0.3
 };
 
 export interface AltitudeSample {

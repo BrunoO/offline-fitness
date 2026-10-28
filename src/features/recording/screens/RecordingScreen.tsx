@@ -48,7 +48,14 @@ const PROFILE_ICONS: Record<Profile, string> = {
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 const METERS_PER_100M = 100;
-const MIN_PACE_SPEED_MPS = 0.1;
+export const MIN_PACE_SPEED_BY_PROFILE: Record<Profile, number> = {
+  walking: 0.4,
+  running: 0.5,
+  hiking: 0.3,
+  cycling: 0.8,
+  swimming: 0.3
+};
+export const MIN_DISTANCE_FOR_AVG_SPEED_M = 25;
 
 export type RateDisplayMode = 'pace' | 'speed';
 
@@ -72,7 +79,8 @@ export const formatSpeed = (metersPerSecond: number | null): string =>
   metersPerSecond === null ? '—' : `${(metersPerSecond * 3.6).toFixed(1)} km/h`;
 
 export const formatPace = (metersPerSecond: number | null, profile: Profile): string => {
-  if (metersPerSecond === null || metersPerSecond < MIN_PACE_SPEED_MPS) {
+  const minSpeed = MIN_PACE_SPEED_BY_PROFILE[profile] ?? 0.4;
+  if (metersPerSecond === null || metersPerSecond < minSpeed) {
     return '—';
   }
   const unitMeters = profile === 'swimming' ? METERS_PER_100M : METERS_PER_KILOMETER;
@@ -91,7 +99,7 @@ const formatRate = (
   mode === 'pace' ? formatPace(metersPerSecond, profile) : formatSpeed(metersPerSecond);
 
 export const computeAverageSpeedMps = (liveStats: LiveStats): number | null => {
-  if (liveStats.elapsedSec <= 0 || liveStats.distanceMeters <= 0) {
+  if (liveStats.elapsedSec <= 0 || liveStats.distanceMeters < MIN_DISTANCE_FOR_AVG_SPEED_M) {
     return null;
   }
   return liveStats.distanceMeters / liveStats.elapsedSec;

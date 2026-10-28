@@ -189,6 +189,7 @@ describe('RecordingScreen', () => {
     expect(formatPace(1.25, 'swimming')).toBe('1:20 /100m');
     expect(formatPace(4.0, 'running')).toBe('4:10 /km');
     expect(formatPace(0.05, 'running')).toBe('—');
+    expect(formatPace(0.26, 'walking')).toBe('—');
     expect(formatPace(null, 'walking')).toBe('—');
     expect(formatSpeed(5.5)).toBe('19.8 km/h');
     expect(formatSpeed(null)).toBe('—');
@@ -205,6 +206,26 @@ describe('RecordingScreen', () => {
         hAccM: null
       })
     ).toBeNull();
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 40,
+        distanceMeters: 10,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBeNull();
+    expect(
+      computeAverageSpeedMps({
+        elapsedSec: 40,
+        distanceMeters: 40,
+        currentSpeedMps: null,
+        altitudeM: null,
+        gpsLost: false,
+        hAccM: null
+      })
+    ).toBe(1);
 
     mockUseRecording.mockReturnValue({
       capabilities: { canRecord: true },
