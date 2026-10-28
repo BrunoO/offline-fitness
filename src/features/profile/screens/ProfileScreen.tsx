@@ -1,4 +1,6 @@
 import { simpleLogger } from '@/shared';
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import { ResolvedTheme, useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
@@ -20,6 +22,7 @@ import {
   todayIso,
   type UserProfile
 } from '../services/profileStorage';
+import { WeightChart } from '../components/WeightChart';
 
 export function ProfileScreen(): JSX.Element {
   const theme = useTheme();
@@ -137,6 +140,25 @@ export function ProfileScreen(): JSX.Element {
     setShowImport(false);
   }, [csvText, persist, profile]);
 
+  const handlePickFile = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/plain', 'text/*', '*/*'],
+        copyToCacheDirectory: true
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) return;
+      const file = new File(asset.uri);
+      const content = await file.text();
+      setCsvText(content);
+      setImportErrors([]);
+    } catch (error) {
+      simpleLogger.error('CSV file pick failed', error);
+      Alert.alert('Import failed', 'Could not read the selected file.');
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -217,6 +239,8 @@ export function ProfileScreen(): JSX.Element {
           </View>
         ) : null}
 
+        {profile.weightEntries.length >= 2 ? <WeightChart entries={profile.weightEntries} /> : null}
+
         {profile.weightEntries.length === 0 ? (
           <Text style={styles.muted}>No weight entries yet.</Text>
         ) : (
@@ -257,6 +281,10 @@ export function ProfileScreen(): JSX.Element {
               Paste rows with date and weight. One entry per line: &quot;YYYY-MM-DD,kg&quot;. A
               header row is ignored. Dates already present are replaced.
             </Text>
+            <Pressable onPress={handlePickFile} style={styles.secondaryButton}>
+              <Ionicons name="document-attach-outline" size={18} color={theme.text} />
+              <Text style={styles.secondaryButtonLabel}>Choose file</Text>
+            </Pressable>
             <TextInput
               style={styles.csvInput}
               multiline

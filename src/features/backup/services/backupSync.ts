@@ -13,6 +13,7 @@ import {
   putDavFile
 } from './webdavTransport';
 import { loadWebDavConfig } from './webdavAuth';
+import { loadUserProfile, saveUserProfile, type UserProfile } from '@/features/profile';
 
 export interface SyncSummary {
   uploadedActivities: number;
@@ -49,6 +50,7 @@ interface RemoteSyncState {
   activityMd5?: Record<string, string>;
   streamMd5?: Record<string, string>;
   deletedAt?: Record<string, string>;
+  profileMd5?: string;
 }
 
 /**
@@ -412,11 +414,29 @@ async function pushBackup(config: WebDavConfig, onProgress?: (p: SyncProgress) =
   });
 
   onProgress?.({ phase: 'state', done: 0, total: 1 });
+
+  // Push the user profile (age + weight history) as a single JSON file so it
+  // survives a device change. Local always wins on conflicts, so we only
+  // overwrite the remote copy when its content actually differs.
+  let pushedProfileMd5: string | undefined;
+  try {
+    const profile = await loadUserProfile();
+    const profileContent = JSON.stringify(profile);
+    const profileMd5Value = await md5(profileContent);
+    if (remoteState.profileMd5 !== profileMd5Value) {
+      await putDavFile(config, APP_CONFIG.BACKUP_PROFILE_FILE, profileContent);
+    }
+    pushedProfileMd5 = profileMd5Value;
+  } catch (error) {
+    summary.errors.push(`profile: ${describeError(error)}`);
+  }
+
   const syncState: RemoteSyncState = {
     syncedAt: summary.syncedAt,
     activityMd5: pushedActivityMd5,
     streamMd5: pushedStreamMd5,
-    deletedAt: remoteDeletedAt
+    deletedAt: remoteDeletedAt,
+    profileMd5: pushedProfileMd5 ?? remoteState.profileMd5
   };
   await putDavFile(config, APP_CONFIG.BACKUP_SYNC_STATE_FILE, JSON.stringify(syncState));
   onProgress?.({ phase: 'state', done: 1, total: 1 });
@@ -553,6 +573,33 @@ async function fetchStreamContent(
   return bytes ?? (await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name));
 }
 
+/**
+ * Restores the user profile (age + weight history) from the remote collection
+ * when present. Local entries win on per-date conflicts; a missing remote file
+ * is not an error.
+ */
+async function restoreUserProfile(config: WebDavConfig, summary: RestoreSummary): Promise<void> {
+  try {
+    const content = await getDavFile(config, APP_CONFIG.BACKUP_PROFILE_FILE);
+    const remoteProfile = JSON.parse(content) as UserProfile;
+    const localProfile = await loadUserProfile();
+    const age = localProfile.age ?? remoteProfile.age;
+    const byDate = new Map<string, { date: string; weightKg: number }>();
+    for (const entry of remoteProfile.weightEntries ?? []) {
+      byDate.set(entry.date, entry);
+    }
+    for (const entry of localProfile.weightEntries ?? []) {
+      byDate.set(entry.date, entry); // local wins
+    }
+    const mergedEntries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+    await saveUserProfile({ age, weightEntries: mergedEntries });
+  } catch (error) {
+    if (!(error instanceof WebDavTransportError) || error.status !== 404) {
+      summary.errors.push(`profile: ${describeError(error)}`);
+    }
+  }
+}
+
 async function pullBackup(
   config: WebDavConfig,
   onProgress?: (p: SyncProgress) => void
@@ -666,6 +713,8 @@ async function pullBackup(
     streamDone += 1;
     onProgress?.({ phase: 'streams', done: streamDone, total: remoteStreams.length });
   });
+
+  await restoreUserProfile(config, summary);
 
   simpleLogger.log('WebDAV backup restore complete', {
     ...summary,

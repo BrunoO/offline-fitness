@@ -10,6 +10,7 @@ export const APP_CONFIG = {
   BACKUP_ACTIVITIES_FOLDER: 'activities',
   BACKUP_STREAMS_FOLDER: 'streams',
   BACKUP_SYNC_STATE_FILE: 'sync-state.json',
+  BACKUP_PROFILE_FILE: 'profile.json',
   // Marker file recording which app id and profile own a collection, so two
   // athletes sharing one account cannot mix each other's data.
   BACKUP_COLLECTION_FILE: 'collection.json',
