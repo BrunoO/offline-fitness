@@ -280,32 +280,34 @@ export function ProfileScreen(): JSX.Element {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Import weight CSV</Text>
-            <Text style={styles.modalNote}>
-              Paste rows with date and weight. One entry per line: &quot;YYYY-MM-DD,kg&quot;. A
-              header row is ignored. Dates already present are replaced.
-            </Text>
-            <Pressable onPress={handlePickFile} style={styles.secondaryButton}>
-              <Ionicons name="document-attach-outline" size={18} color={theme.text} />
-              <Text style={styles.secondaryButtonLabel}>Choose file</Text>
-            </Pressable>
-            <TextInput
-              style={styles.csvInput}
-              multiline
-              value={csvText}
-              onChangeText={setCsvText}
-              placeholder={'date,weight\n2026-01-01,72.5'}
-              placeholderTextColor={theme.textMuted}
-            />
-            {importErrors.length > 0 ? (
-              <ScrollView style={styles.errorBox}>
-                {importErrors.map((e, i) => (
-                  <Text key={`${e}-${i}`} style={styles.errorText}>
-                    {e}
-                  </Text>
-                ))}
-              </ScrollView>
-            ) : null}
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+              <Text style={styles.modalTitle}>Import weight CSV</Text>
+              <Text style={styles.modalNote}>
+                Paste rows with date and weight. One entry per line: &quot;YYYY-MM-DD,kg&quot;. A
+                header row is ignored. Dates already present are replaced.
+              </Text>
+              <Pressable onPress={handlePickFile} style={styles.secondaryButton}>
+                <Ionicons name="document-attach-outline" size={18} color={theme.text} />
+                <Text style={styles.secondaryButtonLabel}>Choose file</Text>
+              </Pressable>
+              <TextInput
+                style={styles.csvInput}
+                multiline
+                value={csvText}
+                onChangeText={setCsvText}
+                placeholder={'date,weight\n2026-01-01,72.5'}
+                placeholderTextColor={theme.textMuted}
+              />
+              {importErrors.length > 0 ? (
+                <ScrollView style={styles.errorBox}>
+                  {importErrors.map((e, i) => (
+                    <Text key={`${e}-${i}`} style={styles.errorText}>
+                      {e}
+                    </Text>
+                  ))}
+                </ScrollView>
+              ) : null}
+            </ScrollView>
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={() => {
@@ -472,7 +474,11 @@ const createStyles = (theme: ResolvedTheme) =>
       backgroundColor: theme.surface,
       borderRadius: 16,
       padding: 20,
-      maxHeight: '80%'
+      maxHeight: '80%',
+      width: '100%'
+    },
+    modalScroll: {
+      maxHeight: 320
     },
     modalTitle: {
       fontSize: 20,
@@ -495,6 +501,7 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.text,
       backgroundColor: theme.surfaceSunken,
       minHeight: 140,
+      maxHeight: 220,
       textAlignVertical: 'top'
     },
     errorBox: {
