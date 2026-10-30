@@ -429,9 +429,13 @@ If you modify:
 
 **Update `docs/architecture.md`** to reflect the changes.
 
-### Ontology Changes
+### Ontology Changes & Schema Drift Protection
 
-If you modify or introduce:
+> [!IMPORTANT]
+> **Schema Drift Protection Rule:** `docs/ontology.md` is **strictly READ-ONLY** during normal bugfixes, refactorings, and feature implementation tasks. Agents must **never** modify `docs/ontology.md` to make failing code, altered formulas, or unverified shortcuts pass.
+> Modifying `docs/ontology.md` requires an **explicit user request** to modify or extend the ontology.
+
+When explicitly tasked with an ontology update or introducing:
 - Domain entities, activity origins, sport type categories, or canonicalization rules (`ONT-DOM-*`)
 - Date/time/timezone handling or ISO-8601 week bucketing (`ONT-TIME-*`)
 - Geophysical, barometric, geoid, hysteresis, or slope formulas/constants (`ONT-GEO-*`)
@@ -440,7 +444,9 @@ If you modify or introduce:
 - Storage keys, binary stream codec flags/layout, WebDAV schema/tombstones, or export chunking (`ONT-STORE-*`)
 - Module/portability boundaries, cycle exceptions, or retired/forbidden concepts (`ONT-ARCH-*`, `ONT-UI-*`, `ONT-GOV-*`)
 
-**Update `docs/ontology.md`** in the same change and use the `codebase-ontology` skill (`.agents/skills/codebase-ontology/SKILL.md`) to verify graph alignment and prevent ontological drift.
+1. **Update `docs/ontology.md` first** following the `codebase-ontology` skill (`.agents/skills/codebase-ontology/SKILL.md`).
+2. Run `npm run check:ontology` to verify that code constants, types, and documented invariants are in sync.
+3. Verify graph alignment via `codebase-memory-mcp`.
 
 ## Common Pitfalls to Avoid
 

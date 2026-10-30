@@ -333,7 +333,19 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 * **`ONT-ARCH-06` — Lazy `expo-file-system` `Directory` Initialization:**
   * Never construct `new Directory(Paths.document, ...)` at module top-level (import time); always wrap it in a lazy getter function (e.g., `streamsFolder()` in `fetchAndStoreStreams.ts` and `exportData.ts`) so importing a barrel in tests or before filesystem readiness never throws.
 
-### 7.3 Theme, Accessibility & React Compiler Rules
+### 7.3 Native Bridge, Hardware Capabilities & Storage Boundary Matrix
+React Native applications bridge across JavaScript/Hermes, native platform runtimes (Android ART / iOS Darwin), persistent local storage, and remote endpoints. The table below formalizes these boundaries:
+
+| Capability / Resource | Native Layer / Platform Provider | JavaScript / TypeScript Layer | Storage / Wire Serialization | Bridge Crossing Contract |
+| --- | --- | --- | --- | --- |
+| **GPS Tracking & WakeLock** | Android `TrackingService` (`foregroundServiceType="location"`) via `modules/gps-tracker` (iOS stub `canRecord: false`) | `useRecording` hook, `replaySession.ts` | Append-only raw fix log (`<files>/recording/<sessionId>/fixes.jsonl`) | **Zero fix arrays cross the bridge during recording.** Native flushes JSONL chunks to disk; TS reads disk directly on replay. |
+| **BLE Heart Rate (Polar H10)** | Android `HeartRateModule` (BLE GATT `0x180D`/`0x2A37`, coroutines) via `modules/heart-rate` (iOS stub `canScan: false`) | `heartRateService.ts`, `useHeartRate.ts` | Append-only raw HR log (`<files>/recording/<sessionId>/heartrate.jsonl`) | Emits status events (`stateChange`, `heartRate`, `error`) across bridge; session logs stream to disk. |
+| **Activity Records** | None (JS domain models) | `ActivitiesContext.tsx`, `useActivities.ts` | `AsyncStorage` (unencrypted key-value JSON stringified records under `a_<id>`) | In-memory `globalActivities` synced with `AsyncStorage.setItem` / `multiSet`. |
+| **Stream Tracks** | None (JS binary parser/encoder) | `streamCodec.ts`, `fetchAndStoreStreams.ts` | `expo-file-system` (`Paths.document/streams/<id>.json`) | Written as raw bytes (`uint8array`) in `'OF'` v1 binary format. |
+| **WebDAV Cloud Transport** | Native fetch / HTTP client (`fetch`) | `webdavTransport.ts`, `backupSync.ts` | Remote WebDAV collection (`collection.json`, `sync-state.json`) | Buffered chunked uploads/downloads with `SYNC_CONCURRENCY = 6`. |
+| **Text-to-Speech & Haptics** | Android `TextToSpeech` & `Vibrator` in `modules/gps-tracker` | `SplitDetector` in `splits.ts` | None | Direct synchronous bridge calls `speak(text)` and `vibrate()`; audio-focus ducking handled natively. |
+
+### 7.4 Theme, Accessibility & React Compiler Rules
 * **`ONT-UI-01` — Dynamic Theme Resolution & WCAG 2.1 AA (`src/theme/`):**
   * Components read colors exclusively via `useTheme()` (`src/theme/useTheme.ts`) and build styles via `createStyles(theme)` + `useMemo`. Module-level `StyleSheet.create` with color literals is forbidden.
   * Every palette in `src/theme/palettes.ts` (`legacy`, `twilight`, `alpine`, `terracotta`, `crimson`) in both light and dark modes must satisfy **WCAG 2.1 AA** contrast ratios: $\ge 4.5:1$ for normal text and $\ge 3.0:1$ for large text and graphical UI/chart fills (`__tests__/theme/theme.spec.ts`).

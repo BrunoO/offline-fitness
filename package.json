@@ -31,10 +31,11 @@
     "check:install-scripts": "node scripts/check-install-scripts.cjs",
     "check:mobile-only": "node scripts/check-mobile-only.cjs",
     "check:circular": "node scripts/check-circular.cjs",
+    "check:ontology": "node scripts/check-ontology.cjs",
     "check:format": "prettier --check 'src/**/*.{ts,tsx}' App.tsx",
     "check:doctor": "expo-doctor",
     "check:knip": "knip",
-    "check:all": "npm run check:imports && npm run check:mobile-only && npm run check:install-scripts && npm run check:circular && npm run check:doctor && npm run check:format && tsc --noEmit && expo lint",
+    "check:all": "npm run check:imports && npm run check:ontology && npm run check:mobile-only && npm run check:install-scripts && npm run check:circular && npm run check:doctor && npm run check:format && tsc --noEmit && expo lint",
     "adb:reverse": "adb -s emulator-5554 reverse tcp:8081 tcp:8081"
   },
   "dependencies": {

@@ -18,10 +18,14 @@ While `codebase-memory-mcp` indexes syntactic nodes (`File`, `Function`, `Class`
 ## When to Apply
 
 Use this workflow when:
+- Explicitly tasked with updating or extending domain invariants in `docs/ontology.md`.
 - Modifying geophysical, spatial, kinematic, biometric, temporal, codec, or sync logic governed by `ONT-*` invariants.
 - Introducing a new domain entity, physical formula, filter threshold, storage key, binary codec flag, or cross-boundary contract.
 - Deprecating or removing a feature, permission, package, or code path (moving it to **Negative Space**).
-- Auditing [docs/ontology.md](../../../docs/ontology.md) against the source tree to detect drift between documented constants/formulas and actual code.
+- Auditing [docs/ontology.md](../../../docs/ontology.md) against the source tree via `npm run check:ontology` to detect drift between documented constants/formulas and actual code.
+
+> [!CAUTION]
+> **Schema Drift Protection Rule:** [docs/ontology.md](../../../docs/ontology.md) is **READ-ONLY** during standard bugfixes and feature work. Never modify invariants in the ontology to accommodate code bugs or failing tests. Only update `docs/ontology.md` during explicit ontology refinement tasks or approved architectural changes.
 
 ## Workflow 1: Pre-Change Invariant Check
 
