@@ -366,7 +366,9 @@ export const createStyles = (theme: ResolvedTheme) =>
       alignItems: 'center',
       alignSelf: 'flex-start',
       backgroundColor: theme.primarySoft,
+      borderColor: theme.border,
       borderRadius: RADIUS.chip,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: SPACING.xs,
       marginHorizontal: SPACING.lg,
@@ -375,7 +377,7 @@ export const createStyles = (theme: ResolvedTheme) =>
       paddingVertical: SPACING.xs
     },
     profileBadgeLabel: {
-      color: theme.primary,
+      color: theme.text,
       fontSize: 13,
       fontWeight: '600'
     },
