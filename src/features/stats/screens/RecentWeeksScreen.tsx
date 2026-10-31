@@ -224,9 +224,10 @@ export function RecentWeeksScreen(): JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
-  const activityTypes = Array.from(myActivitiesDiscovered).sort((a, b) =>
-    a.localeCompare(b)
-  ) as string[];
+  const activityTypes = useMemo(
+    () => Array.from(myActivitiesDiscovered).sort((a, b) => a.localeCompare(b)) as string[],
+    [myActivitiesDiscovered]
+  );
   const { myActivitiesToUse, allActivitiesToUse } = useProcessedActivities(
     activityTypes,
     globalActivities

@@ -135,6 +135,15 @@ function SimilarActivitiesList({
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  // Index track-similarity results by activity id once (O(n)) instead of an
+  // O(n) .find() inside the render loop (O(n^2) for large similar sets).
+  const trackSimilarityById = useMemo(() => {
+    const map = new Map<string, { activity: Activity; similarity: number }>();
+    similarActivitiesByTrack.forEach(entry => {
+      map.set(entry.activity.id, entry);
+    });
+    return map;
+  }, [similarActivitiesByTrack]);
   return (
     <ScrollView
       horizontal
@@ -143,9 +152,7 @@ function SimilarActivitiesList({
       contentContainerStyle={{ paddingHorizontal: 10 }}
     >
       {similarActivities.map(activity => {
-        const similarByTrackInfo = similarActivitiesByTrack.find(
-          a => a.activity.id === activity.id
-        );
+        const similarByTrackInfo = trackSimilarityById.get(activity.id);
         const isSimilarByTrack =
           !!similarByTrackInfo && similarByTrackInfo.similarity >= trackSimilarityThreshold;
         return (
