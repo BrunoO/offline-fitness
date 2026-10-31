@@ -311,6 +311,12 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   });
   const [selectedActivityStats, setSelectedActivityStats] = useState<ActivityStats | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  // Keep a ref in sync so the globalActivities effect below can detect a
+  // deleted selection without adding selectedActivity to its deps (which
+  // would re-run it on every tap and yank the viewed activity).
+  useEffect(() => {
+    selectedActivityRef.current = selectedActivity;
+  }, [selectedActivity]);
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().split('T')[0]);
   const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
   const { openRecordChooser } = useManualEntry();
@@ -336,6 +342,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const hasInitializedActivity = useRef(false);
   const lastMostRecentId = useRef<string | number | null>(null);
   const lastActivitiesLength = useRef<number>(0);
+  const selectedActivityRef = useRef<Activity | null>(null);
 
   // When the WebDAV backup last ran, shown in the header: the app is offline
   // and syncs only by hand, so this is the one number that says whether the
@@ -388,7 +395,17 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   // Initialize selected activity once when activities first load.
   // Also update to the most recent activity if a newer one is added (e.g. recorded).
   useEffect(() => {
-    if (globalActivities.length === 0) return;
+    if (globalActivities.length === 0) {
+      // All activities gone: drop the selection so the Home screen stops
+      // showing a deleted (or stale) activity.
+      if (hasInitializedActivity.current) {
+        setSelectedActivity(null);
+        setHomeScreenStream({ stream: undefined });
+        setIsLoadingStream(false);
+      }
+      lastActivitiesLength.current = 0;
+      return;
+    }
     const mostRecent = globalActivities[0]; // sorted descending, index 0 = most recent
     const mostRecentId = mostRecent.id;
     const lengthIncreased = globalActivities.length > lastActivitiesLength.current;
@@ -396,6 +413,21 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
     if (!hasInitializedActivity.current) {
       hasInitializedActivity.current = true;
+      lastMostRecentId.current = mostRecentId;
+      setSelectedActivity(mostRecent);
+      setHomeScreenStream({ stream: undefined });
+      setIsLoadingStream(true);
+      const stats = calculateRecentActivityStats(mostRecent, globalActivities);
+      setSelectedActivityStats(stats);
+      return;
+    }
+
+    // If the currently selected activity was deleted (no longer present in the
+    // list), promote to the most recent one instead of leaving a stale card.
+    const currentSelection = selectedActivityRef.current;
+    const selectionDeleted =
+      currentSelection !== null && !globalActivities.some(a => a.id === currentSelection.id);
+    if (selectionDeleted) {
       lastMostRecentId.current = mostRecentId;
       setSelectedActivity(mostRecent);
       setHomeScreenStream({ stream: undefined });
