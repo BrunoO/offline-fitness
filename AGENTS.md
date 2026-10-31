@@ -26,6 +26,7 @@ This document provides essential context and rules for AI agents working on this
 ### Build & Deployment
 
 - **Builds are local only**: We do not use EAS Build. All builds run locally (`npx expo prebuild`, `npm run build:local*`, `npx expo run:android`/`run:ios`). There is no remote build quota to worry about.
+- **JDK for Android builds**: use OpenJDK 21 (Android Studio's bundled JBR, e.g. `/Applications/Android Studio.app/Contents/jbr/Contents/Home`). Zulu 17's Gradle daemon cannot spawn `node` during `settings.gradle` evaluation, and OpenJDK 27 breaks the Android toolchain (jlink). Set `JAVA_HOME` accordingly before running `npm run build:local*` / `android:dev:*`.
 - **Local Development**: Agents may freely run:
   - `npx expo start` (dev server)
   - `npx expo start --android` / `--ios` (platform-specific)
