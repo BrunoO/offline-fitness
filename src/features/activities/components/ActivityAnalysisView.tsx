@@ -353,14 +353,18 @@ function buildHeartRateXY(
   heartRateData: (number | null)[],
   timeData: number[]
 ): { x: number; y: number }[] {
-  const pointCount = Math.min(heartRateData.length, timeData.length);
+  const hasTime = Array.isArray(timeData) && timeData.length > 0;
+  const pointCount = heartRateData.length;
   const points: { x: number; y: number }[] = [];
   for (let i = 0; i < pointCount; i++) {
     const bpm = heartRateData[i];
     if (bpm === null) {
       continue;
     }
-    points.push({ x: timeData[i] / 3600, y: bpm });
+    // Fall back to the sample index when no time series is available, so
+    // heart-rate-only activities still get a chart.
+    const x = hasTime && timeData[i] !== undefined ? timeData[i] / 3600 : i;
+    points.push({ x, y: bpm });
   }
   return points;
 }
@@ -370,10 +374,12 @@ function buildHeartRateXY(
  */
 function HeartRateChart({
   heartRateDataXY,
-  mapWidth
+  mapWidth,
+  hasTimeAxis = true
 }: Readonly<{
   heartRateDataXY: { x: number; y: number }[];
   mapWidth: number;
+  hasTimeAxis?: boolean;
 }>): JSX.Element | null {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
@@ -384,8 +390,8 @@ function HeartRateChart({
   return (
     <VictoryChart theme={chartTheme} width={mapWidth}>
       <VictoryAxis
-        label="Time (h:min)"
-        tickFormat={formatTime}
+        label={hasTimeAxis ? 'Time (h:min)' : 'Sample'}
+        tickFormat={hasTimeAxis ? formatTime : (t: number) => String(Math.round(t))}
         style={{
           axisLabel: { padding: 30 }
         }}
@@ -705,6 +711,14 @@ export function ActivityAnalysisView({
   const altitudeData = item.type === 'Swim' ? undefined : loadedStream?.streamSet.altitude;
   const heartRateData = loadedStream?.streamSet.heartrate;
   const { altitudeDataXY, elevationGain, heartRateDataXY } = computeData();
+  const heartRateSummary = useMemo(() => {
+    if (!heartRateData) return null;
+    const values = heartRateData.filter((v): v is number => v !== null);
+    if (values.length === 0) return null;
+    const avg = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+    const max = Math.max(...values);
+    return { avg, max };
+  }, [heartRateData]);
 
   const handleActivityPress = async (activity: Activity | null) => {
     try {
@@ -777,8 +791,17 @@ export function ActivityAnalysisView({
         </View>
         <AltitudeChart altitudeDataXY={altitudeDataXY} mapWidth={mapWidth} />
         <ElevationGainChart elevationGain={elevationGain} mapWidth={mapWidth} />
+        {heartRateSummary ? (
+          <Text style={{ color: theme.textMuted, paddingHorizontal: 10, paddingVertical: 4 }}>
+            Heart rate: avg {heartRateSummary.avg} bpm • max {heartRateSummary.max} bpm
+          </Text>
+        ) : null}
         {heartRateDataXY && heartRateDataXY.length > 0 ? (
-          <HeartRateChart heartRateDataXY={heartRateDataXY} mapWidth={mapWidth} />
+          <HeartRateChart
+            heartRateDataXY={heartRateDataXY}
+            mapWidth={mapWidth}
+            hasTimeAxis={!!timeData?.length}
+          />
         ) : null}
         <ActivityDetails item={item} />
       </ScrollView>
