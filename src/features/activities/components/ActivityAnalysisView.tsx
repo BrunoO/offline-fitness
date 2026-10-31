@@ -820,7 +820,7 @@ export function ActivityAnalysisView({
         altXY.push({ x, y: altitudeData[i] });
         elGain.push({ x, y: 0 });
       }
-      return { altitudeDataXY: altXY, elevationGain: elGain };
+      return { altitudeDataXY: altXY, elevationGain: elGain, heartRateDataXY: hrXY };
     }
 
     let sumGain = 0;
