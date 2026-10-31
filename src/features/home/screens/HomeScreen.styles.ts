@@ -75,11 +75,6 @@ export const createStyles = (theme: ResolvedTheme) =>
       color: theme.text,
       fontWeight: '500'
     },
-    infoValueContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8
-    },
     infoValue: {
       fontSize: 16,
       fontWeight: '600',

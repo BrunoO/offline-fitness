@@ -29,13 +29,18 @@ jest.mock('@/features/backup', () => ({
 const mockSetTotalActivitiesStored = jest.fn();
 const mockSetGlobalActivities = jest.fn();
 let mockTotalActivities = 5;
+const mockCountStreamsStatus = jest
+  .fn()
+  .mockResolvedValue({ downloadedStreams: 4, missingStreams: 1 });
 
 jest.mock('@/features/activities', () => ({
   useActivitiesContext: () => ({
+    globalActivities: [],
     totalActivitiesStored: mockTotalActivities,
     setTotalActivitiesStored: mockSetTotalActivitiesStored,
     setGlobalActivities: mockSetGlobalActivities
-  })
+  }),
+  countStreamsStatus: () => mockCountStreamsStatus()
 }));
 
 const mockRemoveAllActivities = jest.fn().mockResolvedValue(undefined);
@@ -101,17 +106,29 @@ describe('SettingsModal Danger Zone', () => {
     jest.spyOn(Alert, 'alert');
   });
 
-  it('renders Danger Zone section with local activities count', () => {
+  it('renders Danger Zone section with local activities count', async () => {
     const { getByText } = render(<SettingsModal visible={true} onClose={jest.fn()} />);
 
     expect(getByText('Danger Zone')).toBeTruthy();
     expect(getByText('Activities stored locally')).toBeTruthy();
     expect(getByText('5')).toBeTruthy();
     expect(getByText('Clear local activities')).toBeTruthy();
+
+    await waitFor(() => {
+      expect(getByText('GPS streams cached on disk')).toBeTruthy();
+      // 5 total - 1 missing = 4 expected, so 4 / 4
+      expect(getByText('4 / 4')).toBeTruthy();
+    });
   });
 
   it('confirms and clears local activities successfully', async () => {
-    const { getByLabelText } = render(<SettingsModal visible={true} onClose={jest.fn()} />);
+    const { getByLabelText, getByText } = render(
+      <SettingsModal visible={true} onClose={jest.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(getByText('GPS streams cached on disk')).toBeTruthy();
+    });
 
     const clearBtn = getByLabelText('Clear local activities');
     fireEvent.press(clearBtn);
@@ -137,9 +154,15 @@ describe('SettingsModal Danger Zone', () => {
     expect(mockSetGlobalActivities).toHaveBeenCalledWith([]);
   });
 
-  it('disables the clear button when no activities are stored', () => {
+  it('disables the clear button when no activities are stored', async () => {
     mockTotalActivities = 0;
-    const { getByLabelText } = render(<SettingsModal visible={true} onClose={jest.fn()} />);
+    const { getByLabelText, getByText } = render(
+      <SettingsModal visible={true} onClose={jest.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(getByText('GPS streams cached on disk')).toBeTruthy();
+    });
 
     const clearBtn = getByLabelText('Clear local activities');
     expect(clearBtn.props.accessibilityState?.disabled).toBe(true);

@@ -126,11 +126,15 @@ describe('HomeScreen - Recent Achievements Navigation', () => {
 
     mockActivities = [longestRun, biggestClimbRide];
 
-    const { getByLabelText, getByText } = renderScreen();
+    const { getByLabelText, getByText, queryByText } = renderScreen();
 
     // Verify recent achievements display values and names
     expect(getByText(/Longest activity 25\.0 km \(Epic Long Run\)/)).toBeTruthy();
     expect(getByText(/Biggest climb 1400 m \(Col du Tourmalet\)/)).toBeTruthy();
+
+    // Verify Activity Data / Stored Locally card has been removed from HomeScreen
+    expect(queryByText('Activity Data')).toBeNull();
+    expect(queryByText('Stored Locally')).toBeNull();
 
     // Press Longest activity -> navigates to Details
     const longestBtn = getByLabelText('View details for longest activity: Epic Long Run');

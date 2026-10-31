@@ -79,6 +79,7 @@ checkRegex('src/features/recording/services/replaySession.ts', /const\s+HR_MATCH
 checkRegex('src/constants/index.ts', /BACKUP_SCHEMA_VERSION:\s*2/, 'APP_CONFIG.BACKUP_SCHEMA_VERSION = 2');
 checkRegex('src/constants/index.ts', /BACKUP_APP_ID:\s*['"]offline-fitness['"]/, "BACKUP_APP_ID = 'offline-fitness'");
 checkRegex('src/constants/index.ts', /ACTIVITY_PREFIX:\s*['"]a_['"]/, "ACTIVITY_PREFIX = 'a_'");
+checkRegex('src/constants/index.ts', /DISMISSED_SWIPE_TIP:\s*['"]dismissed_swipe_tip['"]/, "DISMISSED_SWIPE_TIP = 'dismissed_swipe_tip'");
 checkRegex('src/shared/services/streamCodec.ts', /const\s+STREAM_FORMAT_VERSION\s*=\s*1/, 'STREAM_FORMAT_VERSION = 1');
 checkRegex('src/shared/services/streamCodec.ts', /const\s+FLAG_HAS_LATLNG\s*=\s*0b001/, 'FLAG_HAS_LATLNG = 0b001');
 checkRegex('src/shared/services/streamCodec.ts', /const\s+FLAG_HAS_ALTITUDE\s*=\s*0b010/, 'FLAG_HAS_ALTITUDE = 0b010');

@@ -246,6 +246,10 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
   * For each accepted GPS fix at timestamp $t$, binary search finds the closest HR sample within `HR_MATCH_WINDOW_MS = 10_000` ($\pm 10\text{ s}$).
   * If no sample lies within $\pm 10\text{ s}$, the stream entry is `null` (**never `0`**), distinguishing "no sensor reading / contact lost" from a numeric measurement.
   * `averageHeartRate` and `maxHeartRate` on `ReplayResult.stats` (and `Activity.average_heartrate` / `max_heartrate`) are computed over valid non-paused samples only.
+  * **Display & Analysis Invariant (`ActivityAnalysisView.tsx`):**
+    * The heart-rate chart remains visible for zero-elevation activities (`item.total_elevation_gain === 0` or flat/indoor tracks).
+    * When an activity stream has heart rate but no time series (`timeData` absent/empty), the x-axis falls back to the sample index (`hasTimeAxis = false`, labeled "Sample") rather than failing to render.
+    * Average and maximum heart rate are displayed as textual summary badges (`Heart rate: avg X bpm • max Y bpm`) alongside the stream chart.
 
 ### 5.4 Splits & Crash-Recovery Semantics
 * **`ONT-KIN-05` — Metric-Only Splits (`src/features/recording/services/splits.ts`, `docs/splits-decisions.md`):**
@@ -264,7 +268,7 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 * **`AsyncStorage` (`src/shared/services/storage.ts`):**
   * Activities: stored individually under key `a_<id>` (`STORAGE_KEYS.ACTIVITY_PREFIX`). Batch writes use `storeMultiActivities` (`AsyncStorage.multiSet`).
   * Deletion Tombstones: `STORAGE_KEYS.WEBDAV_TOMBSTONES` (`Record<activityId, deletedAtIsoString>`).
-  * Preferences & State: `STORAGE_KEYS` (`webdav_*`, `backup_last_sync`, `manual_last_type`, `manual_custom_types`, `recording_last_profile`); plus `PALETTE_STORAGE_KEY` (`'paletteId'`) in `src/theme/ThemeProvider.tsx` and literal AsyncStorage keys for stats settings (`numberRecentWeeks`, `numberRecentMonths`, `useElapsedTime`, `mergeSimilarActivities`, `userWeeklyGoal`) in `src/features/stats/StatsTabSettingsContext.tsx`.
+  * Preferences & State: `STORAGE_KEYS` (`webdav_*`, `backup_last_sync`, `manual_last_type`, `manual_custom_types`, `recording_last_profile`, `dismissed_swipe_tip`); plus `PALETTE_STORAGE_KEY` (`'paletteId'`) in `src/theme/ThemeProvider.tsx` and literal AsyncStorage keys for stats settings (`numberRecentWeeks`, `numberRecentMonths`, `useElapsedTime`, `mergeSimilarActivities`, `userWeeklyGoal`) in `src/features/stats/StatsTabSettingsContext.tsx`.
 * **`FileSystem` (`expo-file-system` `Paths.document`):**
   * Stream Cache (`streams/<id>.json`): Despite the `.json` extension (kept for WebDAV collection path compatibility), files written under schema version 2 contain the **binary `'OF'` v1 payload**; `readStreamFile` transparently decodes both `'OF'` binary payloads and legacy UTF-8 JSON payloads.
   * Recording Fix Logs (`recording/<sessionId>/`): `meta.json`, `fixes.jsonl` (read in 256 KB chunks via `readFixLog` in `src/features/recording/services/fixLog.ts`), and `heartrate.jsonl`.

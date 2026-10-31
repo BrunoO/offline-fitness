@@ -3,7 +3,6 @@ import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
   LastActivitySummary,
-  countStreamsStatus,
   loadStreamForActivity,
   useActivitiesContext,
   useManualEntry
@@ -293,7 +292,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const insets = useSafeAreaInsets();
   const {
     globalActivities,
-    totalActivitiesStored,
     fetchingData,
     reloadActivitiesFromLocalStorage,
     lastBackupSync,
@@ -302,13 +300,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const [homeScreenStream, setHomeScreenStream] = useState<{
     stream: ActivityStream | undefined;
   }>({ stream: undefined });
-  const [streamStatus, setStreamStatus] = useState<{
-    downloadedStreams: number;
-    missingStreams: number;
-  }>({
-    downloadedStreams: 0,
-    missingStreams: 0
-  });
   const [selectedActivityStats, setSelectedActivityStats] = useState<ActivityStats | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   // Keep a ref in sync so the globalActivities effect below can detect a
@@ -387,10 +378,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();
-    const status = await countStreamsStatus(globalActivities);
-    setStreamStatus(status);
     void loadBackupFreshness();
-  }, [globalActivities, reloadActivitiesFromLocalStorage, loadBackupFreshness]);
+  }, [reloadActivitiesFromLocalStorage, loadBackupFreshness]);
 
   // Initialize selected activity once when activities first load.
   // Also update to the most recent activity if a newer one is added (e.g. recorded).
@@ -630,31 +619,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     };
   }, [selectedActivity]);
 
-  // Stream cache counters for the "Streams" row. Counting is derived from the
-  // records (getNoStreamIds), so the activity-set dependency refreshes exactly
-  // when it matters — a backup Restore writing new stream files also changes
-  // the set — and the 120 s tick covers completion between changes.
-  useEffect(() => {
-    let isMounted = true;
-
-    const updateStreamStatus = async () => {
-      try {
-        const status = await countStreamsStatus(globalActivities);
-        if (isMounted) setStreamStatus(status);
-      } catch (error) {
-        if (isMounted) simpleLogger.error('Error updating stream status:', error);
-      }
-    };
-
-    void updateStreamStatus();
-    const interval = setInterval(updateStreamStatus, 120 * 1000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [globalActivities]);
-
   // Handle screen focus to refresh map if needed
   useFocusEffect(
     React.useCallback(() => {
@@ -708,41 +672,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           />
         }
       >
-        {/* Activity Information Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Activity Data</Text>
-
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Stored Locally</Text>
-              <View style={styles.infoValueContainer}>
-                <Text style={styles.infoValue}>{totalActivitiesStored}</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    navigation.navigate('Details', undefined);
-                  }}
-                  style={styles.actionButton}
-                >
-                  <Ionicons name="list" size={18} color={theme.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Streams</Text>
-              <View style={styles.infoValueContainer}>
-                <Text style={[styles.infoValue, { color: theme.success }]}>
-                  {streamStatus.downloadedStreams} /{' '}
-                  {totalActivitiesStored > 0
-                    ? totalActivitiesStored - streamStatus.missingStreams
-                    : 0}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-        {/* End of Activity Information Section */}
-
         {/* Weekly Summary Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>This Week</Text>

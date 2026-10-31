@@ -1,5 +1,5 @@
 import { BackupSection } from '@/features/backup';
-import { useActivitiesContext } from '@/features/activities';
+import { countStreamsStatus, useActivitiesContext } from '@/features/activities';
 import { GpsTracker } from '@/features/recording/services/gpsTracker';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
 import {
@@ -64,9 +64,31 @@ export function SettingsModal({
   const [splitsAudioEnabled, setSplitsAudioEnabled] = React.useState(true);
   const [splitsHapticEnabled, setSplitsHapticEnabled] = React.useState(true);
   const [splitsInterval, setSplitsInterval] = React.useState(1000);
-  const { totalActivitiesStored, setTotalActivitiesStored, setGlobalActivities } =
+  const { globalActivities, totalActivitiesStored, setTotalActivitiesStored, setGlobalActivities } =
     useActivitiesContext();
+  const [streamStatus, setStreamStatus] = React.useState<{
+    downloadedStreams: number;
+    missingStreams: number;
+  } | null>(null);
   const [isClearingActivities, setIsClearingActivities] = React.useState(false);
+
+  // Load stream caching status when the modal opens or activities change.
+  React.useEffect(() => {
+    if (!visible) return;
+    let isMounted = true;
+    const loadStreams = async () => {
+      try {
+        const status = await countStreamsStatus(globalActivities);
+        if (isMounted) setStreamStatus(status);
+      } catch (error) {
+        if (isMounted) simpleLogger.error('SettingsModal: error counting streams:', error);
+      }
+    };
+    void loadStreams();
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, globalActivities]);
 
   // Load recording diagnostics when the modal opens.
   React.useEffect(() => {
@@ -350,16 +372,30 @@ export function SettingsModal({
               ))}
             </View>
 
+            <Text style={styles.sectionTitle}>Storage</Text>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Activities stored locally</Text>
+              <Text style={styles.diagnosticsValue}>{totalActivitiesStored}</Text>
+            </View>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>GPS streams cached on disk</Text>
+              <Text style={styles.diagnosticsValue}>
+                {streamStatus !== null
+                  ? `${streamStatus.downloadedStreams} / ${
+                      totalActivitiesStored > 0
+                        ? totalActivitiesStored - streamStatus.missingStreams
+                        : 0
+                    }`
+                  : '…'}
+              </Text>
+            </View>
+
             <Text style={styles.sectionTitle}>Danger Zone</Text>
             <Text style={styles.sectionNote}>
               Deletes all activity records from this phone so a fresh Restore can refill them (for
               example after the backup was corrected elsewhere). Cached tracks are kept and reused.
               This action cannot be undone.
             </Text>
-            <View style={styles.diagnosticsRow}>
-              <Text style={styles.diagnosticsLabel}>Activities stored locally</Text>
-              <Text style={styles.diagnosticsValue}>{totalActivitiesStored}</Text>
-            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Clear local activities"
