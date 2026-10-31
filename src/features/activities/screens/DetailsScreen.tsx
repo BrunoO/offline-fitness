@@ -4,6 +4,7 @@ import {
   deleteStreamFiles,
   getNoStreamIds
 } from '@/features/activities/services/fetchAndStoreStreams';
+import { STORAGE_KEYS } from '@/constants';
 import {
   Activity,
   compareActivitiesByUtcDesc,
@@ -11,12 +12,15 @@ import {
   isNoGpsActivity,
   simpleLogger
 } from '@/shared';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@/theme';
 import React, { JSX, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -121,8 +125,227 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.text,
       fontSize: 13,
       fontWeight: '600'
+    },
+    swipeTipBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.surfaceSunken,
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      marginBottom: 8
+    },
+    swipeTipText: {
+      flex: 1,
+      fontSize: 12,
+      color: theme.text,
+      marginLeft: 6,
+      marginRight: 6
+    },
+    swipeTipClose: {
+      padding: 2
+    },
+    emptyContainer: {
+      padding: 32,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    emptyText: {
+      color: theme.textMuted,
+      fontSize: 14,
+      textAlign: 'center'
+    },
+    modalButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 8
+    },
+    modalSecondaryButton: {
+      minHeight: 44,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceSunken,
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    modalSecondaryButtonPressed: {
+      opacity: 0.7
+    },
+    modalSecondaryButtonText: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    modalPrimaryButton: {
+      minHeight: 44,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    modalPrimaryButtonPressed: {
+      backgroundColor: theme.primaryPressed
+    },
+    modalPrimaryButtonText: {
+      color: theme.onPrimary,
+      fontSize: 14,
+      fontWeight: '700'
     }
   });
+
+interface EditActivityModalProps {
+  activity: Activity | null;
+  onClose: () => void;
+  onSave: (activity: Activity, patch: Partial<Activity>) => Promise<void>;
+  theme: ReturnType<typeof useTheme>;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function EditActivityModal({
+  activity,
+  onClose,
+  onSave,
+  theme,
+  styles
+}: Readonly<EditActivityModalProps>): React.JSX.Element {
+  const [editingName, setEditingName] = useState<string>('');
+  const [editingElevation, setEditingElevation] = useState<string>('');
+  const [editError, setEditError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (activity) {
+      setEditingName(activity.name ?? '');
+      setEditingElevation(
+        activity.total_elevation_gain !== undefined ? String(activity.total_elevation_gain) : ''
+      );
+      setEditError(null);
+    }
+  }, [activity]);
+
+  const handleSave = async () => {
+    if (!activity) return;
+    const trimmedName = editingName.trim();
+    const elevText = editingElevation.trim();
+    let elevation: number | undefined;
+    if (elevText !== '') {
+      const parsed = Number(elevText);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setEditError('Elevation gain must be a non-negative number.');
+        return;
+      }
+      elevation = parsed;
+    }
+    const patch: Partial<Activity> = { name: trimmedName };
+    if (elevation !== undefined) {
+      patch.total_elevation_gain = elevation;
+    }
+    try {
+      await onSave(activity, patch);
+      onClose();
+    } catch {
+      setEditError('Failed to save. Please try again.');
+    }
+  };
+
+  return (
+    <Modal visible={activity !== null} transparent animationType="fade" onRequestClose={onClose}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 24
+        }}
+      >
+        <View
+          style={{
+            width: '100%',
+            backgroundColor: theme.surface,
+            borderRadius: 12,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.border
+          }}
+        >
+          <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
+            Edit activity
+          </Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Name</Text>
+          <TextInput
+            value={editingName}
+            onChangeText={setEditingName}
+            placeholder="Activity name"
+            placeholderTextColor={theme.textMuted}
+            style={{
+              borderWidth: 1,
+              borderColor: theme.border,
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              color: theme.text,
+              marginBottom: 12
+            }}
+            autoFocus
+          />
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
+            Elevation gain (m)
+          </Text>
+          <TextInput
+            value={editingElevation}
+            onChangeText={setEditingElevation}
+            placeholder="Elevation gain in metres"
+            placeholderTextColor={theme.textMuted}
+            keyboardType="decimal-pad"
+            style={{
+              borderWidth: 1,
+              borderColor: theme.border,
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              color: theme.text,
+              marginBottom: 8
+            }}
+          />
+          {editError ? (
+            <Text style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>{editError}</Text>
+          ) : null}
+          <View style={styles.modalButtonsRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel editing"
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.modalSecondaryButton,
+                pressed ? styles.modalSecondaryButtonPressed : null
+              ]}
+            >
+              <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save activity changes"
+              onPress={handleSave}
+              style={({ pressed }) => [
+                styles.modalPrimaryButton,
+                pressed ? styles.modalPrimaryButtonPressed : null
+              ]}
+            >
+              <Text style={styles.modalPrimaryButtonText}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 /**
  * A screen for displaying a list of activities and a map of the selected activity.
@@ -148,12 +371,29 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const { globalActivities, deleteActivity, updateActivity, refreshActivities, fetchingData } =
     useActivitiesContext();
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-  const [editingName, setEditingName] = useState<string>('');
-  const [editingElevation, setEditingElevation] = useState<string>('');
-  const [editError, setEditError] = useState<string | null>(null);
   const [editedMap, setEditedMap] = useState(new Map<string, Activity>());
+  const [showSwipeTip, setShowSwipeTip] = useState<boolean>(false);
   const { openRecordChooser } = useManualEntry();
   const insets = useSafeAreaInsets();
+
+  React.useEffect(() => {
+    let isMounted = true;
+    AsyncStorage.getItem(STORAGE_KEYS.DISMISSED_SWIPE_TIP)
+      .then(val => {
+        if (isMounted && val !== 'true') {
+          setShowSwipeTip(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleDismissSwipeTip = useCallback(() => {
+    setShowSwipeTip(false);
+    AsyncStorage.setItem(STORAGE_KEYS.DISMISSED_SWIPE_TIP, 'true').catch(() => undefined);
+  }, []);
 
   // If route.params has activities it's a filtered view from Maps — use them.
   // Otherwise (navigated from Home), use live context data so pull-to-refresh works.
@@ -191,14 +431,28 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // Stable identity for the memoised ActivityListItem (deleteActivity from context).
   const onDeleteActivity = useCallback(
     (activity: Activity) => {
-      deleteActivity(activity);
-      try {
-        deleteStreamFiles(activity.id);
-      } catch (error) {
-        // The service already logged the detail; a failed stream cleanup must
-        // not blow up the user-facing delete action.
-        simpleLogger.error('Failed to delete stream files for deleted activity', error);
-      }
+      const activityName = activity.name?.trim() ? `"${activity.name.trim()}"` : 'this activity';
+      Alert.alert(
+        'Delete Activity?',
+        `Are you sure you want to delete ${activityName}? This action cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deleteActivity(activity);
+              try {
+                deleteStreamFiles(activity.id);
+              } catch (error) {
+                // The service already logged the detail; a failed stream cleanup must
+                // not blow up the user-facing delete action.
+                simpleLogger.error('Failed to delete stream files for deleted activity', error);
+              }
+            }
+          }
+        ]
+      );
     },
     [deleteActivity]
   );
@@ -298,10 +552,20 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // Stable identity for the memoised ActivityListItem (state setters are stable).
   const handleEditActivity = useCallback((activity: Activity) => {
     setEditingActivity(activity);
-    setEditingName(activity.name ?? '');
-    setEditingElevation(String(activity.total_elevation_gain));
-    setEditError(null);
   }, []);
+
+  const handleSaveEditedActivity = useCallback(
+    async (activity: Activity, patch: Partial<Activity>) => {
+      await updateActivity(activity, patch);
+      const updated = { ...activity, ...patch };
+      setEditedMap(prev => {
+        const next = new Map(prev);
+        next.set(activity.id, updated);
+        return next;
+      });
+    },
+    [updateActivity]
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: Activity }) => (
@@ -385,6 +649,23 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             ))}
           </ScrollView>
         ) : null}
+        {showSwipeTip && allActivities.length > 0 ? (
+          <View style={styles.swipeTipBanner}>
+            <Ionicons name="information-circle-outline" size={16} color={theme.primary} />
+            <Text style={styles.swipeTipText}>
+              Tip: Swipe left on an activity to edit or delete
+            </Text>
+            <TouchableOpacity
+              onPress={handleDismissSwipeTip}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss swipe tip"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.swipeTipClose}
+            >
+              <Ionicons name="close" size={16} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={styles.list}>
           <FlashList
             // @ts-expect-error FlashList v2 types omit ref despite runtime forwardRef
@@ -395,6 +676,17 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             extraData={selectedActivity}
             onRefresh={refreshActivities}
             refreshing={fetchingData}
+            ListEmptyComponent={
+              !fetchingData ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    {allActivities.length === 0
+                      ? 'No activities yet. Record or import an activity to get started.'
+                      : 'No activities match the current filters.'}
+                  </Text>
+                </View>
+              ) : null
+            }
           />
         </View>
       </View>
@@ -403,135 +695,13 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           <ActivityAnalysisView item={selectedActivity} allActivities={allActivities} />
         </View>
       ) : null}
-      <Modal
-        visible={editingActivity !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setEditingActivity(null);
-          setEditingName('');
-          setEditingElevation('');
-          setEditError(null);
-        }}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.4)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 24
-          }}
-        >
-          <View
-            style={{
-              width: '100%',
-              backgroundColor: theme.surface,
-              borderRadius: 12,
-              padding: 16,
-              borderWidth: 1,
-              borderColor: theme.border
-            }}
-          >
-            <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
-              Edit activity
-            </Text>
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Name</Text>
-            <TextInput
-              value={editingName}
-              onChangeText={setEditingName}
-              placeholder="Activity name"
-              placeholderTextColor={theme.textMuted}
-              style={{
-                borderWidth: 1,
-                borderColor: theme.border,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                color: theme.text,
-                marginBottom: 12
-              }}
-              autoFocus
-            />
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
-              Elevation gain (m)
-            </Text>
-            <TextInput
-              value={editingElevation}
-              onChangeText={setEditingElevation}
-              placeholder="Elevation gain in metres"
-              placeholderTextColor={theme.textMuted}
-              keyboardType="decimal-pad"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.border,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                color: theme.text,
-                marginBottom: 8
-              }}
-            />
-            {editError ? (
-              <Text style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>
-                {editError}
-              </Text>
-            ) : null}
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => {
-                  setEditingActivity(null);
-                  setEditingName('');
-                  setEditingElevation('');
-                  setEditError(null);
-                }}
-                style={{ padding: 8 }}
-              >
-                <Text style={{ color: theme.textMuted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => {
-                  if (!editingActivity) return;
-                  const trimmedName = editingName.trim();
-                  const elevText = editingElevation.trim();
-                  let elevation: number | undefined;
-                  if (elevText !== '') {
-                    const parsed = Number(elevText);
-                    if (!Number.isFinite(parsed) || parsed < 0) {
-                      setEditError('Elevation gain must be a non-negative number.');
-                      return;
-                    }
-                    elevation = parsed;
-                  }
-                  const patch: Partial<Activity> = { name: trimmedName };
-                  if (elevation !== undefined) {
-                    patch.total_elevation_gain = elevation;
-                  }
-                  const updated = { ...editingActivity, ...patch };
-                  try {
-                    await updateActivity(editingActivity, patch);
-                    setEditedMap(prev => {
-                      const next = new Map(prev);
-                      next.set(editingActivity.id, updated);
-                      return next;
-                    });
-                    setEditingActivity(null);
-                    setEditingName('');
-                    setEditingElevation('');
-                    setEditError(null);
-                  } catch {
-                    // updateActivity already logged
-                    setEditError('Failed to save. Please try again.');
-                  }
-                }}
-                style={{ padding: 8 }}
-              >
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <EditActivityModal
+        activity={editingActivity}
+        onClose={() => setEditingActivity(null)}
+        onSave={handleSaveEditedActivity}
+        theme={theme}
+        styles={styles}
+      />
     </View>
   );
 }

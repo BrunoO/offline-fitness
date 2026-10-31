@@ -2,7 +2,7 @@ import { Activity } from '@/shared';
 import { IconButton } from '@/shared/utils/IconsUtils';
 import { activityToString, calculateSpeedKmh, getActivityIcon } from '@/shared/utils/utils';
 import { ResolvedTheme, useTheme } from '@/theme';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
@@ -13,6 +13,13 @@ import Animated, {
   useSharedValue,
   withSpring
 } from 'react-native-reanimated';
+
+interface SwipeableMethods {
+  close: () => void;
+  openLeft: () => void;
+  openRight: () => void;
+  reset: () => void;
+}
 
 const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
@@ -83,12 +90,14 @@ function RightAction({
   activity,
   deleteActivity,
   editActivity,
-  progress
+  progress,
+  onClose
 }: Readonly<{
   activity: Activity;
   deleteActivity: (activity: Activity) => void;
   editActivity: (activity: Activity) => void;
   progress: SharedValue<number>;
+  onClose?: () => void;
 }>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -110,16 +119,20 @@ function RightAction({
     >
       <IconButton
         icon="edit"
+        accessibilityLabel="Edit activity"
         color={theme.onPrimary}
         onPress={() => {
+          onClose?.();
           editActivity(activity);
         }}
         buttonStyle={[styles.deleteButton, { backgroundColor: theme.primary }]}
       />
       <IconButton
         icon="delete"
+        accessibilityLabel="Delete activity"
         color={theme.onPrimary}
         onPress={() => {
+          onClose?.();
           deleteActivity(activity);
         }}
         buttonStyle={styles.deleteButton}
@@ -153,6 +166,7 @@ export function ActivityListItem({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const progress = useSharedValue(0);
+  const swipeableRef = useRef<SwipeableMethods | null>(null);
   const isSelected = activity.id === selectedActivityId;
 
   const handlePress = () => {
@@ -161,12 +175,14 @@ export function ActivityListItem({
 
   return (
     <ReanimatedSwipeable
+      ref={swipeableRef}
       renderRightActions={() => (
         <RightAction
           activity={activity}
           deleteActivity={deleteActivity}
           editActivity={editActivity}
           progress={progress}
+          onClose={() => swipeableRef.current?.close()}
         />
       )}
       onSwipeableWillOpen={() => {

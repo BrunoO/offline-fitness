@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { HeartRateCard } from '@/features/heart-rate/components/HeartRateCard';
@@ -69,7 +70,8 @@ describe('HeartRateCard', () => {
     expect(getByText('Heart-rate scanning is not available on this platform.')).toBeTruthy();
   });
 
-  it('shows connected device and live HR', () => {
+  it('shows connected device and live HR, and manages sensor via overflow menu', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
     const disconnect = jest.fn();
     const forget = jest.fn();
     mockUseHeartRatePermissions.mockReturnValue({ granted: true, requestPermissions: jest.fn() });
@@ -90,17 +92,40 @@ describe('HeartRateCard', () => {
       attachRecording: jest.fn(),
       detachRecording: jest.fn()
     });
-    const { getByText } = render(wrap(<HeartRateCard />));
+    const { getByText, getByLabelText, queryByText } = render(wrap(<HeartRateCard />));
     expect(getByText('Connected: Polar H10')).toBeTruthy();
     expect(getByText('72')).toBeTruthy();
-    expect(getByText('Disconnect')).toBeTruthy();
-    expect(getByText('Forget device')).toBeTruthy();
+    // Disconnect and Forget are no longer rendered as raw stacked text in the card body
+    expect(queryByText('Disconnect')).toBeNull();
+    expect(queryByText('Forget device')).toBeNull();
 
-    fireEvent.press(getByText('Forget device'));
-    expect(forget).toHaveBeenCalledTimes(1);
+    // Tap manage overflow button
+    fireEvent.press(getByLabelText('Manage Polar H10'));
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Polar H10',
+      'Manage sensor connection',
+      expect.any(Array)
+    );
 
-    fireEvent.press(getByText('Disconnect'));
+    const alertButtons = alertSpy.mock.calls[0][2] as Array<{
+      text: string;
+      style?: string;
+      onPress?: () => void;
+    }>;
+    expect(alertButtons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'Disconnect' }),
+        expect.objectContaining({ text: 'Forget device', style: 'destructive' }),
+        expect.objectContaining({ text: 'Cancel', style: 'cancel' })
+      ])
+    );
+
+    // Trigger disconnect and forget callbacks
+    alertButtons.find(b => b.text === 'Disconnect')?.onPress?.();
     expect(disconnect).toHaveBeenCalledTimes(1);
+
+    alertButtons.find(b => b.text === 'Forget device')?.onPress?.();
+    expect(forget).toHaveBeenCalledTimes(1);
   });
 
   it('calls connect when a scanned device is tapped', () => {
@@ -128,12 +153,48 @@ describe('HeartRateCard', () => {
     expect(connect).toHaveBeenCalledWith('A', 'Polar H10');
   });
 
-  it('hides connect sensor by default when disconnected, and reveals on tapping Not connected', () => {
+  it('displays "Connect sensor" button pill directly in the header when disconnected, and reveals connection details on tap', () => {
+    const startScan = jest.fn();
     mockUseHeartRatePermissions.mockReturnValue({ granted: true, requestPermissions: jest.fn() });
     mockUseHeartRate.mockReturnValue({
       capabilities: { canScan: true, canConnect: true, platform: 'android' },
       devices: [],
       scanning: false,
+      connectionState: 'disconnected',
+      connectedDevice: null,
+      liveHr: null,
+      liveRrMs: [],
+      attachedSession: null,
+      startScan,
+      stopScan: jest.fn(),
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      forget: jest.fn(),
+      attachRecording: jest.fn(),
+      detachRecording: jest.fn()
+    });
+    const { getByText, queryByText, getByLabelText } = render(wrap(<HeartRateCard />));
+
+    // "Connect sensor" is directly visible as an action pill in header when disconnected
+    expect(getByText('Connect sensor')).toBeTruthy();
+    expect(queryByText('Or enter device id:')).toBeNull();
+
+    // Tap "Connect sensor" to initiate scan and reveal sensor connection details
+    fireEvent.press(getByText('Connect sensor'));
+    expect(startScan).toHaveBeenCalledTimes(1);
+    expect(getByText('Or enter device id:')).toBeTruthy();
+
+    // Tap collapse button to collapse details
+    fireEvent.press(getByLabelText('Collapse sensor connection'));
+    expect(queryByText('Or enter device id:')).toBeNull();
+  });
+
+  it('displays "Scanning…" when actively scanning for sensors', () => {
+    mockUseHeartRatePermissions.mockReturnValue({ granted: true, requestPermissions: jest.fn() });
+    mockUseHeartRate.mockReturnValue({
+      capabilities: { canScan: true, canConnect: true, platform: 'android' },
+      devices: [],
+      scanning: true,
       connectionState: 'disconnected',
       connectedDevice: null,
       liveHr: null,
@@ -147,17 +208,7 @@ describe('HeartRateCard', () => {
       attachRecording: jest.fn(),
       detachRecording: jest.fn()
     });
-    const { getByText, queryByText } = render(wrap(<HeartRateCard />));
-    // Collapsed by default
-    expect(getByText('Not connected')).toBeTruthy();
-    expect(queryByText('Connect sensor')).toBeNull();
-
-    // Tap "Not connected" to expand
-    fireEvent.press(getByText('Not connected'));
-    expect(getByText('Connect sensor')).toBeTruthy();
-
-    // Tap again to collapse
-    fireEvent.press(getByText('Not connected'));
-    expect(queryByText('Connect sensor')).toBeNull();
+    const { getByText } = render(wrap(<HeartRateCard />));
+    expect(getByText('Scanning…')).toBeTruthy();
   });
 });

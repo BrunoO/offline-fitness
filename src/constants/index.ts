@@ -46,5 +46,6 @@ export const STORAGE_KEYS = {
   MANUAL_LAST_TYPE: 'manual_last_type',
   MANUAL_CUSTOM_TYPES: 'manual_custom_types',
   RECORDING_LAST_PROFILE: 'recording_last_profile',
+  DISMISSED_SWIPE_TIP: 'dismissed_swipe_tip',
   ACTIVITY_PREFIX: 'a_'
 } as const;

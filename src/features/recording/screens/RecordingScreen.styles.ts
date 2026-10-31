@@ -21,11 +21,6 @@ export const createStyles = (theme: ResolvedTheme) =>
       fontWeight: '800',
       letterSpacing: -0.5
     },
-    subtitle: {
-      color: theme.textMuted,
-      fontSize: 14,
-      marginTop: SPACING.xs
-    },
     card: {
       backgroundColor: theme.surfaceAlt,
       borderColor: theme.border,

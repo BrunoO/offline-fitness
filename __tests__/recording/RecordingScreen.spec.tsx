@@ -724,4 +724,64 @@ describe('RecordingScreen', () => {
       expect(save).toHaveBeenCalledWith('Morning Pool Swim', 1500);
     });
   });
+
+  it('renders "Ready to record" in session card when idle and recording is available', () => {
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: true },
+      state: { phase: 'idle' },
+      activeProfile: 'running',
+      liveStats: null,
+      summary: null,
+      heartRateSummary: null,
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save: jest.fn(),
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByText, queryByText } = render(wrap(<RecordingScreen />));
+
+    expect(getByText('Ready to record')).toBeTruthy();
+    expect(queryByText('Idle')).toBeNull();
+  });
+
+  it('renders "Recording unavailable" and Android-only notice when recording is not supported', () => {
+    mockUseRecording.mockReturnValue({
+      capabilities: { canRecord: false },
+      state: { phase: 'idle' },
+      activeProfile: 'running',
+      liveStats: null,
+      summary: null,
+      heartRateSummary: null,
+      lastSplit: null,
+      error: null,
+      isBusy: false,
+      isSaving: false,
+      unfinished: [],
+      start: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      stop: jest.fn(),
+      save: jest.fn(),
+      discard: jest.fn(),
+      saveUnfinished: jest.fn(),
+      discardUnfinished: jest.fn()
+    });
+
+    const { getByText, queryByText } = render(wrap(<RecordingScreen />));
+
+    expect(getByText('Recording unavailable')).toBeTruthy();
+    expect(getByText('Recording is Android-only in this build.')).toBeTruthy();
+    expect(queryByText('Ready to record')).toBeNull();
+    expect(queryByText('Idle')).toBeNull();
+  });
 });

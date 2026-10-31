@@ -10,6 +10,7 @@ interface IconButtonProps {
   textStyle?: object;
   buttonStyle?: object;
   color?: string;
+  accessibilityLabel?: string;
 }
 
 /**
@@ -22,6 +23,7 @@ interface IconButtonProps {
  * @param {TextStyle} [props.textStyle] - The optional style to apply to the label text.
  * @param {ViewStyle} [props.buttonStyle] - The optional style to apply to the button.
  * @param {string} [props.color] - The optional color for the icon. Defaults to theme.text.
+ * @param {string} [props.accessibilityLabel] - Optional accessibility label. Defaults to label.
  *
  * @returns {JSX.Element} The rendered button component.
  */
@@ -31,11 +33,17 @@ export const IconButton = ({
   onPress,
   textStyle,
   buttonStyle,
-  color
+  color,
+  accessibilityLabel
 }: IconButtonProps): JSX.Element => {
   const theme = useTheme();
   return (
-    <Pressable style={buttonStyle} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      style={buttonStyle}
+      onPress={onPress}
+    >
       <MaterialIcons name={icon} size={24} color={color ?? theme.text} />
       {label ? <Text style={textStyle}>{label}</Text> : null}
     </Pressable>

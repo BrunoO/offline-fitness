@@ -1,5 +1,14 @@
 import React, { JSX, useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { type ResolvedTheme, useTheme } from '@/theme';
 import { simpleLogger } from '@/shared';
@@ -81,29 +90,14 @@ function ConnectionErrorNotice({
 
 interface ConnectedMetricsProps {
   liveHr: number | null;
-  onDisconnect: () => void;
-  onForget: () => void;
   styles: ReturnType<typeof createStyles>;
 }
 
-function ConnectedMetrics({
-  liveHr,
-  onDisconnect,
-  onForget,
-  styles
-}: Readonly<ConnectedMetricsProps>): JSX.Element {
+function ConnectedMetrics({ liveHr, styles }: Readonly<ConnectedMetricsProps>): JSX.Element {
   return (
-    <View>
-      <View style={styles.liveHrRow}>
-        <Text style={styles.liveHrValue}>{liveHr ?? '—'}</Text>
-        <Text style={styles.liveHrUnit}>bpm</Text>
-      </View>
-      <Pressable onPress={onDisconnect} style={styles.actionButton}>
-        <Text style={styles.buttonDanger}>Disconnect</Text>
-      </Pressable>
-      <Pressable onPress={onForget} style={styles.actionButton}>
-        <Text style={styles.buttonMuted}>Forget device</Text>
-      </Pressable>
+    <View style={styles.liveHrRow}>
+      <Text style={styles.liveHrValue}>{liveHr ?? '—'}</Text>
+      <Text style={styles.liveHrUnit}>bpm</Text>
     </View>
   );
 }
@@ -118,7 +112,14 @@ function DeviceList({ devices, onSelect, styles }: Readonly<DeviceListProps>): J
   return (
     <ScrollView style={styles.deviceList}>
       {devices.map(device => (
-        <Pressable key={device.id} onPress={() => onSelect(device)} style={styles.deviceItem}>
+        <Pressable
+          key={device.id}
+          accessibilityRole="button"
+          accessibilityLabel={`Connect to ${device.name}`}
+          onPress={() => onSelect(device)}
+          style={({ pressed }) => [styles.deviceItem, pressed ? styles.deviceItemPressed : null]}
+        >
+          <Ionicons name="bluetooth" size={14} color={styles.deviceText.color as string} />
           <Text style={styles.deviceText}>
             {device.name} ({device.rssi ?? '—'} dBm)
           </Text>
@@ -167,7 +168,6 @@ interface DisconnectedSectionProps {
   devices: HeartRateDevice[];
   manualId: string;
   onChangeManualId: (text: string) => void;
-  onStartScan: () => void;
   onSelectDevice: (device: HeartRateDevice) => void;
   onSubmitManualId: () => void;
   placeholderColor: string;
@@ -179,21 +179,15 @@ function DisconnectedSection({
   devices,
   manualId,
   onChangeManualId,
-  onStartScan,
   onSelectDevice,
   onSubmitManualId,
   placeholderColor,
   styles
 }: Readonly<DisconnectedSectionProps>): JSX.Element {
-  const scanButtonLabel = scanning ? 'Scanning…' : 'Connect sensor';
   return (
-    <View>
-      <Pressable onPress={onStartScan} style={styles.actionButton}>
-        <Text style={styles.buttonPrimary}>{scanButtonLabel}</Text>
-      </Pressable>
-
+    <View style={styles.disconnectedSection}>
       {scanning && devices.length === 0 ? (
-        <Text style={styles.emptyNotice}>No heart-rate sensors found.</Text>
+        <Text style={styles.emptyNotice}>Searching for nearby heart-rate sensors…</Text>
       ) : null}
 
       {!scanning && devices.length === 0 ? (
@@ -202,7 +196,7 @@ function DisconnectedSection({
         </Text>
       ) : null}
 
-      {scanning && devices.length > 0 ? (
+      {devices.length > 0 ? (
         <DeviceList devices={devices} onSelect={onSelectDevice} styles={styles} />
       ) : null}
 
@@ -226,8 +220,12 @@ interface HeaderStatusProps {
   isConnected: boolean;
   connectionState: string;
   statusText: string;
+  deviceName?: string;
+  scanning: boolean;
   shouldShowDisconnected: boolean;
   onToggleExpand: () => void;
+  onStartScan: () => void;
+  onManageDevice: () => void;
   primaryColor: string;
   styles: ReturnType<typeof createStyles>;
 }
@@ -236,33 +234,74 @@ function HeaderStatus({
   isConnected,
   connectionState,
   statusText,
+  deviceName,
+  scanning,
   shouldShowDisconnected,
   onToggleExpand,
+  onStartScan,
+  onManageDevice,
   primaryColor,
   styles
 }: Readonly<HeaderStatusProps>): JSX.Element {
-  if (!isConnected && connectionState !== 'error') {
+  if (isConnected) {
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Heart rate status: ${statusText}. Tap to ${shouldShowDisconnected ? 'collapse' : 'expand'} sensor connection.`}
-        onPress={onToggleExpand}
-        style={styles.statusButton}
-      >
-        <Text style={styles.statusLink}>{statusText}</Text>
-        <Ionicons
-          name={shouldShowDisconnected ? 'chevron-up' : 'chevron-down'}
-          size={14}
-          color={primaryColor}
-        />
-      </Pressable>
+      <View style={styles.headerActions}>
+        <Text style={styles.statusText}>{statusText}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Manage ${deviceName ?? 'sensor'}`}
+          hitSlop={8}
+          onPress={onManageDevice}
+          style={({ pressed }) => [
+            styles.manageButton,
+            pressed ? styles.manageButtonPressed : null
+          ]}
+        >
+          <Ionicons name="ellipsis-horizontal" size={16} color={primaryColor} />
+        </Pressable>
+      </View>
     );
   }
 
+  if (connectionState === 'error') {
+    return <Text style={styles.errorStatusText}>{statusText}</Text>;
+  }
+
+  if (connectionState === 'connecting') {
+    return <Text style={styles.statusText}>Connecting…</Text>;
+  }
+
   return (
-    <Text style={connectionState === 'error' ? styles.errorStatusText : styles.statusText}>
-      {statusText}
-    </Text>
+    <View style={styles.headerActions}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={scanning ? 'Scanning for heart-rate sensors' : 'Connect sensor'}
+        disabled={scanning}
+        onPress={onStartScan}
+        style={({ pressed }) => [
+          styles.connectPill,
+          pressed && !scanning ? styles.connectPillPressed : null
+        ]}
+      >
+        <Ionicons
+          name={scanning ? 'sync-outline' : 'bluetooth-outline'}
+          size={14}
+          color={primaryColor}
+        />
+        <Text style={styles.connectPillText}>{scanning ? 'Scanning…' : 'Connect sensor'}</Text>
+      </Pressable>
+      {shouldShowDisconnected ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Collapse sensor connection"
+          hitSlop={8}
+          onPress={onToggleExpand}
+          style={styles.collapseButton}
+        >
+          <Ionicons name="chevron-up" size={16} color={primaryColor} />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -310,16 +349,41 @@ export function HeartRateCard(): JSX.Element {
     }
   };
 
+  const handleManageDevice = () => {
+    Alert.alert(deviceName ?? 'Heart-rate sensor', 'Manage sensor connection', [
+      {
+        text: 'Disconnect',
+        onPress: () => hr.disconnect()
+      },
+      {
+        text: 'Forget device',
+        style: 'destructive',
+        onPress: () => hr.forget()
+      },
+      {
+        text: 'Cancel',
+        style: 'cancel'
+      }
+    ]);
+  };
+
   return (
     <View style={styles.card}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, shouldShowDisconnected ? styles.headerRowExpanded : null]}>
         <Text style={styles.title}>Heart rate</Text>
         <HeaderStatus
           isConnected={isConnected}
           connectionState={hr.connectionState}
           statusText={statusText}
+          deviceName={deviceName}
+          scanning={hr.scanning}
           shouldShowDisconnected={shouldShowDisconnected}
           onToggleExpand={() => setIsExpanded(prev => !prev)}
+          onStartScan={() => {
+            setIsExpanded(true);
+            hr.startScan();
+          }}
+          onManageDevice={handleManageDevice}
           primaryColor={theme.primary}
           styles={styles}
         />
@@ -339,18 +403,7 @@ export function HeartRateCard(): JSX.Element {
         />
       ) : null}
 
-      {isConnected ? (
-        <ConnectedMetrics
-          liveHr={hr.liveHr}
-          onDisconnect={() => {
-            hr.disconnect();
-          }}
-          onForget={() => {
-            hr.forget();
-          }}
-          styles={styles}
-        />
-      ) : null}
+      {isConnected ? <ConnectedMetrics liveHr={hr.liveHr} styles={styles} /> : null}
 
       {!isConnected && hr.connectionState !== 'error' && shouldShowDisconnected ? (
         <DisconnectedSection
@@ -358,9 +411,6 @@ export function HeartRateCard(): JSX.Element {
           devices={hr.devices}
           manualId={manualId}
           onChangeManualId={setManualId}
-          onStartScan={() => {
-            hr.startScan();
-          }}
           onSelectDevice={d => {
             hr.connect(d.id, d.name);
           }}
@@ -385,8 +435,56 @@ const createStyles = (theme: ResolvedTheme) =>
     headerRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'center'
+    },
+    headerRowExpanded: {
       marginBottom: 8
+    },
+    headerActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 6
+    },
+    connectPill: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: 16,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 6,
+      minHeight: 32,
+      paddingHorizontal: 10,
+      paddingVertical: 5
+    },
+    connectPillPressed: {
+      opacity: 0.7
+    },
+    connectPillText: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '600'
+    },
+    collapseButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 32,
+      minWidth: 32,
+      padding: 4
+    },
+    manageButton: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: 16,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 32,
+      minWidth: 32,
+      padding: 4
+    },
+    manageButtonPressed: {
+      opacity: 0.7
     },
     title: {
       color: theme.text,
@@ -396,18 +494,6 @@ const createStyles = (theme: ResolvedTheme) =>
     message: {
       color: theme.textMuted,
       marginBottom: 8
-    },
-    statusButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      minHeight: 44,
-      paddingVertical: 4
-    },
-    statusLink: {
-      color: theme.primary,
-      fontSize: 14,
-      fontWeight: '500'
     },
     statusText: {
       color: theme.textMuted,
@@ -420,6 +506,9 @@ const createStyles = (theme: ResolvedTheme) =>
     errorText: {
       color: theme.danger,
       marginBottom: 8
+    },
+    disconnectedSection: {
+      marginTop: 4
     },
     emptyNotice: {
       color: theme.textMuted,
@@ -460,12 +549,25 @@ const createStyles = (theme: ResolvedTheme) =>
       marginTop: 8
     },
     deviceItem: {
-      paddingVertical: 8,
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 6,
       minHeight: 44,
-      justifyContent: 'center'
+      paddingHorizontal: 12,
+      paddingVertical: 8
+    },
+    deviceItemPressed: {
+      opacity: 0.7
     },
     deviceText: {
-      color: theme.text
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '500'
     },
     manualContainer: {
       marginTop: 8
@@ -489,9 +591,14 @@ const createStyles = (theme: ResolvedTheme) =>
       minHeight: 44
     },
     connectButton: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderColor: theme.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      justifyContent: 'center',
       marginLeft: 8,
-      paddingHorizontal: 12,
       minHeight: 44,
-      justifyContent: 'center'
+      paddingHorizontal: 12
     }
   });

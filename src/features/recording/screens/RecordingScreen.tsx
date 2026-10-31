@@ -21,13 +21,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
 import { HeartRateCard } from '@/features/heart-rate';
 import type { RootDrawerParamList } from '@/shared';
-import type {
-  GpsTrackerCapabilities,
-  LiveStats,
-  Profile,
-  RecordingMeta,
-  RecordingSummary
-} from '../services/gpsTracker';
+import type { LiveStats, Profile, RecordingMeta, RecordingSummary } from '../services/gpsTracker';
 import type { SplitEvent } from '../services/splits';
 import {
   DEFAULT_RECORDING_PROFILE,
@@ -163,11 +157,8 @@ const formatSlope = (slopePercent: number | null | undefined): string => {
   return `${sign}${slopePercent.toFixed(1)}%`;
 };
 
-const availabilityText = (capabilities: GpsTrackerCapabilities | null): string =>
-  capabilities?.canRecord ? 'Ready to record' : 'Recording is Android-only in this build.';
-
 const PHASE_LABEL: Record<string, string> = {
-  idle: 'Idle',
+  idle: 'Ready to record',
   recording: 'Recording',
   paused: 'Paused',
   'stopped-unsaved': 'Stopped'
@@ -304,17 +295,6 @@ export function RecordingScreen({
       contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
       showsVerticalScrollIndicator={false}
     >
-      {state.phase === 'idle' ? (
-        <Text
-          style={[
-            styles.subtitle,
-            { marginTop: insets.top + SPACING.md, marginHorizontal: SPACING.lg }
-          ]}
-        >
-          {availabilityText(capabilities)}
-        </Text>
-      ) : null}
-
       {unfinished.length > 0 ? (
         <UnfinishedRecoveryCard
           unfinished={unfinished}
@@ -330,6 +310,7 @@ export function RecordingScreen({
         phase={state.phase}
         liveStats={liveStats}
         isLocked={isScreenLocked}
+        canRecord={capabilities?.canRecord !== false}
         styles={styles}
         theme={theme}
       />
@@ -455,6 +436,7 @@ interface SessionCardProps {
   readonly phase: string;
   readonly liveStats: LiveStats | null;
   readonly isLocked: boolean;
+  readonly canRecord?: boolean;
   readonly styles: Styles;
   readonly theme: ResolvedTheme;
 }
@@ -510,15 +492,24 @@ function GpsStatusRow({
   return null;
 }
 
-function SessionCard({ phase, liveStats, isLocked, styles, theme }: SessionCardProps): JSX.Element {
+function SessionCard({
+  phase,
+  liveStats,
+  isLocked,
+  canRecord = true,
+  styles,
+  theme
+}: SessionCardProps): JSX.Element {
   const phaseColor = phaseColorFor(phase, theme);
+  const phaseLabel =
+    phase === 'idle' && !canRecord ? 'Recording unavailable' : (PHASE_LABEL[phase] ?? phase);
 
   return (
     <View style={styles.card}>
       <View style={styles.sessionHeaderRow}>
         <View style={styles.sessionHeader}>
           <View style={[styles.statusDot, { backgroundColor: phaseColor }]} />
-          <Text style={styles.phase}>{PHASE_LABEL[phase] ?? phase}</Text>
+          <Text style={styles.phase}>{phaseLabel}</Text>
           {phase === 'recording' ? (
             <View style={styles.recordingPulse}>
               <Ionicons name="radio-button-on" size={12} color={theme.danger} />
@@ -532,6 +523,12 @@ function SessionCard({ phase, liveStats, isLocked, styles, theme }: SessionCardP
           </View>
         ) : null}
       </View>
+      {phase === 'idle' && !canRecord ? (
+        <View style={styles.gpsRow}>
+          <Ionicons name="information-circle-outline" size={14} color={theme.textMuted} />
+          <Text style={styles.cardHint}>Recording is Android-only in this build.</Text>
+        </View>
+      ) : null}
       <GpsStatusRow liveStats={liveStats} phase={phase} styles={styles} theme={theme} />
     </View>
   );

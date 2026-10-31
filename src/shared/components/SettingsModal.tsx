@@ -1,7 +1,14 @@
 import { BackupSection } from '@/features/backup';
+import { useActivitiesContext } from '@/features/activities';
 import { GpsTracker } from '@/features/recording/services/gpsTracker';
 import { PalettePicker, ResolvedTheme, useTheme } from '@/theme';
-import { SheetFooter, createSheetFrameStyles } from '@/shared';
+import {
+  SheetFooter,
+  createSheetFrameStyles,
+  getAllActivitiesKeys,
+  removeAllActivities,
+  simpleLogger
+} from '@/shared';
 import React, { useMemo } from 'react';
 import {
   Alert,
@@ -57,6 +64,9 @@ export function SettingsModal({
   const [splitsAudioEnabled, setSplitsAudioEnabled] = React.useState(true);
   const [splitsHapticEnabled, setSplitsHapticEnabled] = React.useState(true);
   const [splitsInterval, setSplitsInterval] = React.useState(1000);
+  const { totalActivitiesStored, setTotalActivitiesStored, setGlobalActivities } =
+    useActivitiesContext();
+  const [isClearingActivities, setIsClearingActivities] = React.useState(false);
 
   // Load recording diagnostics when the modal opens.
   React.useEffect(() => {
@@ -136,6 +146,46 @@ export function SettingsModal({
     setSplitsInterval(value);
     void AsyncStorage.setItem('splitsIntervalMeters', String(value));
   }, []);
+
+  const handleClearActivities = React.useCallback(() => {
+    Alert.alert(
+      'Clear Local Activities',
+      'This deletes all activity records on this phone so a fresh Restore can refill them (for example after the backup was corrected elsewhere). Cached tracks are kept and reused. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (isClearingActivities) return;
+            setIsClearingActivities(true);
+            try {
+              await removeAllActivities();
+              const remaining = await getAllActivitiesKeys();
+              if (remaining.length > 0) {
+                throw new Error(
+                  `${remaining.length} record${remaining.length === 1 ? '' : 's'} could not be deleted`
+                );
+              }
+              setTotalActivitiesStored(0);
+              setGlobalActivities([]);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              simpleLogger.error('Clear Local Activities failed', {
+                error: message
+              });
+              Alert.alert(
+                'Could not clear activities',
+                `${message}. Nothing was discarded from the display — try again, and restore only once this succeeds.`
+              );
+            } finally {
+              setIsClearingActivities(false);
+            }
+          }
+        }
+      ]
+    );
+  }, [isClearingActivities, setGlobalActivities, setTotalActivitiesStored]);
 
   let batteryStatusText = 'No';
   if (isIgnoringBattery === null) {
@@ -299,6 +349,34 @@ export function SettingsModal({
                 </Pressable>
               ))}
             </View>
+
+            <Text style={styles.sectionTitle}>Danger Zone</Text>
+            <Text style={styles.sectionNote}>
+              Deletes all activity records from this phone so a fresh Restore can refill them (for
+              example after the backup was corrected elsewhere). Cached tracks are kept and reused.
+              This action cannot be undone.
+            </Text>
+            <View style={styles.diagnosticsRow}>
+              <Text style={styles.diagnosticsLabel}>Activities stored locally</Text>
+              <Text style={styles.diagnosticsValue}>{totalActivitiesStored}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear local activities"
+              disabled={isClearingActivities || totalActivitiesStored === 0}
+              onPress={handleClearActivities}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed ? styles.deleteButtonPressed : null,
+                isClearingActivities || totalActivitiesStored === 0
+                  ? styles.deleteButtonDisabled
+                  : null
+              ]}
+            >
+              <Text style={styles.deleteButtonLabel}>
+                {isClearingActivities ? 'Clearing…' : 'Clear local activities'}
+              </Text>
+            </Pressable>
           </ScrollView>
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
