@@ -72,6 +72,15 @@ export function SettingsModal({
   } | null>(null);
   const [isClearingActivities, setIsClearingActivities] = React.useState(false);
 
+  // Derived label for the cached-streams row; computed here (rather than as a
+  // nested ternary in JSX) to satisfy Sonar S3358.
+  const streamsCachedLabel = useMemo(() => {
+    if (streamStatus === null) return '…';
+    const denominator =
+      totalActivitiesStored > 0 ? totalActivitiesStored - streamStatus.missingStreams : 0;
+    return `${streamStatus.downloadedStreams} / ${denominator}`;
+  }, [streamStatus, totalActivitiesStored]);
+
   // Load stream caching status when the modal opens or activities change.
   React.useEffect(() => {
     if (!visible) return;
@@ -379,15 +388,7 @@ export function SettingsModal({
             </View>
             <View style={styles.diagnosticsRow}>
               <Text style={styles.diagnosticsLabel}>GPS streams cached on disk</Text>
-              <Text style={styles.diagnosticsValue}>
-                {streamStatus !== null
-                  ? `${streamStatus.downloadedStreams} / ${
-                      totalActivitiesStored > 0
-                        ? totalActivitiesStored - streamStatus.missingStreams
-                        : 0
-                    }`
-                  : '…'}
-              </Text>
+              <Text style={styles.diagnosticsValue}>{streamsCachedLabel}</Text>
             </View>
 
             <Text style={styles.sectionTitle}>Danger Zone</Text>
