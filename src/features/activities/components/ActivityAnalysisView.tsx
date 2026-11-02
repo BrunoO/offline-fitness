@@ -12,7 +12,6 @@ import {
   formatActivityLocalDateTime,
   calculateSpeedKmh,
   calculateTrendLine,
-  ActivityWithStream,
   findSimilarActivities,
   ActivityStream,
   simpleLogger
@@ -21,6 +20,7 @@ import { exportData } from '@/shared/services/exportData';
 import { findSimilarActivitiesByTrack } from '@/shared/services/trackComparison';
 import { createChartTheme, useTheme } from '@/theme';
 import { createStyles } from './ActivityAnalysisView.styles';
+import { useLoadedStream } from '../hooks/useLoadedStream';
 import {
   VictoryAxis,
   VictoryChart,
@@ -615,7 +615,7 @@ export function ActivityAnalysisView({
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
   const [isTrackModalVisible, setIsTrackModalVisible] = useState<boolean>(false);
   const [mapWidth, setMapWidth] = useState<number>(0);
-  const [loadedStream, setLoadedStream] = useState<ActivityWithStream>();
+  const { loadedStream } = useLoadedStream(item);
   const [overlayStream, setOverlayStream] = useState<ActivityStream | undefined>();
   const [similarActivities, setSimilarActivities] = useState<Activity[]>([]);
   const [similarActivitiesByTrack, setSimilarActivitiesByTrack] = useState<
@@ -670,40 +670,6 @@ export function ActivityAnalysisView({
       trackSimilarActivities.length > 0 ? calculateTrendLine([item, ...trackSimilarActivities]) : []
     );
   }, [item, similarActivitiesByTrack, trackSimilarityThreshold]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadStream = async () => {
-      try {
-        const streams = await getActivityStreams([item]);
-        if (!isMounted) {
-          return;
-        }
-
-        if (streams.length > 0) {
-          setLoadedStream(streams[0]);
-        } else {
-          simpleLogger.warn('No stream found for activity in ActivityAnalysisView', {
-            activityId: item.id
-          });
-          setLoadedStream(undefined);
-        }
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-        simpleLogger.error('Error loading stream for ActivityAnalysisView:', error);
-        setLoadedStream(undefined);
-      }
-    };
-
-    void loadStream();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [item]);
 
   const timeData = loadedStream?.streamSet.time;
 
