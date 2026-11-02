@@ -1,5 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { ROUTES } from '@/constants';
+import { DRAWER_ROUTES, STATS_TAB_ROUTES } from '@/constants';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -495,7 +495,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
     const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate(ROUTES.Details, {
+    navigation.navigate(DRAWER_ROUTES.Details, {
       allActivities: targetActivity ? [targetActivity] : globalActivities,
       selectedActivityId: activityId,
       filterLabel: targetActivity?.name ? `Achievement: ${targetActivity.name}` : 'Achievement'
@@ -713,7 +713,9 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           recentAchievements={recentAchievements}
           achievementsStartDate={achievementsStartDate}
           onSelectActivity={goToActivity}
-          onSeeAll={() => navigation.navigate(ROUTES.Stats, { screen: ROUTES.RecordsScreen })}
+          onSeeAll={() =>
+            navigation.navigate(DRAWER_ROUTES.Stats, { screen: STATS_TAB_ROUTES.RecordsScreen })
+          }
           theme={theme}
           styles={styles}
         />

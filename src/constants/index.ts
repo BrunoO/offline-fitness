@@ -50,15 +50,28 @@ export const STORAGE_KEYS = {
   ACTIVITY_PREFIX: 'a_'
 } as const;
 
-// Route names for the drawer navigator. Centralised so navigation calls don't
-// repeat bare string literals (typo-safe, single source of truth).
-export const ROUTES = {
+// Route names for the drawer navigator. Keys mirror `RootDrawerParamList` so
+// the constant stays in 1:1 harmony with the navigation param list. Centralised
+// so navigation calls don't repeat bare string literals (typo-safe, single
+// source of truth).
+export const DRAWER_ROUTES = {
   Details: 'Details',
+  Home: 'Home',
   Logs: 'Logs',
+  Maps: 'Maps',
   Profile: 'Profile',
   Record: 'Record',
-  RecordsScreen: 'RecordsScreen',
   Stats: 'Stats'
 } as const;
 
-export type RouteName = (typeof ROUTES)[keyof typeof ROUTES];
+// Route names for the Stats tab navigator. Keys mirror `StatsTabParamList`.
+export const STATS_TAB_ROUTES = {
+  RecentMonthsScreen: 'RecentMonthsScreen',
+  RecentWeeksScreen: 'RecentWeeksScreen',
+  RecentYearsScreen: 'RecentYearsScreen',
+  RecordsScreen: 'RecordsScreen'
+} as const;
+
+export type DrawerRouteName = (typeof DRAWER_ROUTES)[keyof typeof DRAWER_ROUTES];
+export type StatsTabRouteName = (typeof STATS_TAB_ROUTES)[keyof typeof STATS_TAB_ROUTES];
+export type RouteName = DrawerRouteName | StatsTabRouteName;

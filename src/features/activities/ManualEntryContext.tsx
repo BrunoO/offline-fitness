@@ -4,7 +4,7 @@ import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { RootDrawerParamList } from '@/shared/types/types';
 import { ManualActivitySheet } from './components/ManualActivitySheet';
 import { RecordChooserSheet } from './components/RecordChooserSheet';
-import { ROUTES } from '@/constants';
+import { DRAWER_ROUTES } from '@/constants';
 
 type ManualEntryContextType = {
   /**
@@ -50,7 +50,7 @@ export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const closeChooser = useCallback(() => setChooserVisible(false), []);
 
   const handleRecord = useCallback(() => {
-    navigation.navigate(ROUTES.Record);
+    navigation.navigate(DRAWER_ROUTES.Record);
   }, [navigation]);
 
   const handleEnterManually = useCallback(() => {

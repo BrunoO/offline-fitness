@@ -1,7 +1,7 @@
 import { useActivitiesContext } from '@/features/activities';
 import { Activity, RootDrawerParamList } from '@/shared';
 import { ResolvedTheme, useTheme } from '@/theme';
-import { ROUTES } from '@/constants';
+import { DRAWER_ROUTES } from '@/constants';
 
 import { computeDayStreaks, computeWeekStreaks } from '@/shared/services/streaks';
 import { isNoGpsActivity } from '@/shared/utils/activityCategories';
@@ -35,7 +35,7 @@ export function RecordsScreen(): JSX.Element {
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
     const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate(ROUTES.Details, {
+    navigation.navigate(DRAWER_ROUTES.Details, {
       allActivities: targetActivity ? [targetActivity] : globalActivities,
       selectedActivityId: activityId,
       filterLabel: targetActivity?.name ? `Record: ${targetActivity.name}` : 'Record'

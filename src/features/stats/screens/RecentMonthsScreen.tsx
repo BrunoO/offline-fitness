@@ -9,7 +9,7 @@ import {
 import { monthlyData2, MonthSummary } from '../services/stats';
 
 import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
-import { ROUTES } from '@/constants';
+import { DRAWER_ROUTES } from '@/constants';
 
 import {
   ActivityIndicator,
@@ -231,7 +231,7 @@ export function RecentMonthsScreen(): JSX.Element {
         year: 'numeric'
       });
 
-      navigation.navigate(ROUTES.Details, {
+      navigation.navigate(DRAWER_ROUTES.Details, {
         allActivities: monthActivities,
         filterLabel: monthLabel,
         useElapsedTime
