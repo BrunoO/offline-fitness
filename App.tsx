@@ -112,17 +112,22 @@ function AppContent() {
               {props => <HomeScreen {...props} />}
             </Drawer.Screen>
             <Drawer.Screen
-              name="Record"
-              component={RecordingScreen}
-              options={getDrawerIconOptions('radio-button-on-outline')}
-            />
-            <Drawer.Screen
               name="Details"
               component={DetailsScreen}
               options={{
                 ...getDrawerIconOptions('list-outline'),
                 drawerLabel: 'Activities'
               }}
+            />
+            <Drawer.Screen
+              name="Stats"
+              component={StatsTab}
+              options={getDrawerIconOptions('color-wand-outline')}
+            />
+            <Drawer.Screen
+              name="Record"
+              component={RecordingScreen}
+              options={getDrawerIconOptions('radio-button-on-outline')}
             />
             <Drawer.Screen
               name="Maps"
@@ -132,17 +137,18 @@ function AppContent() {
             <Drawer.Screen
               name="Profile"
               component={ProfileScreen}
-              options={getDrawerIconOptions('person-outline')}
-            />
-            <Drawer.Screen
-              name="Stats"
-              component={StatsTab}
-              options={getDrawerIconOptions('color-wand-outline')}
+              options={{
+                ...getDrawerIconOptions('person-outline'),
+                drawerItemStyle: { display: 'none' }
+              }}
             />
             <Drawer.Screen
               name="Logs"
               component={LogScreen}
-              options={getDrawerIconOptions('newspaper-outline')}
+              options={{
+                ...getDrawerIconOptions('newspaper-outline'),
+                drawerItemStyle: { display: 'none' }
+              }}
             />
           </Drawer.Navigator>
           {/* Mounted outside the drawer panel: the panel never unmounts, and the

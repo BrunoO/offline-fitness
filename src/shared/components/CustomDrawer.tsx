@@ -89,14 +89,6 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         icon={getIconOptions('add-circle-outline')}
       />
       <DrawerItem
-        label="Settings"
-        onPress={() => {
-          props.navigation.closeDrawer();
-          props.onOpenSettings();
-        }}
-        icon={getIconOptions('settings-outline')}
-      />
-      <DrawerItem
         label="Profile"
         onPress={() => {
           props.navigation.closeDrawer();
@@ -105,9 +97,25 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         icon={getIconOptions('person-outline')}
       />
       <DrawerItem
+        label="Settings"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          props.onOpenSettings();
+        }}
+        icon={getIconOptions('settings-outline')}
+      />
+      <DrawerItem
         label="Export Data"
         onPress={handleExportData}
         icon={getIconOptions('download-outline')}
+      />
+      <DrawerItem
+        label="Logs"
+        onPress={() => {
+          props.navigation.closeDrawer();
+          props.navigation.navigate('Logs');
+        }}
+        icon={getIconOptions('newspaper-outline')}
       />
 
       {/* Progress Overlay */}

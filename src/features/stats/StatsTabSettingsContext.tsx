@@ -141,6 +141,14 @@ export const SettingsProvider: React.FC<PropsWithChildren> = ({ children }) => {
 };
 
 /**
+ * A hook for optionally accessing the settings context (returns undefined if outside a SettingsProvider).
+ * @returns The settings context or undefined.
+ */
+export const useOptionalSettings = (): SettingsContextType | undefined => {
+  return useContext(SettingsContext);
+};
+
+/**
  * A hook for accessing the settings context.
  * @returns The settings context.
  */

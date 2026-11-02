@@ -529,9 +529,10 @@ function FilteredViewBanner({
   theme,
   styles
 }: Readonly<FilteredViewBannerProps>): React.JSX.Element {
+  const noun = totalFilteredCount === 1 ? 'activity' : 'activities';
   const countText =
     totalFilteredCount === totalBaseCount
-      ? `${totalFilteredCount} ${totalFilteredCount === 1 ? 'activity' : 'activities'}`
+      ? `${totalFilteredCount} ${noun}`
       : `${totalFilteredCount} of ${totalBaseCount} activities`;
 
   const showBreakdown =

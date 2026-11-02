@@ -68,9 +68,10 @@ describe('CustomDrawerContent', () => {
 
     // Expected items
     expect(getByText('Add activity')).toBeTruthy();
-    expect(getByText('Settings')).toBeTruthy();
     expect(getByText('Profile')).toBeTruthy();
+    expect(getByText('Settings')).toBeTruthy();
     expect(getByText('Export Data')).toBeTruthy();
+    expect(getByText('Logs')).toBeTruthy();
 
     // Anti-patterns that were removed
     expect(queryByText('Close drawer')).toBeNull();
@@ -110,5 +111,13 @@ describe('CustomDrawerContent', () => {
     await waitFor(() => {
       expect(mockExportData).toHaveBeenCalled();
     });
+  });
+
+  it('handles "Logs" press', () => {
+    const { getByText } = render(<CustomDrawerContent {...defaultProps} />);
+    fireEvent.press(getByText('Logs'));
+
+    expect(mockNavigation.closeDrawer).toHaveBeenCalled();
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('Logs');
   });
 });
