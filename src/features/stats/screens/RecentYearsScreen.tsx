@@ -16,13 +16,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native';
 
 import { useActivitiesContext, useProcessedActivities } from '@/features/activities';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Row, Table } from 'react-native-reanimated-table';
-import { VictoryAxis, VictoryBar, VictoryChart } from 'victory-native';
+import { VictoryAxis, VictoryBar, VictoryChart, VictoryStack } from 'victory-native';
 import YTDStatsComponent from '../components/YTDStatsComponent';
 import { useSettings } from '../StatsTabSettingsContext';
 
@@ -131,22 +132,9 @@ export function RecentYearsScreen(): JSX.Element {
     ).map(row => [...row, row[0]]);
   }, [myActivitiesWithGps, activitiesWithGps]);
 
-  const dataDistancesToChart = useMemo(
-    () =>
-      myActivitiesWithGps.map((activity, indexActivity) => ({
-        id: indexActivity,
-        name: activity,
-        data: dataDistances.slice(0, -1).map((row: string[]) => ({
-          x: row[0],
-          y: Number.parseInt(row[indexActivity + 1].replace(/\s/g, ''), 10)
-        }))
-      })),
-    [myActivitiesWithGps, dataDistances]
-  );
-
   useEffect(() => {
     setLoading(false);
-  }, [dataDistancesToChart]);
+  }, [dataTime]);
 
   if (loading) {
     return (
@@ -211,16 +199,14 @@ export function RecentYearsScreen(): JSX.Element {
           </View>
         </View>
 
-        {/* Charts Section */}
+        {/* Sport Mix Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Distance Charts by Activity</Text>
-          <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
-            {dataDistancesToChart.map(item => (
-              <View key={item.id} style={styles.chartCard}>
-                <BarChart chartData={item.data} activityName={item.name} />
-              </View>
-            ))}
-          </ScrollView>
+          <Text style={styles.sectionTitle}>
+            {useElapsedTime ? 'Sport Mix (Elapsed Time)' : 'Sport Mix (Moving Time)'}
+          </Text>
+          <View style={styles.chartCard}>
+            <SportMixChart activities={myActivitiesToUse} dataTime={dataTime} />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -268,8 +254,7 @@ const createStyles = (theme: ResolvedTheme) =>
     chartCard: {
       backgroundColor: theme.surface,
       borderRadius: 12,
-      marginHorizontal: 8,
-      padding: 16,
+      padding: 12,
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -288,12 +273,71 @@ const createStyles = (theme: ResolvedTheme) =>
     chartContainer: {
       flex: 1
     },
-    chartTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.primary,
-      marginBottom: 12,
-      textAlign: 'center'
+    modeToggleRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginBottom: 8
+    },
+    segmentedContainer: {
+      flexDirection: 'row',
+      backgroundColor: theme.surfaceSunken,
+      borderRadius: 20,
+      padding: 2
+    },
+    segment: {
+      paddingVertical: 6,
+      paddingHorizontal: 14,
+      borderRadius: 18
+    },
+    segmentActive: {
+      backgroundColor: theme.primary
+    },
+    segmentText: {
+      fontSize: 13,
+      color: theme.text,
+      fontWeight: '600'
+    },
+    segmentTextActive: {
+      color: theme.onPrimary
+    },
+    chartScrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    legendContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 12
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6
+    },
+    legendIndicator: {
+      width: 12,
+      height: 12,
+      borderRadius: 3,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    legendText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: theme.text
+    },
+    emptyContainer: {
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    emptyText: {
+      fontSize: 14,
+      color: theme.textMuted
     },
     rowSection: {
       height: 30,
@@ -354,67 +398,161 @@ const createStyles = (theme: ResolvedTheme) =>
     }
   });
 
+type SportMixMode = 'percent' | 'hours';
+
 /**
- * Renders a bar chart for a specific activity's yearly distance data.
- *
- * @param {Array<{x: string, y: number}>} chartData - The data for the bar chart. Each object should have 'x' (year) and 'y' (distance).
- * @param {string} activityName - The name of the activity, used for the chart title.
- * @returns {JSX.Element} A bar chart component.
+ * Renders a stacked bar chart showing the breakdown of activities per year by time.
+ * Supports toggling between 100% share (%) and total hours.
  */
-function BarChart({
-  chartData,
-  activityName
+function SportMixChart({
+  activities,
+  dataTime
 }: Readonly<{
-  chartData: { x: string; y: number }[];
-  activityName: string;
+  activities: string[];
+  dataTime: number[][];
 }>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
+  const [mode, setMode] = useState<SportMixMode>('percent');
+
+  // Filter out the summary row (row[0] === -1) and sort years chronologically (ascending)
+  const yearRows = useMemo(() => {
+    return dataTime.filter(row => row[0] > 0).sort((a, b) => a[0] - b[0]);
+  }, [dataTime]);
+
+  // Identify sports that have non-zero time across all years to avoid cluttering the legend
+  const activeSports = useMemo(() => {
+    const sportsWithTotals = activities.map((sport, index) => {
+      const totalSec = yearRows.reduce((sum, row) => sum + (row[index + 1] ?? 0), 0);
+      return { sport, index, totalSec };
+    });
+    const nonZero = sportsWithTotals.filter(s => s.totalSec > 0);
+    const sportsToUse = nonZero.length > 0 ? nonZero : sportsWithTotals;
+
+    return sportsToUse.map((item, colorIdx) => ({
+      name: item.sport,
+      index: item.index,
+      color: theme.chartSeries[colorIdx % theme.chartSeries.length]
+    }));
+  }, [activities, yearRows, theme.chartSeries]);
+
+  // Prepare series data for VictoryStack
+  const seriesData = useMemo(() => {
+    return activeSports.map(sportItem => {
+      const data = yearRows.map(row => {
+        const year = String(row[0]);
+        const sportSec = row[sportItem.index + 1] ?? 0;
+        const totalSec = row[activities.length + 1] ?? 0;
+        const safeTotal = Number.isFinite(totalSec) && totalSec > 0 ? totalSec : 0;
+        const safeSport = Number.isFinite(sportSec) && sportSec > 0 ? sportSec : 0;
+
+        let y = 0;
+        if (mode === 'percent') {
+          y = safeTotal > 0 ? (safeSport / safeTotal) * 100 : 0;
+        } else {
+          y = safeSport / 3600;
+        }
+
+        return { x: year, y };
+      });
+      return { ...sportItem, data };
+    });
+  }, [activeSports, yearRows, activities.length, mode]);
+
+  if (yearRows.length === 0 || activeSports.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No activity data available</Text>
+      </View>
+    );
+  }
+
+  const chartWidth = Math.max(320, yearRows.length * 55 + 70);
+
   return (
     <View style={styles.chartContainer}>
-      <Text style={styles.chartTitle}>{'Distances (km) - ' + activityName}</Text>
-
-      <ScrollView horizontal={true} contentContainerStyle={{ justifyContent: 'center' }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-          <VictoryChart
-            domainPadding={{ x: 20 }}
-            theme={chartTheme}
-            height={400}
-            padding={{ top: 20, bottom: 60, left: 10, right: 20 }}
+      <View style={styles.modeToggleRow}>
+        <View style={styles.segmentedContainer}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Show 100% Share"
+            onPress={() => setMode('percent')}
+            style={[styles.segment, mode === 'percent' ? styles.segmentActive : null]}
           >
-            <VictoryBar
-              data={chartData}
-              labels={({ datum }) => datum.y}
-              style={{
-                data: {
-                  fill: theme.primary,
-                  fillOpacity: 0.25,
-                  stroke: theme.primary,
-                  strokeWidth: 1.5
-                },
-                labels: {
-                  fill: theme.text
-                }
-              }}
-              cornerRadius={{ top: 4 }}
-            />
-            <VictoryAxis
-              tickFormat={x => x}
-              style={{
-                tickLabels: {
-                  angle: 45,
-                  fontSize: 12
-                },
-                axisLabel: {
-                  fontSize: 12,
-                  fontWeight: '600'
-                }
-              }}
-            />
-          </VictoryChart>
-        </ScrollView>
+            <Text
+              style={[styles.segmentText, mode === 'percent' ? styles.segmentTextActive : null]}
+            >
+              Share (%)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Show Total Hours"
+            onPress={() => setMode('hours')}
+            style={[styles.segment, mode === 'hours' ? styles.segmentActive : null]}
+          >
+            <Text style={[styles.segmentText, mode === 'hours' ? styles.segmentTextActive : null]}>
+              Hours
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView horizontal={true} contentContainerStyle={styles.chartScrollContent}>
+        <VictoryChart
+          domainPadding={{ x: 25 }}
+          theme={chartTheme}
+          height={280}
+          width={chartWidth}
+          padding={{ top: 20, bottom: 40, left: 50, right: 20 }}
+        >
+          <VictoryAxis
+            style={{
+              tickLabels: {
+                fontSize: 12,
+                fill: theme.textMuted
+              }
+            }}
+          />
+          <VictoryAxis
+            dependentAxis
+            domain={mode === 'percent' ? [0, 100] : undefined}
+            tickValues={mode === 'percent' ? [0, 25, 50, 75, 100] : undefined}
+            tickFormat={val => (mode === 'percent' ? `${Math.round(val)}%` : `${Math.round(val)}h`)}
+            style={{
+              tickLabels: {
+                fontSize: 11,
+                fill: theme.textMuted
+              }
+            }}
+          />
+          <VictoryStack>
+            {seriesData.map(sportItem => (
+              <VictoryBar
+                key={sportItem.name}
+                data={sportItem.data}
+                style={{
+                  data: {
+                    fill: sportItem.color,
+                    stroke: theme.surface,
+                    strokeWidth: 1.5
+                  }
+                }}
+              />
+            ))}
+          </VictoryStack>
+        </VictoryChart>
       </ScrollView>
+
+      <View style={styles.legendContainer}>
+        {activeSports.map(sportItem => (
+          <View key={sportItem.name} style={styles.legendItem}>
+            <View style={[styles.legendIndicator, { backgroundColor: sportItem.color }]} />
+            <Text style={styles.legendText}>{sportItem.name}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

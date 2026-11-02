@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import { makeTestActivity } from '../helpers/testActivities';
 
@@ -104,6 +104,33 @@ describe('RecentYearsScreen', () => {
     expect(paths.length).toBeGreaterThan(0);
     paths.forEach(d => {
       expect(d).not.toMatch(/NaN|Infinity/);
+    });
+  });
+
+  it('renders the sport mix section with toggle and legend', async () => {
+    const view = await renderYearsScreen();
+
+    // Section title
+    expect(view.getByText(/Sport Mix/)).toBeTruthy();
+
+    // Toggle options
+    const shareBtn = view.getByLabelText('Show 100% Share');
+    const hoursBtn = view.getByLabelText('Show Total Hours');
+    expect(shareBtn).toBeTruthy();
+    expect(hoursBtn).toBeTruthy();
+
+    // Sport legend contains discovered activity types
+    expect(view.getAllByText('Run').length).toBeGreaterThan(0);
+    expect(view.getAllByText('Ride').length).toBeGreaterThan(0);
+
+    // Switch mode to hours
+    act(() => {
+      fireEvent.press(hoursBtn);
+    });
+
+    // Switch mode back to share
+    act(() => {
+      fireEvent.press(shareBtn);
     });
   });
 });

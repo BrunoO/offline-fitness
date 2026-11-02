@@ -41,8 +41,8 @@ const twilight: PaletteDefinition = {
   success: { light: '#047857', dark: '#34D399' },
   successSoft: { light: '#ECFDF5', dark: '#0D2B22' },
   chartSeries: {
-    light: ['#6D28D9', '#2563EB', '#0891B2', '#047857', '#B45309', '#BE123C'],
-    dark: ['#A78BFA', '#60A5FA', '#22D3EE', '#34D399', '#FBBF24', '#FB7185']
+    light: ['#6D28D9', '#B45309', '#0891B2', '#BE123C', '#047857', '#2563EB'],
+    dark: ['#A78BFA', '#FBBF24', '#22D3EE', '#FB7185', '#34D399', '#60A5FA']
   },
   chartTints: {
     light: ['#ede9fe', '#e0e7ff', '#dbeafe', '#ccfbf1'],
