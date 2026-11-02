@@ -4,12 +4,14 @@ import {
   deleteStreamFiles,
   getNoStreamIds
 } from '@/features/activities/services/fetchAndStoreStreams';
+import { MERGED_ACTIVITY_TYPES } from '@/features/activities/services/mergeActivities';
 import { STORAGE_KEYS } from '@/constants';
 import {
   Activity,
   compareActivitiesByUtcDesc,
   DetailsScreenProps,
   isNoGpsActivity,
+  seconds_to_label,
   simpleLogger
 } from '@/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -154,6 +156,94 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.textMuted,
       fontSize: 14,
       textAlign: 'center'
+    },
+    filterBanner: {
+      backgroundColor: theme.primarySoft,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginBottom: 10
+    },
+    filterBannerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    filterBannerTitle: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text
+    },
+    filterBannerResetButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 4
+    },
+    filterBannerResetText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.primary
+    },
+    filterTotalsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border
+    },
+    filterTypeBreakdownRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 8,
+      paddingTop: 6,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border
+    },
+    filterTypeBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 12,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    filterTypeBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: theme.text
+    },
+    filterTotalItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4
+    },
+    filterTotalValue: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.text
+    },
+    filterTotalDivider: {
+      width: 1,
+      height: 14,
+      backgroundColor: theme.border
+    },
+    emptyResetButton: {
+      marginTop: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: theme.primary,
+      borderRadius: 8
+    },
+    emptyResetButtonText: {
+      color: theme.onPrimary,
+      fontSize: 14,
+      fontWeight: '600'
     },
     modalButtonsRow: {
       flexDirection: 'row',
@@ -347,6 +437,163 @@ function EditActivityModal({
   );
 }
 
+function getEmptyActivitiesMessage(
+  isFiltered: boolean,
+  filterLabel?: string,
+  totalActivitiesCount: number = 0
+): string {
+  if (isFiltered) {
+    return filterLabel ? `No activities found for ${filterLabel}.` : 'No activities found.';
+  }
+  if (totalActivitiesCount === 0) {
+    return 'No activities yet. Record or import an activity to get started.';
+  }
+  return 'No activities match the current filters.';
+}
+
+function computeSummaryTotals(
+  activities: Activity[],
+  useElapsedTime: boolean
+): { distanceKm: string; elevationM: string; timeFormatted: string } {
+  let distanceMeters = 0;
+  let elevationMeters = 0;
+  let timeSeconds = 0;
+  for (const a of activities) {
+    distanceMeters += a.distance || 0;
+    elevationMeters += a.total_elevation_gain || 0;
+    timeSeconds += (useElapsedTime ? a.elapsed_time : a.moving_time) || 0;
+  }
+  return {
+    distanceKm: (distanceMeters / 1000).toFixed(1),
+    elevationM: Math.round(elevationMeters).toLocaleString(),
+    timeFormatted: seconds_to_label(Math.round(timeSeconds))
+  };
+}
+
+interface TypeBreakdown {
+  type: string;
+  count: number;
+  distanceKm: string;
+}
+
+function computeTypeBreakdowns(activities: Activity[]): TypeBreakdown[] {
+  const map = new Map<string, { count: number; distanceMeters: number }>();
+  for (const a of activities) {
+    const entry = map.get(a.type) ?? { count: 0, distanceMeters: 0 };
+    entry.count += 1;
+    entry.distanceMeters += a.distance || 0;
+    map.set(a.type, entry);
+  }
+  return Array.from(map.entries())
+    .map(([type, stats]) => ({
+      type,
+      count: stats.count,
+      distanceKm: (stats.distanceMeters / 1000).toFixed(1)
+    }))
+    .sort((a, b) => a.type.localeCompare(b.type));
+}
+
+function hasMergedSiblings(types: string[]): boolean {
+  const foldedTargets = new Set<string>();
+  for (const t of types) {
+    const folded = MERGED_ACTIVITY_TYPES[t];
+    if (folded) {
+      foldedTargets.add(folded);
+    }
+  }
+  return foldedTargets.size > 0 && types.some(t => foldedTargets.has(t));
+}
+
+interface FilteredViewBannerProps {
+  filterLabel?: string;
+  totalFilteredCount: number;
+  totalBaseCount: number;
+  distanceKm: string;
+  elevationM: string;
+  timeFormatted: string;
+  typeBreakdowns: TypeBreakdown[];
+  onClear: () => void;
+  theme: ReturnType<typeof useTheme>;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function FilteredViewBanner({
+  filterLabel,
+  totalFilteredCount,
+  totalBaseCount,
+  distanceKm,
+  elevationM,
+  timeFormatted,
+  typeBreakdowns,
+  onClear,
+  theme,
+  styles
+}: Readonly<FilteredViewBannerProps>): React.JSX.Element {
+  const countText =
+    totalFilteredCount === totalBaseCount
+      ? `${totalFilteredCount} ${totalFilteredCount === 1 ? 'activity' : 'activities'}`
+      : `${totalFilteredCount} of ${totalBaseCount} activities`;
+
+  const showBreakdown =
+    totalFilteredCount > 0 &&
+    (typeBreakdowns.length > 1 || hasMergedSiblings(typeBreakdowns.map(b => b.type)));
+
+  const bannerTitle = filterLabel ? `Month: ${filterLabel}` : 'Filtered view';
+
+  return (
+    <View style={styles.filterBanner}>
+      <View style={styles.filterBannerHeader}>
+        <Ionicons name="filter" size={16} color={theme.primary} />
+        <Text style={styles.filterBannerTitle} numberOfLines={1}>
+          {bannerTitle} ({countText})
+        </Text>
+        <TouchableOpacity
+          onPress={onClear}
+          accessibilityRole="button"
+          accessibilityLabel="Reset to all activities"
+          style={styles.filterBannerResetButton}
+        >
+          <Text style={styles.filterBannerResetText}>Clear filter</Text>
+          <Ionicons name="close-circle" size={16} color={theme.primary} />
+        </TouchableOpacity>
+      </View>
+      {totalFilteredCount > 0 ? (
+        <View style={styles.filterTotalsRow}>
+          <View style={styles.filterTotalItem}>
+            <Ionicons name="navigate-outline" size={14} color={theme.primary} />
+            <Text style={styles.filterTotalValue}>{distanceKm} km</Text>
+          </View>
+          <View style={styles.filterTotalDivider} />
+          <View style={styles.filterTotalItem}>
+            <Ionicons name="trending-up-outline" size={14} color={theme.primary} />
+            <Text style={styles.filterTotalValue}>{elevationM} m</Text>
+          </View>
+          <View style={styles.filterTotalDivider} />
+          <View style={styles.filterTotalItem}>
+            <Ionicons name="time-outline" size={14} color={theme.primary} />
+            <Text style={styles.filterTotalValue}>{timeFormatted}</Text>
+          </View>
+        </View>
+      ) : null}
+      {showBreakdown ? (
+        <View style={styles.filterTypeBreakdownRow}>
+          {typeBreakdowns.map(b => {
+            const isFolded = Boolean(MERGED_ACTIVITY_TYPES[b.type]);
+            const label = isFolded
+              ? `${b.type} (${MERGED_ACTIVITY_TYPES[b.type]}): ${b.distanceKm} km`
+              : `${b.type}: ${b.distanceKm} km`;
+            return (
+              <View key={b.type} style={styles.filterTypeBadge}>
+                <Text style={styles.filterTypeBadgeText}>{label}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * A screen for displaying a list of activities and a map of the selected activity.
  * @param navigation The navigation object.
@@ -466,14 +713,28 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     [openRecordChooser, theme]
   );
 
+  const handleResetToAllActivities = useCallback(() => {
+    navigation.setParams({
+      allActivities: undefined,
+      filterLabel: undefined,
+      selectedActivityId: undefined
+    });
+    setSearchQuery('');
+    setSelectedTypes(new Set());
+    setHideNoStream(false);
+  }, [navigation]);
+
   useLayoutEffect(() => {
+    const title = route.params?.filterLabel
+      ? `${route.params.filterLabel} (${allActivities.length})`
+      : `Activities (${allActivities.length})`;
     navigation.setOptions({
-      title: `Activities (${allActivities.length})`,
+      title,
       // RECORD-CHOOSER: when GPS tracking lands, this becomes a Track/Manual
       // chooser instead of opening the manual sheet directly.
       headerRight: renderHeaderRight
     });
-  }, [navigation, allActivities, renderHeaderRight]);
+  }, [navigation, allActivities, renderHeaderRight, route.params?.filterLabel]);
 
   const sortedActivities = useMemo(
     () => [...allActivities].sort(compareActivitiesByUtcDesc),
@@ -508,6 +769,16 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       ? typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id))
       : typeFiltered;
   }, [sortedActivities, query, selectedTypes, hideNoStream, noStreamIds]);
+
+  const useElapsedTime = route.params?.useElapsedTime ?? true;
+  const summaryTotals = useMemo(
+    () => computeSummaryTotals(filteredActivities, useElapsedTime),
+    [filteredActivities, useElapsedTime]
+  );
+  const typeBreakdowns = useMemo(
+    () => computeTypeBreakdowns(filteredActivities),
+    [filteredActivities]
+  );
 
   // Keep the selected activity visible in the list (e.g. after navigating
   // from the Records screen), so its short description can be checked.
@@ -587,6 +858,20 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   return (
     <View style={[styles.container, { paddingTop: 0, paddingBottom: insets.bottom }]}>
       <View style={styles.listContainer}>
+        {route.params?.allActivities !== undefined ? (
+          <FilteredViewBanner
+            filterLabel={route.params.filterLabel}
+            totalFilteredCount={filteredActivities.length}
+            totalBaseCount={allActivities.length}
+            distanceKm={summaryTotals.distanceKm}
+            elevationM={summaryTotals.elevationM}
+            timeFormatted={summaryTotals.timeFormatted}
+            typeBreakdowns={typeBreakdowns}
+            onClear={handleResetToAllActivities}
+            theme={theme}
+            styles={styles}
+          />
+        ) : null}
         <View style={styles.searchContainer}>
           <MaterialCommunityIcons
             name="map-check-outline"
@@ -680,10 +965,22 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
               !fetchingData ? (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    {allActivities.length === 0
-                      ? 'No activities yet. Record or import an activity to get started.'
-                      : 'No activities match the current filters.'}
+                    {getEmptyActivitiesMessage(
+                      route.params?.allActivities !== undefined,
+                      route.params?.filterLabel,
+                      allActivities.length
+                    )}
                   </Text>
+                  {route.params?.allActivities !== undefined ? (
+                    <TouchableOpacity
+                      onPress={handleResetToAllActivities}
+                      style={styles.emptyResetButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Show all activities"
+                    >
+                      <Text style={styles.emptyResetButtonText}>Show all activities</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ) : null
             }

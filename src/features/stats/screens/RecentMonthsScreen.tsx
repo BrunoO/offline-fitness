@@ -1,4 +1,10 @@
-import { Activity, ChipMultiSelect, seconds_to_label, simpleLogger } from '@/shared';
+import {
+  Activity,
+  ChipMultiSelect,
+  RootDrawerParamList,
+  seconds_to_label,
+  simpleLogger
+} from '@/shared';
 
 import { monthlyData2, MonthSummary } from '../services/stats';
 
@@ -11,12 +17,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native';
 
-import React, { JSX, useMemo, useState } from 'react';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useNavigation } from '@react-navigation/native';
+import React, { JSX, useCallback, useMemo, useState } from 'react';
 
-import { useActivitiesContext, useProcessedActivities } from '@/features/activities';
+import {
+  MERGED_ACTIVITY_TYPES,
+  useActivitiesContext,
+  useProcessedActivities
+} from '@/features/activities';
 import { VictoryAxis, VictoryBar, VictoryChart, VictoryLabel } from 'victory-native';
 import { useSettings } from '../StatsTabSettingsContext';
 
@@ -45,7 +58,8 @@ function HorizontalBarChart({
   barColor,
   accessFunction,
   labelFunction,
-  invertedAxis
+  invertedAxis,
+  onSelectMonth
 }: Readonly<{
   title: string;
   data: MonthSummary[];
@@ -53,6 +67,7 @@ function HorizontalBarChart({
   accessFunction: (arg: MonthSummary) => number;
   labelFunction: ({ datum }: { datum: MonthSummary }) => string;
   invertedAxis: boolean;
+  onSelectMonth?: (datum: MonthSummary) => void;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -74,56 +89,80 @@ function HorizontalBarChart({
       __label: isZero ? 'No activity' : labelFunction({ datum: d })
     };
   });
+
+  const reversedData = useMemo(() => [...data].reverse(), [data]);
+
   return (
     <View style={styles.chartContainer}>
       <Text style={styles.chartTitle}>{title}</Text>
-      <VictoryChart
-        theme={chartTheme}
-        height={chartHeight}
-        domainPadding={{ x: 15, y: 15 }}
-        padding={{ top: 20, bottom: 20, left: 5, right: 40 }}
-      >
-        <VictoryBar
-          horizontal
-          style={{
-            data: {
-              fill: ({ datum }) =>
-                (datum as ProcessedDatum).__isZero ? theme.chartZeroFill : barColor,
-              fillOpacity: ({ datum }) => ((datum as ProcessedDatum).__isZero ? 1 : 0.25),
-              stroke: ({ datum }) =>
-                (datum as ProcessedDatum).__isZero ? theme.chartZeroStroke : barColor,
-              strokeWidth: 1.5
-            }
-          }}
-          data={processed}
-          barWidth={18}
-          x="month"
-          y={d => (d as ProcessedDatum).__value}
-          labels={({ datum }) => (datum as ProcessedDatum).__label}
-          labelComponent={
-            <VictoryLabel
-              x={20}
-              dx={0}
-              textAnchor="start"
-              verticalAnchor="middle"
-              style={{ fontSize: 12, fill: theme.text }}
+      <View style={{ position: 'relative' }}>
+        <View pointerEvents="none">
+          <VictoryChart
+            theme={chartTheme}
+            height={chartHeight}
+            domainPadding={{ x: 15, y: 15 }}
+            padding={{ top: 20, bottom: 20, left: 5, right: 40 }}
+          >
+            <VictoryBar
+              horizontal
+              style={{
+                data: {
+                  fill: ({ datum }) =>
+                    (datum as ProcessedDatum).__isZero ? theme.chartZeroFill : barColor,
+                  fillOpacity: ({ datum }) => ((datum as ProcessedDatum).__isZero ? 1 : 0.25),
+                  stroke: ({ datum }) =>
+                    (datum as ProcessedDatum).__isZero ? theme.chartZeroStroke : barColor,
+                  strokeWidth: 1.5
+                }
+              }}
+              data={processed}
+              barWidth={18}
+              x="month"
+              y={d => (d as ProcessedDatum).__value}
+              labels={({ datum }) => (datum as ProcessedDatum).__label}
+              labelComponent={
+                <VictoryLabel
+                  x={20}
+                  dx={0}
+                  textAnchor="start"
+                  verticalAnchor="middle"
+                  style={{ fontSize: 12, fill: theme.text }}
+                />
+              }
+              cornerRadius={{ topRight: 4, bottomRight: 4 }}
             />
-          }
-          cornerRadius={{ topRight: 4, bottomRight: 4 }}
-        />
-        <VictoryAxis
-          tickFormat={() => ``}
-          invertAxis={invertedAxis}
-          dependentAxis={invertedAxis}
-          style={{
-            axis: { stroke: 'none' },
-            ticks: { stroke: 'none' },
-            tickLabels: { fill: 'none' },
-            grid: { stroke: 'transparent' },
-            axisLabel: { padding: 30 }
-          }}
-        />
-      </VictoryChart>
+            <VictoryAxis
+              tickFormat={() => ``}
+              invertAxis={invertedAxis}
+              dependentAxis={invertedAxis}
+              style={{
+                axis: { stroke: 'none' },
+                ticks: { stroke: 'none' },
+                tickLabels: { fill: 'none' },
+                grid: { stroke: 'transparent' },
+                axisLabel: { padding: 30 }
+              }}
+            />
+          </VictoryChart>
+        </View>
+        {onSelectMonth ? (
+          <View
+            style={[StyleSheet.absoluteFill, { paddingTop: 20, paddingBottom: 20 }]}
+            pointerEvents="box-none"
+          >
+            {reversedData.map(d => (
+              <TouchableOpacity
+                key={d.month.getTime()}
+                style={{ height: 30 }}
+                onPress={() => onSelectMonth(d)}
+                accessibilityRole="button"
+                accessibilityLabel={`View activities for ${formatDateAxis(d.month)}`}
+                activeOpacity={0.6}
+              />
+            ))}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -137,6 +176,7 @@ export function RecentMonthsScreen(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { numberRecentMonths, useElapsedTime } = useSettings();
+  const navigation = useNavigation<DrawerNavigationProp<RootDrawerParamList>>();
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
   const activityTypes = useMemo(
@@ -147,9 +187,7 @@ export function RecentMonthsScreen(): JSX.Element {
     activityTypes,
     globalActivities
   );
-  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(
-    () => new Set(activityTypes)
-  );
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(() => new Set());
 
   // Removed syncing effect to avoid overriding user selection
 
@@ -174,6 +212,36 @@ export function RecentMonthsScreen(): JSX.Element {
         useElapsedTime
       ),
     [source, numberRecentMonths, useElapsedTime]
+  );
+
+  const handleMonthPress = useCallback(
+    (datum: MonthSummary) => {
+      const targetYear = datum.month.getFullYear();
+      const targetMonth = datum.month.getMonth();
+      // Respect current sport selection while preserving original raw activity types:
+      // An activity matches if its folded type (or original type) matches user's selected activities.
+      const monthActivities = globalActivities.filter(a => {
+        if (a.start_year !== targetYear || a.start_month !== targetMonth) {
+          return false;
+        }
+        if (selectedActivities.size === 0) {
+          return true;
+        }
+        const effectiveType = MERGED_ACTIVITY_TYPES[a.type] ?? a.type;
+        return selectedActivities.has(effectiveType) || selectedActivities.has(a.type);
+      });
+      const monthLabel = datum.month.toLocaleString('en-US', {
+        month: 'short',
+        year: 'numeric'
+      });
+
+      navigation.navigate('Details', {
+        allActivities: monthActivities,
+        filterLabel: monthLabel,
+        useElapsedTime
+      });
+    },
+    [globalActivities, selectedActivities, navigation, useElapsedTime]
   );
 
   // Filtering handled by ChipMultiSelect
@@ -219,6 +287,7 @@ export function RecentMonthsScreen(): JSX.Element {
             />
           }
         >
+          <Text style={styles.chartSubtitle}>Tap any month to view its activities</Text>
           <View style={styles.chartCard}>
             <HorizontalBarChart
               title={`Distance last ${numberRecentMonths} months`}
@@ -229,6 +298,7 @@ export function RecentMonthsScreen(): JSX.Element {
                 `${formatDateAxis(datum.month) + ' - ' + datum.distance.toFixed(0)}km`
               }
               invertedAxis={false}
+              onSelectMonth={handleMonthPress}
             />
           </View>
           <View style={styles.chartCard}>
@@ -241,6 +311,7 @@ export function RecentMonthsScreen(): JSX.Element {
                 `${formatDateAxis(datum.month) + ' - ' + datum.elevation.toFixed(0)}m`
               }
               invertedAxis={true}
+              onSelectMonth={handleMonthPress}
             />
           </View>
           <View style={styles.chartCard}>
@@ -253,6 +324,7 @@ export function RecentMonthsScreen(): JSX.Element {
                 `${formatDateAxis(datum.month) + ' - ' + seconds_to_label(Math.round((datum.time ?? 0) * 3600))}`
               }
               invertedAxis={false}
+              onSelectMonth={handleMonthPress}
             />
           </View>
         </ScrollView>
@@ -275,6 +347,12 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     scrollContainer: {
       paddingBottom: 20
+    },
+    chartSubtitle: {
+      fontSize: 13,
+      color: theme.textMuted,
+      marginBottom: 10,
+      paddingHorizontal: 4
     },
     chartCard: {
       backgroundColor: theme.surface,

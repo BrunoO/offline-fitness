@@ -33,9 +33,11 @@ export function RecordsScreen(): JSX.Element {
 
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
+    const targetActivity = globalActivities.find(a => a.id === activityId);
     navigation.navigate('Details', {
-      allActivities: globalActivities,
-      selectedActivityId: activityId
+      allActivities: targetActivity ? [targetActivity] : globalActivities,
+      selectedActivityId: activityId,
+      filterLabel: targetActivity?.name ? `Record: ${targetActivity.name}` : 'Record'
     });
   };
 

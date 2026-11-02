@@ -57,6 +57,8 @@ export type RootDrawerParamList = {
     | {
         allActivities?: Activity[];
         selectedActivityId?: string;
+        filterLabel?: string;
+        useElapsedTime?: boolean;
       }
     | undefined;
 };

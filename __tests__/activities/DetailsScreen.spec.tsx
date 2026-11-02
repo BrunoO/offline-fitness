@@ -134,7 +134,8 @@ jest.mock('@/features/activities/components/ActivityListItem', () => {
 
 describe('DetailsScreen', () => {
   const mockNavigation = {
-    setOptions: jest.fn()
+    setOptions: jest.fn(),
+    setParams: jest.fn()
   };
   const mockRoute = {
     params: undefined
@@ -273,6 +274,140 @@ describe('DetailsScreen', () => {
         mockActivities[0],
         expect.objectContaining({ name: 'Morning Jog' })
       );
+    });
+  });
+
+  describe('Filtered View & Totals Display', () => {
+    it('displays filtered view banner with month label and totals for distance, elevation, and time', async () => {
+      const filteredRoute = {
+        params: {
+          allActivities: [
+            makeTestActivity({
+              id: 'oct-1',
+              name: 'Oct Trail Run',
+              type: 'Run',
+              distance: 12500, // 12.5 km
+              total_elevation_gain: 350, // 350 m
+              elapsed_time: 4500, // 1h 15m
+              moving_time: 4200
+            }),
+            makeTestActivity({
+              id: 'oct-2',
+              name: 'Oct Long Ride',
+              type: 'Ride',
+              distance: 40000, // 40.0 km
+              total_elevation_gain: 650, // 650 m
+              elapsed_time: 7200, // 2h
+              moving_time: 7000
+            })
+          ],
+          filterLabel: 'Oct 2024',
+          useElapsedTime: true
+        }
+      };
+
+      const rendered = render(
+        <DetailsScreen navigation={mockNavigation as any} route={filteredRoute as any} />
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Verify header title was updated
+      expect(mockNavigation.setOptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Oct 2024 (2)'
+        })
+      );
+
+      // Verify banner label and count
+      expect(rendered.getByText(/Month: Oct 2024/)).toBeTruthy();
+
+      // Verify totals: distance 52.5 km, elevation 1,000 m, elapsed time 03:15
+      expect(rendered.getByText('52.5 km')).toBeTruthy();
+      expect(rendered.getByText('1,000 m')).toBeTruthy();
+      expect(rendered.getByText('03:15')).toBeTruthy();
+
+      // Verify sport breakdown displays both Ride and Run
+      expect(rendered.getByText('Ride: 40.0 km')).toBeTruthy();
+      expect(rendered.getByText('Run: 12.5 km')).toBeTruthy();
+
+      // Verify clear filter button resets navigation params
+      const clearBtn = rendered.getByLabelText('Reset to all activities');
+      fireEvent.press(clearBtn);
+
+      expect(mockNavigation.setParams).toHaveBeenCalledWith({
+        allActivities: undefined,
+        filterLabel: undefined,
+        selectedActivityId: undefined
+      });
+    });
+
+    it('displays merged sibling type indicator in breakdown when EBikeRide is present', async () => {
+      const mergedRoute = {
+        params: {
+          allActivities: [
+            makeTestActivity({
+              id: 'e-1',
+              name: 'Electric Commute',
+              type: 'EBikeRide',
+              distance: 25000,
+              total_elevation_gain: 200,
+              elapsed_time: 3600
+            }),
+            makeTestActivity({
+              id: 'r-1',
+              name: 'Road Ride',
+              type: 'Ride',
+              distance: 50000,
+              total_elevation_gain: 600,
+              elapsed_time: 7200
+            })
+          ],
+          filterLabel: 'Sep 2024',
+          useElapsedTime: true
+        }
+      };
+
+      const rendered = render(
+        <DetailsScreen navigation={mockNavigation as any} route={mergedRoute as any} />
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(rendered.getByText('EBikeRide (Ride): 25.0 km')).toBeTruthy();
+      expect(rendered.getByText('Ride: 50.0 km')).toBeTruthy();
+      expect(rendered.getByText('75.0 km')).toBeTruthy();
+    });
+
+    it('displays empty state with Show all activities button when filtered month has no activities', async () => {
+      const emptyMonthRoute = {
+        params: {
+          allActivities: [],
+          filterLabel: 'Nov 2024',
+          useElapsedTime: true
+        }
+      };
+
+      const rendered = render(
+        <DetailsScreen navigation={mockNavigation as any} route={emptyMonthRoute as any} />
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(rendered.getByText('No activities found for Nov 2024.')).toBeTruthy();
+
+      const showAllBtn = rendered.getByLabelText('Show all activities');
+      expect(showAllBtn).toBeTruthy();
+
+      fireEvent.press(showAllBtn);
+      expect(mockNavigation.setParams).toHaveBeenCalledWith({
+        allActivities: undefined,
+        filterLabel: undefined,
+        selectedActivityId: undefined
+      });
     });
   });
 });

@@ -9,7 +9,7 @@ export interface MergeActivitiesResult<TActivity> {
  * source type from the list without adding the target leaves the stats tables
  * keying a column that was never initialised, which yields NaN totals.
  */
-const MERGED_ACTIVITY_TYPES: Record<string, string> = {
+export const MERGED_ACTIVITY_TYPES: Record<string, string> = {
   EBikeRide: 'Ride',
   Hike: 'Walk',
   Workout: 'Yoga' // Strava has returned 'Workout' for Yoga activities since 2025-08-20; the archive importer keeps both raw types, so fold Workout here

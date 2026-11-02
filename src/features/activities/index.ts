@@ -17,6 +17,7 @@ export type { StreamSet } from './types/stravaActivityStream.model';
 export type { CompressStreamOptions } from './services/fetchAndStoreStreams';
 
 // Services
+export { MERGED_ACTIVITY_TYPES, mergeActivities } from './services/mergeActivities';
 export {
   calculateAdaptiveTolerance,
   calculateAndStoreMissingBoundingBoxes,

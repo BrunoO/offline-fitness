@@ -142,8 +142,9 @@ describe('HomeScreen - Recent Achievements Navigation', () => {
     fireEvent.press(longestBtn);
 
     expect(mockNavigation.navigate).toHaveBeenCalledWith('Details', {
-      allActivities: mockActivities,
-      selectedActivityId: 'act-longest'
+      allActivities: [longestRun],
+      selectedActivityId: 'act-longest',
+      filterLabel: 'Achievement: Epic Long Run'
     });
 
     // Press Biggest climb -> navigates to Details
@@ -152,8 +153,9 @@ describe('HomeScreen - Recent Achievements Navigation', () => {
     fireEvent.press(climbBtn);
 
     expect(mockNavigation.navigate).toHaveBeenCalledWith('Details', {
-      allActivities: mockActivities,
-      selectedActivityId: 'act-climb'
+      allActivities: [biggestClimbRide],
+      selectedActivityId: 'act-climb',
+      filterLabel: 'Achievement: Col du Tourmalet'
     });
   });
 
