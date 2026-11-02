@@ -122,6 +122,7 @@ async function buildChunkFile(
   zip.file('activities.csv', csvData);
 
   for (let i = 0; i < chunkActivities.length; i++) {
+    // eslint-disable-next-line no-await-in-loop -- sequential zip population controls RAM and drives progress
     await addStreamToZip(zip, chunkActivities[i]); // NOSONAR - sequential zip population controls RAM and drives progress
 
     // Update progress for this chunk
@@ -149,6 +150,7 @@ async function shareExportFiles(exportedFiles: File[]): Promise<void> {
   for (let i = 0; i < exportedFiles.length; i++) {
     const file = exportedFiles[i];
     simpleLogger.log(`Sharing file ${i + 1}/${exportedFiles.length}: ${file.uri}`);
+    // eslint-disable-next-line no-await-in-loop -- native share sheets require sequential user interaction
     await Sharing.shareAsync(file.uri); // NOSONAR - native share sheets require sequential user interaction
 
     // Once the share sheet returns, the recipient has its own copy. Without
@@ -163,6 +165,7 @@ async function shareExportFiles(exportedFiles: File[]): Promise<void> {
 
     // Add a small delay between shares to prevent overwhelming the system
     if (i < exportedFiles.length - 1) {
+      // eslint-disable-next-line no-await-in-loop -- intentional cooldown between native share sheets
       await new Promise(resolve => setTimeout(resolve, 1000)); // NOSONAR - intentional cooldown between native share sheets
     }
   }
@@ -207,6 +210,7 @@ export const exportData = async (
       );
 
       // prettier-ignore
+      // eslint-disable-next-line no-await-in-loop -- chunking avoids OOM
       exportedFiles.push(await buildChunkFile(chunkActivities, chunkIndex, numChunks, setProgress)); // NOSONAR - chunking avoids OOM
     }
 

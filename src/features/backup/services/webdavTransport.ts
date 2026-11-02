@@ -140,6 +140,7 @@ export async function ensureDavFolder(config: WebDavConfig, ...segments: string[
   for (const segment of segments) {
     current = davUrl(current, segment);
     try {
+      // eslint-disable-next-line no-await-in-loop -- parent folder must exist first
       await davRequest(config, current + '/', 'MKCOL', undefined, {}, [405, 301]); // NOSONAR - parent folder must exist first
       simpleLogger.log('Created WebDAV folder', { path: current });
     } catch (error) {

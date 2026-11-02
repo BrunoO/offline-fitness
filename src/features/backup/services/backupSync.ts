@@ -93,6 +93,7 @@ async function runWithConcurrency<T>(
     for (;;) {
       const current = index++;
       if (current >= items.length) return;
+      // eslint-disable-next-line no-await-in-loop -- worker queue draining loop regulates concurrency
       await fn(items[current]); // NOSONAR - worker queue draining loop regulates concurrency
     }
   };
@@ -282,6 +283,7 @@ async function propagateLocalTombstones(
   for (const [id, deletedAt] of tombstoneEntries) {
     const age = now - Date.parse(deletedAt);
     if (!Number.isFinite(age)) {
+      // eslint-disable-next-line no-await-in-loop -- resets corrupt log before immediate return
       await Storage.storeActivityTombstones({}); // NOSONAR - resets corrupt log before immediate return
       return remoteDeletedAt; // Corrupt log: drop it rather than delete blind.
     }
@@ -291,8 +293,11 @@ async function propagateLocalTombstones(
       } else if (localActivityIds.has(id)) {
         delete tombstones[id]; // resurrected locally: local wins, undo delete
       } else {
+        // eslint-disable-next-line no-await-in-loop -- rate-limits remote deletes
         await deleteDavFile(config, APP_CONFIG.BACKUP_ACTIVITIES_FOLDER, `${id}.json`); // NOSONAR - rate-limits remote deletes
+        // eslint-disable-next-line no-await-in-loop -- rate-limits remote deletes
         await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.json`); // NOSONAR - rate-limits remote deletes
+        // eslint-disable-next-line no-await-in-loop -- rate-limits remote deletes
         await deleteDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, `${id}.nostreamflag`); // NOSONAR - rate-limits remote deletes
         tombstones[id] = deletedAt;
         remoteDeletedAt[id] = deletedAt;
@@ -654,6 +659,7 @@ async function pullBackup(
   const pendingWrites: Activity[] = [];
   const flushWrites = async (flushRemainder: boolean): Promise<void> => {
     while (pendingWrites.length >= ACTIVITY_BATCH_SIZE) {
+      // eslint-disable-next-line no-await-in-loop -- sequential batch flush
       await Storage.storeMultiActivities(pendingWrites.splice(0, ACTIVITY_BATCH_SIZE)); // NOSONAR - sequential batch flush
     }
     if (flushRemainder && pendingWrites.length > 0) {

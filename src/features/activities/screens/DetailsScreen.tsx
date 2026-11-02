@@ -1129,7 +1129,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           styles={styles}
         />
         <SwipeTipBannerSlot
-          visible={showSwipeTip && allActivities.length > 0}
+          visible={showSwipeTip ? allActivities.length > 0 : false}
           onDismiss={handleDismissSwipeTip}
           styles={styles}
           primaryColor={theme.primary}

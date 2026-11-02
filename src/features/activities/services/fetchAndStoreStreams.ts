@@ -293,6 +293,7 @@ export const getActivityStreams = async (allActivities: Activity[]) => {
   }
 
   for (const activity of allActivities) {
+    // eslint-disable-next-line no-await-in-loop -- sequential disk read avoids OOM on large sets
     const result = await loadOneActivityStream(activity, folder); // NOSONAR - sequential disk read avoids OOM on large sets
     if (result) {
       activityStreams.push(result);
@@ -436,6 +437,7 @@ export const calculateAndStoreMissingBoundingBoxes = async () => {
     }
     if (!activity.bounding_box) {
       // prettier-ignore
+      // eslint-disable-next-line no-await-in-loop -- backfill runs sequentially to avoid storage race
       if (await backfillBoundingBox(activity)) { // NOSONAR - backfill runs sequentially to avoid storage race
         updatedCount++;
       }
@@ -462,6 +464,7 @@ export const correctSwimElevationGain = async () => {
   for (const activity of allActivities) {
     if (activity.type === 'Swim' && activity.total_elevation_gain !== 0) {
       activity.total_elevation_gain = 0;
+      // eslint-disable-next-line no-await-in-loop -- sequential update avoids storage bridge congestion
       await storeActivity(activity); // NOSONAR - sequential update avoids storage bridge congestion
       updatedCount++;
     }
