@@ -1,4 +1,4 @@
-import { ActivityCalendarPeriod } from '@/features/home/components/ActivityCalendarPeriod';
+import { ActivityCalendarPeriod } from './ActivityCalendarPeriod';
 import { Activity } from '@/shared';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { RootDrawerParamList } from '@/shared/types/types';
