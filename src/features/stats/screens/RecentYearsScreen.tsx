@@ -26,6 +26,7 @@ import { Row, Table } from 'react-native-reanimated-table';
 import { VictoryAxis, VictoryBar, VictoryChart, VictoryStack } from 'victory-native';
 import YTDStatsComponent from '../components/YTDStatsComponent';
 import { PerformanceTrendsCard } from '../components/PerformanceTrendsCard';
+import { AnnualConsistencyCard } from '../components/AnnualConsistencyCard';
 import { useSettings } from '../StatsTabSettingsContext';
 
 //https://www.waldo.com/blog/react-native-table
@@ -218,6 +219,17 @@ export function RecentYearsScreen(): JSX.Element {
               activities={allActivitiesToUse}
               availableSports={myActivitiesWithGps}
               useElapsedTime={useElapsedTime}
+            />
+          </View>
+        </View>
+
+        {/* Annual Consistency & Active Days Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Annual Consistency & Active Days</Text>
+          <View style={styles.chartCard}>
+            <AnnualConsistencyCard
+              activities={allActivitiesToUse}
+              availableSports={myActivitiesToUse}
             />
           </View>
         </View>
