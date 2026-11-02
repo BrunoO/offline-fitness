@@ -509,10 +509,227 @@ function hasMergedSiblings(types: string[]): boolean {
  * Month labels are prefixed with "Month:"; labels that already carry their own
  * prefix (e.g. "Achievement: …", "Record: …") are used verbatim.
  */
+/**
+ * Resolves the screen title for the activities list.
+ */
+function resolveActivitiesTitle(filterLabel: string | undefined, count: number): string {
+  if (filterLabel) return `${filterLabel} (${count})`;
+  return `Activities (${count})`;
+}
+
 function resolveBannerTitle(filterLabel?: string): string {
   if (!filterLabel) return 'Filtered view';
   if (filterLabel.includes(':')) return filterLabel;
   return `Month: ${filterLabel}`;
+}
+
+/**
+ * Applies search, type, and no-stream filters to the sorted activity list.
+ */
+function filterActivitiesList(
+  sortedActivities: Activity[],
+  query: string,
+  selectedTypes: Set<string>,
+  hideNoStream: boolean,
+  noStreamIds: Set<string>
+): Activity[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  const nameFiltered =
+    normalizedQuery.length === 0
+      ? sortedActivities
+      : sortedActivities.filter(a => (a.name || '').toLowerCase().includes(normalizedQuery));
+  const typeFiltered =
+    selectedTypes.size === 0 ? nameFiltered : nameFiltered.filter(a => selectedTypes.has(a.type));
+  if (!hideNoStream) return typeFiltered;
+  return typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id));
+}
+
+interface FilteredBannerSlotProps {
+  isFiltered: boolean;
+  filterLabel?: string;
+  totalFilteredCount: number;
+  totalBaseCount: number;
+  distanceKm: string;
+  elevationM: string;
+  timeFormatted: string;
+  typeBreakdowns: TypeBreakdown[];
+  onClear: () => void;
+  theme: ReturnType<typeof useTheme>;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function FilteredBannerSlot({
+  isFiltered,
+  ...rest
+}: Readonly<FilteredBannerSlotProps>): React.JSX.Element | null {
+  if (!isFiltered) return null;
+  return <FilteredViewBanner {...rest} />;
+}
+
+function EmptyResetButtonSlot({
+  isFiltered,
+  onPress,
+  styles
+}: Readonly<{
+  isFiltered: boolean;
+  onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+}>): React.JSX.Element | null {
+  if (!isFiltered) return null;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.emptyResetButton}
+      accessibilityRole="button"
+      accessibilityLabel="Show all activities"
+    >
+      <Text style={styles.emptyResetButtonText}>Show all activities</Text>
+    </TouchableOpacity>
+  );
+}
+
+interface ActivitiesEmptyStateProps {
+  fetchingData: boolean;
+  isFiltered: boolean;
+  filterLabel?: string;
+  totalActivitiesCount: number;
+  onReset: () => void;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function ActivitiesEmptyState({
+  fetchingData,
+  isFiltered,
+  filterLabel,
+  totalActivitiesCount,
+  onReset,
+  styles
+}: Readonly<ActivitiesEmptyStateProps>): React.JSX.Element | null {
+  if (fetchingData) return null;
+  return (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>
+        {getEmptyActivitiesMessage(isFiltered, filterLabel, totalActivitiesCount)}
+      </Text>
+      <EmptyResetButtonSlot isFiltered={isFiltered} onPress={onReset} styles={styles} />
+    </View>
+  );
+}
+
+function ActivityMapContainer({
+  selectedActivity,
+  allActivities,
+  styles
+}: Readonly<{
+  selectedActivity: Activity | null;
+  allActivities: Activity[];
+  styles: ReturnType<typeof createStyles>;
+}>): React.JSX.Element | null {
+  if (!selectedActivity) return null;
+  return (
+    <View style={styles.mapContainer}>
+      <ActivityAnalysisView item={selectedActivity} allActivities={allActivities} />
+    </View>
+  );
+}
+
+function ClearSearchButtonSlot({
+  visible,
+  onClear,
+  styles,
+  color
+}: Readonly<{
+  visible: boolean;
+  onClear: () => void;
+  styles: ReturnType<typeof createStyles>;
+  color: string;
+}>): React.JSX.Element | null {
+  if (!visible) return null;
+  return (
+    <TouchableOpacity
+      style={styles.clearButton}
+      onPress={onClear}
+      accessibilityLabel="Clear search"
+      accessibilityRole="button"
+    >
+      <Ionicons name="close" size={20} color={color} />
+    </TouchableOpacity>
+  );
+}
+
+function SwipeTipBannerSlot({
+  visible,
+  onDismiss,
+  styles,
+  primaryColor,
+  mutedColor
+}: Readonly<{
+  visible: boolean;
+  onDismiss: () => void;
+  styles: ReturnType<typeof createStyles>;
+  primaryColor: string;
+  mutedColor: string;
+}>): React.JSX.Element | null {
+  if (!visible) return null;
+  return (
+    <View style={styles.swipeTipBanner}>
+      <Ionicons name="information-circle-outline" size={16} color={primaryColor} />
+      <Text style={styles.swipeTipText}>Tip: Swipe left on an activity to edit or delete</Text>
+      <TouchableOpacity
+        onPress={onDismiss}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss swipe tip"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.swipeTipClose}
+      >
+        <Ionicons name="close" size={16} color={mutedColor} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ActivityTypeChipsSlot({
+  activityTypes,
+  selectedTypes,
+  onToggle,
+  onClearAll,
+  styles
+}: Readonly<{
+  activityTypes: string[];
+  selectedTypes: Set<string>;
+  onToggle: (type: string) => void;
+  onClearAll: () => void;
+  styles: ReturnType<typeof createStyles>;
+}>): React.JSX.Element | null {
+  if (activityTypes.length <= 1) return null;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipsRow}
+      style={styles.chipsScroll}
+    >
+      <TouchableOpacity
+        style={[styles.chip, selectedTypes.size === 0 ? styles.chipSelected : null]}
+        onPress={onClearAll}
+        accessibilityRole="button"
+        accessibilityLabel="Show all activity types"
+      >
+        <Text style={styles.chipLabel}>All</Text>
+      </TouchableOpacity>
+      {activityTypes.map(type => (
+        <TouchableOpacity
+          key={type}
+          style={[styles.chip, selectedTypes.has(type) ? styles.chipSelected : null]}
+          onPress={() => onToggle(type)}
+          accessibilityRole="button"
+          accessibilityLabel={`Filter by ${type}`}
+        >
+          <Text style={styles.chipLabel}>{type}</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
 }
 
 interface FilteredViewBannerProps {
@@ -738,11 +955,8 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   }, [navigation]);
 
   useLayoutEffect(() => {
-    const title = route.params?.filterLabel
-      ? `${route.params.filterLabel} (${allActivities.length})`
-      : `Activities (${allActivities.length})`;
     navigation.setOptions({
-      title,
+      title: resolveActivitiesTitle(route.params?.filterLabel, allActivities.length),
       // RECORD-CHOOSER: when GPS tracking lands, this becomes a Track/Manual
       // chooser instead of opening the manual sheet directly.
       headerRight: renderHeaderRight
@@ -770,18 +984,11 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     );
   }, [hideNoStream, allActivities]);
 
-  const query = searchQuery.trim().toLowerCase();
-  const filteredActivities = useMemo(() => {
-    const nameFiltered =
-      query.length === 0
-        ? sortedActivities
-        : sortedActivities.filter(a => (a.name || '').toLowerCase().includes(query));
-    const typeFiltered =
-      selectedTypes.size === 0 ? nameFiltered : nameFiltered.filter(a => selectedTypes.has(a.type));
-    return hideNoStream
-      ? typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id))
-      : typeFiltered;
-  }, [sortedActivities, query, selectedTypes, hideNoStream, noStreamIds]);
+  const filteredActivities = useMemo(
+    () =>
+      filterActivitiesList(sortedActivities, searchQuery, selectedTypes, hideNoStream, noStreamIds),
+    [sortedActivities, searchQuery, selectedTypes, hideNoStream, noStreamIds]
+  );
 
   const useElapsedTime = route.params?.useElapsedTime ?? true;
   const summaryTotals = useMemo(
@@ -871,20 +1078,19 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   return (
     <View style={[styles.container, { paddingTop: 0, paddingBottom: insets.bottom }]}>
       <View style={styles.listContainer}>
-        {route.params?.allActivities !== undefined ? (
-          <FilteredViewBanner
-            filterLabel={route.params.filterLabel}
-            totalFilteredCount={filteredActivities.length}
-            totalBaseCount={allActivities.length}
-            distanceKm={summaryTotals.distanceKm}
-            elevationM={summaryTotals.elevationM}
-            timeFormatted={summaryTotals.timeFormatted}
-            typeBreakdowns={typeBreakdowns}
-            onClear={handleResetToAllActivities}
-            theme={theme}
-            styles={styles}
-          />
-        ) : null}
+        <FilteredBannerSlot
+          isFiltered={route.params?.allActivities !== undefined}
+          filterLabel={route.params.filterLabel}
+          totalFilteredCount={filteredActivities.length}
+          totalBaseCount={allActivities.length}
+          distanceKm={summaryTotals.distanceKm}
+          elevationM={summaryTotals.elevationM}
+          timeFormatted={summaryTotals.timeFormatted}
+          typeBreakdowns={typeBreakdowns}
+          onClear={handleResetToAllActivities}
+          theme={theme}
+          styles={styles}
+        />
         <View style={styles.searchContainer}>
           <MaterialCommunityIcons
             name="map-check-outline"
@@ -908,62 +1114,27 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             autoCorrect={false}
             accessibilityLabel="Search activities by name"
           />
-          {searchQuery.length > 0 ? (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={clearSearch}
-              accessibilityLabel="Clear search"
-              accessibilityRole="button"
-            >
-              <Ionicons name="close" size={20} color={theme.textMuted} />
-            </TouchableOpacity>
-          ) : null}
+          <ClearSearchButtonSlot
+            visible={searchQuery.length > 0}
+            onClear={clearSearch}
+            styles={styles}
+            color={theme.textMuted}
+          />
         </View>
-        {activityTypes.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-            style={styles.chipsScroll}
-          >
-            <TouchableOpacity
-              style={[styles.chip, selectedTypes.size === 0 ? styles.chipSelected : null]}
-              onPress={() => setSelectedTypes(new Set())}
-              accessibilityRole="button"
-              accessibilityLabel="Show all activity types"
-            >
-              <Text style={styles.chipLabel}>All</Text>
-            </TouchableOpacity>
-            {activityTypes.map(type => (
-              <TouchableOpacity
-                key={type}
-                style={[styles.chip, selectedTypes.has(type) ? styles.chipSelected : null]}
-                onPress={() => toggleType(type)}
-                accessibilityRole="button"
-                accessibilityLabel={`Filter by ${type}`}
-              >
-                <Text style={styles.chipLabel}>{type}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : null}
-        {showSwipeTip && allActivities.length > 0 ? (
-          <View style={styles.swipeTipBanner}>
-            <Ionicons name="information-circle-outline" size={16} color={theme.primary} />
-            <Text style={styles.swipeTipText}>
-              Tip: Swipe left on an activity to edit or delete
-            </Text>
-            <TouchableOpacity
-              onPress={handleDismissSwipeTip}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss swipe tip"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.swipeTipClose}
-            >
-              <Ionicons name="close" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        <ActivityTypeChipsSlot
+          activityTypes={activityTypes}
+          selectedTypes={selectedTypes}
+          onToggle={toggleType}
+          onClearAll={() => setSelectedTypes(new Set())}
+          styles={styles}
+        />
+        <SwipeTipBannerSlot
+          visible={showSwipeTip ? allActivities.length > 0 : null}
+          onDismiss={handleDismissSwipeTip}
+          styles={styles}
+          primaryColor={theme.primary}
+          mutedColor={theme.textMuted}
+        />
         <View style={styles.list}>
           <FlashList
             // @ts-expect-error FlashList v2 types omit ref despite runtime forwardRef
@@ -975,36 +1146,23 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             onRefresh={refreshActivities}
             refreshing={fetchingData}
             ListEmptyComponent={
-              !fetchingData ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    {getEmptyActivitiesMessage(
-                      route.params?.allActivities !== undefined,
-                      route.params?.filterLabel,
-                      allActivities.length
-                    )}
-                  </Text>
-                  {route.params?.allActivities !== undefined ? (
-                    <TouchableOpacity
-                      onPress={handleResetToAllActivities}
-                      style={styles.emptyResetButton}
-                      accessibilityRole="button"
-                      accessibilityLabel="Show all activities"
-                    >
-                      <Text style={styles.emptyResetButtonText}>Show all activities</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ) : null
+              <ActivitiesEmptyState
+                fetchingData={fetchingData}
+                isFiltered={route.params?.allActivities !== undefined}
+                filterLabel={route.params?.filterLabel}
+                totalActivitiesCount={allActivities.length}
+                onReset={handleResetToAllActivities}
+                styles={styles}
+              />
             }
           />
         </View>
       </View>
-      {selectedActivity ? (
-        <View style={styles.mapContainer}>
-          <ActivityAnalysisView item={selectedActivity} allActivities={allActivities} />
-        </View>
-      ) : null}
+      <ActivityMapContainer
+        selectedActivity={selectedActivity}
+        allActivities={allActivities}
+        styles={styles}
+      />
       <EditActivityModal
         activity={editingActivity}
         onClose={() => setEditingActivity(null)}
