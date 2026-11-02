@@ -8,9 +8,9 @@ import { computeAnnualConsistencyStats, YearConsistencyStats } from '../services
 
 export type ConsistencyMetricKey =
   | 'active_days'
-  | 'workouts_per_week'
+  | 'activities_per_week'
   | 'longest_streak'
-  | 'total_workouts';
+  | 'total_activities';
 
 interface AnnualConsistencyCardProps {
   activities: readonly Activity[];
@@ -53,16 +53,16 @@ function buildMetricItems(
     ? computeChange(latestStat.activeDays, prevStat.activeDays)
     : null;
 
-  const workoutsPerWeekChange = prevStat
-    ? computeChange(latestStat.workoutsPerWeek, prevStat.workoutsPerWeek)
+  const activitiesPerWeekChange = prevStat
+    ? computeChange(latestStat.activitiesPerWeek, prevStat.activitiesPerWeek)
     : null;
 
   const streakChange = prevStat
     ? computeChange(latestStat.longestStreakDays, prevStat.longestStreakDays)
     : null;
 
-  const totalWorkoutsChange = prevStat
-    ? computeChange(latestStat.totalWorkouts, prevStat.totalWorkouts)
+  const totalActivitiesChange = prevStat
+    ? computeChange(latestStat.totalActivities, prevStat.totalActivities)
     : null;
 
   return [
@@ -74,10 +74,10 @@ function buildMetricItems(
       change: activeDaysChange
     },
     {
-      key: 'workouts_per_week',
-      label: 'Workouts / Wk',
-      value: `${latestStat.workoutsPerWeek.toFixed(1)} / wk`,
-      change: workoutsPerWeekChange
+      key: 'activities_per_week',
+      label: 'Activities / Wk',
+      value: `${latestStat.activitiesPerWeek.toFixed(1)} / wk`,
+      change: activitiesPerWeekChange
     },
     {
       key: 'longest_streak',
@@ -86,10 +86,10 @@ function buildMetricItems(
       change: streakChange
     },
     {
-      key: 'total_workouts',
-      label: 'Total Sessions',
-      value: `${latestStat.totalWorkouts}`,
-      change: totalWorkoutsChange
+      key: 'total_activities',
+      label: 'Total Activities',
+      value: `${latestStat.totalActivities}`,
+      change: totalActivitiesChange
     }
   ];
 }
@@ -175,12 +175,12 @@ export function AnnualConsistencyCard({
       let y = 0;
       if (selectedMetric === 'active_days') {
         y = stat.activeDays;
-      } else if (selectedMetric === 'workouts_per_week') {
-        y = stat.workoutsPerWeek;
+      } else if (selectedMetric === 'activities_per_week') {
+        y = stat.activitiesPerWeek;
       } else if (selectedMetric === 'longest_streak') {
         y = stat.longestStreakDays;
       } else {
-        y = stat.totalWorkouts;
+        y = stat.totalActivities;
       }
       return { x: String(stat.year), y: Number.isFinite(y) ? y : 0 };
     });
@@ -198,7 +198,7 @@ export function AnnualConsistencyCard({
   const chartWidth = Math.max(320, yearlyStats.length * 60 + 60);
 
   const formatYTick = (val: number): string => {
-    if (selectedMetric === 'workouts_per_week') {
+    if (selectedMetric === 'activities_per_week') {
       return `${val.toFixed(1)}`;
     }
     return `${Math.round(val)}`;

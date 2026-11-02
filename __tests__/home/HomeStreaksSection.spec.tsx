@@ -36,8 +36,8 @@ describe('HomeStreaksSection', () => {
       activeDays: 145,
       totalDays: 200,
       activeDaysPercent: 72.5,
-      totalWorkouts: 160,
-      workoutsPerWeek: 4.2,
+      totalActivities: 160,
+      activitiesPerWeek: 4.2,
       longestStreakDays: 9,
       isCurrentYear: true
     };
@@ -58,7 +58,7 @@ describe('HomeStreaksSection', () => {
     expect(getByText('2026 Active Days')).toBeTruthy();
     expect(getByText('145 / 200 days (73%)')).toBeTruthy();
     expect(getByText('2026 Frequency')).toBeTruthy();
-    expect(getByText('4.2 workouts / wk')).toBeTruthy();
+    expect(getByText('4.2 activities / wk')).toBeTruthy();
 
     const button = getByLabelText('See annual consistency trends');
     expect(button).toBeTruthy();

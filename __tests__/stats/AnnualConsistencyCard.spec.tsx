@@ -39,9 +39,9 @@ describe('AnnualConsistencyCard', () => {
     );
 
     expect(view.getByText('Active Days')).toBeTruthy();
-    expect(view.getByText('Workouts / Wk')).toBeTruthy();
+    expect(view.getByText('Activities / Wk')).toBeTruthy();
     expect(view.getByText('Longest Streak')).toBeTruthy();
-    expect(view.getByText('Total Sessions')).toBeTruthy();
+    expect(view.getByText('Total Activities')).toBeTruthy();
   });
 
   it('filters consistency metrics by sport when selecting a sport chip', () => {
@@ -78,12 +78,12 @@ describe('AnnualConsistencyCard', () => {
       fireEvent.press(streakBadge);
     });
 
-    const sessionsBadge = view.getByLabelText('Show Total Sessions trend');
+    const sessionsBadge = view.getByLabelText('Show Total Activities trend');
     expect(sessionsBadge).toBeTruthy();
     act(() => {
       fireEvent.press(sessionsBadge);
     });
-    expect(view.getByText('Total Sessions')).toBeTruthy();
+    expect(view.getByText('Total Activities')).toBeTruthy();
   });
 
   it('returns null if activities array is empty', () => {

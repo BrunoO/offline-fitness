@@ -12,8 +12,8 @@ export interface YearConsistencyStats {
   activeDays: number;
   totalDays: number;
   activeDaysPercent: number;
-  totalWorkouts: number;
-  workoutsPerWeek: number;
+  totalActivities: number;
+  activitiesPerWeek: number;
   longestStreakDays: number;
   isCurrentYear: boolean;
 }
@@ -86,7 +86,7 @@ function buildYearStat(
 ): YearConsistencyStats {
   const isCurrentYear = year === currentYearNow;
   const activeDays = data.distinctDates.size;
-  const totalWorkouts = data.activityCount;
+  const totalActivities = data.activityCount;
 
   let totalDays: number;
   let totalWeeks: number;
@@ -101,7 +101,7 @@ function buildYearStat(
   }
 
   const activeDaysPercent = Math.min(100, (activeDays / totalDays) * 100);
-  const workoutsPerWeek = totalWorkouts / totalWeeks;
+  const activitiesPerWeek = totalActivities / totalWeeks;
 
   const sortedDays = Array.from(data.distinctDates)
     .sort((a, b) => a.localeCompare(b))
@@ -113,15 +113,15 @@ function buildYearStat(
     activeDays,
     totalDays,
     activeDaysPercent: Number.isFinite(activeDaysPercent) ? activeDaysPercent : 0,
-    totalWorkouts,
-    workoutsPerWeek: Number.isFinite(workoutsPerWeek) ? workoutsPerWeek : 0,
+    totalActivities,
+    activitiesPerWeek: Number.isFinite(activitiesPerWeek) ? activitiesPerWeek : 0,
     longestStreakDays,
     isCurrentYear
   };
 }
 
 /**
- * Computes annual consistency metrics (active days, % of year, workouts/week,
+ * Computes annual consistency metrics (active days, % of year, activities/week,
  * longest daily streak) for each year present in activities.
  *
  * @param activities The list of user activities.

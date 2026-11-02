@@ -49,7 +49,7 @@ export function HomeStreaksSection({
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>{currentYear} Frequency</Text>
               <Text style={styles.infoValue}>
-                {`${currentYearStats.workoutsPerWeek.toFixed(1)} workouts / wk`}
+                {`${currentYearStats.activitiesPerWeek.toFixed(1)} activities / wk`}
               </Text>
             </View>
           </>

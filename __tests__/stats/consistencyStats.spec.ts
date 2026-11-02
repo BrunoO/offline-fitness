@@ -59,7 +59,7 @@ describe('consistencyStats', () => {
     })
   ];
 
-  it('aggregates active days, workouts, and streaks across all sports', () => {
+  it('aggregates active days, activities, and streaks across all sports', () => {
     const stats = computeAnnualConsistencyStats(activities, 'All', fakeNow);
     expect(stats).toHaveLength(2);
 
@@ -69,8 +69,8 @@ describe('consistencyStats', () => {
     expect(y2023.activeDays).toBe(4);
     expect(y2023.totalDays).toBe(365);
     expect(y2023.activeDaysPercent).toBeCloseTo((4 / 365) * 100);
-    // 5 total workouts (2 on Jan 3)
-    expect(y2023.totalWorkouts).toBe(5);
+    // 5 total activities (2 on Jan 3)
+    expect(y2023.totalActivities).toBe(5);
     // Longest streak was Jan 1..3 = 3 days
     expect(y2023.longestStreakDays).toBe(3);
     expect(y2023.isCurrentYear).toBe(false);
@@ -93,7 +93,7 @@ describe('consistencyStats', () => {
     const y2023 = runStats[0];
     // In 2023: Run was on Jan 1, Jan 2, Jan 10 (Jan 3 was Ride+Yoga)
     expect(y2023.activeDays).toBe(3);
-    expect(y2023.totalWorkouts).toBe(3);
+    expect(y2023.totalActivities).toBe(3);
     // Streak: Jan 1 & Jan 2 = 2 days
     expect(y2023.longestStreakDays).toBe(2);
 
