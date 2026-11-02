@@ -1,6 +1,6 @@
 # Plan: Resolve Pre-Existing Lint & Dead-Code Warnings
 
-Status: draft (created 2026-11-02). Scope is the 19 lint warnings + 3 unused exports
+Status: completed (2026-11-02). Scope is the 19 lint warnings + 3 unused exports
 currently reported by `npx expo lint` and `npm run check:knip`. Goal: reach **0 warnings**
 and **0 unused exports** without weakening runtime safety or changing behavior.
 
@@ -114,8 +114,17 @@ calendar, offline, dark mode) on both platforms.
 - **Sonar regressions**: re-scan after each WP; any new issue is fixed in the
   same session.
 
-## Accepted disables (to be filled during WP5)
+## Accepted disables (filled during WP5)
 
-| File | Line | Reason |
-| --- | --- | --- |
-| TBD | TBD | TBD |
+| File | Reason |
+| --- | --- |
+| `fetchAndStoreStreams.ts` (3 sites) | sequential disk read / backfill / storage update to avoid OOM and races |
+| `backupSync.ts` (6 sites) | worker-queue draining, corrupt-log reset, rate-limited remote deletes, batched writes |
+| `webdavTransport.ts` (1 site) | parent folder must exist before child (MKCOL ordering) |
+| `zipReader.ts` (1 site) | sequential stream chunk reading |
+| `exportData.ts` (4 sites) | zip population RAM control, sequential share sheets, chunking avoids OOM |
+
+## Result
+
+All 19 lint warnings and 3 unused exports resolved. `npx expo lint` reports 0 problems;
+`npm run check:knip` reports 0 unused exports; Sonar gate passes with 0 open issues.
