@@ -10,7 +10,6 @@ import {
   Activity,
   compareActivitiesByUtcDesc,
   DetailsScreenProps,
-  isNoGpsActivity,
   seconds_to_label,
   simpleLogger
 } from '@/shared';
@@ -35,6 +34,7 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityAnalysisView } from '../components/ActivityAnalysisView';
 import { ActivityListItem } from '../components/ActivityListItem';
+import { useFilteredActivities } from '../hooks/useFilteredActivities';
 
 // This is the default configuration
 configureReanimatedLogger({
@@ -523,27 +523,6 @@ function resolveBannerTitle(filterLabel?: string): string {
   return `Month: ${filterLabel}`;
 }
 
-/**
- * Applies search, type, and no-stream filters to the sorted activity list.
- */
-function filterActivitiesList(
-  sortedActivities: Activity[],
-  query: string,
-  selectedTypes: Set<string>,
-  hideNoStream: boolean,
-  noStreamIds: Set<string>
-): Activity[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  const nameFiltered =
-    normalizedQuery.length === 0
-      ? sortedActivities
-      : sortedActivities.filter(a => (a.name || '').toLowerCase().includes(normalizedQuery));
-  const typeFiltered =
-    selectedTypes.size === 0 ? nameFiltered : nameFiltered.filter(a => selectedTypes.has(a.type));
-  if (!hideNoStream) return typeFiltered;
-  return typeFiltered.filter(a => !isNoGpsActivity(a.type) && !noStreamIds.has(a.id));
-}
-
 interface FilteredBannerSlotProps {
   isFiltered: boolean;
   filterLabel?: string;
@@ -984,10 +963,12 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     );
   }, [hideNoStream, allActivities]);
 
-  const filteredActivities = useMemo(
-    () =>
-      filterActivitiesList(sortedActivities, searchQuery, selectedTypes, hideNoStream, noStreamIds),
-    [sortedActivities, searchQuery, selectedTypes, hideNoStream, noStreamIds]
+  const filteredActivities = useFilteredActivities(
+    sortedActivities,
+    searchQuery,
+    selectedTypes,
+    hideNoStream,
+    noStreamIds
   );
 
   const useElapsedTime = route.params?.useElapsedTime ?? true;
