@@ -1,4 +1,5 @@
 import { LogEntry, LogLevel, simpleLogger } from '@/shared/services/SimpleLogger';
+import { assertNever } from '@/shared';
 import { ResolvedTheme, useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -30,7 +31,7 @@ export function LogScreen(): JSX.Element {
         case LogLevel.Info:
           return themeColors.logLevel.Info;
         default:
-          return themeColors.logLevel.Default;
+          return assertNever(level);
       }
     },
     [themeColors]
@@ -45,7 +46,7 @@ export function LogScreen(): JSX.Element {
       case LogLevel.Info:
         return 'INFO';
       default:
-        return 'UNKNOWN';
+        return assertNever(level);
     }
   }, []);
 

@@ -9,6 +9,7 @@ import {
 import { monthlyData2, MonthSummary } from '../services/stats';
 
 import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
+import { ROUTES } from '@/constants';
 
 import {
   ActivityIndicator,
@@ -230,7 +231,7 @@ export function RecentMonthsScreen(): JSX.Element {
         year: 'numeric'
       });
 
-      navigation.navigate('Details', {
+      navigation.navigate(ROUTES.Details, {
         allActivities: monthActivities,
         filterLabel: monthLabel,
         useElapsedTime

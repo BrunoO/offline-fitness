@@ -1,4 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
+import { ROUTES } from '@/constants';
 import { evaluateGoal } from '@/features/stats/services/GoalService';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
 import { Activity, RootDrawerParamList } from '@/shared';
@@ -63,7 +64,7 @@ export function ActivityCalendarPeriod({
   // Handle week number press to navigate to RecentWeeksScreen - memoized for performance
   const handleWeekNumberPress = useCallback(() => {
     if (navigation) {
-      navigation.navigate('Stats');
+      navigation.navigate(ROUTES.Stats);
     }
   }, [navigation]);
 

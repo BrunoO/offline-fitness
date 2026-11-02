@@ -49,3 +49,16 @@ export const STORAGE_KEYS = {
   DISMISSED_SWIPE_TIP: 'dismissed_swipe_tip',
   ACTIVITY_PREFIX: 'a_'
 } as const;
+
+// Route names for the drawer navigator. Centralised so navigation calls don't
+// repeat bare string literals (typo-safe, single source of truth).
+export const ROUTES = {
+  Details: 'Details',
+  Logs: 'Logs',
+  Profile: 'Profile',
+  Record: 'Record',
+  RecordsScreen: 'RecordsScreen',
+  Stats: 'Stats'
+} as const;
+
+export type RouteName = (typeof ROUTES)[keyof typeof ROUTES];

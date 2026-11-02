@@ -1,5 +1,6 @@
 import { ProgressOverlay } from '@/features/stats';
 import { exportData, simpleLogger } from '@/shared';
+import { ROUTES } from '@/constants';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DrawerContentComponentProps,
@@ -92,7 +93,7 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         label="Profile"
         onPress={() => {
           props.navigation.closeDrawer();
-          props.navigation.navigate('Profile');
+          props.navigation.navigate(ROUTES.Profile);
         }}
         icon={getIconOptions('person-outline')}
       />
@@ -113,7 +114,7 @@ export function CustomDrawerContent(props: CustomDrawerContentProps): JSX.Elemen
         label="Logs"
         onPress={() => {
           props.navigation.closeDrawer();
-          props.navigation.navigate('Logs');
+          props.navigation.navigate(ROUTES.Logs);
         }}
         icon={getIconOptions('newspaper-outline')}
       />

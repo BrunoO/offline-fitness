@@ -32,6 +32,7 @@ export type {
 // Utils
 export { IconButton } from './utils/IconsUtils';
 export * from './utils/activityCategories';
+export * from './utils/assertNever';
 export * from './utils/utils';
 export * from './utils/isoWeek';
 export * from './utils/activityDates';

@@ -1,4 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
+import { ROUTES } from '@/constants';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -494,7 +495,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
     const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate('Details', {
+    navigation.navigate(ROUTES.Details, {
       allActivities: targetActivity ? [targetActivity] : globalActivities,
       selectedActivityId: activityId,
       filterLabel: targetActivity?.name ? `Achievement: ${targetActivity.name}` : 'Achievement'
@@ -712,7 +713,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           recentAchievements={recentAchievements}
           achievementsStartDate={achievementsStartDate}
           onSelectActivity={goToActivity}
-          onSeeAll={() => navigation.navigate('Stats', { screen: 'RecordsScreen' })}
+          onSeeAll={() => navigation.navigate(ROUTES.Stats, { screen: ROUTES.RecordsScreen })}
           theme={theme}
           styles={styles}
         />
