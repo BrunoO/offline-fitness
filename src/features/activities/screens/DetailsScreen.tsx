@@ -465,7 +465,7 @@ function computeSummaryTotals(
   }
   return {
     distanceKm: (distanceMeters / 1000).toFixed(1),
-    elevationM: Math.round(elevationMeters).toLocaleString(),
+    elevationM: Math.round(elevationMeters).toLocaleString('en-US'),
     timeFormatted: seconds_to_label(Math.round(timeSeconds))
   };
 }
@@ -539,7 +539,11 @@ function FilteredViewBanner({
     totalFilteredCount > 0 &&
     (typeBreakdowns.length > 1 || hasMergedSiblings(typeBreakdowns.map(b => b.type)));
 
-  const bannerTitle = filterLabel ? `Month: ${filterLabel}` : 'Filtered view';
+  const bannerTitle = filterLabel
+    ? filterLabel.includes(':')
+      ? filterLabel
+      : `Month: ${filterLabel}`
+    : 'Filtered view';
 
   return (
     <View style={styles.filterBanner}>
@@ -720,6 +724,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       filterLabel: undefined,
       selectedActivityId: undefined
     });
+    setSelectedActivity(null);
     setSearchQuery('');
     setSelectedTypes(new Set());
     setHideNoStream(false);

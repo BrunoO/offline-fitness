@@ -25,11 +25,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useNavigation } from '@react-navigation/native';
 import React, { JSX, useCallback, useMemo, useState } from 'react';
 
-import {
-  MERGED_ACTIVITY_TYPES,
-  useActivitiesContext,
-  useProcessedActivities
-} from '@/features/activities';
+import { useActivitiesContext, useProcessedActivities } from '@/features/activities';
 import { VictoryAxis, VictoryBar, VictoryChart, VictoryLabel } from 'victory-native';
 import { useSettings } from '../StatsTabSettingsContext';
 
@@ -220,15 +216,14 @@ export function RecentMonthsScreen(): JSX.Element {
       const targetMonth = datum.month.getMonth();
       // Respect current sport selection while preserving original raw activity types:
       // An activity matches if its folded type (or original type) matches user's selected activities.
-      const monthActivities = globalActivities.filter(a => {
+      const monthActivities = allActivitiesToUse.filter(a => {
         if (a.start_year !== targetYear || a.start_month !== targetMonth) {
           return false;
         }
         if (selectedActivities.size === 0) {
           return true;
         }
-        const effectiveType = MERGED_ACTIVITY_TYPES[a.type] ?? a.type;
-        return selectedActivities.has(effectiveType) || selectedActivities.has(a.type);
+        return selectedActivities.has(a.type);
       });
       const monthLabel = datum.month.toLocaleString('en-US', {
         month: 'short',
@@ -241,7 +236,7 @@ export function RecentMonthsScreen(): JSX.Element {
         useElapsedTime
       });
     },
-    [globalActivities, selectedActivities, navigation, useElapsedTime]
+    [allActivitiesToUse, selectedActivities, navigation, useElapsedTime]
   );
 
   // Filtering handled by ChipMultiSelect
