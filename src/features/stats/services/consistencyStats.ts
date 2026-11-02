@@ -31,17 +31,93 @@ function calculateLongestDayStreak(sortedDayNumbers: number[]): number {
   let current = 1;
 
   for (let i = 1; i < sortedDayNumbers.length; i++) {
-    if (sortedDayNumbers[i] - sortedDayNumbers[i - 1] === 1) {
-      current += 1;
-      if (current > best) {
-        best = current;
-      }
-    } else if (sortedDayNumbers[i] !== sortedDayNumbers[i - 1]) {
-      current = 1;
+    const diff = sortedDayNumbers[i] - sortedDayNumbers[i - 1];
+    if (diff === 0) {
+      continue;
+    }
+    current = diff === 1 ? current + 1 : 1;
+    if (current > best) {
+      best = current;
     }
   }
 
   return best;
+}
+
+interface YearAccumulator {
+  distinctDates: Set<string>;
+  activityCount: number;
+}
+
+function aggregateActivitiesByYear(
+  activities: readonly Activity[],
+  sportFilter?: string
+): Map<number, YearAccumulator> {
+  const map = new Map<number, YearAccumulator>();
+
+  for (const a of activities) {
+    if (sportFilter && sportFilter !== 'All' && a.type !== sportFilter) {
+      continue;
+    }
+    const year = a.start_year;
+    if (!year || year <= 0) continue;
+
+    const localDate = activityLocalDate(a);
+    if (!localDate) continue;
+
+    const data = map.get(year) ?? {
+      distinctDates: new Set<string>(),
+      activityCount: 0
+    };
+
+    data.distinctDates.add(localDate);
+    data.activityCount += 1;
+    map.set(year, data);
+  }
+
+  return map;
+}
+
+function buildYearStat(
+  year: number,
+  data: YearAccumulator,
+  currentYearNow: number,
+  now: Date
+): YearConsistencyStats {
+  const isCurrentYear = year === currentYearNow;
+  const activeDays = data.distinctDates.size;
+  const totalWorkouts = data.activityCount;
+
+  let totalDays: number;
+  let totalWeeks: number;
+
+  if (isCurrentYear) {
+    const dayOfYear = dayOfYearFromParts(now.getFullYear(), now.getMonth(), now.getDate());
+    totalDays = Math.max(1, dayOfYear);
+    totalWeeks = Math.max(1, totalWeeksTillToday(year, now));
+  } else {
+    totalDays = isLeapYear(year) ? 366 : 365;
+    totalWeeks = weeksInIsoYear(year);
+  }
+
+  const activeDaysPercent = Math.min(100, (activeDays / totalDays) * 100);
+  const workoutsPerWeek = totalWorkouts / totalWeeks;
+
+  const sortedDays = Array.from(data.distinctDates)
+    .sort((a, b) => a.localeCompare(b))
+    .map(localDateToDayNumber);
+  const longestStreakDays = calculateLongestDayStreak(sortedDays);
+
+  return {
+    year,
+    activeDays,
+    totalDays,
+    activeDaysPercent: Number.isFinite(activeDaysPercent) ? activeDaysPercent : 0,
+    totalWorkouts,
+    workoutsPerWeek: Number.isFinite(workoutsPerWeek) ? workoutsPerWeek : 0,
+    longestStreakDays,
+    isCurrentYear
+  };
 }
 
 /**
@@ -58,75 +134,11 @@ export function computeAnnualConsistencyStats(
   now: Date = new Date()
 ): YearConsistencyStats[] {
   const currentYearNow = now.getFullYear();
-
-  // Group distinct active local_dates and activities by start_year
-  const yearDataMap = new Map<
-    number,
-    {
-      distinctDates: Set<string>;
-      activityCount: number;
-    }
-  >();
-
-  for (const a of activities) {
-    if (sportFilter && sportFilter !== 'All' && a.type !== sportFilter) {
-      continue;
-    }
-    const year = a.start_year;
-    if (!year || year <= 0) continue;
-
-    const localDate = activityLocalDate(a);
-    if (!localDate) continue;
-
-    const data = yearDataMap.get(year) ?? {
-      distinctDates: new Set<string>(),
-      activityCount: 0
-    };
-
-    data.distinctDates.add(localDate);
-    data.activityCount += 1;
-    yearDataMap.set(year, data);
-  }
+  const yearDataMap = aggregateActivitiesByYear(activities, sportFilter);
 
   const result: YearConsistencyStats[] = [];
-
   for (const [year, data] of yearDataMap.entries()) {
-    const isCurrentYear = year === currentYearNow;
-    const activeDays = data.distinctDates.size;
-    const totalWorkouts = data.activityCount;
-
-    // Total days elapsed or in year
-    let totalDays: number;
-    let totalWeeks: number;
-
-    if (isCurrentYear) {
-      const dayOfYear = dayOfYearFromParts(now.getFullYear(), now.getMonth(), now.getDate());
-      totalDays = Math.max(1, dayOfYear);
-      totalWeeks = Math.max(1, totalWeeksTillToday(year, now));
-    } else {
-      totalDays = isLeapYear(year) ? 366 : 365;
-      totalWeeks = weeksInIsoYear(year);
-    }
-
-    const activeDaysPercent = Math.min(100, (activeDays / totalDays) * 100);
-    const workoutsPerWeek = totalWorkouts / totalWeeks;
-
-    // Longest streak of consecutive days in that year
-    const sortedDays = Array.from(data.distinctDates)
-      .sort((a, b) => a.localeCompare(b))
-      .map(localDateToDayNumber);
-    const longestStreakDays = calculateLongestDayStreak(sortedDays);
-
-    result.push({
-      year,
-      activeDays,
-      totalDays,
-      activeDaysPercent: Number.isFinite(activeDaysPercent) ? activeDaysPercent : 0,
-      totalWorkouts,
-      workoutsPerWeek: Number.isFinite(workoutsPerWeek) ? workoutsPerWeek : 0,
-      longestStreakDays,
-      isCurrentYear
-    });
+    result.push(buildYearStat(year, data, currentYearNow, now));
   }
 
   return result.sort((a, b) => a.year - b.year);

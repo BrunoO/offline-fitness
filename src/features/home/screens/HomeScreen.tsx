@@ -14,7 +14,12 @@ import { HomeFooter } from '../components/HomeFooter';
 import { HomeStreaksSection } from '../components/HomeStreaksSection';
 import { HomeWeekSummary } from '../components/HomeWeekSummary';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
-import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
+import {
+  ActivityStats,
+  calculateRecentActivityStats,
+  computeAnnualConsistencyStats,
+  weeklyData
+} from '@/features/stats';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
 import {
   Activity,
@@ -486,6 +491,14 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     return { totalHours, totalDistanceKm, totalElevationM };
   }, [globalActivities, useElapsedTime]);
 
+  // Current year consistency & active days stats (derived, not state + effect).
+  const currentYearConsistency = useMemo(() => {
+    if (globalActivities.length === 0) return null;
+    const currentYear = new Date().getFullYear();
+    const allYears = computeAnnualConsistencyStats(globalActivities);
+    return allYears.find(y => y.year === currentYear) ?? null;
+  }, [globalActivities]);
+
   // Recent achievements (across all activities) — derived, not state + effect.
   const { recentAchievements, achievementsStartDate } = useMemo(
     () => computeRecentAchievements(globalActivities, numberRecentWeeks, useElapsedTime),
@@ -682,6 +695,12 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           dayStreak={dayStreak}
           weekStreak={weekStreak}
           goalWeekStreak={goalWeekStreak}
+          currentYearStats={currentYearConsistency}
+          onSeeAnnualTrends={() =>
+            navigation.navigate(DRAWER_ROUTES.Stats, {
+              screen: STATS_TAB_ROUTES.RecentYearsScreen
+            })
+          }
           styles={styles}
         />
 

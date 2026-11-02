@@ -94,6 +94,60 @@ function buildMetricItems(
   ];
 }
 
+interface MetricBadgeButtonProps {
+  readonly metric: MetricItem;
+  readonly isSelected: boolean;
+  readonly onSelect: (key: ConsistencyMetricKey) => void;
+  readonly theme: ResolvedTheme;
+  readonly styles: ReturnType<typeof createStyles>;
+}
+
+function getChangeColor(change: MetricChange | null | undefined, theme: ResolvedTheme): string {
+  if (!change || change.isNeutral) {
+    return theme.textMuted;
+  }
+  return change.isPositive ? theme.success : theme.danger;
+}
+
+function MetricBadgeButton({
+  metric,
+  isSelected,
+  onSelect,
+  theme,
+  styles
+}: MetricBadgeButtonProps): React.JSX.Element {
+  const changeColor = getChangeColor(metric.change, theme);
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={`Show ${metric.label} trend`}
+      onPress={() => onSelect(metric.key)}
+      style={[styles.badgeCard, isSelected ? styles.badgeCardSelected : null]}
+    >
+      <Text style={styles.badgeLabel} numberOfLines={1}>
+        {metric.label}
+      </Text>
+      <Text style={[styles.badgeValue, isSelected ? styles.badgeValueSelected : null]}>
+        {metric.value}
+      </Text>
+      {metric.subValue ? <Text style={styles.badgeSubValue}>{metric.subValue}</Text> : null}
+      {metric.change ? (
+        <View style={styles.changeRow}>
+          {!metric.change.isNeutral ? (
+            <Ionicons
+              name={metric.change.isPositive ? 'arrow-up' : 'arrow-down'}
+              size={12}
+              color={changeColor}
+            />
+          ) : null}
+          <Text style={[styles.changeText, { color: changeColor }]}>{metric.change.text} YoY</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 export function AnnualConsistencyCard({
   activities,
   availableSports
@@ -113,8 +167,8 @@ export function AnnualConsistencyCard({
     return computeAnnualConsistencyStats(activities, selectedSport);
   }, [activities, selectedSport]);
 
-  const latestStat = yearlyStats.length > 0 ? yearlyStats[yearlyStats.length - 1] : null;
-  const prevStat = yearlyStats.length > 1 ? yearlyStats[yearlyStats.length - 2] : null;
+  const latestStat = yearlyStats.length > 0 ? (yearlyStats.at(-1) ?? null) : null;
+  const prevStat = yearlyStats.length > 1 ? (yearlyStats.at(-2) ?? null) : null;
 
   const chartData = useMemo(() => {
     return yearlyStats.map(stat => {
@@ -182,47 +236,16 @@ export function AnnualConsistencyCard({
 
       {/* Metric Badges Grid */}
       <View style={styles.grid}>
-        {metrics.map(m => {
-          const isSelected = selectedMetric === m.key;
-          return (
-            <TouchableOpacity
-              key={m.key}
-              accessibilityRole="button"
-              accessibilityLabel={`Show ${m.label} trend`}
-              onPress={() => setSelectedMetric(m.key)}
-              style={[styles.badgeCard, isSelected ? styles.badgeCardSelected : null]}
-            >
-              <Text style={styles.badgeLabel} numberOfLines={1}>
-                {m.label}
-              </Text>
-              <Text style={[styles.badgeValue, isSelected ? styles.badgeValueSelected : null]}>
-                {m.value}
-              </Text>
-              {m.subValue ? <Text style={styles.badgeSubValue}>{m.subValue}</Text> : null}
-              {m.change ? (
-                <View style={styles.changeRow}>
-                  {!m.change.isNeutral ? (
-                    <Ionicons
-                      name={m.change.isPositive ? 'arrow-up' : 'arrow-down'}
-                      size={12}
-                      color={m.change.isPositive ? theme.success : theme.danger}
-                    />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.changeText,
-                      m.change.isNeutral
-                        ? { color: theme.textMuted }
-                        : { color: m.change.isPositive ? theme.success : theme.danger }
-                    ]}
-                  >
-                    {m.change.text} YoY
-                  </Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
+        {metrics.map(m => (
+          <MetricBadgeButton
+            key={m.key}
+            metric={m}
+            isSelected={selectedMetric === m.key}
+            onSelect={setSelectedMetric}
+            theme={theme}
+            styles={styles}
+          />
+        ))}
       </View>
 
       {/* Chart Section */}

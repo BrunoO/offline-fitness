@@ -73,14 +73,17 @@ describe('AnnualConsistencyCard', () => {
     );
 
     const streakBadge = view.getByLabelText('Show Longest Streak trend');
+    expect(streakBadge).toBeTruthy();
     act(() => {
       fireEvent.press(streakBadge);
     });
 
     const sessionsBadge = view.getByLabelText('Show Total Sessions trend');
+    expect(sessionsBadge).toBeTruthy();
     act(() => {
       fireEvent.press(sessionsBadge);
     });
+    expect(view.getByText('Total Sessions')).toBeTruthy();
   });
 
   it('returns null if activities array is empty', () => {

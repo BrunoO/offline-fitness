@@ -18,6 +18,10 @@ export { StatsTab } from './screens/StatsTab';
 
 // Services
 export { ActivityStats, calculateRecentActivityStats } from './services/activity-stats';
+export {
+  computeAnnualConsistencyStats,
+  type YearConsistencyStats
+} from './services/consistencyStats';
 export { evaluateGoal, validateGoal } from './services/GoalService';
 export {
   monthlyData2,

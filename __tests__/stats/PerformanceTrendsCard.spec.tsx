@@ -87,14 +87,17 @@ describe('PerformanceTrendsCard', () => {
     );
 
     const elevBadge = view.getByLabelText('Show Elev / 10km trend');
+    expect(elevBadge).toBeTruthy();
     act(() => {
       fireEvent.press(elevBadge);
     });
 
     const distBadge = view.getByLabelText('Show Avg Distance trend');
+    expect(distBadge).toBeTruthy();
     act(() => {
       fireEvent.press(distBadge);
     });
+    expect(view.getByText('Avg Distance')).toBeTruthy();
   });
 
   it('returns null if activities array is empty', () => {
