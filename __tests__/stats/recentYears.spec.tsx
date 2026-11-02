@@ -119,6 +119,9 @@ describe('RecentYearsScreen', () => {
     expect(shareBtn).toBeTruthy();
     expect(hoursBtn).toBeTruthy();
 
+    // Verify Pace & Intensity section is present
+    expect(view.getByText('Pace & Intensity Trends')).toBeTruthy();
+
     // Sport legend contains discovered activity types
     expect(view.getAllByText('Run').length).toBeGreaterThan(0);
     expect(view.getAllByText('Ride').length).toBeGreaterThan(0);
