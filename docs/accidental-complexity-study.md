@@ -22,7 +22,8 @@ non-negotiable invariant set, enforced by SonarQube rules, clang-tidy, and
 code review.
 
 This document translates that concept to Offline Fitness's stack and audits
-the current codebase against it.
+the current codebase against it. Section 3.3 lists additional traps that are
+native to TypeScript and React Native and do not appear in the C++ ledger.
 
 ## 2. Translation principle
 
@@ -122,6 +123,35 @@ the runtime, type system, and component model differ:
      `DetailsScreen` 23, `buildManualActivity` 20, `BackupSection` 17). WP4
      (`buildManualActivity`, `BackupSection`) still pending.
 
+## 3.3 React Native / TypeScript-specific traps (not in the C++ ledger)
+
+These are accidental-complexity patterns that arise from the language and
+runtime rather than from the C++ traps above. They are the ones most likely to
+bit Offline Fitness specifically.
+
+| Trap | What it looks like here | Status |
+| --- | --- | --- |
+| **Type erosion** (`any`, `as`, `@ts-ignore`) | Escaping the type system hides refactors and breaks rename/autocomplete; the compiler can no longer protect invariants. | Clean: `grep` finds 1 `any` and 1 justified `@ts-expect-error` (FlashList v2 ref). Keep it that way. |
+| **Primitive obsession / stringly-typed IDs** | Activity ids, storage keys, route names, and metric units passed as bare `string`/`number`. No branded types; a unit mistake compiles. | Open: many `id: string`, `type: string`, magic route strings. Candidate for branded types or const enums (as maps). |
+| **Derived state stored as state** | `useState` for a value computable from props/state, plus a `useEffect` to keep it in sync — stale-prone and double renders. | Clean-ish: `HomeScreen` already converted `weeklySummary`/`recentAchievements` to `useMemo`. Audit others. |
+| **Context value not memoised** | A new object/array on every render re-renders every consumer. | Clean: `ActivitiesContext` splits data vs. sync and memoises both values; `ManualEntryContext` and `SettingsContext` use `useMemo`. |
+| **Nested component definitions** | A component declared inside another component gets a new identity each render → remounts, loses state, breaks memoisation. | Clean: none found (only handlers, not components). |
+| **Index as list key** | Reordering/mutation bugs; FlashList recycling corruption. | Clean: no `key={index}` found. |
+| **Floating promises** | `void`-less async calls swallow rejections; eslint rule is an error here. | Clean: enforced by `eslint.config.mjs` (hard error). |
+| **Stale closures in effects/callbacks** | Captured outdated state in `useEffect`/`useCallback` deps. | Watch: Reanimated worklets and `setInterval` callbacks in recording; verify cleanup. |
+| **Effect-as-event-handler** | Side effects triggered from render or from an effect that should be a click handler. | Watch: recording timers and HR sampling. |
+| **Platform `if` scattered in logic** | `Platform.OS` checks inside business logic instead of platform files / `Platform.select` for styling. | Clean: `Platform.OS` used 4 times, all in permissions/maps; styling uses `Platform.select`. |
+| **Hardcoded dimensions / colours** | Bypasses theme and breaks dark mode / safe areas. | Clean: enforced by AGENTS.md + `useTheme()`; colours only in `src/theme/`. |
+| **Missing cleanup (timers/listeners)** | `setTimeout`/`setInterval`/subscriptions not cleared → leaks on unmount. | Watch: recording tick timers, HR sampling intervals; verify `useEffect` cleanup. |
+| **Unsafe list virtualisation** | `ScrollView` over unbounded data instead of `FlashList`. | Clean: FlashList used for activity lists. |
+| **Over-broad global state** | Lifting local UI state into a context/provider. | Watch: `useRecording` holds a lot of local UI state; candidate for splitting. |
+| **Stringly-typed navigation/storage** | Route names and AsyncStorage keys as literals scattered across files. | Open: keys centralised in `constants/index.ts` (good) but route names are literals in `navigation.navigate(...)`; candidate for a typed route map. |
+| **Memoisation as accidental complexity** | `useMemo`/`useCallback` added "just in case", fighting the React Compiler and hiding stale-data bugs. | Tracked: `docs/memoization-audit.md` (173 `useMemo` + 94 `useCallback`); prune with profiling. |
+| **Generic over-engineering** | `<T>` utilities with a single caller, or `satisfies`/conditional types that obscure intent. | Clean-ish: only a few generic helpers (`readChunkedJsonl`, `runWithConcurrency`), each with multiple callers. |
+| **Non-exhaustive switches** | Missing `never` check lets a new union member silently fall through. | Watch: sport-type and activity-type switches; add `assertNever` exhaustiveness checks. |
+| **`eslint-disable` accumulation** | Scoped disables that become permanent and mask regressions. | Clean-ish: all 15 disables are the documented await-in-loop sites (WP5). No other disables. |
+| **Premature abstraction of async** | Wrapping `fetch`/storage in generic "safe" helpers with no callers. | Clean: no `safeExecute`/`safeCall` wrappers exist. |
+
 ## 4. What does *not* translate (and why)
 
 - **Namespaces over static classes** — TS modules already are namespaces; the
@@ -171,6 +201,15 @@ Before introducing an abstraction, hook, or new module, answer:
 7. **Memoization:** is this `useMemo`/`useCallback`/`React.memo` justified by
    a dependency-stability or measured-performance reason the compiler cannot see?
    If not, write plain code.
+8. **Type integrity:** does this change introduce `any`, `as`, `@ts-ignore`, or a
+   new stringly-typed id/route/key? If yes, justify or replace with a typed
+   construct (branded type, const map, typed route).
+9. **State shape:** is this state derived from other state/props (compute it)
+   rather than stored and synced via effect? Are context provider values
+   memoised?
+10. **Async safety:** does every async call have error handling, cancellation on
+    unmount, and no floating promise? Are timers/listeners cleaned up?
+11. **Exhaustiveness:** do switches over unions have an `assertNever` default?
 
 ## 7. References
 

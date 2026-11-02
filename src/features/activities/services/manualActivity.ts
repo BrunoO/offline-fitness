@@ -169,8 +169,29 @@ function validateManualActivityInput(input: ManualActivityInput): void {
   }
 }
 
-export function buildManualActivity(input: ManualActivityInput): Activity {
-  validateManualActivityInput(input);
+interface ManualActivityCore {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  startUtcMs: number;
+  type: string;
+  name: string;
+  localTime: string;
+  durationSec: number;
+  utcOffsetSeconds: number;
+  distanceM: number;
+  elevationGainM: number;
+  averageSpeed: number;
+}
+
+/**
+ * Derives all computed fields for a manual activity. Validation of the raw
+ * input is handled separately by `validateManualActivityInput`; this helper
+ * assumes the input has already passed validation.
+ */
+function computeManualActivityCore(input: ManualActivityInput): ManualActivityCore {
   const { year, month, day } = parseDatePart(input.localDate);
   const { hour, minute } = parseTimePart(input.localTime);
 
@@ -196,30 +217,52 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   const averageSpeed = distanceM > 0 && durationSec > 0 ? distanceM / durationSec : 0;
 
   return {
-    id: `manual-${startUtcMs}-${(manualIdCounter++).toString(36)}`,
-    name,
-    // Same mislabeled-Z convention as imported records (see activityDates.ts).
-    start_date_local: `${input.localDate}T${localTime}Z`,
-    local_date: input.localDate,
-    local_time: localTime,
-    start_date_utc: new Date(startUtcMs).toISOString(),
-    start_timestamp_utc: startUtcMs,
-    timezone: input.timezone ?? deviceTimezoneLabel(),
-    start_year: year,
-    start_month: month - 1,
-    start_day: day,
-    start_week: week_of_year(year, month - 1, day),
-    distance: distanceM,
-    elapsed_time: durationSec,
-    // Swims canonicalised at write time, like `rowToActivity` does.
-    moving_time: durationSec,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    startUtcMs,
     type,
-    average_speed: averageSpeed,
-    total_elevation_gain: elevationGainM,
+    name,
+    localTime,
+    durationSec,
+    utcOffsetSeconds,
+    distanceM,
+    elevationGainM,
+    averageSpeed
+  };
+}
+
+export function buildManualActivity(input: ManualActivityInput): Activity {
+  validateManualActivityInput(input);
+  const c = computeManualActivityCore(input);
+
+  return {
+    id: `manual-${c.startUtcMs}-${(manualIdCounter++).toString(36)}`,
+    name: c.name,
+    // Same mislabeled-Z convention as imported records (see activityDates.ts).
+    start_date_local: `${input.localDate}T${c.localTime}Z`,
+    local_date: input.localDate,
+    local_time: c.localTime,
+    start_date_utc: new Date(c.startUtcMs).toISOString(),
+    start_timestamp_utc: c.startUtcMs,
+    timezone: input.timezone ?? deviceTimezoneLabel(),
+    start_year: c.year,
+    start_month: c.month - 1,
+    start_day: c.day,
+    start_week: week_of_year(c.year, c.month - 1, c.day),
+    distance: c.distanceM,
+    elapsed_time: c.durationSec,
+    // Swims canonicalised at write time, like `rowToActivity` does.
+    moving_time: c.durationSec,
+    type: c.type,
+    average_speed: c.averageSpeed,
+    total_elevation_gain: c.elevationGainM,
     elev_high: 0,
     elev_low: 0,
     start_latlng: [],
     end_latlng: [],
-    utc_offset: utcOffsetSeconds
+    utc_offset: c.utcOffsetSeconds
   };
 }
