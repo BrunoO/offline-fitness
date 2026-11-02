@@ -11,7 +11,7 @@ export const BARO_WEIGHT_GPS = 0.15;
 export const BARO_WEIGHT_BARO = 0.85;
 export const HYSTERESIS_THRESHOLD_BARO_M = 1.5;
 export const HYSTERESIS_THRESHOLD_GPS_M = 3.5;
-export const STATIONARY_HOLD_MS = 5_000;
+const STATIONARY_HOLD_MS = 5_000;
 
 export const PROFILE_STATIONARY_SPEED: Record<Profile, number> = {
   walking: PROFILE_FILTER_OPTIONS.walking.stationarySpeedThreshold,
