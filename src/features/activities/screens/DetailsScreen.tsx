@@ -504,6 +504,17 @@ function hasMergedSiblings(types: string[]): boolean {
   return foldedTargets.size > 0 && types.some(t => foldedTargets.has(t));
 }
 
+/**
+ * Resolves the title shown in the filtered-view banner.
+ * Month labels are prefixed with "Month:"; labels that already carry their own
+ * prefix (e.g. "Achievement: …", "Record: …") are used verbatim.
+ */
+function resolveBannerTitle(filterLabel?: string): string {
+  if (!filterLabel) return 'Filtered view';
+  if (filterLabel.includes(':')) return filterLabel;
+  return `Month: ${filterLabel}`;
+}
+
 interface FilteredViewBannerProps {
   filterLabel?: string;
   totalFilteredCount: number;
@@ -539,11 +550,7 @@ function FilteredViewBanner({
     totalFilteredCount > 0 &&
     (typeBreakdowns.length > 1 || hasMergedSiblings(typeBreakdowns.map(b => b.type)));
 
-  const bannerTitle = filterLabel
-    ? filterLabel.includes(':')
-      ? filterLabel
-      : `Month: ${filterLabel}`
-    : 'Filtered view';
+  const bannerTitle = resolveBannerTitle(filterLabel);
 
   return (
     <View style={styles.filterBanner}>
