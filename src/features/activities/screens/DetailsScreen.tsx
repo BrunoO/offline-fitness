@@ -1080,7 +1080,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       <View style={styles.listContainer}>
         <FilteredBannerSlot
           isFiltered={route.params?.allActivities !== undefined}
-          filterLabel={route.params.filterLabel}
+          filterLabel={route.params?.filterLabel}
           totalFilteredCount={filteredActivities.length}
           totalBaseCount={allActivities.length}
           distanceKm={summaryTotals.distanceKm}
@@ -1129,7 +1129,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           styles={styles}
         />
         <SwipeTipBannerSlot
-          visible={showSwipeTip ? allActivities.length > 0 : null}
+          visible={showSwipeTip && allActivities.length > 0}
           onDismiss={handleDismissSwipeTip}
           styles={styles}
           primaryColor={theme.primary}

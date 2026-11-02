@@ -32,6 +32,177 @@ function idSuffix(ids: readonly string[]): string {
  * with a PROPFIND before being saved. Configured: manual "Sync now" and
  * "Restore" plus disconnect. No automatic syncing happens.
  */
+interface UnconfiguredBackupViewProps {
+  serverUrl: string;
+  setServerUrl: (v: string) => void;
+  serverUser: string;
+  setServerUser: (v: string) => void;
+  serverPassword: string;
+  setServerPassword: (v: string) => void;
+  profileName: string;
+  setProfileName: (v: string) => void;
+  isTesting: boolean;
+  status: string;
+  handleConnect: () => void;
+  inputStyle: React.ComponentProps<typeof TextInput>['style'];
+  buttonStyle: React.ComponentProps<typeof TouchableOpacity>['style'];
+  textColor: string;
+  mutedColor: string;
+}
+
+function UnconfiguredBackupView(props: Readonly<UnconfiguredBackupViewProps>): React.JSX.Element {
+  const {
+    serverUrl,
+    setServerUrl,
+    serverUser,
+    setServerUser,
+    serverPassword,
+    setServerPassword,
+    profileName,
+    setProfileName,
+    isTesting,
+    status,
+    handleConnect,
+    inputStyle,
+    buttonStyle,
+    textColor,
+    mutedColor
+  } = props;
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+      <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
+      <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
+        Account URL of your WebDAV server (e.g. Nextcloud:
+        https://host:8080/remote.php/dav/files/USER/), plus username and password (app password
+        recommended).
+      </Text>
+      <TextInput
+        style={inputStyle}
+        placeholder="Server URL"
+        placeholderTextColor={mutedColor}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        value={serverUrl}
+        onChangeText={setServerUrl}
+      />
+      <TextInput
+        style={inputStyle}
+        placeholder="Username"
+        placeholderTextColor={mutedColor}
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={serverUser}
+        onChangeText={setServerUser}
+      />
+      <TextInput
+        style={inputStyle}
+        placeholder="Password"
+        placeholderTextColor={mutedColor}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        value={serverPassword}
+        onChangeText={setServerPassword}
+      />
+      <TextInput
+        style={inputStyle}
+        placeholder="Profile name (e.g. your name)"
+        placeholderTextColor={mutedColor}
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={profileName}
+        onChangeText={setProfileName}
+      />
+      <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
+        Your backup goes to {APP_CONFIG.BACKUP_APP_ID}/{profileName.trim() || '<profile>'}. Use the
+        same profile name on all your devices; people sharing one server account each pick their
+        own.
+      </Text>
+      <TouchableOpacity onPress={handleConnect} disabled={isTesting} style={buttonStyle}>
+        <Text style={{ color: textColor }}>{isTesting ? 'Testing…' : 'Connect'}</Text>
+      </TouchableOpacity>
+      {status !== '' ? (
+        <Text style={{ color: mutedColor, marginTop: 4 }} numberOfLines={3}>
+          {status}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+interface ConfiguredBackupViewProps {
+  username: string;
+  profile: string;
+  collectionUrl: string;
+  lastSync: string;
+  status: string;
+  isSyncing: boolean;
+  isRestoring: boolean;
+  handleSyncNow: () => void;
+  handleRestore: () => void;
+  handleDisconnect: () => void;
+  buttonStyle: React.ComponentProps<typeof TouchableOpacity>['style'];
+  textColor: string;
+  mutedColor: string;
+}
+
+function ConfiguredBackupView(props: Readonly<ConfiguredBackupViewProps>): React.JSX.Element {
+  const {
+    username,
+    profile,
+    collectionUrl,
+    lastSync,
+    status,
+    isSyncing,
+    isRestoring,
+    handleSyncNow,
+    handleRestore,
+    handleDisconnect,
+    buttonStyle,
+    textColor,
+    mutedColor
+  } = props;
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+      <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
+      <Text style={{ color: mutedColor, fontSize: 12 }} numberOfLines={1}>
+        {username} · {profile}
+      </Text>
+      <Text style={{ color: mutedColor, fontSize: 12, marginBottom: 4 }} numberOfLines={2}>
+        {collectionUrl}
+      </Text>
+      <Text style={{ color: mutedColor, marginBottom: 8 }}>{formatLastSync(lastSync)}</Text>
+      <TouchableOpacity
+        onPress={handleSyncNow}
+        disabled={isSyncing || isRestoring}
+        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
+      >
+        <Text style={{ color: textColor }}>{isSyncing ? 'Backing up…' : 'Sync now'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={handleRestore}
+        disabled={isSyncing || isRestoring}
+        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
+      >
+        <Text style={{ color: textColor }}>{isRestoring ? 'Restoring…' : 'Restore'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={handleDisconnect}
+        disabled={isSyncing || isRestoring}
+        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
+      >
+        <Text style={{ color: textColor }}>Disconnect</Text>
+      </TouchableOpacity>
+      {status !== '' ? (
+        <Text style={{ color: mutedColor, marginTop: 4 }} numberOfLines={3}>
+          {status}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function BackupSection() {
   const theme = useTheme();
   const {
@@ -242,104 +413,41 @@ export function BackupSection() {
 
   if (!isConfigured) {
     return (
-      <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-        <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
-        <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
-          Account URL of your WebDAV server (e.g. Nextcloud:
-          https://host:8080/remote.php/dav/files/USER/), plus username and password (app password
-          recommended).
-        </Text>
-        <TextInput
-          style={inputStyle}
-          placeholder="Server URL"
-          placeholderTextColor={mutedColor}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          value={serverUrl}
-          onChangeText={setServerUrl}
-        />
-        <TextInput
-          style={inputStyle}
-          placeholder="Username"
-          placeholderTextColor={mutedColor}
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={serverUser}
-          onChangeText={setServerUser}
-        />
-        <TextInput
-          style={inputStyle}
-          placeholder="Password"
-          placeholderTextColor={mutedColor}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          value={serverPassword}
-          onChangeText={setServerPassword}
-        />
-        <TextInput
-          style={inputStyle}
-          placeholder="Profile name (e.g. your name)"
-          placeholderTextColor={mutedColor}
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={profileName}
-          onChangeText={setProfileName}
-        />
-        <Text style={{ color: mutedColor, marginBottom: 8, fontSize: 12 }}>
-          Your backup goes to {APP_CONFIG.BACKUP_APP_ID}/{profileName.trim() || '<profile>'}. Use
-          the same profile name on all your devices; people sharing one server account each pick
-          their own.
-        </Text>
-        <TouchableOpacity onPress={handleConnect} disabled={isTesting} style={buttonStyle}>
-          <Text style={{ color: textColor }}>{isTesting ? 'Testing…' : 'Connect'}</Text>
-        </TouchableOpacity>
-        {status !== '' ? (
-          <Text style={{ color: mutedColor, marginTop: 4 }} numberOfLines={3}>
-            {status}
-          </Text>
-        ) : null}
-      </View>
+      <UnconfiguredBackupView
+        serverUrl={serverUrl}
+        setServerUrl={setServerUrl}
+        serverUser={serverUser}
+        setServerUser={setServerUser}
+        serverPassword={serverPassword}
+        setServerPassword={setServerPassword}
+        profileName={profileName}
+        setProfileName={setProfileName}
+        isTesting={isTesting}
+        status={status}
+        handleConnect={handleConnect}
+        inputStyle={inputStyle}
+        buttonStyle={buttonStyle}
+        textColor={textColor}
+        mutedColor={mutedColor}
+      />
     );
   }
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-      <Text style={{ color: textColor, fontWeight: 'bold', marginBottom: 4 }}>WebDAV Backup</Text>
-      <Text style={{ color: mutedColor, fontSize: 12 }} numberOfLines={1}>
-        {username} · {profile}
-      </Text>
-      <Text style={{ color: mutedColor, fontSize: 12, marginBottom: 4 }} numberOfLines={2}>
-        {collectionUrl}
-      </Text>
-      <Text style={{ color: mutedColor, marginBottom: 8 }}>{formatLastSync(lastSync)}</Text>
-      <TouchableOpacity
-        onPress={handleSyncNow}
-        disabled={isSyncing || isRestoring}
-        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
-      >
-        <Text style={{ color: textColor }}>{isSyncing ? 'Backing up…' : 'Sync now'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={handleRestore}
-        disabled={isSyncing || isRestoring}
-        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
-      >
-        <Text style={{ color: textColor }}>{isRestoring ? 'Restoring…' : 'Restore'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={handleDisconnect}
-        disabled={isSyncing || isRestoring}
-        style={{ ...buttonStyle, opacity: isSyncing || isRestoring ? 0.5 : 1 }}
-      >
-        <Text style={{ color: textColor }}>Disconnect</Text>
-      </TouchableOpacity>
-      {status !== '' ? (
-        <Text style={{ color: mutedColor, marginTop: 4 }} numberOfLines={3}>
-          {status}
-        </Text>
-      ) : null}
-    </View>
+    <ConfiguredBackupView
+      username={username}
+      profile={profile}
+      collectionUrl={collectionUrl}
+      lastSync={lastSync}
+      status={status}
+      isSyncing={isSyncing}
+      isRestoring={isRestoring}
+      handleSyncNow={handleSyncNow}
+      handleRestore={handleRestore}
+      handleDisconnect={handleDisconnect}
+      buttonStyle={buttonStyle}
+      textColor={textColor}
+      mutedColor={mutedColor}
+    />
   );
 }

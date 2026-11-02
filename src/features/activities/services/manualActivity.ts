@@ -148,7 +148,10 @@ let manualIdCounter = 0;
  * Builds a stored `Activity` record from a manual entry. Throws on invalid
  * date/time/duration so the sheet can report the problem instead of saving.
  */
-export function buildManualActivity(input: ManualActivityInput): Activity {
+/**
+ * Validates the manual-activity input, throwing a TypeError on invalid values.
+ */
+function validateManualActivityInput(input: ManualActivityInput): void {
   if (!Number.isFinite(input.durationMin) || input.durationMin < 1) {
     throw new TypeError('Duration must be at least 1 minute.');
   }
@@ -164,6 +167,10 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
   ) {
     throw new TypeError('Elevation gain must be a non-negative number.');
   }
+}
+
+export function buildManualActivity(input: ManualActivityInput): Activity {
+  validateManualActivityInput(input);
   const { year, month, day } = parseDatePart(input.localDate);
   const { hour, minute } = parseTimePart(input.localTime);
 
