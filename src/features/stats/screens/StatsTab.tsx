@@ -546,7 +546,7 @@ export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>)
         isSettingsVisible={isSettingsVisible}
         setIsSettingsVisible={setIsSettingsVisible}
       />
-      <Tab.Navigator>
+      <Tab.Navigator backBehavior="history">
         <Tab.Screen
           name="RecentWeeksScreen"
           component={RecentWeeksScreen}

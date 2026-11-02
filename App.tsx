@@ -103,6 +103,7 @@ function AppContent() {
       <NavigationContainer theme={navigationTheme}>
         <ManualEntryProvider>
           <Drawer.Navigator
+            backBehavior="history"
             // prettier-ignore
             drawerContent={props => ( // NOSONAR - render prop must close over openSettings
             <CustomDrawerContent {...props} onOpenSettings={openSettings} />
