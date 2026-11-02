@@ -8,6 +8,10 @@ import {
   useManualEntry
 } from '@/features/activities';
 import { HomeActivityMapSection } from '../components/HomeActivityMapSection';
+import { HomeCalendarSection } from '../components/HomeCalendarSection';
+import { HomeFooter } from '../components/HomeFooter';
+import { HomeStreaksSection } from '../components/HomeStreaksSection';
+import { HomeWeekSummary } from '../components/HomeWeekSummary';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import { ActivityStats, calculateRecentActivityStats, weeklyData } from '@/features/stats';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
@@ -20,7 +24,6 @@ import {
   relative_time_label,
   retrieveStringValue,
   RootDrawerParamList,
-  seconds_to_label,
   simpleLogger
 } from '@/shared';
 import {
@@ -31,11 +34,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useFocusEffect } from '@react-navigation/native';
-import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ActivityCalendarPeriod } from '../components/ActivityCalendarPeriod';
 
 type HomeScreenProps = {
   navigation: DrawerNavigationProp<RootDrawerParamList, 'Home'>;
@@ -674,80 +675,25 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           />
         }
       >
-        {/* Weekly Summary Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Week</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Time</Text>
-              <Text style={styles.infoValue}>
-                {weeklySummary.totalHours > 0
-                  ? seconds_to_label(weeklySummary.totalHours)
-                  : 'No activity yet'}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Distance</Text>
-              <Text style={styles.infoValue}>{weeklySummary.totalDistanceKm.toFixed(1)} km</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Elevation</Text>
-              <Text style={styles.infoValue}>{weeklySummary.totalElevationM.toFixed(0)} m</Text>
-            </View>
-          </View>
-        </View>
-        {/* End of Weekly Summary Section */}
+        <HomeWeekSummary weeklySummary={weeklySummary} styles={styles} />
 
-        {/* Streaks Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Streaks</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Day Streak</Text>
-              <Text
-                style={styles.infoValue}
-              >{`${dayStreak.current} current • ${dayStreak.best} best`}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Week Streak</Text>
-              <Text
-                style={styles.infoValue}
-              >{`${weekStreak.current} current • ${weekStreak.best} best`}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Weekly Goal Streak</Text>
-              <Text
-                style={styles.infoValue}
-              >{`${goalWeekStreak.current} current • ${goalWeekStreak.best} best`}</Text>
-            </View>
-          </View>
-        </View>
-        {/* End of Streaks Section */}
+        <HomeStreaksSection
+          dayStreak={dayStreak}
+          weekStreak={weekStreak}
+          goalWeekStreak={goalWeekStreak}
+          styles={styles}
+        />
 
-        {/* Calendar Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Calendar</Text>
-            <TouchableOpacity
-              onPress={() => openRecordChooser(calendarDate)}
-              accessibilityLabel={`Add activity on ${calendarDate}`}
-              accessibilityRole="button"
-              style={styles.actionButton}
-            >
-              <Ionicons name="add" size={18} color={theme.primary} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.calendarContainer}>
-            <ActivityCalendarPeriod
-              activities={globalActivities}
-              onDayPress={handleCalendarDayPress}
-              onEmptyDayPress={handleCalendarEmptyDayPress}
-              selectedDate={calendarDate}
-              navigation={navigation}
-            />
-          </View>
-        </View>
-        {/* End of Calendar Section */}
+        <HomeCalendarSection
+          activities={globalActivities}
+          calendarDate={calendarDate}
+          onDayPress={handleCalendarDayPress}
+          onEmptyDayPress={handleCalendarEmptyDayPress}
+          onAdd={openRecordChooser}
+          navigation={navigation}
+          theme={theme}
+          styles={styles}
+        />
 
         {/* Recent Activity Section */}
         <View style={styles.section}>
@@ -782,20 +728,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           styles={styles}
         />
 
-        {/* Footer Section - Branding and Version */}
-        <View style={styles.section}>
-          <View style={styles.footerCard}>
-            <View style={styles.footerContent}>
-              <View style={styles.footerText}>
-                <Text style={styles.appTitle}>Offline Fitness</Text>
-                <Text style={styles.versionText}>
-                  Version: {nativeApplicationVersion + '-' + nativeBuildVersion}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-        {/* End of Footer Section */}
+        <HomeFooter styles={styles} />
       </ScrollView>
       <DayActivitiesSheet
         visible={daySheetDate !== null}
