@@ -224,10 +224,11 @@ export function RecentWeeksScreen(): JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
-  const activityTypes = useMemo(
-    () => Array.from(myActivitiesDiscovered).sort((a, b) => a.localeCompare(b)) as string[],
-    [myActivitiesDiscovered]
-  );
+  // Derived (cheap): the React Compiler memoises this per-component, so a
+  // manual useMemo adds no value here (see docs/memoization-audit.md).
+  const activityTypes = Array.from(myActivitiesDiscovered).sort((a, b) =>
+    a.localeCompare(b)
+  ) as string[];
   const { myActivitiesToUse, allActivitiesToUse } = useProcessedActivities(
     activityTypes,
     globalActivities

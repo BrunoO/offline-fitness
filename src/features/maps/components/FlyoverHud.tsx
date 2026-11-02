@@ -68,18 +68,12 @@ export default function FlyoverHud({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const speedKmh = useMemo(() => (speedMps * MPS_TO_KMH).toFixed(1), [speedMps]);
-  const distanceKm = useMemo(
-    () =>
-      `${(completedDistanceMeters / METERS_TO_KM).toFixed(1)} / ${(totalDistanceMeters / METERS_TO_KM).toFixed(1)}`,
-    [completedDistanceMeters, totalDistanceMeters]
-  );
-  const timeFormatted = useMemo(
-    () =>
-      `${seconds_to_label(Math.round(elapsedSeconds))} / ${seconds_to_label(Math.round(totalDurationSeconds))}`,
-    [elapsedSeconds, totalDurationSeconds]
-  );
-  const altitudeRounded = useMemo(() => `${Math.round(altitudeMeters)} m`, [altitudeMeters]);
+  // Cheap derived formatting: the React Compiler memoises these per-component,
+  // so manual useMemo adds no value here (see docs/memoization-audit.md).
+  const speedKmh = (speedMps * MPS_TO_KMH).toFixed(1);
+  const distanceKm = `${(completedDistanceMeters / METERS_TO_KM).toFixed(1)} / ${(totalDistanceMeters / METERS_TO_KM).toFixed(1)}`;
+  const timeFormatted = `${seconds_to_label(Math.round(elapsedSeconds))} / ${seconds_to_label(Math.round(totalDurationSeconds))}`;
+  const altitudeRounded = `${Math.round(altitudeMeters)} m`;
 
   return (
     <View

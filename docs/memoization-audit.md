@@ -111,6 +111,13 @@ This list tracks remaining uses of `useMemo`, `useCallback`, and `React.memo` th
 - `src/features/auth/services/AuthService.ts`
   - useCallback: `retrieveToken`, `get_access_token`, `disconnect`
 
+### Pruned (2026-11-02)
+- `RecentWeeksScreen`: removed `useMemo` around `activityTypes` (trivial
+  `Array.from` + sort of a Set; compiler handles it).
+- `FlyoverHud`: removed `useMemo` around `speedKmh`, `distanceKm`,
+  `timeFormatted`, `altitudeRounded` (cheap formatting; compiler handles it).
+- Rationale documented inline at each site. Tests + lint green.
+
 ### Notes
 - Many of the above are tied to:
   - List rendering performance (e.g., FlashList `renderItem`, `keyExtractor`).
