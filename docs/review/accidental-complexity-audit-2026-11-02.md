@@ -55,7 +55,7 @@ and structural signals; each finding cites file:line. No code changed by this au
 | Effect-as-event-handler | **Watch** | `useRecording` orchestrates side effects; candidate for splitting event handlers out of effects. |
 | Platform `if` scattered in logic | **Clean** | `Platform.OS` used 4× (permissions/maps); styling uses `Platform.select`. |
 | Hardcoded dimensions/colours | **Clean** | Colours only in `src/theme/`; `useTheme()` enforced by AGENTS.md. |
-| Missing cleanup (timers/listeners) | **Watch** | 17 `setTimeout`/`setInterval` call sites across 9 files; sampled clean, but not exhaustively verified. |
+| Missing cleanup (timers/listeners) | **Clean** | Audited all 17 `setTimeout`/`setInterval` sites across 9 files (`MapsScreen.android`, `MiniMapComponent.android`, `HomeScreen`, `heartRate.ts`, `webdavTransport`, `StatsTab`, `exportData`, `RecordingScreen`, `useRecording`): every component/hook site returns a cleanup (`clearTimeout`/`clearInterval`); service sites (`webdavTransport`, `heartRate`) clear on completion/disconnect; the `exportData` site is a one-shot cooldown in an async loop. No leaks found. |
 | Unsafe list virtualisation | **Clean** | `FlashList` used for activity lists. |
 | Over-broad global state | **Watch** | `useRecording` (711 lines) holds UI-local state alongside recording orchestration. |
 | Stringly-typed navigation/storage | **Open** | Route names are bare literals (see above). Storage keys centralised (good). |

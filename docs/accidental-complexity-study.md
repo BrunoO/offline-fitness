@@ -142,7 +142,7 @@ bit Offline Fitness specifically.
 | **Effect-as-event-handler** | Side effects triggered from render or from an effect that should be a click handler. | Watch: recording timers and HR sampling. |
 | **Platform `if` scattered in logic** | `Platform.OS` checks inside business logic instead of platform files / `Platform.select` for styling. | Clean: `Platform.OS` used 4 times, all in permissions/maps; styling uses `Platform.select`. |
 | **Hardcoded dimensions / colours** | Bypasses theme and breaks dark mode / safe areas. | Clean: enforced by AGENTS.md + `useTheme()`; colours only in `src/theme/`. |
-| **Missing cleanup (timers/listeners)** | `setTimeout`/`setInterval`/subscriptions not cleared → leaks on unmount. | Watch: recording tick timers, HR sampling intervals; verify `useEffect` cleanup. |
+| **Missing cleanup (timers/listeners)** | `setTimeout`/`setInterval`/subscriptions not cleared → leaks on unmount. | **Clean**: audited all 17 sites across 9 files; every component/hook site returns a cleanup, service sites clear on completion/disconnect, the export cooldown is a one-shot await. |
 | **Unsafe list virtualisation** | `ScrollView` over unbounded data instead of `FlashList`. | Clean: FlashList used for activity lists. |
 | **Over-broad global state** | Lifting local UI state into a context/provider. | Watch: `useRecording` holds a lot of local UI state; candidate for splitting. |
 | **Stringly-typed navigation/storage** | Route names and AsyncStorage keys as literals scattered across files. | Open: keys centralised in `constants/index.ts` (good) but route names are literals in `navigation.navigate(...)`; candidate for a typed route map. |
