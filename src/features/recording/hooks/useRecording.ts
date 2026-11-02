@@ -17,6 +17,7 @@ import { PROFILE_CAPTURE_OPTIONS, saveLastRecordingProfile } from '../services/p
 import { replaySession } from '../services/replaySession';
 import { LiveSlopeCalculator, PROFILE_STATIONARY_SPEED } from '../services/slope';
 import { SplitDetector } from '../services/splits';
+import { computeDisplayDistance, tickLiveStats, updateMovingTime } from '../services/liveStats';
 import type { SplitEvent } from '../services/splits';
 import { useRecordingPermissions } from './useRecordingPermissions';
 import { writeStreamFile } from '../services/writeStreamFile';
@@ -186,54 +187,6 @@ const persistSessionAsActivity = async (
   void sweepExpiredSessions();
   return activity;
 };
-
-const tickLiveStats = (prev: LiveStats | null, startedAtUtcMs: number): LiveStats => {
-  if (prev !== null) {
-    return {
-      ...prev,
-      elapsedSec: prev.elapsedSec + 1
-    };
-  }
-  return {
-    elapsedSec: Math.max(0, Math.floor((Date.now() - startedAtUtcMs) / 1000)),
-    movingTimeSec: 0,
-    distanceMeters: 0,
-    currentSpeedMps: null,
-    altitudeM: null,
-    slopePercent: null,
-    elevationGainM: 0,
-    gpsLost: false,
-    hAccM: null
-  };
-};
-
-function computeDisplayDistance(
-  hasMoved: boolean,
-  isMoving: boolean,
-  currentDistance: number,
-  lastDistance: number
-): number {
-  if (!hasMoved) {
-    return 0;
-  }
-  return isMoving ? currentDistance : lastDistance;
-}
-
-function updateMovingTime(
-  lastTimestampMs: number | null,
-  currentTimestampMs: number,
-  isCurrentlyMoving: boolean,
-  currentMovingTimeSec: number
-): number {
-  if (lastTimestampMs === null) {
-    return currentMovingTimeSec;
-  }
-  const deltaSec = (currentTimestampMs - lastTimestampMs) / 1000;
-  if (deltaSec > 0 && deltaSec <= 5 && isCurrentlyMoving) {
-    return currentMovingTimeSec + deltaSec;
-  }
-  return currentMovingTimeSec;
-}
 
 /**
  * Drives the native recorder and the save flow.
