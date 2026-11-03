@@ -45,7 +45,7 @@ export function RecordChooserSheet({
             <Ionicons name="navigate" size={24} color={theme.primary} />
           </View>
           <View style={styles.optionBody}>
-            <Text style={styles.optionTitle}>Record</Text>
+            <Text style={styles.optionTitle}>Record (GPS)</Text>
             <Text style={styles.optionHint}>Track a run, walk, hike, ride or swim with GPS.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
@@ -64,7 +64,7 @@ export function RecordChooserSheet({
             <Ionicons name="timer-outline" size={24} color={theme.primary} />
           </View>
           <View style={styles.optionBody}>
-            <Text style={styles.optionTitle}>Record with timer</Text>
+            <Text style={styles.optionTitle}>Record (Timer)</Text>
             <Text style={styles.optionHint}>Time a session (Yoga, …) without GPS.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />

@@ -129,14 +129,17 @@ function AppContent() {
             <Drawer.Screen
               name="Record"
               component={RecordingScreen}
-              options={getDrawerIconOptions('radio-button-on-outline')}
+              options={{
+                ...getDrawerIconOptions('radio-button-on-outline'),
+                title: 'Record (GPS)'
+              }}
             />
             <Drawer.Screen
               name="TimerRecord"
               component={TimerRecordingScreen}
               options={{
                 ...getDrawerIconOptions('timer-outline'),
-                title: 'Recording (Timer)'
+                title: 'Record (Timer)'
               }}
             />
             <Drawer.Screen
