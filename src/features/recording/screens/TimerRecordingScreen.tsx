@@ -8,7 +8,7 @@ import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useTimerRecording } from '../hooks/useTimerRecording';
 import type { RootDrawerParamList } from '@/shared';
-import { MANUAL_ACTIVITY_TYPES } from '@/features/activities';
+import { NO_GPS_ACTIVITY_TYPES } from '@/shared';
 import { createStyles } from './TimerRecordingScreen.styles';
 
 const formatElapsed = (elapsedSec: number): string => {
@@ -109,7 +109,7 @@ export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JS
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Activity type</Text>
           <View style={styles.chips}>
-            {MANUAL_ACTIVITY_TYPES.map(candidate => {
+            {Array.from(NO_GPS_ACTIVITY_TYPES).map(candidate => {
               const isSelected = candidate === activityType;
               return (
                 <Pressable
