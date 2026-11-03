@@ -321,18 +321,17 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const [isHomeFlyoverVisible, setIsHomeFlyoverVisible] = useState(false);
-  const [dayStreak, setDayStreak] = useState<{ current: number; best: number }>({
-    current: 0,
-    best: 0
-  });
-  const [weekStreak, setWeekStreak] = useState<{ current: number; best: number }>({
-    current: 0,
-    best: 0
-  });
-  const [goalWeekStreak, setGoalWeekStreak] = useState<{ current: number; best: number }>({
-    current: 0,
-    best: 0
-  });
+  // Derived (not state + effect): streaks are pure functions of activities.
+  const dayStreak = useMemo(
+    () =>
+      globalActivities.length > 0 ? computeDayStreaks(globalActivities) : { current: 0, best: 0 },
+    [globalActivities]
+  );
+  const weekStreak = useMemo(
+    () =>
+      globalActivities.length > 0 ? computeWeekStreaks(globalActivities) : { current: 0, best: 0 },
+    [globalActivities]
+  );
   // achievementsStartDate is now derived (see useMemo below).
 
   // Tracks whether we've already selected the initial activity to avoid
@@ -445,28 +444,15 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     }
   }, [globalActivities]);
 
-  // Compute streaks independently — not tied to activity selection.
-  // Previously combined with the initialization effect above, causing
-  // computeDayStreaks/computeWeekStreaks to re-run on every activity tap.
-  useEffect(() => {
-    if (globalActivities.length > 0) {
-      setDayStreak(computeDayStreaks(globalActivities));
-      setWeekStreak(computeWeekStreaks(globalActivities));
-    } else {
-      setDayStreak({ current: 0, best: 0 });
-      setWeekStreak({ current: 0, best: 0 });
-    }
-  }, [globalActivities]);
-
-  // Weekly goal streaks
   const { weeklyGoal, numberRecentWeeks, useElapsedTime } = useSettings();
-  useEffect(() => {
-    if (globalActivities.length > 0) {
-      setGoalWeekStreak(computeWeeklyGoalStreaks(globalActivities, weeklyGoal));
-    } else {
-      setGoalWeekStreak({ current: 0, best: 0 });
-    }
-  }, [globalActivities, weeklyGoal]);
+
+  const goalWeekStreak = useMemo(
+    () =>
+      globalActivities.length > 0
+        ? computeWeeklyGoalStreaks(globalActivities, weeklyGoal)
+        : { current: 0, best: 0 },
+    [globalActivities, weeklyGoal]
+  );
 
   // Weekly summary for current ISO week (derived, not state + effect).
   const weeklySummary = useMemo(() => {

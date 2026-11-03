@@ -46,7 +46,7 @@ and structural signals; each finding cites file:line. No code changed by this au
 | --- | --- | --- |
 | Type erosion (`any`, `as`, `@ts-ignore`) | **Clean** | 1 `any` (none in product code beyond constants), 1 justified `@ts-expect-error` (FlashList v2 ref, `DetailsScreen.tsx:1140`). `as never` used 3× for icon names (`RecordingScreen.tsx:209/351/652/672`) — low risk but could be typed. |
 | Primitive obsession / stringly-typed IDs | **Open** | `id: string`, `type: string` pervade types; no branded types. Storage keys centralised (`STORAGE_KEYS`), but route names (`'Details'`, `'Logs'`, `'Profile'`, `'Record'`, `'RecordsScreen'`, `'Stats'`) are bare literals in `navigation.navigate(...)`. |
-| Derived state stored as state | **Mostly clean** | `HomeScreen` converted `weeklySummary`/`recentAchievements` to `useMemo`. Other `useState`+`useEffect`-set patterns exist (e.g. `MapsScreen.android.tsx` heatmap data); audit per screen. |
+| Derived state stored as state | **Clean** | `HomeScreen` converted `weeklySummary`/`recentAchievements` and `dayStreak`/`weekStreak`/`goalWeekStreak` to `useMemo`. Other `useState`+`useEffect`-set patterns (`useRecording` unfinished list, `BackupSection` restore reload, `ActivityAnalysisView` trend line, `ProfileScreen` load) are genuine side effects, not derived state. |
 | Context value not memoised | **Clean** | `ActivitiesContext` splits data/sync and memoises both; `ManualEntryContext`, `SettingsContext`, `ThemeProvider` use `useMemo`. |
 | Nested component definitions | **Clean** | No component declared inside another component (only handlers). |
 | Index as list key | **Clean** | No `key={index}` / `key={i}` found. |
