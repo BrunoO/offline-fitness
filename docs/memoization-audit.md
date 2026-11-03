@@ -56,6 +56,20 @@ See also `AGENTS.md` (React Native / Expo → Memoization) and the official Reac
 - **Don't add a custom `babel.config.js`** in Next.js/Expo unless necessary — it can break framework features.
 - **Pin the compiler version** (`--save-exact`) if test coverage is thin; memoization changes across versions can surface Rules-of-React violations.
 
+### Derived state: never `useState` + `useEffect` sync
+
+A value that can be computed from props or other state must not be stored in
+`useState` and kept in sync via `useEffect`. That pattern costs an extra render,
+can briefly show stale data, and is a common source of bugs. Derive it with
+`useMemo` (or inline computation) instead; reserve `useEffect` for genuine
+side effects (I/O, subscriptions, timers, native integration).
+
+This is enforced by review, not lint: `react-hooks/set-state-in-effect` is
+intentionally off in `eslint.config.mjs` because several existing screens still
+use the pattern. Agents must apply it proactively. See
+`docs/accidental-complexity-study.md` §3.3 and `AGENTS.md` (React Native/Expo →
+Derived State).
+
 ### Always prefer structural fixes over memoization
 
 The React docs' recommended principles (still valid with the compiler):
