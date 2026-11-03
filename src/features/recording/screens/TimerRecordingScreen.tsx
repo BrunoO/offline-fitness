@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useTimerRecording } from '../hooks/useTimerRecording';
 import type { RootDrawerParamList } from '@/shared';
 import { NO_GPS_ACTIVITY_TYPES } from '@/shared';
@@ -71,11 +72,20 @@ export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JS
   useEffect(() => {
     if (isLive) {
       void activateKeepAwakeAsync();
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {
+        // Orientation lock may be unavailable on some platforms.
+      });
     } else {
       void deactivateKeepAwake();
+      void ScreenOrientation.unlockAsync().catch(() => {
+        // Ignore unlock failures.
+      });
     }
     return () => {
       void deactivateKeepAwake();
+      void ScreenOrientation.unlockAsync().catch(() => {
+        // Ignore unlock failures.
+      });
     };
   }, [isLive]);
 
