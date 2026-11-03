@@ -50,6 +50,7 @@ export type RootDrawerParamList = {
   Home: undefined;
   Record: undefined;
   Stats: NavigatorScreenParams<StatsTabParamList> | undefined;
+  TimerRecord: undefined;
   Logs: undefined;
   Maps: undefined;
   Profile: undefined;

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useActivities } from '../../src/features/activities/hooks/useActivities';
 import {
   buildManualActivity,
+  buildTimerActivity,
   deviceTimezoneLabel
 } from '../../src/features/activities/services/manualActivity';
 import { week_of_year } from '../../src/shared/utils/utils';
@@ -170,5 +171,30 @@ describe('useActivities.addActivity', () => {
       expect(result.current.globalActivities[0].id).toBe(manual.id);
       expect(result.current.totalActivitiesStored).toBe(2);
     });
+  });
+});
+
+describe('buildTimerActivity', () => {
+  it('preserves elapsed seconds and marks the activity as GPS-less', () => {
+    const activity = buildTimerActivity({
+      type: 'Yoga',
+      startUtcMs: new Date('2026-10-20T18:30:00').getTime(),
+      durationSec: 125,
+      name: 'Evening yoga'
+    });
+    expect(activity.type).toBe('Yoga');
+    expect(activity.name).toBe('Evening yoga');
+    expect(activity.elapsed_time).toBe(125);
+    expect(activity.moving_time).toBe(125);
+    expect(activity.distance).toBe(0);
+    expect(activity.total_elevation_gain).toBe(0);
+    expect(activity.start_latlng).toEqual([]);
+    expect(activity.end_latlng).toEqual([]);
+  });
+
+  it('throws on invalid duration', () => {
+    expect(() =>
+      buildTimerActivity({ type: 'Yoga', startUtcMs: Date.now(), durationSec: 0 })
+    ).toThrow();
   });
 });

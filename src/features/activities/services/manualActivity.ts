@@ -266,3 +266,79 @@ export function buildManualActivity(input: ManualActivityInput): Activity {
     utc_offset: c.utcOffsetSeconds
   };
 }
+
+export interface TimerActivityInput {
+  /** Canonical type, e.g. 'Yoga'. Falls back to 'Workout' when blank. */
+  type: string;
+  /** UTC ms of the moment the user pressed Start. */
+  startUtcMs: number;
+  /** Elapsed duration in seconds (>= 1). */
+  durationSec: number;
+  /** Optional label; defaults to the type. */
+  name?: string;
+  /** IANA zone label; defaults to the device zone. */
+  timezone?: string;
+}
+
+let timerIdCounter = 0;
+
+/**
+ * Builds a stored `Activity` from a timer-only recording (no GPS track).
+ * Duration is preserved to the second. Distance/elevation stay 0, so the
+ * activity is treated as GPS-less by `isNoGpsActivity`-aware views.
+ */
+export function buildTimerActivity(input: TimerActivityInput): Activity {
+  if (!Number.isFinite(input.durationSec) || input.durationSec < 1) {
+    throw new TypeError('Duration must be at least 1 second.');
+  }
+  if (!Number.isFinite(input.startUtcMs)) {
+    throw new TypeError('Start time must be a valid timestamp.');
+  }
+
+  const wallClock = new Date(input.startUtcMs);
+  if (Number.isNaN(wallClock.getTime())) {
+    throw new TypeError('Start time must be a valid timestamp.');
+  }
+
+  const year = wallClock.getFullYear();
+  const month = wallClock.getMonth() + 1;
+  const day = wallClock.getDate();
+  const hour = wallClock.getHours();
+  const minute = wallClock.getMinutes();
+  const second = wallClock.getSeconds();
+
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const localDate = `${year}-${pad(month)}-${pad(day)}`;
+  const localTime = `${pad(hour)}:${pad(minute)}:${pad(second)}`;
+
+  const type = input.type.trim() || 'Workout';
+  const name = input.name?.trim() || type;
+  const durationSec = Math.round(input.durationSec);
+  const utcOffsetSeconds = -Math.round(wallClock.getTimezoneOffset() * 60);
+
+  return {
+    id: `timer-${input.startUtcMs}-${(timerIdCounter++).toString(36)}`,
+    name,
+    start_date_local: `${localDate}T${localTime}Z`,
+    local_date: localDate,
+    local_time: localTime,
+    start_date_utc: new Date(input.startUtcMs).toISOString(),
+    start_timestamp_utc: input.startUtcMs,
+    timezone: input.timezone ?? deviceTimezoneLabel(),
+    start_year: year,
+    start_month: month - 1,
+    start_day: day,
+    start_week: week_of_year(year, month - 1, day),
+    distance: 0,
+    elapsed_time: durationSec,
+    moving_time: durationSec,
+    type,
+    average_speed: 0,
+    total_elevation_gain: 0,
+    elev_high: 0,
+    elev_low: 0,
+    start_latlng: [],
+    end_latlng: [],
+    utc_offset: utcOffsetSeconds
+  };
+}

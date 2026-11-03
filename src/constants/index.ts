@@ -61,7 +61,8 @@ export const DRAWER_ROUTES = {
   Maps: 'Maps',
   Profile: 'Profile',
   Record: 'Record',
-  Stats: 'Stats'
+  Stats: 'Stats',
+  TimerRecord: 'TimerRecord'
 } as const;
 
 // Route names for the Stats tab navigator. Keys mirror `StatsTabParamList`.

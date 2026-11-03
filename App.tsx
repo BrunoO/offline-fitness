@@ -16,6 +16,7 @@ import { MapsScreen } from '@/features/maps';
 import { ProfileScreen } from '@/features/profile';
 import { sweepExpiredSessions } from '@/features/recording';
 import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
+import { TimerRecordingScreen } from '@/features/recording/screens/TimerRecordingScreen';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
@@ -129,6 +130,14 @@ function AppContent() {
               name="Record"
               component={RecordingScreen}
               options={getDrawerIconOptions('radio-button-on-outline')}
+            />
+            <Drawer.Screen
+              name="TimerRecord"
+              component={TimerRecordingScreen}
+              options={{
+                ...getDrawerIconOptions('timer-outline'),
+                title: 'Recording (Timer)'
+              }}
             />
             <Drawer.Screen
               name="Maps"

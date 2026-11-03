@@ -53,6 +53,10 @@ export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     navigation.navigate(DRAWER_ROUTES.Record);
   }, [navigation]);
 
+  const handleRecordTimer = useCallback(() => {
+    navigation.navigate(DRAWER_ROUTES.TimerRecord);
+  }, [navigation]);
+
   const handleEnterManually = useCallback(() => {
     openManualEntry(chooserDate);
   }, [chooserDate, openManualEntry]);
@@ -70,6 +74,7 @@ export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         visible={chooserVisible}
         onClose={closeChooser}
         onRecord={handleRecord}
+        onRecordTimer={handleRecordTimer}
         onEnterManually={handleEnterManually}
       />
     </ManualEntryContext.Provider>

@@ -7,17 +7,19 @@ interface RecordChooserSheetProps {
   readonly visible: boolean;
   readonly onClose: () => void;
   readonly onRecord: () => void;
+  readonly onRecordTimer: () => void;
   readonly onEnterManually: () => void;
 }
 
 /**
  * The RECORD-CHOOSER: the single entry point for "add an activity" offers
- * both recording and manual entry, instead of a second button in the drawer.
+ * recording (GPS), timer recording and manual entry.
  */
 export function RecordChooserSheet({
   visible,
   onClose,
   onRecord,
+  onRecordTimer,
   onEnterManually
 }: RecordChooserSheetProps): JSX.Element {
   const theme = useTheme();
@@ -45,6 +47,25 @@ export function RecordChooserSheet({
           <View style={styles.optionBody}>
             <Text style={styles.optionTitle}>Record</Text>
             <Text style={styles.optionHint}>Track a run, walk, hike, ride or swim with GPS.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Record a new activity with timer"
+          onPress={() => {
+            onClose();
+            onRecordTimer();
+          }}
+          style={({ pressed }) => [styles.option, pressed ? styles.optionPressed : null]}
+        >
+          <View style={styles.optionIcon}>
+            <Ionicons name="timer-outline" size={24} color={theme.primary} />
+          </View>
+          <View style={styles.optionBody}>
+            <Text style={styles.optionTitle}>Record with timer</Text>
+            <Text style={styles.optionHint}>Time a session (Yoga, …) without GPS.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </Pressable>

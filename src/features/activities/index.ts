@@ -42,11 +42,12 @@ export { ManualActivitySheet } from './components/ManualActivitySheet';
 export {
   buildManualActivity,
   buildManualTypeList,
+  buildTimerActivity,
   deviceTimezoneLabel,
   MANUAL_ACTIVITY_TYPES,
   MANUAL_DURATION_PRESETS_MIN
 } from './services/manualActivity';
-export type { ManualActivityInput } from './services/manualActivity';
+export type { ManualActivityInput, TimerActivityInput } from './services/manualActivity';
 export {
   addCustomManualEntryType,
   loadManualEntryPrefs,
