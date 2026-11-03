@@ -404,6 +404,48 @@ export function RecordingScreen({
 
 type Styles = ReturnType<typeof createStyles>;
 
+function StopRecordingButton({
+  onStop,
+  styles
+}: {
+  readonly onStop: () => void;
+  readonly styles: Styles;
+}): JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Stop recording"
+      onPress={onStop}
+      style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
+    >
+      <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
+      <Text style={styles.dangerButtonLabel}>Stop</Text>
+    </Pressable>
+  );
+}
+
+function LockScreenButton({
+  onLock,
+  styles,
+  theme
+}: {
+  readonly onLock: () => void;
+  readonly styles: Styles;
+  readonly theme: ResolvedTheme;
+}): JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Lock screen against accidental touches"
+      onPress={onLock}
+      style={({ pressed }) => [styles.lockScreenButton, pressed ? styles.buttonPressedLight : null]}
+    >
+      <Ionicons name="lock-closed-outline" size={18} color={theme.text} />
+      <Text style={styles.lockScreenButtonLabel}>Lock screen (pocket & rain safe)</Text>
+    </Pressable>
+  );
+}
+
 function ErrorCard({
   error,
   styles,
@@ -888,28 +930,9 @@ function RecordingActions({
               />
               <Text style={styles.secondaryButtonLabel}>Pause</Text>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-              onPress={onStop}
-              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-            >
-              <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
-              <Text style={styles.dangerButtonLabel}>Stop</Text>
-            </Pressable>
+            <StopRecordingButton onStop={onStop} styles={styles} />
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Lock screen against accidental touches"
-            onPress={onLock}
-            style={({ pressed }) => [
-              styles.lockScreenButton,
-              pressed ? styles.buttonPressedLight : null
-            ]}
-          >
-            <Ionicons name="lock-closed-outline" size={18} color={theme.text} />
-            <Text style={styles.lockScreenButtonLabel}>Lock screen (pocket & rain safe)</Text>
-          </Pressable>
+          <LockScreenButton onLock={onLock} styles={styles} theme={theme} />
         </>
       ) : null}
       {phase === 'paused' ? (
@@ -924,28 +947,9 @@ function RecordingActions({
               <Ionicons name="play" size={18} color={styles.primaryButtonLabel.color as string} />
               <Text style={styles.primaryButtonLabel}>Resume</Text>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-              onPress={onStop}
-              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-            >
-              <Ionicons name="stop" size={18} color={styles.dangerButtonLabel.color as string} />
-              <Text style={styles.dangerButtonLabel}>Stop</Text>
-            </Pressable>
+            <StopRecordingButton onStop={onStop} styles={styles} />
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Lock screen against accidental touches"
-            onPress={onLock}
-            style={({ pressed }) => [
-              styles.lockScreenButton,
-              pressed ? styles.buttonPressedLight : null
-            ]}
-          >
-            <Ionicons name="lock-closed-outline" size={18} color={theme.text} />
-            <Text style={styles.lockScreenButtonLabel}>Lock screen (pocket & rain safe)</Text>
-          </Pressable>
+          <LockScreenButton onLock={onLock} styles={styles} theme={theme} />
         </>
       ) : null}
     </View>
