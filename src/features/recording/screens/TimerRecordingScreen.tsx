@@ -113,10 +113,6 @@ export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JS
     return (
       <View style={styles.landscapeContainer}>
         <View style={styles.timerPane}>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor(phase, theme) }]} />
-            <Text style={styles.phase}>{phaseLabel(phase)}</Text>
-          </View>
           <Text style={styles.heroTimer}>{formatElapsed(elapsedSec)}</Text>
           <Text style={styles.heroLabel}>{activityType}</Text>
         </View>

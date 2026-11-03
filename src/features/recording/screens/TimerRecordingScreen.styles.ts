@@ -59,7 +59,7 @@ export const createStyles = (theme: ResolvedTheme) =>
     },
     heroTimer: {
       color: theme.textStrong,
-      fontSize: 128,
+      fontSize: 160,
       fontWeight: '700',
       textAlign: 'center'
     },
