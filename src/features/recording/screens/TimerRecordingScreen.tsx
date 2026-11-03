@@ -109,6 +109,78 @@ export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JS
     }
   };
 
+  if (phase === 'running' || phase === 'paused') {
+    return (
+      <View style={styles.landscapeContainer}>
+        <View style={styles.timerPane}>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor(phase, theme) }]} />
+            <Text style={styles.phase}>{phaseLabel(phase)}</Text>
+          </View>
+          <Text style={styles.heroTimer}>{formatElapsed(elapsedSec)}</Text>
+          <Text style={styles.heroLabel}>{activityType}</Text>
+        </View>
+        <View style={styles.buttonPane}>
+          {phase === 'running' ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Pause recording"
+                onPress={pause}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed ? styles.buttonPressedLight : null
+                ]}
+              >
+                <Ionicons name="pause" size={24} color={theme.text} />
+                <Text style={styles.secondaryButtonLabel}>Pause</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Stop recording"
+                onPress={stop}
+                style={({ pressed }) => [
+                  styles.dangerButton,
+                  pressed ? styles.buttonPressed : null
+                ]}
+              >
+                <Ionicons name="stop" size={24} color={theme.onPrimary} />
+                <Text style={styles.dangerButtonLabel}>Stop</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Resume recording"
+                onPress={resume}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed ? styles.buttonPressed : null
+                ]}
+              >
+                <Ionicons name="play" size={24} color={theme.onPrimary} />
+                <Text style={styles.primaryButtonLabel}>Resume</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Stop recording"
+                onPress={stop}
+                style={({ pressed }) => [
+                  styles.dangerButton,
+                  pressed ? styles.buttonPressed : null
+                ]}
+              >
+                <Ionicons name="stop" size={24} color={theme.onPrimary} />
+                <Text style={styles.dangerButtonLabel}>Stop</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -220,59 +292,6 @@ export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JS
             <Ionicons name="play" size={20} color={theme.onPrimary} />
             <Text style={styles.primaryButtonLabel}>Start</Text>
           </Pressable>
-        </View>
-      ) : null}
-
-      {phase === 'running' ? (
-        <View style={styles.actions}>
-          <View style={styles.actionRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Pause recording"
-              onPress={pause}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                pressed ? styles.buttonPressedLight : null
-              ]}
-            >
-              <Ionicons name="pause" size={18} color={theme.text} />
-              <Text style={styles.secondaryButtonLabel}>Pause</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-              onPress={stop}
-              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-            >
-              <Ionicons name="stop" size={18} color={theme.onPrimary} />
-              <Text style={styles.dangerButtonLabel}>Stop</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {phase === 'paused' ? (
-        <View style={styles.actions}>
-          <View style={styles.actionRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Resume recording"
-              onPress={resume}
-              style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
-            >
-              <Ionicons name="play" size={18} color={theme.onPrimary} />
-              <Text style={styles.primaryButtonLabel}>Resume</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-              onPress={stop}
-              style={({ pressed }) => [styles.dangerButton, pressed ? styles.buttonPressed : null]}
-            >
-              <Ionicons name="stop" size={18} color={theme.onPrimary} />
-              <Text style={styles.dangerButtonLabel}>Stop</Text>
-            </Pressable>
-          </View>
         </View>
       ) : null}
 

@@ -211,5 +211,21 @@ export const createStyles = (theme: ResolvedTheme) =>
       flex: 1,
       paddingHorizontal: 12,
       paddingVertical: 12
+    },
+    landscapeContainer: {
+      backgroundColor: theme.surface,
+      flex: 1,
+      flexDirection: 'row',
+      padding: 24
+    },
+    timerPane: {
+      alignItems: 'center',
+      flex: 2,
+      justifyContent: 'center'
+    },
+    buttonPane: {
+      flex: 1,
+      gap: 16,
+      justifyContent: 'center'
     }
   });
