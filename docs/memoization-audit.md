@@ -116,6 +116,8 @@ This list tracks remaining uses of `useMemo`, `useCallback`, and `React.memo` th
   `Array.from` + sort of a Set; compiler handles it).
 - `FlyoverHud`: removed `useMemo` around `speedKmh`, `distanceKm`,
   `timeFormatted`, `altitudeRounded` (cheap formatting; compiler handles it).
+- `useActivities`: removed `useMemo` around `mostRecentActivity`
+  (`globalActivities[0]` access; compiler handles it).
 - Rationale documented inline at each site. Tests + lint green.
 
 ### Notes

@@ -37,7 +37,8 @@ export function useActivities() {
 
   // Derived from globalActivities (always sorted descending by true UTC instant) so
   // it stays correct after any setGlobalActivities call without a separate state.
-  const mostRecentActivity = useMemo(() => globalActivities[0], [globalActivities]);
+  // Cheap access: the React Compiler memoises this per-component.
+  const mostRecentActivity = globalActivities[0];
 
   const myActivitiesDiscovered = useMemo(() => {
     const discovered = new Set<string>();
