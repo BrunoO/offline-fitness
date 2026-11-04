@@ -84,7 +84,10 @@ function AppContent() {
         // reload so any bounding_box / elevation corrections land in state.
         const runBackgroundBackfill = async () => {
           try {
-            await Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()]);
+            await Promise.all([
+              calculateAndStoreMissingBoundingBoxes(),
+              correctSwimElevationGain()
+            ]);
             await reloadActivitiesFromLocalStorage();
           } catch (error) {
             simpleLogger.error('Startup backfill error', error);

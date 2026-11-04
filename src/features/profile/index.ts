@@ -1,4 +1,5 @@
 export { ProfileScreen } from './screens/ProfileScreen';
+export { ProfileHubProvider, useProfileHub } from './ProfileHubContext';
 export {
   loadUserProfile,
   saveUserProfile,

@@ -13,6 +13,7 @@ import { HomeCalendarSection } from '../components/HomeCalendarSection';
 import { HomeFooter } from '../components/HomeFooter';
 import { HomeStreaksSection } from '../components/HomeStreaksSection';
 import { HomeWeekSummary } from '../components/HomeWeekSummary';
+import { useBackupHealth } from '@/features/backup';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import {
   ActivityStats,
@@ -27,7 +28,6 @@ import {
   activityUtcMs,
   ActivityStream,
   BACKUP_LAST_SYNC_KEY,
-  relative_time_label,
   retrieveStringValue,
   RootDrawerParamList,
   simpleLogger
@@ -47,12 +47,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type HomeScreenProps = {
   navigation: DrawerNavigationProp<RootDrawerParamList, 'Home'>;
 };
-
-/**
- * A backup older than this is flagged in the header: the app never syncs by
- * itself, so a stale timestamp means the user's only copy is the phone's.
- */
-const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The home screen of the app.
@@ -344,43 +338,18 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   // When the WebDAV backup last ran, shown in the header: the app is offline
   // and syncs only by hand, so this is the one number that says whether the
   // data on this phone is also safe somewhere else.
-  const [backupFreshness, setBackupFreshness] = useState<{ label: string; stale: boolean }>({
-    label: 'No backup yet',
-    stale: false
-  });
-
-  const updateBackupFreshness = useCallback((syncedAt: string | null) => {
-    const ago = relative_time_label(syncedAt);
-    if (!syncedAt || ago === null) {
-      setBackupFreshness({ label: 'No backup yet', stale: false });
-      return;
-    }
-    setBackupFreshness({
-      label: `Synced ${ago}`,
-      stale: Date.now() - Date.parse(syncedAt) > STALE_BACKUP_MS
-    });
-  }, []);
-
-  useEffect(() => {
-    updateBackupFreshness(lastBackupSync);
-    const interval = setInterval(() => {
-      updateBackupFreshness(lastBackupSync);
-    }, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [lastBackupSync, updateBackupFreshness]);
+  const backupFreshness = useBackupHealth(lastBackupSync);
 
   const loadBackupFreshness = useCallback(async () => {
     try {
       const syncedAt = await retrieveStringValue(BACKUP_LAST_SYNC_KEY);
       if (syncedAt) {
         recordBackupSync(syncedAt);
-      } else {
-        updateBackupFreshness(null);
       }
     } catch (error) {
       simpleLogger.error('Could not read the last backup time:', error);
     }
-  }, [recordBackupSync, updateBackupFreshness]);
+  }, [recordBackupSync]);
 
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();

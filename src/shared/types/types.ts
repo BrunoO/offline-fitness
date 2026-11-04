@@ -2,8 +2,14 @@
 // core (which reaches it through `week_of_year` in `utils.ts`) stays loadable
 // outside React Native. See `docs/desktop-import-plan.md` and the guard in
 // `__tests__/stravaImport/importCorePortability.spec.ts`.
+import type { BottomTabNavigationProp, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type {
+  NativeStackNavigationProp,
+  NativeStackScreenProps
+} from '@react-navigation/native-stack';
+import type { StatsSegment } from '@/constants';
 
 export type Activity = {
   average_speed: number;
@@ -70,6 +76,46 @@ export type StatsTabParamList = {
   RecentMonthsScreen: undefined;
   RecordsScreen: undefined;
 };
+
+export type MainTabParamList = {
+  Home: undefined;
+  Activities:
+    | {
+        allActivities?: Activity[];
+        selectedActivityId?: string;
+        filterLabel?: string;
+        useElapsedTime?: boolean;
+      }
+    | undefined;
+  RecordAction: undefined;
+  Stats: { segment?: StatsSegment } | undefined;
+  Maps: undefined;
+};
+
+export type RootStackParamList = {
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  ActivityDetail: { activityId: string };
+  Record: undefined;
+  TimerRecord: undefined;
+  Profile: undefined;
+  Logs: undefined;
+};
+
+export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
+  RootStackParamList,
+  T
+>;
+
+export type MainTabScreenProps<T extends keyof MainTabParamList> = BottomTabScreenProps<
+  MainTabParamList,
+  T
+>;
+
+export type RootStackNavigationProp<T extends keyof RootStackParamList = keyof RootStackParamList> =
+  NativeStackNavigationProp<RootStackParamList, T>;
+
+export type MainTabNavigationProp<T extends keyof MainTabParamList = keyof MainTabParamList> =
+  BottomTabNavigationProp<MainTabParamList, T>;
 
 export type MapsScreenProps = {
   navigation: DrawerNavigationProp<RootDrawerParamList>;
