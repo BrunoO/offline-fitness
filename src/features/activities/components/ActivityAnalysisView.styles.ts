@@ -12,6 +12,87 @@ export const createStyles = (theme: ResolvedTheme) =>
     scrollContent: {
       paddingBottom: 32
     },
+    tabBarContainer: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: theme.surface
+    },
+    tabBarTrack: {
+      flexDirection: 'row',
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      padding: 3,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    tabButton: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 9
+    },
+    tabButtonActive: {
+      backgroundColor: theme.primary,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.15,
+      shadowRadius: 2,
+      elevation: 2
+    },
+    tabLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.textMuted
+    },
+    tabLabelActive: {
+      color: theme.onPrimary,
+      fontWeight: 'bold'
+    },
+    chartSectionCard: {
+      marginHorizontal: 12,
+      marginTop: 14,
+      paddingTop: 10,
+      paddingBottom: 4,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      overflow: 'hidden'
+    },
+    chartHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      marginBottom: 4
+    },
+    chartSectionTitle: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: theme.textStrong
+    },
+    chartSectionSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2
+    },
+    scrubPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 12
+    },
+    scrubPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
     heroCard: {
       marginHorizontal: 12,
       marginTop: 12,

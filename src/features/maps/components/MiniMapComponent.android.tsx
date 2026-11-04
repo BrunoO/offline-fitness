@@ -16,6 +16,7 @@ export type MiniMapComponentProps = {
   overlayStream?: ActivityStream;
   title?: string;
   allowFlyover?: boolean;
+  highlightCoordinate?: LatLng | null;
 };
 
 // Adjust this constant to control how many direction arrows are displayed along the track
@@ -83,9 +84,14 @@ const renderDirectionArrows = (
 type MiniMapLayersProps = {
   coordinates: LatLng[] | undefined;
   overlayCoordinates: LatLng[] | undefined;
+  highlightCoordinate?: LatLng | null;
 };
 
-function MiniMapLayers({ coordinates, overlayCoordinates }: Readonly<MiniMapLayersProps>) {
+function MiniMapLayers({
+  coordinates,
+  overlayCoordinates,
+  highlightCoordinate
+}: Readonly<MiniMapLayersProps>) {
   return (
     <>
       {coordinates?.length ? (
@@ -113,6 +119,25 @@ function MiniMapLayers({ coordinates, overlayCoordinates }: Readonly<MiniMapLaye
       ) : null}
       {renderDirectionArrows(coordinates, ARROW_PRIMARY_COLOR)}
       {renderDirectionArrows(overlayCoordinates, ARROW_OVERLAY_COLOR)}
+      {highlightCoordinate ? (
+        <Marker coordinate={highlightCoordinate} anchor={{ x: 0.5, y: 0.5 }} zIndex={100}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: '#FFFFFF',
+              borderWidth: 3,
+              borderColor: '#1976D2',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.35,
+              shadowRadius: 3,
+              elevation: 5
+            }}
+          />
+        </Marker>
+      ) : null}
     </>
   );
 }
@@ -325,6 +350,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
             <MiniMapLayers
               coordinates={coordinates}
               overlayCoordinates={props.overlayStream?.coordinates}
+              highlightCoordinate={props.highlightCoordinate}
             />
           </MapView>
 

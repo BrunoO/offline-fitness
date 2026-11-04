@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
-import { ActivityStream } from '@/shared';
+import { ActivityStream, LatLng } from '@/shared';
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
@@ -9,6 +9,8 @@ export type MiniMapComponentProps = {
   title?: string;
   /** Whether flyover button is enabled on Android (defaults to true) */
   allowFlyover?: boolean;
+  /** Optional highlighted point to scrub along the track */
+  highlightCoordinate?: LatLng | null;
 };
 
 /**

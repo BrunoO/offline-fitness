@@ -2,6 +2,7 @@ import { getActivityStreams } from '@/features/activities/services/fetchAndStore
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Button, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 // Reverted: no gesture handler for chart zoom
@@ -26,8 +27,10 @@ import { createChartTheme, useTheme } from '@/theme';
 import { createStyles } from './ActivityAnalysisView.styles';
 import { useLoadedStream } from '../hooks/useLoadedStream';
 import {
+  LineSegment,
   VictoryAxis,
   VictoryChart,
+  VictoryCursorContainer,
   VictoryLine,
   VictoryScatter,
   VictoryZoomContainer
@@ -328,11 +331,15 @@ function SpeedTrendChart({
 function AltitudeChart({
   altitudeDataXY,
   mapWidth,
-  hasDistanceAxis = false
+  hasDistanceAxis = false,
+  scrubX,
+  onScrubChange
 }: Readonly<{
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
   hasDistanceAxis?: boolean;
+  scrubX?: number | null;
+  onScrubChange?: (x: number | null) => void;
 }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
@@ -343,8 +350,38 @@ function AltitudeChart({
   const xAxisLabel = hasDistanceAxis ? 'Distance (km)' : 'Time (h:min)';
   const tickFormatter = hasDistanceAxis ? (d: number) => d.toFixed(1) : formatTime;
 
+  const containerComponent = onScrubChange ? (
+    <VictoryCursorContainer
+      cursorDimension="x"
+      defaultCursorValue={scrubX ?? undefined}
+      cursorComponent={
+        <LineSegment
+          style={{
+            stroke: theme.primary,
+            strokeWidth: 2,
+            strokeDasharray: '4, 4'
+          }}
+        />
+      }
+      onCursorChange={value => {
+        if (typeof value === 'number') {
+          onScrubChange(value);
+        } else if (
+          value &&
+          typeof value === 'object' &&
+          'x' in value &&
+          typeof (value as { x: unknown }).x === 'number'
+        ) {
+          onScrubChange((value as { x: number }).x);
+        } else {
+          onScrubChange(null);
+        }
+      }}
+    />
+  ) : undefined;
+
   return (
-    <VictoryChart theme={chartTheme} width={mapWidth}>
+    <VictoryChart theme={chartTheme} width={mapWidth} containerComponent={containerComponent}>
       <VictoryAxis
         label={xAxisLabel}
         tickFormat={tickFormatter}
@@ -487,6 +524,83 @@ function ElevationGainChart({
       />
     </VictoryChart>
   );
+}
+
+type AnalysisTab = 'overview' | 'charts' | 'routes';
+
+interface AnalysisTabBarProps {
+  activeTab: AnalysisTab;
+  onSelectTab: (tab: AnalysisTab) => void;
+  similarCount: number;
+}
+
+function AnalysisTabBar({
+  activeTab,
+  onSelectTab,
+  similarCount
+}: Readonly<AnalysisTabBarProps>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const tabs: { key: AnalysisTab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'charts', label: 'Telemetry' },
+    { key: 'routes', label: similarCount > 0 ? `Matches (${similarCount})` : 'Matches' }
+  ];
+
+  return (
+    <View style={styles.tabBarContainer}>
+      <View style={styles.tabBarTrack}>
+        {tabs.map(tab => {
+          const isActive = tab.key === activeTab;
+          return (
+            <Pressable
+              key={tab.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={`${tab.label} section`}
+              style={[styles.tabButton, isActive ? styles.tabButtonActive : null]}
+              onPress={() => {
+                if (!isActive) {
+                  void Haptics.selectionAsync().catch(() => undefined);
+                  onSelectTab(tab.key);
+                }
+              }}
+            >
+              <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Binary searches the closest data point in a monotonic or semi-monotonic series.
+ */
+function findNearestProfileIndex(series: { x: number; y: number }[], targetX: number): number {
+  if (series.length === 0) return -1;
+  let low = 0;
+  let high = series.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const midX = series[mid].x;
+    if (midX < targetX) {
+      low = mid + 1;
+    } else if (midX > targetX) {
+      high = mid - 1;
+    } else {
+      return mid;
+    }
+  }
+  const clampLow = Math.max(0, Math.min(series.length - 1, low));
+  const clampHigh = Math.max(0, Math.min(series.length - 1, high));
+  const distLow = Math.abs(series[clampLow].x - targetX);
+  const distHigh = Math.abs(series[clampHigh].x - targetX);
+  return distLow < distHigh ? clampLow : clampHigh;
 }
 
 /**
@@ -874,6 +988,242 @@ function TrackSimilarityModal({
   );
 }
 
+interface TelemetryChartsProps {
+  altitudeDataXY: { x: number; y: number }[] | undefined;
+  elevationGain: { x: number; y: number }[] | undefined;
+  heartRateDataXY: { x: number; y: number }[] | undefined;
+  heartRateSummary: { avg: number; max: number } | null;
+  hasDistanceAxis: boolean;
+  hasTimeAxis: boolean;
+  mapWidth: number;
+  scrubX?: number | null;
+  scrubDetails?: { x: number; altitude: number } | null;
+  onScrubChange?: (x: number | null) => void;
+}
+
+function TelemetryChartsSection({
+  altitudeDataXY,
+  elevationGain,
+  heartRateDataXY,
+  heartRateSummary,
+  hasDistanceAxis,
+  hasTimeAxis,
+  mapWidth,
+  scrubX,
+  scrubDetails,
+  onScrubChange
+}: Readonly<TelemetryChartsProps>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <>
+      <View style={styles.chartSectionCard}>
+        <View style={styles.chartHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.chartSectionTitle}>Altitude Profile</Text>
+            <Text style={styles.chartSectionSubtitle}>
+              {hasDistanceAxis ? 'Drag or tap to inspect location on map' : 'Elevation along time'}
+            </Text>
+          </View>
+          {scrubDetails ? (
+            <View style={styles.scrubPill}>
+              <Text style={styles.scrubPillText}>
+                {hasDistanceAxis
+                  ? `${scrubDetails.x.toFixed(2)} km • ${scrubDetails.altitude} m`
+                  : `${formatTime(scrubDetails.x)} • ${scrubDetails.altitude} m`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => onScrubChange?.(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Clear scrub cursor"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialCommunityIcons name="close-circle" size={16} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+        <AltitudeChart
+          altitudeDataXY={altitudeDataXY}
+          mapWidth={mapWidth}
+          hasDistanceAxis={hasDistanceAxis}
+          scrubX={scrubX}
+          onScrubChange={onScrubChange}
+        />
+      </View>
+
+      <View style={styles.chartSectionCard}>
+        <View style={styles.chartHeaderRow}>
+          <Text style={styles.chartSectionTitle}>Cumulative Elevation Gain</Text>
+          <Text style={styles.chartSectionSubtitle}>
+            Filtered gain with 1.5m deadband hysteresis
+          </Text>
+        </View>
+        <ElevationGainChart
+          elevationGain={elevationGain}
+          mapWidth={mapWidth}
+          hasDistanceAxis={hasDistanceAxis}
+        />
+      </View>
+
+      {heartRateDataXY && heartRateDataXY.length > 0 ? (
+        <View style={styles.chartSectionCard}>
+          <View style={styles.chartHeaderRow}>
+            <Text style={styles.chartSectionTitle}>Heart Rate</Text>
+            {heartRateSummary ? (
+              <Text style={styles.chartSectionSubtitle}>
+                Avg: {heartRateSummary.avg} bpm • Max: {heartRateSummary.max} bpm
+              </Text>
+            ) : null}
+          </View>
+          <HeartRateChart
+            heartRateDataXY={heartRateDataXY}
+            mapWidth={mapWidth}
+            hasTimeAxis={hasTimeAxis}
+          />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+interface RouteMatchesSectionProps {
+  item: Activity;
+  similarActivities: Activity[];
+  similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
+  trackSimilarCount: number;
+  trackReverseCount: number;
+  iouThreshold: number;
+  trackSimilarityThreshold: number;
+  exportProgress: number;
+  trackTrendLineData: { x: Date; y: number }[];
+  mapWidth: number;
+  setIsIoUModalVisible: (visible: boolean) => void;
+  setIsTrackModalVisible: (visible: boolean) => void;
+  onExport: () => void;
+  onActivityPress: (activity: Activity | null) => void;
+}
+
+interface OverviewSectionProps {
+  item: Activity;
+  altitudeDataXY: { x: number; y: number }[] | undefined;
+  mapWidth: number;
+  hasDistanceAxis: boolean;
+  scrubX: number | null;
+  scrubDetails: { x: number; altitude: number } | null;
+  onScrubChange: (x: number | null) => void;
+}
+
+function OverviewSection({
+  item,
+  altitudeDataXY,
+  mapWidth,
+  hasDistanceAxis,
+  scrubX,
+  scrubDetails,
+  onScrubChange
+}: Readonly<OverviewSectionProps>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <>
+      <ActivityDetails item={item} />
+      {altitudeDataXY && altitudeDataXY.length > 0 ? (
+        <View style={styles.chartSectionCard}>
+          <View style={styles.chartHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.chartSectionTitle}>Altitude Profile</Text>
+              <Text style={styles.chartSectionSubtitle}>
+                {hasDistanceAxis ? 'Elevation over distance' : 'Elevation over time'}
+              </Text>
+            </View>
+            {scrubDetails ? (
+              <View style={styles.scrubPill}>
+                <Text style={styles.scrubPillText}>
+                  {hasDistanceAxis
+                    ? `${scrubDetails.x.toFixed(2)} km • ${scrubDetails.altitude} m`
+                    : `${formatTime(scrubDetails.x)} • ${scrubDetails.altitude} m`}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => onScrubChange(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear scrub cursor"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialCommunityIcons name="close-circle" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
+          <AltitudeChart
+            altitudeDataXY={altitudeDataXY}
+            mapWidth={mapWidth}
+            hasDistanceAxis={hasDistanceAxis}
+            scrubX={scrubX}
+            onScrubChange={onScrubChange}
+          />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function RouteMatchesSection({
+  item,
+  similarActivities,
+  similarActivitiesByTrack,
+  trackSimilarCount,
+  trackReverseCount,
+  iouThreshold,
+  trackSimilarityThreshold,
+  exportProgress,
+  trackTrendLineData,
+  mapWidth,
+  setIsIoUModalVisible,
+  setIsTrackModalVisible,
+  onExport,
+  onActivityPress
+}: Readonly<RouteMatchesSectionProps>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <View style={styles.similarActivitiesContainer}>
+      <SimilarActivitiesHeader
+        similarActivities={similarActivities}
+        trackSimilarCount={trackSimilarCount}
+        trackReverseCount={trackReverseCount}
+        iouThreshold={iouThreshold}
+        trackSimilarityThreshold={trackSimilarityThreshold}
+        setIsIoUModalVisible={setIsIoUModalVisible}
+        setIsTrackModalVisible={setIsTrackModalVisible}
+        onExport={onExport}
+      />
+      {exportProgress > 0 && exportProgress < 1 ? (
+        <Text style={{ color: theme.textMuted, marginVertical: 4 }}>
+          Exporting... {Math.round(exportProgress * 100)}%
+        </Text>
+      ) : null}
+      <SimilarActivitiesList
+        similarActivities={similarActivities}
+        similarActivitiesByTrack={similarActivitiesByTrack}
+        trackSimilarityThreshold={trackSimilarityThreshold}
+        onActivityPress={onActivityPress}
+      />
+      <SpeedTrendChart
+        item={item}
+        similarActivities={similarActivities}
+        similarActivitiesByTrack={similarActivitiesByTrack}
+        trackSimilarityThreshold={trackSimilarityThreshold}
+        trackTrendLineData={trackTrendLineData}
+        mapWidth={mapWidth}
+      />
+    </View>
+  );
+}
+
 /**
  * A comprehensive component for displaying activity analysis including map, similar activities, charts, and detailed information.
  * @param item The activity to display.
@@ -889,6 +1239,8 @@ export function ActivityAnalysisView({
 }>): JSX.Element {
   const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.7);
   const [iouThreshold, setIouThreshold] = useState<number>(0.8);
+  const [activeTab, setActiveTab] = useState<AnalysisTab>('overview');
+  const [scrubX, setScrubX] = useState<number | null>(null);
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
   const [isTrackModalVisible, setIsTrackModalVisible] = useState<boolean>(false);
   const [mapWidth, setMapWidth] = useState<number>(0);
@@ -908,6 +1260,11 @@ export function ActivityAnalysisView({
   const trackReverseCount = similarActivitiesByTrack.filter(
     a => a.similarity >= trackSimilarityThreshold && a.reversed
   ).length;
+
+  // Reset scrub position when activity or active tab changes
+  useEffect(() => {
+    setScrubX(null);
+  }, [item.id, activeTab]);
 
   // Heavy effect: re-runs only when item, activities, or IoU threshold changes.
   // trackSimilarityThreshold intentionally excluded — it only filters the
@@ -956,6 +1313,23 @@ export function ActivityAnalysisView({
   const altitudeData = item.type === 'Swim' ? undefined : loadedStream?.streamSet.altitude;
   const heartRateData = loadedStream?.streamSet.heartrate;
   const { altitudeDataXY, elevationGain, heartRateDataXY, hasDistanceAxis } = computeData();
+  const scrubDetails = useMemo(() => {
+    if (scrubX === null || !altitudeDataXY || altitudeDataXY.length === 0) {
+      return null;
+    }
+    const bestIdx = findNearestProfileIndex(altitudeDataXY, scrubX);
+    if (bestIdx < 0) return null;
+    const point = altitudeDataXY[bestIdx];
+    const coord =
+      coordinates && coordinates.length === altitudeDataXY.length ? coordinates[bestIdx] : null;
+    return {
+      index: bestIdx,
+      x: point.x,
+      altitude: Math.round(point.y),
+      coordinate: coord
+    };
+  }, [scrubX, altitudeDataXY, coordinates]);
+
   const heartRateSummary = useMemo(() => {
     if (!heartRateData) return null;
     const values = heartRateData.filter((v): v is number => v !== null);
@@ -1005,63 +1379,62 @@ export function ActivityAnalysisView({
             stream={loadedStream?.streamSet}
             overlayStream={overlayStream}
             title={item.name}
+            highlightCoordinate={scrubDetails?.coordinate}
           />
         </View>
         <ActivityHeroSummary item={item} />
-        <View style={styles.similarActivitiesContainer}>
-          <SimilarActivitiesHeader
+
+        <AnalysisTabBar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          similarCount={similarActivities.length}
+        />
+
+        {activeTab === 'overview' ? (
+          <OverviewSection
+            item={item}
+            altitudeDataXY={altitudeDataXY}
+            mapWidth={mapWidth}
+            hasDistanceAxis={hasDistanceAxis}
+            scrubX={scrubX}
+            scrubDetails={scrubDetails}
+            onScrubChange={setScrubX}
+          />
+        ) : null}
+
+        {activeTab === 'charts' ? (
+          <TelemetryChartsSection
+            altitudeDataXY={altitudeDataXY}
+            elevationGain={elevationGain}
+            heartRateDataXY={heartRateDataXY}
+            heartRateSummary={heartRateSummary}
+            hasDistanceAxis={hasDistanceAxis}
+            hasTimeAxis={!!timeData?.length}
+            mapWidth={mapWidth}
+            scrubX={scrubX}
+            scrubDetails={scrubDetails}
+            onScrubChange={setScrubX}
+          />
+        ) : null}
+
+        {activeTab === 'routes' ? (
+          <RouteMatchesSection
+            item={item}
             similarActivities={similarActivities}
+            similarActivitiesByTrack={similarActivitiesByTrack}
             trackSimilarCount={trackSimilarCount}
             trackReverseCount={trackReverseCount}
             iouThreshold={iouThreshold}
             trackSimilarityThreshold={trackSimilarityThreshold}
+            exportProgress={exportProgress}
+            trackTrendLineData={trackTrendLineData}
+            mapWidth={mapWidth}
             setIsIoUModalVisible={setIsIoUModalVisible}
             setIsTrackModalVisible={setIsTrackModalVisible}
             onExport={handleExport}
-          />
-          {exportProgress > 0 && exportProgress < 1 ? (
-            <Text style={{ color: theme.textMuted, marginVertical: 4 }}>
-              Exporting... {Math.round(exportProgress * 100)}%
-            </Text>
-          ) : null}
-          <SimilarActivitiesList
-            similarActivities={similarActivities}
-            similarActivitiesByTrack={similarActivitiesByTrack}
-            trackSimilarityThreshold={trackSimilarityThreshold}
             onActivityPress={handleActivityPress}
           />
-          <SpeedTrendChart
-            item={item}
-            similarActivities={similarActivities}
-            similarActivitiesByTrack={similarActivitiesByTrack}
-            trackSimilarityThreshold={trackSimilarityThreshold}
-            trackTrendLineData={trackTrendLineData}
-            mapWidth={mapWidth}
-          />
-        </View>
-        <AltitudeChart
-          altitudeDataXY={altitudeDataXY}
-          mapWidth={mapWidth}
-          hasDistanceAxis={hasDistanceAxis}
-        />
-        <ElevationGainChart
-          elevationGain={elevationGain}
-          mapWidth={mapWidth}
-          hasDistanceAxis={hasDistanceAxis}
-        />
-        {heartRateSummary ? (
-          <Text style={{ color: theme.textMuted, paddingHorizontal: 10, paddingVertical: 4 }}>
-            Heart rate: avg {heartRateSummary.avg} bpm • max {heartRateSummary.max} bpm
-          </Text>
         ) : null}
-        {heartRateDataXY && heartRateDataXY.length > 0 ? (
-          <HeartRateChart
-            heartRateDataXY={heartRateDataXY}
-            mapWidth={mapWidth}
-            hasTimeAxis={!!timeData?.length}
-          />
-        ) : null}
-        <ActivityDetails item={item} />
       </ScrollView>
       <IoUThresholdModal
         isVisible={isIoUModalVisible}
