@@ -15,7 +15,7 @@ import { HomeStreaksSection } from '../components/HomeStreaksSection';
 import { HomeWeekSummary } from '../components/HomeWeekSummary';
 import { useBackupHealth } from '@/features/backup';
 import { HeaderHubButton } from '@/features/profile';
-import FlyoverModal from '@/features/maps/components/FlyoverModal';
+
 import {
   ActivityStats,
   calculateRecentActivityStats,
@@ -315,7 +315,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   const { openRecordChooser } = useManualEntry();
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
-  const [isHomeFlyoverVisible, setIsHomeFlyoverVisible] = useState(false);
   // Derived (not state + effect): streaks are pure functions of activities.
   const dayStreak = useMemo(
     () =>
@@ -709,8 +708,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           isLoading={isLoadingStream}
           mapRefreshKey={mapRefreshKey}
           activityTitle={selectedActivity?.name ?? 'Recent Activity'}
-          onOpenFlyover={() => setIsHomeFlyoverVisible(true)}
-          theme={theme}
           styles={styles}
         />
 
@@ -723,12 +720,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
         onSelect={handleDaySheetSelect}
         onAdd={handleDaySheetAdd}
         onClose={() => setDaySheetDate(null)}
-      />
-      <FlyoverModal
-        visible={isHomeFlyoverVisible}
-        onClose={() => setIsHomeFlyoverVisible(false)}
-        stream={homeScreenStream?.stream}
-        title={selectedActivity?.name ?? 'Recent Activity'}
       />
     </View>
   );

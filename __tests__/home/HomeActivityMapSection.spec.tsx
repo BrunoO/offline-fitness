@@ -2,7 +2,7 @@ import { HomeActivityMapSection } from '@/features/home/components/HomeActivityM
 import { createStyles } from '@/features/home/screens/HomeScreen.styles';
 import { ActivityStream } from '@/shared';
 import { resolveThemeById } from '@/theme';
-import { fireEvent, render } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 import React from 'react';
 
 jest.mock('@expo/vector-icons', () => ({
@@ -34,16 +34,13 @@ const sampleStream: ActivityStream = {
 };
 
 describe('HomeActivityMapSection', () => {
-  it('renders Activity Map section and displays Flyover button when GPS track exists', () => {
-    const onOpenFlyover = jest.fn();
-    const { getByText, getByLabelText, getByTestId } = render(
+  it('renders Activity Map section when GPS track exists', () => {
+    const { getByText, getByTestId } = render(
       <HomeActivityMapSection
         stream={sampleStream}
         isLoading={false}
         mapRefreshKey={1}
         activityTitle="Morning Run"
-        onOpenFlyover={onOpenFlyover}
-        theme={theme}
         styles={styles}
       />
     );
@@ -51,30 +48,21 @@ describe('HomeActivityMapSection', () => {
     expect(getByText('Activity Map')).toBeTruthy();
     expect(getByTestId('mock-mini-map')).toBeTruthy();
     expect(getByText('Morning Run')).toBeTruthy();
-
-    const flyoverBtn = getByLabelText('Play flyover of recent activity');
-    expect(flyoverBtn).toBeTruthy();
-
-    fireEvent.press(flyoverBtn);
-    expect(onOpenFlyover).toHaveBeenCalledTimes(1);
   });
 
   it('does not display Flyover button when stream has no coordinates', () => {
-    const onOpenFlyover = jest.fn();
-    const { getByText, queryByLabelText } = render(
+    const { getByText, queryByTestId } = render(
       <HomeActivityMapSection
         stream={undefined}
         isLoading={false}
         mapRefreshKey={1}
         activityTitle="Gym Session"
-        onOpenFlyover={onOpenFlyover}
-        theme={theme}
         styles={styles}
       />
     );
 
     expect(getByText('Activity Map')).toBeTruthy();
-    expect(queryByLabelText('Play flyover of recent activity')).toBeNull();
+    expect(queryByTestId('mock-mini-map')).toBeNull();
     expect(getByText('No map data available')).toBeTruthy();
   });
 
@@ -85,8 +73,6 @@ describe('HomeActivityMapSection', () => {
         isLoading={true}
         mapRefreshKey={1}
         activityTitle="Morning Run"
-        onOpenFlyover={jest.fn()}
-        theme={theme}
         styles={styles}
       />
     );
