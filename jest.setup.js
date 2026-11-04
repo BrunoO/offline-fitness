@@ -1,3 +1,12 @@
+// Jest mocks and build-time environment defaults.
+//
+// EXPO_PUBLIC_* vars are normally inlined by Expo at build time. In Jest they
+// are read at runtime from process.env, so default the Maps key to a dummy
+// value here: the default test environment behaves as if a key is present
+// (existing map tests keep their current expectations). Tests that want the
+// no-key fallback path delete the variable first.
+process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ??= 'test-key';
+
 jest.mock('expo-file-system', () => {
   let mockFiles = {};
 
@@ -88,9 +97,8 @@ jest.mock('expo-file-system', () => {
 
     writeBytes(bytes) {
       const prev = mockFiles[this.file.uri];
-      const prevBytes = prev instanceof Uint8Array
-        ? prev
-        : new TextEncoder().encode(String(prev ?? ''));
+      const prevBytes =
+        prev instanceof Uint8Array ? prev : new TextEncoder().encode(String(prev ?? ''));
       const next = new Uint8Array(prevBytes.length + bytes.length);
       next.set(prevBytes);
       next.set(bytes, prevBytes.length);
@@ -154,14 +162,22 @@ jest.mock('react-native-maps', () => {
       animateCamera: mockAnimateCamera,
       fitToCoordinates: mockFitToCoordinates
     }));
-    return <View testID="mock-map-view" {...props}>{props.children}</View>;
+    return (
+      <View testID="mock-map-view" {...props}>
+        {props.children}
+      </View>
+    );
   });
   MockMapView.displayName = 'MockMapView';
   return {
     __esModule: true,
     default: MockMapView,
     MapView: MockMapView,
-    Marker: props => <View testID="mock-marker" {...props}>{props.children}</View>,
+    Marker: props => (
+      <View testID="mock-marker" {...props}>
+        {props.children}
+      </View>
+    ),
     Polyline: props => <View testID="mock-polyline" {...props} />,
     Heatmap: props => <View testID="mock-heatmap" {...props} />,
     PROVIDER_GOOGLE: 'google',
@@ -169,4 +185,3 @@ jest.mock('react-native-maps', () => {
     __mockFitToCoordinates: mockFitToCoordinates
   };
 });
-

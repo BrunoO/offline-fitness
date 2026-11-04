@@ -16,6 +16,7 @@ export { default as MapsScreen } from './screens/MapsScreen';
 
 // Services
 export { simplifyGPS } from './services/gps-simplify';
+export { HAS_GOOGLE_MAPS_KEY } from './services/googleMapsKey';
 
 // Hooks
 export { useFlyoverPlayback } from './hooks/useFlyoverPlayback';

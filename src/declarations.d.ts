@@ -6,6 +6,16 @@ declare module '*.svg' {
   export default content;
 }
 
+// Build-time environment (EXPO_PUBLIC_* vars are inlined by Expo at build
+// time; they are available on process.env). Declared here so src can read
+// EXPO_PUBLIC_GOOGLE_MAPS_API_KEY without tsc complaining about an untyped
+// process.env.
+declare namespace NodeJS {
+  interface ProcessEnv {
+    EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?: string;
+  }
+}
+
 // Minimal typings shim for pako (jszip dependency, used directly by the ZIP
 // reader for deflate/inflate). Only the surface this app uses is declared.
 declare module 'pako' {

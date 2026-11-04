@@ -7,7 +7,9 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { calculateBearing } from '../services/flyoverInterpolator';
+import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
 import FlyoverModal from './FlyoverModal';
+import MapsUnavailablePlaceholder from './MapsUnavailablePlaceholder';
 
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
@@ -298,41 +300,47 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
 
   return (
     <View style={styles.container}>
-      <MapView
-        key={mapKey} // Force re-render when mapKey changes
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        ref={mapRef}
-        showsMyLocationButton={false}
-        zoomControlEnabled={true}
-        showsCompass={true}
-        showsUserLocation={false}
-        showsScale={true}
-        loadingEnabled={false}
-        loadingIndicatorColor={'green'}
-        onMapReady={onMapReady}
-        onMapLoaded={onMapLoaded}
-        onLayout={onLayout}
-        initialRegion={initialRegion}
-        userInterfaceStyle="light" // Force light theme regardless of system theme
-      >
-        <MiniMapLayers
-          coordinates={coordinates}
-          overlayCoordinates={props.overlayStream?.coordinates}
-        />
-      </MapView>
+      {!HAS_GOOGLE_MAPS_KEY ? (
+        <MapsUnavailablePlaceholder />
+      ) : (
+        <>
+          <MapView
+            key={mapKey} // Force re-render when mapKey changes
+            style={styles.map}
+            provider={PROVIDER_GOOGLE}
+            ref={mapRef}
+            showsMyLocationButton={false}
+            zoomControlEnabled={true}
+            showsCompass={true}
+            showsUserLocation={false}
+            showsScale={true}
+            loadingEnabled={false}
+            loadingIndicatorColor={'green'}
+            onMapReady={onMapReady}
+            onMapLoaded={onMapLoaded}
+            onLayout={onLayout}
+            initialRegion={initialRegion}
+            userInterfaceStyle="light" // Force light theme regardless of system theme
+          >
+            <MiniMapLayers
+              coordinates={coordinates}
+              overlayCoordinates={props.overlayStream?.coordinates}
+            />
+          </MapView>
 
-      {canShowFlyover ? (
-        <MiniMapFlyover
-          visible={isFlyoverOpen}
-          onOpen={() => setIsFlyoverOpen(true)}
-          onClose={() => setIsFlyoverOpen(false)}
-          stream={props.stream}
-          title={props.title}
-          theme={theme}
-          styles={styles}
-        />
-      ) : null}
+          {canShowFlyover ? (
+            <MiniMapFlyover
+              visible={isFlyoverOpen}
+              onOpen={() => setIsFlyoverOpen(true)}
+              onClose={() => setIsFlyoverOpen(false)}
+              stream={props.stream}
+              title={props.title}
+              theme={theme}
+              styles={styles}
+            />
+          ) : null}
+        </>
+      )}
     </View>
   );
 }

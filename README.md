@@ -302,10 +302,21 @@ cp .env.example .env
 |---|---|
 | `ANDROID_PACKAGE` | Android application id. Per developer and per store listing — two apps can only be installed side by side with different ids. Falls back to the placeholder `com.example.offlinefitness`. |
 | `IOS_BUNDLE_ID` | iOS bundle identifier. Falls back to the same placeholder. |
-| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps key for Android. Without it the Android map has no tiles. |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps key for Android. Leave it **empty** to run fully offline: the app
+  still builds and runs, every screen works, and maps show a "Maps unavailable"
+  placeholder instead of a blank MapView. Fill it in to view tracks on a map. |
 
 The application ids are kept out of the repository so the public source carries
 nobody's handle; the committed values are neutral placeholders.
+
+## Real offline mode (no Google Maps key)
+
+You do **not** need a Google Maps API key to use the app offline. Leave
+`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` empty in `.env` and build normally — the build
+succeeds and the app runs. All statistics, calendar, streaks, export, backup and
+(recording on Android) work entirely on the device. The only difference is that
+any map screen (home minimap, full-screen map, activity flyover) renders a
+"Maps unavailable" placeholder instead of fetching tiles from Google Maps.
 
 The Maps key is **inlined into the app bundle** at build time — that is unavoidable for
 a key used from a mobile app, so protect it with Cloud console restrictions instead:

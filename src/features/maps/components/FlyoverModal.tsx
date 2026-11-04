@@ -6,6 +6,7 @@ import { Modal, Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'r
 import MapView, { MapType, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlyoverPlayback } from '../hooks/useFlyoverPlayback';
+import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
 import {
   computeAdaptiveZoom,
   computeLookAheadBearing,
@@ -18,6 +19,7 @@ import { FlyoverCameraMode, FlyoverPoint, FlyoverTrack } from '../types/flyover.
 import FlyoverControls from './FlyoverControls';
 import FlyoverHeader from './FlyoverHeader';
 import FlyoverHud from './FlyoverHud';
+import MapsUnavailablePlaceholder from './MapsUnavailablePlaceholder';
 
 const CAMERA_UPDATE_THROTTLE_MS = 450;
 const CAMERA_DURATION_MS = 500;
@@ -398,30 +400,34 @@ export default function FlyoverModal({
       <View style={styles.container}>
         {hasValidTrack ? (
           <>
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              provider={provider}
-              mapType={mapType}
-              initialRegion={{
-                latitude: initialCoord.latitude,
-                longitude: initialCoord.longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005
-              }}
-              onMapReady={onMapReady}
-              showsCompass={false}
-              showsScale={false}
-              pitchEnabled
-              rotateEnabled
-            >
-              <FlyoverMapLayers
-                traveledCoordinates={traveledCoordinates}
-                currentPoint={currentPoint}
-                primaryColor={theme.primary}
-                markerContainerStyle={styles.markerContainer}
-              />
-            </MapView>
+            {HAS_GOOGLE_MAPS_KEY ? (
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                provider={provider}
+                mapType={mapType}
+                initialRegion={{
+                  latitude: initialCoord.latitude,
+                  longitude: initialCoord.longitude,
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005
+                }}
+                onMapReady={onMapReady}
+                showsCompass={false}
+                showsScale={false}
+                pitchEnabled
+                rotateEnabled
+              >
+                <FlyoverMapLayers
+                  traveledCoordinates={traveledCoordinates}
+                  currentPoint={currentPoint}
+                  primaryColor={theme.primary}
+                  markerContainerStyle={styles.markerContainer}
+                />
+              </MapView>
+            ) : (
+              <MapsUnavailablePlaceholder />
+            )}
 
             <FlyoverHeader
               title={title}
