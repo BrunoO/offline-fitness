@@ -13,6 +13,7 @@ import {
   seconds_to_label,
   simpleLogger
 } from '@/shared';
+import { HeaderHubButton } from '@/features/profile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
@@ -917,7 +918,12 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // Stable element factory for the header: the button itself is hoisted
   // above, so no component is defined during render.
   const renderHeaderRight = React.useCallback(
-    () => <AddActivityHeaderButton onPress={openRecordChooser} color={theme.primary} />,
+    () => (
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <AddActivityHeaderButton onPress={openRecordChooser} color={theme.primary} />
+        <HeaderHubButton />
+      </View>
+    ),
     [openRecordChooser, theme]
   );
 

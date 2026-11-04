@@ -13,17 +13,24 @@ import {
 } from '@/features/activities';
 import { HomeScreen } from '@/features/home';
 import { MapsScreen } from '@/features/maps';
-import { ProfileScreen } from '@/features/profile';
+import {
+  HeaderHubButton,
+  ProfileHubProvider,
+  ProfileScreen,
+  useProfileHub
+} from '@/features/profile';
+import { ProfileHubSheet } from '@/features/profile/components/ProfileHubSheet';
 import { sweepExpiredSessions } from '@/features/recording';
 import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
 import { TimerRecordingScreen } from '@/features/recording/screens/TimerRecordingScreen';
 import { SettingsProvider, StatsTab } from '@/features/stats';
 import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
+import { DRAWER_ROUTES } from '@/constants';
 import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
 import { SettingsModal } from '@/shared/components/SettingsModal';
 import { createNavigationTheme, ThemeProvider, useTheme } from '@/theme';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet } from 'react-native';
@@ -48,7 +55,9 @@ const Drawer = createDrawerNavigator<RootDrawerParamList>();
 function AppContent() {
   const theme = useTheme();
   const navigationTheme = useMemo(() => createNavigationTheme(theme), [theme]);
+  const navigationRef = useNavigationContainerRef<RootDrawerParamList>();
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
+  const { isHubOpen, closeHub } = useProfileHub();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const fadeAnim = useSharedValue(1);
@@ -104,7 +113,7 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer ref={navigationRef} theme={navigationTheme}>
         <ManualEntryProvider>
           <Drawer.Navigator
             backBehavior="history"
@@ -148,7 +157,11 @@ function AppContent() {
             <Drawer.Screen
               name="Maps"
               component={MapsScreen}
-              options={getDrawerIconOptions('map-outline')}
+              options={{
+                ...getDrawerIconOptions('map-outline'),
+                // prettier-ignore
+                headerRight: () => <HeaderHubButton /> // NOSONAR - header action
+              }}
             />
             <Drawer.Screen
               name="Profile"
@@ -170,6 +183,13 @@ function AppContent() {
           {/* Mounted outside the drawer panel: the panel never unmounts, and the
             settings form holds live text inputs. */}
           <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+          <ProfileHubSheet
+            visible={isHubOpen}
+            onClose={closeHub}
+            onOpenSettings={openSettings}
+            onNavigateToProfile={() => navigationRef.navigate(DRAWER_ROUTES.Profile)}
+            onNavigateToLogs={() => navigationRef.navigate(DRAWER_ROUTES.Logs)}
+          />
         </ManualEntryProvider>
       </NavigationContainer>
       {splashVisible ? (
@@ -209,7 +229,9 @@ export default function App() {
       <ThemeProvider>
         <SettingsProvider>
           <ActivitiesProvider>
-            <AppContent />
+            <ProfileHubProvider>
+              <AppContent />
+            </ProfileHubProvider>
           </ActivitiesProvider>
         </SettingsProvider>
       </ThemeProvider>

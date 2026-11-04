@@ -14,6 +14,7 @@ import { HomeFooter } from '../components/HomeFooter';
 import { HomeStreaksSection } from '../components/HomeStreaksSection';
 import { HomeWeekSummary } from '../components/HomeWeekSummary';
 import { useBackupHealth } from '@/features/backup';
+import { HeaderHubButton } from '@/features/profile';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import {
   ActivityStats,
@@ -610,11 +611,17 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     }, [loadBackupFreshness])
   );
 
+  const hubStatusColor = useMemo(() => {
+    if (backupFreshness.status === 'healthy') return theme.success;
+    if (backupFreshness.status === 'stale') return theme.warning;
+    return undefined;
+  }, [backupFreshness.status, theme.success, theme.warning]);
+
   React.useLayoutEffect(() => {
     navigation?.setOptions({
       // prettier-ignore
       headerRight: () => ( // NOSONAR - render prop must close over backupFreshness
-        <View style={{ marginRight: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {/* The label itself carries the age ("Synced 3 weeks ago"); colour
               only lifts it out of the muted tier. theme.warning is not used
               because the palette test (theme.spec.ts) guarantees 4.5:1 for
@@ -626,10 +633,11 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           >
             {backupFreshness.label}
           </Text>
+          <HeaderHubButton statusColor={hubStatusColor} />
         </View>
       )
     });
-  }, [navigation, backupFreshness, styles]);
+  }, [navigation, backupFreshness, styles, hubStatusColor]);
 
   return (
     <View style={{ flex: 1, paddingTop: 0, paddingBottom: insets.bottom }}>

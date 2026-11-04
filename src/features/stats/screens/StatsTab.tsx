@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { validateGoal } from '../services/GoalService';
 import { useSettings } from '../StatsTabSettingsContext';
+import { HeaderHubButton } from '@/features/profile';
 import { StatsSegmentedControl } from '../components/StatsSegmentedControl';
 import { RecentMonthsScreen } from './RecentMonthsScreen';
 import { RecordsScreen } from './RecordsScreen';
@@ -575,8 +576,9 @@ export function StatsTab({ navigation, route }: Readonly<StatsTabProps>): JSX.El
     navigation?.setOptions({
       // prettier-ignore
       headerRight: () => ( // NOSONAR - render prop must close over isSettingsVisible
-        <View style={{ marginRight: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <IconButton icon="settings" onPress={() => setIsSettingsVisible(true)} />
+          <HeaderHubButton />
         </View>
       )
     });
