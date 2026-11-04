@@ -194,18 +194,24 @@ describe('portable import core (desktop tool, Phase 0)', () => {
     // ~1,500 lines of UI + orchestration, a 1 GB cache-copy path, keep-awake
     // and the picker — re-adding any of it by accident must fail a test, not
     // ship. The names are the ones that module used across the codebase.
-    const banned =
-      /StravaImportModal|importStravaExport|expoByteSource|expo-keep-awake|pickFileAsync/;
+    const banned = /StravaImportModal|importStravaExport|expoByteSource|pickFileAsync/;
     const offenders: string[] = [];
-    const walk = (dir: string): void => {
+    const walk = (dir: string, inMaps: boolean = false): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
         // The recording feature legitimately uses keep-awake (expo-keep-awake)
-        // while a session is live; that is not the Strava archive importer.
+        // while a session is live, and the maps feature uses it to keep the
+        // screen awake during a long flyover — neither is the Strava archive
+        // importer. Skip the whole `recording` tree; for `maps` only the
+        // expo-keep-awake ban is lifted (the other names stay banned).
         if (entry.isDirectory() && entry.name === 'recording') return;
-        if (entry.isDirectory()) walk(full);
-        else if (/\.tsx?$/.test(entry.name) && banned.test(fs.readFileSync(full, 'utf8'))) {
-          offenders.push(path.relative(REPO_ROOT, full));
+        if (entry.isDirectory()) walk(full, inMaps || entry.name === 'maps');
+        else if (/\.tsx?$/.test(entry.name)) {
+          const source = fs.readFileSync(full, 'utf8');
+          if (banned.test(source)) offenders.push(path.relative(REPO_ROOT, full));
+          else if (source.includes('expo-keep-awake') && !inMaps) {
+            offenders.push(path.relative(REPO_ROOT, full));
+          }
         }
       }
     };
