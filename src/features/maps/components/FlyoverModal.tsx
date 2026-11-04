@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import MapView, { MapType, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlyoverPlayback } from '../hooks/useFlyoverPlayback';
 import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
@@ -37,6 +38,7 @@ export interface FlyoverModalProps {
   onClose: () => void;
   stream: ActivityStream | undefined | null;
   title?: string;
+  activityType?: string;
 }
 
 const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
@@ -268,7 +270,8 @@ export default function FlyoverModal({
   visible,
   onClose,
   stream,
-  title = 'Route Flyover'
+  title = 'Route Flyover',
+  activityType
 }: Readonly<FlyoverModalProps>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -276,6 +279,19 @@ export default function FlyoverModal({
     () => createStyles(theme, insets.top, insets.bottom),
     [theme, insets.top, insets.bottom]
   );
+
+  // Keep the screen awake while the flyover is on screen, so a long flyover
+  // (which can run for over a minute) does not let the display dim/black out.
+  useEffect(() => {
+    if (visible) {
+      void activateKeepAwakeAsync();
+    } else {
+      void deactivateKeepAwake();
+    }
+    return () => {
+      void deactivateKeepAwake();
+    };
+  }, [visible]);
 
   const [mapType, setMapType] = useState<MapType>('hybrid');
   const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
@@ -447,6 +463,7 @@ export default function FlyoverModal({
                 altitudeMeters={currentPoint?.altitude ?? 0}
                 elapsedSeconds={elapsedSeconds}
                 totalDurationSeconds={totalDurationSeconds}
+                activityType={activityType}
               />
             </View>
 
