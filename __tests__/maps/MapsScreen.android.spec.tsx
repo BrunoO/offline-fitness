@@ -1,5 +1,5 @@
 import MapsScreen from '@/features/maps/screens/MapsScreen.android';
-import { Activity } from '@/shared';
+import { Activity, MapsScreenProps } from '@/shared';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
@@ -47,9 +47,9 @@ const wrap = (ui: React.ReactElement) => (
 );
 
 describe('MapsScreen (Android)', () => {
-  const mockNavigation: any = {
+  const mockNavigation = {
     navigate: jest.fn()
-  };
+  } as unknown as MapsScreenProps['navigation'];
 
   beforeEach(() => {
     jest.useFakeTimers();

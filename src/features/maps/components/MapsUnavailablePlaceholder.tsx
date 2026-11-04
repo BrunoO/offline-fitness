@@ -38,9 +38,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     iconContainer: {
       marginBottom: 12
     },
-    icon: {
-      fontSize: 48
-    },
     title: {
       fontSize: 18,
       fontWeight: '700',
