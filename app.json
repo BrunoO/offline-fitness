@@ -12,10 +12,7 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": [
-      "**/*",
-      "assets/*"
-    ],
+    "assetBundlePatterns": ["**/*", "assets/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.example.offlinefitness",
@@ -41,17 +38,16 @@
       ],
       "package": "com.example.offlinefitness"
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "scheme": "offlinefitness",
     "plugins": [
+      "./plugins/withOptimizedGradle.cjs",
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "enablePngCrunchInReleaseBuilds": false
           }
         }
       ],
