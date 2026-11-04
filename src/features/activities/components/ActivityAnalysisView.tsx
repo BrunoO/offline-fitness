@@ -15,9 +15,11 @@ import {
   findSimilarActivities,
   ActivityStream,
   getActivityIcon,
+  LatLng,
   seconds_to_label,
   simpleLogger
 } from '@/shared';
+import { haversineDistance } from '@/features/maps/services/flyoverInterpolator';
 import { exportData } from '@/shared/services/exportData';
 import { findSimilarActivitiesByTrack } from '@/shared/services/trackComparison';
 import { createChartTheme, useTheme } from '@/theme';
@@ -325,22 +327,27 @@ function SpeedTrendChart({
  */
 function AltitudeChart({
   altitudeDataXY,
-  mapWidth
+  mapWidth,
+  hasDistanceAxis = false
 }: Readonly<{
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
+  hasDistanceAxis?: boolean;
 }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
-  if (!altitudeDataXY) {
-    return <Text style={{ color: theme.textMuted }}>No altitude data available</Text>;
+  if (!altitudeDataXY || altitudeDataXY.length === 0) {
+    return <Text style={{ color: theme.textMuted, padding: 10 }}>No altitude data available</Text>;
   }
+
+  const xAxisLabel = hasDistanceAxis ? 'Distance (km)' : 'Time (h:min)';
+  const tickFormatter = hasDistanceAxis ? (d: number) => d.toFixed(1) : formatTime;
 
   return (
     <VictoryChart theme={chartTheme} width={mapWidth}>
       <VictoryAxis
-        label="Time (h:min)"
-        tickFormat={formatTime}
+        label={xAxisLabel}
+        tickFormat={tickFormatter}
         style={{
           axisLabel: { padding: 30 }
         }}
@@ -438,22 +445,29 @@ function HeartRateChart({
  */
 function ElevationGainChart({
   elevationGain,
-  mapWidth
+  mapWidth,
+  hasDistanceAxis = false
 }: Readonly<{
   elevationGain: { x: number; y: number }[] | undefined;
   mapWidth: number;
+  hasDistanceAxis?: boolean;
 }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
-  if (!elevationGain) {
-    return <Text style={{ color: theme.textMuted }}>No elevation gain data available</Text>;
+  if (!elevationGain || elevationGain.length === 0) {
+    return (
+      <Text style={{ color: theme.textMuted, padding: 10 }}>No elevation gain data available</Text>
+    );
   }
+
+  const xAxisLabel = hasDistanceAxis ? 'Distance (km)' : 'Time (h:min)';
+  const tickFormatter = hasDistanceAxis ? (d: number) => d.toFixed(1) : formatTime;
 
   return (
     <VictoryChart theme={chartTheme} width={mapWidth}>
       <VictoryAxis
-        label="Time (h:min)"
-        tickFormat={formatTime}
+        label={xAxisLabel}
+        tickFormat={tickFormatter}
         style={{
           axisLabel: { padding: 30 }
         }}
@@ -473,6 +487,76 @@ function ElevationGainChart({
       />
     </VictoryChart>
   );
+}
+
+/**
+ * Calculates cumulative X values for profile charts: cumulative km if coordinates are valid,
+ * otherwise elapsed time in hours.
+ */
+function buildProfileXValues(
+  n: number,
+  coordinates?: LatLng[],
+  timeData?: number[]
+): { xValues: number[]; hasDistanceAxis: boolean } {
+  const canUseDistance = Array.isArray(coordinates) && coordinates.length === n && n > 1;
+  const xValues: number[] = new Array(n);
+
+  if (canUseDistance) {
+    let cumMeters = 0;
+    xValues[0] = 0;
+    for (let i = 1; i < n; i++) {
+      cumMeters += haversineDistance(coordinates[i - 1], coordinates[i]);
+      xValues[i] = cumMeters / 1000;
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      xValues[i] = (timeData?.[i] ?? i) / 3600;
+    }
+  }
+
+  return { xValues, hasDistanceAxis: canUseDistance };
+}
+
+/**
+ * Calculates cumulative elevation gain series using deadband hysteresis.
+ */
+function buildElevationGainSeries(
+  altitudeData: number[],
+  xValues: number[],
+  totalGain: number
+): { x: number; y: number }[] {
+  const n = altitudeData.length;
+  const elGain: { x: number; y: number }[] = [];
+
+  if (totalGain === 0) {
+    for (let i = 0; i < n; i++) {
+      elGain.push({ x: xValues[i], y: 0 });
+    }
+    return elGain;
+  }
+
+  let sumGain = 0;
+  const HYSTERESIS_THRESHOLD = 1.5;
+  let anchor: number | null = null;
+
+  for (let i = 0; i < n; i++) {
+    const y = altitudeData[i];
+    if (i === 0) {
+      anchor = y;
+      elGain.push({ x: xValues[i], y: 0 });
+    } else if (anchor !== null) {
+      const delta = y - anchor;
+      if (delta >= HYSTERESIS_THRESHOLD) {
+        sumGain += delta;
+        anchor = y;
+      } else if (delta <= -HYSTERESIS_THRESHOLD) {
+        anchor = y;
+      }
+      elGain.push({ x: xValues[i], y: Math.round(sumGain * 10) / 10 });
+    }
+  }
+
+  return elGain;
 }
 
 /**
@@ -865,12 +949,13 @@ export function ActivityAnalysisView({
     );
   }, [item, similarActivitiesByTrack, trackSimilarityThreshold]);
 
+  const coordinates = loadedStream?.streamSet.coordinates;
   const timeData = loadedStream?.streamSet.time;
 
   // workaround for Strava swimming activities (altitude data is not good enough)
   const altitudeData = item.type === 'Swim' ? undefined : loadedStream?.streamSet.altitude;
   const heartRateData = loadedStream?.streamSet.heartrate;
-  const { altitudeDataXY, elevationGain, heartRateDataXY } = computeData();
+  const { altitudeDataXY, elevationGain, heartRateDataXY, hasDistanceAxis } = computeData();
   const heartRateSummary = useMemo(() => {
     if (!heartRateData) return null;
     const values = heartRateData.filter((v): v is number => v !== null);
@@ -954,8 +1039,16 @@ export function ActivityAnalysisView({
             mapWidth={mapWidth}
           />
         </View>
-        <AltitudeChart altitudeDataXY={altitudeDataXY} mapWidth={mapWidth} />
-        <ElevationGainChart elevationGain={elevationGain} mapWidth={mapWidth} />
+        <AltitudeChart
+          altitudeDataXY={altitudeDataXY}
+          mapWidth={mapWidth}
+          hasDistanceAxis={hasDistanceAxis}
+        />
+        <ElevationGainChart
+          elevationGain={elevationGain}
+          mapWidth={mapWidth}
+          hasDistanceAxis={hasDistanceAxis}
+        />
         {heartRateSummary ? (
           <Text style={{ color: theme.textMuted, paddingHorizontal: 10, paddingVertical: 4 }}>
             Heart rate: avg {heartRateSummary.avg} bpm • max {heartRateSummary.max} bpm
@@ -987,58 +1080,38 @@ export function ActivityAnalysisView({
 
   /**
    * Computes the data for the altitude and elevation gain charts.
+   * If coordinates are present with matching length, uses cumulative distance (km)
+   * for the X-axis; otherwise falls back to elapsed time in hours.
    * Uses deadband hysteresis so microscopic sensor noise is not accumulated
    * into phantom elevation gain.
-   * If the activity recorded 0 elevation gain, the cumulative gain line stays 0.
    * @returns An object with the data for the charts.
    */
   function computeData() {
     const hrXY = heartRateData ? buildHeartRateXY(heartRateData, timeData ?? []) : undefined;
 
-    if (!altitudeData || !timeData) {
-      return { altitudeDataXY: undefined, elevationGain: undefined, heartRateDataXY: hrXY };
+    if (!altitudeData || (!timeData && !coordinates)) {
+      return {
+        altitudeDataXY: undefined,
+        elevationGain: undefined,
+        heartRateDataXY: hrXY,
+        hasDistanceAxis: false
+      };
     }
 
-    const altXY: { x: number; y: number }[] = [];
-    const elGain: { x: number; y: number }[] = [];
+    const { xValues, hasDistanceAxis: isDistance } = buildProfileXValues(
+      altitudeData.length,
+      coordinates,
+      timeData
+    );
 
-    if (item.total_elevation_gain === 0) {
-      for (let i = 0; i < altitudeData.length; i++) {
-        const x = timeData[i] / 3600;
-        altXY.push({ x, y: altitudeData[i] });
-        elGain.push({ x, y: 0 });
-      }
-      return { altitudeDataXY: altXY, elevationGain: elGain, heartRateDataXY: hrXY };
-    }
-
-    let sumGain = 0;
-    const HYSTERESIS_THRESHOLD = 1.5;
-    let anchor: number | null = null;
-
-    for (let i = 0; i < altitudeData.length; i++) {
-      const x = timeData[i] / 3600;
-      const y = altitudeData[i];
-      altXY.push({ x, y });
-
-      if (i === 0) {
-        anchor = y;
-        elGain.push({ x, y: 0 });
-      } else if (anchor !== null) {
-        const delta = y - anchor;
-        if (delta >= HYSTERESIS_THRESHOLD) {
-          sumGain += delta;
-          anchor = y;
-        } else if (delta <= -HYSTERESIS_THRESHOLD) {
-          anchor = y;
-        }
-        elGain.push({ x, y: Math.round(sumGain * 10) / 10 });
-      }
-    }
+    const altXY = altitudeData.map((y, i) => ({ x: xValues[i], y }));
+    const elGain = buildElevationGainSeries(altitudeData, xValues, item.total_elevation_gain);
 
     return {
       altitudeDataXY: altXY,
       elevationGain: elGain,
-      heartRateDataXY: hrXY
+      heartRateDataXY: hrXY,
+      hasDistanceAxis: isDistance
     };
   }
 }
