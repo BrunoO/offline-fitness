@@ -57,3 +57,4 @@ export type { ManualEntryPrefs } from './services/manualEntryPrefs';
 
 // Screens
 export { DetailsScreen } from './screens/DetailsScreen';
+export { ActivityDetailScreen } from './screens/ActivityDetailScreen';

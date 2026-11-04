@@ -5,7 +5,7 @@ import {
   getNoStreamIds
 } from '@/features/activities/services/fetchAndStoreStreams';
 import { MERGED_ACTIVITY_TYPES } from '@/features/activities/services/mergeActivities';
-import { STORAGE_KEYS } from '@/constants';
+import { STACK_ROUTES, STORAGE_KEYS } from '@/constants';
 import {
   Activity,
   compareActivitiesByUtcDesc,
@@ -13,6 +13,7 @@ import {
   seconds_to_label,
   simpleLogger
 } from '@/shared';
+import { HeaderHubButton } from '@/features/profile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
@@ -32,7 +33,6 @@ import {
 } from 'react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ActivityAnalysisView } from '../components/ActivityAnalysisView';
 import { ActivityListItem } from '../components/ActivityListItem';
 import { useFilteredActivities } from '../hooks/useFilteredActivities';
 
@@ -595,23 +595,6 @@ function ActivitiesEmptyState({
   );
 }
 
-function ActivityMapContainer({
-  selectedActivity,
-  allActivities,
-  styles
-}: Readonly<{
-  selectedActivity: Activity | null;
-  allActivities: Activity[];
-  styles: ReturnType<typeof createStyles>;
-}>): React.JSX.Element | null {
-  if (!selectedActivity) return null;
-  return (
-    <View style={styles.mapContainer}>
-      <ActivityAnalysisView item={selectedActivity} allActivities={allActivities} />
-    </View>
-  );
-}
-
 function ClearSearchButtonSlot({
   visible,
   onClear,
@@ -811,7 +794,6 @@ function FilteredViewBanner({
 export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const listRef = useRef<{
     scrollToIndex: (params: {
       index: number;
@@ -858,23 +840,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     [baseActivities, editedMap]
   );
 
-  // Reset selected activity if it's no longer in the updated activities list
-  React.useEffect(() => {
-    if (selectedActivity && !allActivities.some(a => a.id === selectedActivity.id)) {
-      setSelectedActivity(null);
-    }
-  }, [allActivities, selectedActivity]);
-
-  // Honor a requested activity (e.g. coming from the Records screen).
-  React.useEffect(() => {
-    const requestedId = route.params?.selectedActivityId;
-    if (!requestedId) return;
-    const match = allActivities.find(a => a.id === requestedId);
-    if (match && selectedActivity?.id !== match.id) {
-      setSelectedActivity(match);
-    }
-  }, [route.params?.selectedActivityId, allActivities, selectedActivity?.id]);
-
   // Debug log to track activities updates
   React.useEffect(() => {
     simpleLogger.log('Activities list updated', {
@@ -917,17 +882,20 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // Stable element factory for the header: the button itself is hoisted
   // above, so no component is defined during render.
   const renderHeaderRight = React.useCallback(
-    () => <AddActivityHeaderButton onPress={openRecordChooser} color={theme.primary} />,
+    () => (
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <AddActivityHeaderButton onPress={openRecordChooser} color={theme.primary} />
+        <HeaderHubButton />
+      </View>
+    ),
     [openRecordChooser, theme]
   );
 
   const handleResetToAllActivities = useCallback(() => {
     navigation.setParams({
       allActivities: undefined,
-      filterLabel: undefined,
-      selectedActivityId: undefined
+      filterLabel: undefined
     });
-    setSelectedActivity(null);
     setSearchQuery('');
     setSelectedTypes(new Set());
     setHideNoStream(false);
@@ -981,20 +949,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     [filteredActivities]
   );
 
-  // Keep the selected activity visible in the list (e.g. after navigating
-  // from the Records screen), so its short description can be checked.
-  React.useEffect(() => {
-    if (!selectedActivity) return;
-    const index = filteredActivities.findIndex(a => a.id === selectedActivity.id);
-    if (index < 0) return;
-    const frame = requestAnimationFrame(() => {
-      listRef.current
-        ?.scrollToIndex({ index, animated: true, viewPosition: 0.5 })
-        .catch(() => undefined);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [selectedActivity, filteredActivities]);
-
   const toggleType = (type: string) => {
     setSelectedTypes(prev => {
       const next = new Set(prev);
@@ -1011,14 +965,9 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // across unrelated re-renders (e.g. while typing in search).
   const handleActivityPress = useCallback(
     (activityId: string) => {
-      setSelectedActivity(prev => {
-        if (prev?.id === activityId) {
-          return null;
-        }
-        return allActivities.find(a => a.id === activityId) || null;
-      });
+      navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
     },
-    [allActivities]
+    [navigation]
   );
 
   // Stable identity for the memoised ActivityListItem (state setters are stable).
@@ -1044,12 +993,12 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       <ActivityListItem
         activity={item}
         onPress={handleActivityPress}
-        selectedActivityId={selectedActivity?.id ?? null}
+        selectedActivityId={null}
         deleteActivity={onDeleteActivity}
         editActivity={handleEditActivity}
       />
     ),
-    [selectedActivity?.id, handleActivityPress, onDeleteActivity, handleEditActivity]
+    [handleActivityPress, onDeleteActivity, handleEditActivity]
   );
 
   const clearSearch = () => {
@@ -1057,7 +1006,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   };
 
   return (
-    <View style={[styles.container, { paddingTop: 0, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}>
       <View style={styles.listContainer}>
         <FilteredBannerSlot
           isFiltered={route.params?.allActivities !== undefined}
@@ -1123,9 +1072,9 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             data={filteredActivities}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
-            extraData={selectedActivity}
             onRefresh={refreshActivities}
             refreshing={fetchingData}
+            contentContainerStyle={{ paddingBottom: 88 + insets.bottom }}
             ListEmptyComponent={
               <ActivitiesEmptyState
                 fetchingData={fetchingData}
@@ -1139,11 +1088,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           />
         </View>
       </View>
-      <ActivityMapContainer
-        selectedActivity={selectedActivity}
-        allActivities={allActivities}
-        styles={styles}
-      />
       <EditActivityModal
         activity={editingActivity}
         onClose={() => setEditingActivity(null)}

@@ -1,5 +1,5 @@
-import { LogEntry, LogLevel, simpleLogger } from '@/shared/services/SimpleLogger';
-import { assertNever } from '@/shared';
+import { LogEntry, LogLevel, simpleLogger } from '../services/SimpleLogger';
+import { assertNever } from '../utils/assertNever';
 import { ResolvedTheme, useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Clipboard from '@react-native-clipboard/clipboard';

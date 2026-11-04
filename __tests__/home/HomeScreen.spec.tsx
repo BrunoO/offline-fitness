@@ -136,26 +136,22 @@ describe('HomeScreen - Recent Achievements Navigation', () => {
     expect(queryByText('Activity Data')).toBeNull();
     expect(queryByText('Stored Locally')).toBeNull();
 
-    // Press Longest activity -> navigates to Details
+    // Press Longest activity -> navigates to ActivityDetail
     const longestBtn = getByLabelText('View details for longest activity: Epic Long Run');
     expect(longestBtn).toBeTruthy();
     fireEvent.press(longestBtn);
 
-    expect(mockNavigation.navigate).toHaveBeenCalledWith('Details', {
-      allActivities: [longestRun],
-      selectedActivityId: 'act-longest',
-      filterLabel: 'Achievement: Epic Long Run'
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('ActivityDetail', {
+      activityId: 'act-longest'
     });
 
-    // Press Biggest climb -> navigates to Details
+    // Press Biggest climb -> navigates to ActivityDetail
     const climbBtn = getByLabelText('View details for biggest climb: Col du Tourmalet');
     expect(climbBtn).toBeTruthy();
     fireEvent.press(climbBtn);
 
-    expect(mockNavigation.navigate).toHaveBeenCalledWith('Details', {
-      allActivities: [biggestClimbRide],
-      selectedActivityId: 'act-climb',
-      filterLabel: 'Achievement: Col du Tourmalet'
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('ActivityDetail', {
+      activityId: 'act-climb'
     });
   });
 

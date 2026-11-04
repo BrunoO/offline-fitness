@@ -50,29 +50,40 @@ export const STORAGE_KEYS = {
   ACTIVITY_PREFIX: 'a_'
 } as const;
 
-// Route names for the drawer navigator. Keys mirror `RootDrawerParamList` so
-// the constant stays in 1:1 harmony with the navigation param list. Centralised
-// so navigation calls don't repeat bare string literals (typo-safe, single
-// source of truth).
-export const DRAWER_ROUTES = {
-  Details: 'Details',
+/**
+ * A backup older than this is flagged as stale: the app never syncs by
+ * itself, so a stale timestamp means the user's only copy is the phone's.
+ */
+export const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
+
+// Route names for the modern floating Tab navigator.
+export const TAB_ROUTES = {
   Home: 'Home',
-  Logs: 'Logs',
-  Maps: 'Maps',
-  Profile: 'Profile',
-  Record: 'Record',
+  Activities: 'Activities',
+  RecordAction: 'RecordAction',
   Stats: 'Stats',
-  TimerRecord: 'TimerRecord'
+  Maps: 'Maps'
 } as const;
 
-// Route names for the Stats tab navigator. Keys mirror `StatsTabParamList`.
-export const STATS_TAB_ROUTES = {
-  RecentMonthsScreen: 'RecentMonthsScreen',
-  RecentWeeksScreen: 'RecentWeeksScreen',
-  RecentYearsScreen: 'RecentYearsScreen',
-  RecordsScreen: 'RecordsScreen'
+// Route names for the modern Root Stack navigator.
+export const STACK_ROUTES = {
+  Main: 'Main',
+  ActivityDetail: 'ActivityDetail',
+  Record: 'Record',
+  TimerRecord: 'TimerRecord',
+  Profile: 'Profile',
+  Logs: 'Logs'
 } as const;
 
-export type DrawerRouteName = (typeof DRAWER_ROUTES)[keyof typeof DRAWER_ROUTES];
-export type StatsTabRouteName = (typeof STATS_TAB_ROUTES)[keyof typeof STATS_TAB_ROUTES];
-export type RouteName = DrawerRouteName | StatsTabRouteName;
+// Segment identifiers for the Stats top segmented control.
+export const STATS_SEGMENTS = {
+  Weeks: 'weeks',
+  Months: 'months',
+  Years: 'years',
+  Records: 'records'
+} as const;
+
+export type TabRouteName = (typeof TAB_ROUTES)[keyof typeof TAB_ROUTES];
+export type StackRouteName = (typeof STACK_ROUTES)[keyof typeof STACK_ROUTES];
+export type StatsSegment = (typeof STATS_SEGMENTS)[keyof typeof STATS_SEGMENTS];
+export type RouteName = TabRouteName | StackRouteName;

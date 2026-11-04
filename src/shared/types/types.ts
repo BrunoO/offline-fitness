@@ -2,8 +2,17 @@
 // core (which reaches it through `week_of_year` in `utils.ts`) stays loadable
 // outside React Native. See `docs/desktop-import-plan.md` and the guard in
 // `__tests__/stravaImport/importCorePortability.spec.ts`.
-import type { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
-import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { BottomTabNavigationProp, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type {
+  CompositeNavigationProp,
+  CompositeScreenProps,
+  NavigatorScreenParams
+} from '@react-navigation/native';
+import type {
+  NativeStackNavigationProp,
+  NativeStackScreenProps
+} from '@react-navigation/native-stack';
+import type { StatsSegment } from '@/constants';
 
 export type Activity = {
   average_speed: number;
@@ -46,15 +55,9 @@ export type Activity = {
 
 export type ActivityAccessor<T> = (arg0: Activity) => T;
 
-export type RootDrawerParamList = {
+export type MainTabParamList = {
   Home: undefined;
-  Record: undefined;
-  Stats: NavigatorScreenParams<StatsTabParamList> | undefined;
-  TimerRecord: undefined;
-  Logs: undefined;
-  Maps: undefined;
-  Profile: undefined;
-  Details:
+  Activities:
     | {
         allActivities?: Activity[];
         selectedActivityId?: string;
@@ -62,27 +65,59 @@ export type RootDrawerParamList = {
         useElapsedTime?: boolean;
       }
     | undefined;
+  RecordAction: undefined;
+  Stats: { segment?: StatsSegment } | undefined;
+  Maps: undefined;
 };
 
-export type StatsTabParamList = {
-  RecentWeeksScreen: undefined;
-  RecentYearsScreen: undefined;
-  RecentMonthsScreen: undefined;
-  RecordsScreen: undefined;
+export type RootStackParamList = {
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  ActivityDetail: { activityId: string };
+  Record: undefined;
+  TimerRecord: undefined;
+  Profile: undefined;
+  Logs: undefined;
 };
+
+export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
+  RootStackParamList,
+  T
+>;
+
+export type MainTabScreenProps<T extends keyof MainTabParamList> = BottomTabScreenProps<
+  MainTabParamList,
+  T
+>;
+
+export type RootStackNavigationProp<T extends keyof RootStackParamList = keyof RootStackParamList> =
+  NativeStackNavigationProp<RootStackParamList, T>;
+
+export type MainTabNavigationProp<T extends keyof MainTabParamList = keyof MainTabParamList> =
+  BottomTabNavigationProp<MainTabParamList, T>;
 
 export type MapsScreenProps = {
-  navigation: DrawerNavigationProp<RootDrawerParamList>;
+  navigation: CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList, 'Maps'>,
+    NativeStackNavigationProp<RootStackParamList>
+  >;
 };
 
-export type DetailsScreenProps = DrawerScreenProps<RootDrawerParamList, 'Details'>;
+export type DetailsScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Activities'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export type HomeScreenProps = DrawerScreenProps<RootDrawerParamList, 'Home'>;
-export type LogScreenProps = DrawerScreenProps<RootDrawerParamList, 'Logs'>;
+export type HomeScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Home'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export type MapsDetailsScreenProps = DrawerScreenProps<RootDrawerParamList, 'Maps'>;
+export type LogScreenProps = NativeStackScreenProps<RootStackParamList, 'Logs'>;
 
-export type StatsTabScreenProps = DrawerScreenProps<RootDrawerParamList, 'Stats'>;
+export type StatsTabScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Stats'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export type RecentYearsScreenProps = Record<string, never>;
 

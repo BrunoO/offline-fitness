@@ -1,7 +1,5 @@
 import { ActivityCalendarPeriod } from './ActivityCalendarPeriod';
-import { Activity } from '@/shared';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import type { RootDrawerParamList } from '@/shared/types/types';
+import { Activity, HomeScreenProps } from '@/shared';
 import { ResolvedTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -14,7 +12,7 @@ export type HomeCalendarSectionProps = {
   onDayPress: (activity: Activity) => void;
   onEmptyDayPress: (date: string) => void;
   onAdd: (date: string) => void;
-  navigation: DrawerNavigationProp<RootDrawerParamList>;
+  navigation: HomeScreenProps['navigation'];
   theme: ResolvedTheme;
   styles: ReturnType<typeof createStyles>;
 };

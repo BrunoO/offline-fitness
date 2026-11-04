@@ -4,11 +4,9 @@ import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useTimerRecording } from '../hooks/useTimerRecording';
-import type { RootDrawerParamList } from '@/shared';
 import { NO_GPS_ACTIVITY_TYPES } from '@/shared';
 import { createStyles } from './TimerRecordingScreen.styles';
 
@@ -38,7 +36,7 @@ const phaseLabel = (phase: string): string => {
 };
 
 export interface TimerRecordingScreenProps {
-  readonly navigation?: Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'>;
+  readonly navigation?: { navigate: (route: string, params?: unknown) => void };
 }
 
 export function TimerRecordingScreen(_props: TimerRecordingScreenProps = {}): JSX.Element {

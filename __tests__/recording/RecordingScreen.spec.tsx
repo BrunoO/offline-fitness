@@ -636,9 +636,8 @@ describe('RecordingScreen', () => {
 
     await waitFor(() => {
       expect(save).toHaveBeenCalledWith('', undefined);
-      expect(navigate).toHaveBeenCalledWith('Details', {
-        allActivities: undefined,
-        selectedActivityId: 'recorded-1700000000000-1'
+      expect(navigate).toHaveBeenCalledWith('ActivityDetail', {
+        activityId: 'recorded-1700000000000-1'
       });
     });
   });

@@ -1,8 +1,8 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { DRAWER_ROUTES } from '@/constants';
+import { TAB_ROUTES } from '@/constants';
 import { evaluateGoal } from '@/features/stats/services/GoalService';
 import { useSettings } from '@/features/stats/StatsTabSettingsContext';
-import { Activity, RootDrawerParamList } from '@/shared';
+import { Activity } from '@/shared';
 import {
   activityLocalDate,
   deviceTodayLocalDateString,
@@ -10,7 +10,6 @@ import {
 } from '@/shared/utils/activityDates';
 import { activityIsoWeekKey, isoWeekKeyFromDateString } from '@/shared/utils/isoWeek';
 import { getISOWeekNumber } from '@/shared/utils/utils';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -39,7 +38,7 @@ interface ActivityCalendarPeriodProps {
   /**
    * Navigation prop for navigating to other screens.
    */
-  navigation?: DrawerNavigationProp<RootDrawerParamList>;
+  navigation?: { navigate: (route: string, params?: unknown) => void };
 }
 
 /**
@@ -64,7 +63,7 @@ export function ActivityCalendarPeriod({
   // Handle week number press to navigate to RecentWeeksScreen - memoized for performance
   const handleWeekNumberPress = useCallback(() => {
     if (navigation) {
-      navigation.navigate(DRAWER_ROUTES.Stats);
+      navigation.navigate(TAB_ROUTES.Stats);
     }
   }, [navigation]);
 

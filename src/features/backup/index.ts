@@ -27,5 +27,12 @@ export {
   type SyncSummary
 } from './services/backupSync';
 
+// Hooks
+export {
+  useBackupHealth,
+  type BackupHealth,
+  type BackupHealthStatus
+} from './hooks/useBackupHealth';
+
 // Components
 export { BackupSection } from './components/BackupSection';

@@ -1,35 +1,30 @@
 // eslint-disable-next-line import/no-duplicates -- Sonar S3863 agrees; the pattern is deliberate (see AGENTS.md "Import Hygiene")
-import 'react-native-gesture-handler'; // NOSONAR - side-effect import must precede all other imports, separate from the named import below // https://reactnavigation.org/docs/drawer-navigator#installation
-
+import 'react-native-gesture-handler'; // NOSONAR - side-effect import must precede all other imports, separate from the named import below
 // eslint-disable-next-line import/no-duplicates -- paired with the side-effect import above
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // NOSONAR - paired with the side-effect import above
 import {
   ActivitiesProvider,
   calculateAndStoreMissingBoundingBoxes,
   correctSwimElevationGain,
-  DetailsScreen,
   ManualEntryProvider,
   useActivitiesContext
 } from '@/features/activities';
-import { HomeScreen } from '@/features/home';
-import { MapsScreen } from '@/features/maps';
-import { ProfileScreen } from '@/features/profile';
+import { ProfileHubProvider, useProfileHub } from '@/features/profile';
+import { ProfileHubSheet } from '@/features/profile/components/ProfileHubSheet';
 import { sweepExpiredSessions } from '@/features/recording';
-import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
-import { TimerRecordingScreen } from '@/features/recording/screens/TimerRecordingScreen';
-import { SettingsProvider, StatsTab } from '@/features/stats';
-import { LogScreen, RootDrawerParamList, simpleLogger } from '@/shared';
-import { CustomDrawerContent, getDrawerIconOptions } from '@/shared/components/CustomDrawer';
+import { SettingsProvider } from '@/features/stats';
+import { RootStackParamList, simpleLogger } from '@/shared';
+import { STACK_ROUTES } from '@/constants';
 import { SettingsModal } from '@/shared/components/SettingsModal';
 import { createNavigationTheme, ThemeProvider, useTheme } from '@/theme';
-import { createDrawerNavigator } from '@react-navigation/drawer';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { RootStackNavigator } from './src/navigation/RootStackNavigator';
 
 // Keep the splash screen visible while we fetch resources
 // (only rejects if the splash was already hidden; startup order makes that impossible)
@@ -43,18 +38,16 @@ SplashScreen.setOptions({
   fade: false
 });
 
-const Drawer = createDrawerNavigator<RootDrawerParamList>();
-
 function AppContent() {
   const theme = useTheme();
   const navigationTheme = useMemo(() => createNavigationTheme(theme), [theme]);
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const { reloadActivitiesFromLocalStorage } = useActivitiesContext();
+  const { isHubOpen, closeHub } = useProfileHub();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const fadeAnim = useSharedValue(1);
 
-  // Stable so the drawer's memoised "Settings" row does not change identity
-  // every time the app re-renders.
   const openSettings = useCallback(() => setSettingsVisible(true), []);
 
   const splashAnimatedStyle = useAnimatedStyle(() => ({
@@ -84,7 +77,10 @@ function AppContent() {
         // reload so any bounding_box / elevation corrections land in state.
         const runBackgroundBackfill = async () => {
           try {
-            await Promise.all([calculateAndStoreMissingBoundingBoxes(), correctSwimElevationGain()]);
+            await Promise.all([
+              calculateAndStoreMissingBoundingBoxes(),
+              correctSwimElevationGain()
+            ]);
             await reloadActivitiesFromLocalStorage();
           } catch (error) {
             simpleLogger.error('Startup backfill error', error);
@@ -101,72 +97,18 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer ref={navigationRef} theme={navigationTheme}>
         <ManualEntryProvider>
-          <Drawer.Navigator
-            backBehavior="history"
-            // prettier-ignore
-            drawerContent={props => ( // NOSONAR - render prop must close over openSettings
-            <CustomDrawerContent {...props} onOpenSettings={openSettings} />
-          )}
-          >
-            <Drawer.Screen name="Home" options={getDrawerIconOptions('home-outline')}>
-              {props => <HomeScreen {...props} />}
-            </Drawer.Screen>
-            <Drawer.Screen
-              name="Details"
-              component={DetailsScreen}
-              options={{
-                ...getDrawerIconOptions('list-outline'),
-                drawerLabel: 'Activities'
-              }}
-            />
-            <Drawer.Screen
-              name="Stats"
-              component={StatsTab}
-              options={getDrawerIconOptions('color-wand-outline')}
-            />
-            <Drawer.Screen
-              name="Record"
-              component={RecordingScreen}
-              options={{
-                ...getDrawerIconOptions('radio-button-on-outline'),
-                title: 'Record (GPS)'
-              }}
-            />
-            <Drawer.Screen
-              name="TimerRecord"
-              component={TimerRecordingScreen}
-              options={{
-                ...getDrawerIconOptions('timer-outline'),
-                title: 'Record (Timer)'
-              }}
-            />
-            <Drawer.Screen
-              name="Maps"
-              component={MapsScreen}
-              options={getDrawerIconOptions('map-outline')}
-            />
-            <Drawer.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{
-                ...getDrawerIconOptions('person-outline'),
-                drawerItemStyle: { display: 'none' }
-              }}
-            />
-            <Drawer.Screen
-              name="Logs"
-              component={LogScreen}
-              options={{
-                ...getDrawerIconOptions('newspaper-outline'),
-                drawerItemStyle: { display: 'none' }
-              }}
-            />
-          </Drawer.Navigator>
-          {/* Mounted outside the drawer panel: the panel never unmounts, and the
-            settings form holds live text inputs. */}
+          <RootStackNavigator />
+          {/* Mounted outside the navigator: modals hold persistent state */}
           <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+          <ProfileHubSheet
+            visible={isHubOpen}
+            onClose={closeHub}
+            onOpenSettings={openSettings}
+            onNavigateToProfile={() => navigationRef.navigate(STACK_ROUTES.Profile)}
+            onNavigateToLogs={() => navigationRef.navigate(STACK_ROUTES.Logs)}
+          />
         </ManualEntryProvider>
       </NavigationContainer>
       {splashVisible ? (
@@ -206,7 +148,9 @@ export default function App() {
       <ThemeProvider>
         <SettingsProvider>
           <ActivitiesProvider>
-            <AppContent />
+            <ProfileHubProvider>
+              <AppContent />
+            </ProfileHubProvider>
           </ActivitiesProvider>
         </SettingsProvider>
       </ThemeProvider>

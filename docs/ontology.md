@@ -313,13 +313,12 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 ### 7.1 Module Dependency & Portable-Core Boundaries
 * **`ONT-ARCH-01` — Intra-Feature vs. Inter-Feature Imports (`docs/architecture.md`):**
   * **Intra-feature (same feature under `src/features/<name>/`):** Always use relative imports (`../`, `./`). Never import from the feature's own barrel (`index.ts`).
-  * **Inter-feature:** Import via barrel exports (`@/features/<name>`, `@/shared`, `@/theme`, `@/constants`), **except** for the 6 items in the **Circular Dependency Exception Registry**, which must always be imported by direct file path:
-    1. `import CustomDrawer from '@/shared/components/CustomDrawer'`
-    2. `import MiniMapComponent from '@/features/maps/components/MiniMapComponent'`
-    3. `import ButtonList from '@/features/home/components/ButtonList'`
-    4. `import { RecordChooserSheet } from '@/features/activities/components/RecordChooserSheet'`
-    5. `import { RecordingScreen } from '@/features/recording/screens/RecordingScreen'`
-    6. `import { compareTracks, findSimilarActivitiesByTrack } from '@/shared/services/trackComparison'`
+  * **Inter-feature:** Import via barrel exports (`@/features/<name>`, `@/shared`, `@/theme`, `@/constants`), **except** for the 5 items in the **Circular Dependency Exception Registry**, which must always be imported by direct file path:
+    1. `import MiniMapComponent from '@/features/maps/components/MiniMapComponent'`
+    2. `import ButtonList from '@/features/home/components/ButtonList'`
+    3. `import { RecordChooserSheet } from '@/features/activities/components/RecordChooserSheet'`
+    4. `import { RecordingScreen } from '@/features/recording/screens/RecordingScreen'`
+    5. `import { compareTracks, findSimilarActivitiesByTrack } from '@/shared/services/trackComparison'`
   * **Import Consolidation:** Never import from the same module specifier twice in one file (`npm run check:imports`).
 * **`ONT-ARCH-02` — Portable Import Core Boundary (`__tests__/stravaImport/importCorePortability.spec.ts`):**
   * The conversion and transport graph shared with the Node.js desktop CLI (`src/features/strava-import/`, `src/shared/services/streamCodec.ts`, `src/shared/services/SimpleLogger.ts`, `src/features/backup/services/webdavTransport.ts`, `src/constants/index.ts`, `src/shared/utils/utils.ts`, `src/shared/types/types.ts`, and `scripts/strava-import-tool/`) **must contain zero runtime value imports from `react-native`, `expo-*`, or `@/shared` (the barrel)**. Cross-cutting navigation types in `types.ts` must use `import type`.
@@ -333,7 +332,7 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
   * `ActivitiesProvider` splits state into `ActivitiesDataContext` (stable `globalActivities`, `mostRecentActivity`, `myActivitiesDiscovered`, `addActivity`, `updateActivity`, `deleteActivity`) and `ActivitiesSyncContext` (volatile `fetchingData`, `totalActivitiesStored`, `lastBackupSync`, `refreshActivities`).
   * Map and chart screens that only render activity data should subscribe to `useActivitiesDataContext()` to avoid re-rendering during sync updates.
 * **`ONT-ARCH-05` — Single-Instance Sheet Mounting (`src/features/activities/ManualEntryContext.tsx`):**
-  * Global modals/sheets (`ManualActivitySheet`, `RecordChooserSheet`, `SettingsModal`) are mounted **once beside the root navigator** (`App.tsx` / `ManualEntryProvider`), never inside `CustomDrawer` or individual screen trees.
+  * Global modals/sheets (`ManualActivitySheet`, `RecordChooserSheet`, `SettingsModal`) are mounted **once beside the root navigator** (`App.tsx` / `ManualEntryProvider`), never inside individual screen trees.
 * **`ONT-ARCH-06` — Lazy `expo-file-system` `Directory` Initialization:**
   * Never construct `new Directory(Paths.document, ...)` at module top-level (import time); always wrap it in a lazy getter function (e.g., `streamsFolder()` in `fetchAndStoreStreams.ts` and `exportData.ts`) so importing a barrel in tests or before filesystem readiness never throws.
 

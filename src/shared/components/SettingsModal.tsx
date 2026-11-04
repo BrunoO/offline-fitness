@@ -33,7 +33,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * inside a panel that never unmounts — and left the keyboard able to resize the
  * drawer while it was open.
  *
- * Not exported from the `@/shared` barrel: like `CustomDrawer`, it imports a
+ * Not exported from the `@/shared` barrel: it imports a
  * feature module, and it has exactly one consumer (`App.tsx`), which imports it
  * directly.
  */

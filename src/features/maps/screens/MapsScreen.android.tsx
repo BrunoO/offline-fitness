@@ -23,7 +23,7 @@ import MapView, {
 
 import { getActivityStreams, useActivitiesDataContext } from '@/features/activities';
 import { useTheme } from '@/theme';
-import { DRAWER_ROUTES } from '@/constants';
+import { TAB_ROUTES } from '@/constants';
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -421,7 +421,7 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
           <IconButton
             icon="filter-list"
             onPress={() =>
-              navigation.navigate(DRAWER_ROUTES.Details, {
+              navigation.navigate(TAB_ROUTES.Activities, {
                 allActivities: currentlyFilteredActivities
               })
             }

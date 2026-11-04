@@ -87,7 +87,6 @@ checkRegex('src/shared/services/streamCodec.ts', /const\s+FLAG_HAS_TIME\s*=\s*0b
 checkRegex('src/shared/services/streamCodec.ts', /const\s+FLAG_HAS_HEARTRATE\s*=\s*0b1000/, 'FLAG_HAS_HEARTRATE = 0b1000');
 
 // 6. ONT-ARCH: Known Circular Dependency Exceptions
-checkFileContains('AGENTS.md', "import CustomDrawer from '@/shared/components/CustomDrawer'", 'Cycle exception CustomDrawer');
 checkFileContains('AGENTS.md', "import MiniMapComponent from '@/features/maps/components/MiniMapComponent'", 'Cycle exception MiniMapComponent');
 checkFileContains('AGENTS.md', "import ButtonList from '@/features/home/components/ButtonList'", 'Cycle exception ButtonList');
 checkFileContains('AGENTS.md', "import { RecordingScreen } from '@/features/recording/screens/RecordingScreen'", 'Cycle exception RecordingScreen');

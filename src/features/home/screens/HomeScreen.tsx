@@ -1,5 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { DRAWER_ROUTES, STATS_TAB_ROUTES } from '@/constants';
+import { STACK_ROUTES, STATS_SEGMENTS, TAB_ROUTES } from '@/constants';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -13,6 +13,8 @@ import { HomeCalendarSection } from '../components/HomeCalendarSection';
 import { HomeFooter } from '../components/HomeFooter';
 import { HomeStreaksSection } from '../components/HomeStreaksSection';
 import { HomeWeekSummary } from '../components/HomeWeekSummary';
+import { useBackupHealth } from '@/features/backup';
+import { HeaderHubButton } from '@/features/profile';
 import FlyoverModal from '@/features/maps/components/FlyoverModal';
 import {
   ActivityStats,
@@ -27,9 +29,8 @@ import {
   activityUtcMs,
   ActivityStream,
   BACKUP_LAST_SYNC_KEY,
-  relative_time_label,
+  HomeScreenProps as SharedHomeScreenProps,
   retrieveStringValue,
-  RootDrawerParamList,
   simpleLogger
 } from '@/shared';
 import {
@@ -38,21 +39,15 @@ import {
   computeWeeklyGoalStreaks
 } from '@/shared/services/streaks';
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type HomeScreenProps = {
-  navigation: DrawerNavigationProp<RootDrawerParamList, 'Home'>;
-};
-
-/**
- * A backup older than this is flagged in the header: the app never syncs by
- * itself, so a stale timestamp means the user's only copy is the phone's.
- */
-const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
+export interface HomeScreenProps {
+  navigation: SharedHomeScreenProps['navigation'];
+  route?: SharedHomeScreenProps['route'];
+}
 
 /**
  * The home screen of the app.
@@ -344,43 +339,18 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   // When the WebDAV backup last ran, shown in the header: the app is offline
   // and syncs only by hand, so this is the one number that says whether the
   // data on this phone is also safe somewhere else.
-  const [backupFreshness, setBackupFreshness] = useState<{ label: string; stale: boolean }>({
-    label: 'No backup yet',
-    stale: false
-  });
-
-  const updateBackupFreshness = useCallback((syncedAt: string | null) => {
-    const ago = relative_time_label(syncedAt);
-    if (!syncedAt || ago === null) {
-      setBackupFreshness({ label: 'No backup yet', stale: false });
-      return;
-    }
-    setBackupFreshness({
-      label: `Synced ${ago}`,
-      stale: Date.now() - Date.parse(syncedAt) > STALE_BACKUP_MS
-    });
-  }, []);
-
-  useEffect(() => {
-    updateBackupFreshness(lastBackupSync);
-    const interval = setInterval(() => {
-      updateBackupFreshness(lastBackupSync);
-    }, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [lastBackupSync, updateBackupFreshness]);
+  const backupFreshness = useBackupHealth(lastBackupSync);
 
   const loadBackupFreshness = useCallback(async () => {
     try {
       const syncedAt = await retrieveStringValue(BACKUP_LAST_SYNC_KEY);
       if (syncedAt) {
         recordBackupSync(syncedAt);
-      } else {
-        updateBackupFreshness(null);
       }
     } catch (error) {
       simpleLogger.error('Could not read the last backup time:', error);
     }
-  }, [recordBackupSync, updateBackupFreshness]);
+  }, [recordBackupSync]);
 
   const handleRefresh = useCallback(async () => {
     await reloadActivitiesFromLocalStorage();
@@ -493,12 +463,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
-    const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate(DRAWER_ROUTES.Details, {
-      allActivities: targetActivity ? [targetActivity] : globalActivities,
-      selectedActivityId: activityId,
-      filterLabel: targetActivity?.name ? `Achievement: ${targetActivity.name}` : 'Achievement'
-    });
+    navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
   };
 
   const handleActivityChange = (activity: Activity) => {
@@ -641,11 +606,17 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
     }, [loadBackupFreshness])
   );
 
+  const hubStatusColor = useMemo(() => {
+    if (backupFreshness.status === 'healthy') return theme.success;
+    if (backupFreshness.status === 'stale') return theme.warning;
+    return undefined;
+  }, [backupFreshness.status, theme.success, theme.warning]);
+
   React.useLayoutEffect(() => {
     navigation?.setOptions({
       // prettier-ignore
       headerRight: () => ( // NOSONAR - render prop must close over backupFreshness
-        <View style={{ marginRight: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {/* The label itself carries the age ("Synced 3 weeks ago"); colour
               only lifts it out of the muted tier. theme.warning is not used
               because the palette test (theme.spec.ts) guarantees 4.5:1 for
@@ -657,15 +628,20 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           >
             {backupFreshness.label}
           </Text>
+          <HeaderHubButton statusColor={hubStatusColor} />
         </View>
       )
     });
-  }, [navigation, backupFreshness, styles]);
+  }, [navigation, backupFreshness, styles, hubStatusColor]);
 
   return (
     <View style={{ flex: 1, paddingTop: 0, paddingBottom: insets.bottom }}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 16,
+          paddingBottom: 88 + insets.bottom
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -683,8 +659,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           goalWeekStreak={goalWeekStreak}
           currentYearStats={currentYearConsistency}
           onSeeAnnualTrends={() =>
-            navigation.navigate(DRAWER_ROUTES.Stats, {
-              screen: STATS_TAB_ROUTES.RecentYearsScreen
+            navigation.navigate(TAB_ROUTES.Stats, {
+              segment: STATS_SEGMENTS.Years
             })
           }
           styles={styles}
@@ -719,7 +695,9 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           achievementsStartDate={achievementsStartDate}
           onSelectActivity={goToActivity}
           onSeeAll={() =>
-            navigation.navigate(DRAWER_ROUTES.Stats, { screen: STATS_TAB_ROUTES.RecordsScreen })
+            navigation.navigate(TAB_ROUTES.Stats, {
+              segment: STATS_SEGMENTS.Records
+            })
           }
           theme={theme}
           styles={styles}
