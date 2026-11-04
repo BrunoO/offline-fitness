@@ -222,18 +222,14 @@ function SpeedTrendChart({
   similarActivities,
   similarActivitiesByTrack,
   trackSimilarityThreshold,
-  trendLineData,
   trackTrendLineData,
-  trackReverseTrendLineData,
   mapWidth
 }: Readonly<{
   item: Activity;
   similarActivities: Activity[];
   similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarityThreshold: number;
-  trendLineData: { x: Date; y: number }[];
   trackTrendLineData: { x: Date; y: number }[];
-  trackReverseTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
 }>): JSX.Element {
   const theme = useTheme();
@@ -310,27 +306,11 @@ function SpeedTrendChart({
           }
         }}
       />
-      {trendLineData.length > 0 ? (
-        <VictoryLine
-          data={trendLineData}
-          style={{
-            data: { stroke: theme.text, strokeWidth: 2, strokeDasharray: '4' }
-          }}
-        />
-      ) : null}
       {trackTrendLineData.length > 0 ? (
         <VictoryLine
           data={trackTrendLineData}
           style={{
             data: { stroke: theme.success, strokeWidth: 2, strokeDasharray: '2' }
-          }}
-        />
-      ) : null}
-      {trackReverseTrendLineData.length > 0 ? (
-        <VictoryLine
-          data={trackReverseTrendLineData}
-          style={{
-            data: { stroke: theme.chartReverse, strokeWidth: 2, strokeDasharray: '2' }
           }}
         />
       ) : null}
@@ -659,11 +639,7 @@ export function ActivityAnalysisView({
   const [similarActivitiesByTrack, setSimilarActivitiesByTrack] = useState<
     { activity: Activity; similarity: number; reversed: boolean }[]
   >([]);
-  const [trendLineData, setTrendLineData] = useState<{ x: Date; y: number }[]>([]);
   const [trackTrendLineData, setTrackTrendLineData] = useState<{ x: Date; y: number }[]>([]);
-  const [trackReverseTrendLineData, setTrackReverseTrendLineData] = useState<
-    { x: Date; y: number }[]
-  >([]);
   const [exportProgress, setExportProgress] = useState(0);
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -683,7 +659,6 @@ export function ActivityAnalysisView({
     let cancelled = false;
     const similar = findSimilarActivities(item, allActivities, iouThreshold);
     setSimilarActivities(similar);
-    setTrendLineData(similar.length > 0 ? calculateTrendLine([item, ...similar]) : []);
     if (similar.length > 0) {
       findSimilarActivitiesByTrack(item, similar)
         .then(byTrack => {
@@ -712,14 +687,6 @@ export function ActivityAnalysisView({
       .map(a => a.activity);
     setTrackTrendLineData(
       trackSimilarActivities.length > 0 ? calculateTrendLine([item, ...trackSimilarActivities]) : []
-    );
-
-    const trackReverseActivities = similarActivitiesByTrack
-      .filter(a => a.similarity >= trackSimilarityThreshold && a.reversed)
-      .map(a => a.activity);
-    // Draw reverse trend line when there are at least 2 reverse activities
-    setTrackReverseTrendLineData(
-      trackReverseActivities.length >= 2 ? calculateTrendLine(trackReverseActivities) : []
     );
   }, [item, similarActivitiesByTrack, trackSimilarityThreshold]);
 
@@ -803,9 +770,7 @@ export function ActivityAnalysisView({
             similarActivities={similarActivities}
             similarActivitiesByTrack={similarActivitiesByTrack}
             trackSimilarityThreshold={trackSimilarityThreshold}
-            trendLineData={trendLineData}
             trackTrendLineData={trackTrendLineData}
-            trackReverseTrendLineData={trackReverseTrendLineData}
             mapWidth={mapWidth}
           />
         </View>
