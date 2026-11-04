@@ -142,8 +142,6 @@ export type HomeScreenProps = CompositeScreenProps<
 
 export type LogScreenProps = NativeStackScreenProps<RootStackParamList, 'Logs'>;
 
-export type MapsDetailsScreenProps = MapsScreenProps;
-
 export type StatsTabScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Stats'>,
   NativeStackScreenProps<RootStackParamList>

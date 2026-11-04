@@ -18,7 +18,7 @@ function EmptyRecordActionSlot(): JSX.Element | null {
 export function MainTabNavigator(): JSX.Element {
   return (
     <Tab.Navigator
-      tabBar={props => <FloatingTabBar {...props} />}
+      tabBar={FloatingTabBar}
       screenOptions={{
         headerShown: true
       }}
