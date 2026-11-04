@@ -29,6 +29,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLocationPermission } from '../hooks/useLocationPermission';
+import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
+import MapsUnavailablePlaceholder from '../components/MapsUnavailablePlaceholder';
 
 /** Map-style cycle for the header toggle; styles outside the cycle fall back to standard. */
 const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
@@ -90,6 +92,23 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   );
 
   const { minDate, maxDate } = minMaxDateRange(activitiesWithDistance);
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const lastYear = currentYear - 1;
+
+  // Floating tab bar sits at bottom: Math.max(insets.bottom, 8) + 4, height 60, with hero button extending 11px above.
+  // The year / date filter overlay sits right above the floating tab bar pill + hero button.
+  const bottomTabBarClearance = Math.max(insets.bottom, 8) + 76;
+  // Map internal controls (Google Maps zoom + / - controls and Google logo) sit above the date filter row.
+  const mapBottomPadding = bottomTabBarClearance + 44;
+  const mapPadding = useMemo(
+    () => ({
+      top: 0,
+      right: 0,
+      bottom: mapBottomPadding,
+      left: 0
+    }),
+    [mapBottomPadding]
+  );
 
   const [startDate, setStartDate] = useState<Date>(minDate);
   const [endDate, setEndDate] = useState<Date>(maxDate);
@@ -329,82 +348,92 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   //   }
   // }, [startDate, endDate, selectedActivitys.length, refitMapToVisibleActivities]);
 
+  let mapContent: JSX.Element;
+  if (!HAS_GOOGLE_MAPS_KEY) {
+    mapContent = <MapsUnavailablePlaceholder />;
+  } else if (allActivities.length === 0) {
+    mapContent = (
+      <Text style={{ textAlign: 'center', marginVertical: 20, color: theme.textMuted }}>
+        No activities available
+      </Text>
+    );
+  } else {
+    mapContent = (
+      <MapView
+        style={{ flex: 1 }}
+        provider={PROVIDER_GOOGLE}
+        ref={mapRef}
+        showsMyLocationButton={isLocationGranted}
+        zoomControlEnabled={true}
+        showsCompass={true}
+        showsUserLocation={isLocationGranted}
+        showsScale={true}
+        loadingEnabled={false}
+        loadingIndicatorColor={theme.primary}
+        onMapReady={onMapReady}
+        mapType={mapType}
+        onRegionChangeComplete={onRegionChangeCompleted}
+        initialRegion={currentRegion}
+        userInterfaceStyle="light" // Force light theme regardless of system theme
+        //onPress={toggleMapType}
+        mapPadding={mapPadding}
+      >
+        {currentlyFilteredActivities.map(
+          activity =>
+            !Number.isNaN(activity.start_latlng[0]) &&
+            !Number.isNaN(activity.start_latlng[1]) && (
+              <Marker
+                key={activity.id}
+                coordinate={{
+                  latitude: activity.start_latlng[0],
+                  longitude: activity.start_latlng[1]
+                }}
+                title={'Start'}
+                description={'Start of ' + activityToString(activity)}
+                pinColor="green"
+              />
+            )
+        )}
+
+        {!isLoading && showHeatmap && heatmapData.length > 0 ? (
+          <Heatmap
+            points={heatmapData}
+            opacity={0.7}
+            radius={20}
+            gradient={{
+              colors: theme.mapTrack,
+              startPoints: [0.1, 0.5, 1],
+              colorMapSize: 256
+            }}
+          />
+        ) : null}
+        {!isLoading && (!showHeatmap || heatmapData.length === 0)
+          ? loadedStreams.map(({ activity, streamSet }, index) => (
+              <Polyline
+                key={activity.id}
+                coordinates={streamSet.coordinates}
+                strokeWidth={2}
+                strokeColor={`hsl(${(index * 30) % 360}, 100%, 50%)`}
+                fillColor="rgba(255,0,0,0.5)"
+              />
+            ))
+          : null}
+      </MapView>
+    );
+  }
+
   return (
     <View
       style={{
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom
+        paddingTop: 0,
+        paddingBottom: 0
       }}
     >
       <View style={{ flex: 1, width: '100%' }}>
-        {allActivities.length === 0 ? (
-          <Text style={{ textAlign: 'center', marginVertical: 20, color: theme.textMuted }}>
-            No activities available
-          </Text>
-        ) : (
-          <MapView
-            style={{ flex: 1 }}
-            provider={PROVIDER_GOOGLE}
-            ref={mapRef}
-            showsMyLocationButton={isLocationGranted}
-            zoomControlEnabled={true}
-            showsCompass={true}
-            showsUserLocation={isLocationGranted}
-            showsScale={true}
-            loadingEnabled={false}
-            loadingIndicatorColor={theme.primary}
-            onMapReady={onMapReady}
-            mapType={mapType}
-            onRegionChangeComplete={onRegionChangeCompleted}
-            initialRegion={currentRegion}
-            userInterfaceStyle="light" // Force light theme regardless of system theme
-            //onPress={toggleMapType}
-          >
-            {currentlyFilteredActivities.map(
-              activity =>
-                !Number.isNaN(activity.start_latlng[0]) &&
-                !Number.isNaN(activity.start_latlng[1]) && (
-                  <Marker
-                    key={activity.id}
-                    coordinate={{
-                      latitude: activity.start_latlng[0],
-                      longitude: activity.start_latlng[1]
-                    }}
-                    title={'Start'}
-                    description={'Start of ' + activityToString(activity)}
-                    pinColor="green"
-                  />
-                )
-            )}
-
-            {!isLoading && showHeatmap && heatmapData.length > 0 ? (
-              <Heatmap
-                points={heatmapData}
-                opacity={0.7}
-                radius={20}
-                gradient={{
-                  colors: theme.mapTrack,
-                  startPoints: [0.1, 0.5, 1],
-                  colorMapSize: 256
-                }}
-              />
-            ) : null}
-            {!isLoading && (!showHeatmap || heatmapData.length === 0)
-              ? loadedStreams.map(({ activity, streamSet }, index) => (
-                  <Polyline
-                    key={activity.id}
-                    coordinates={streamSet.coordinates}
-                    strokeWidth={2}
-                    strokeColor={`hsl(${(index * 30) % 360}, 100%, 50%)`}
-                    fillColor="rgba(255,0,0,0.5)"
-                  />
-                ))
-              : null}
-          </MapView>
-        )}
+        {mapContent}
         <View style={styles.mapButtonsOverlayContainer}>
           <IconButton
             icon="drive-folder-upload"
@@ -443,17 +472,49 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
           {isLoading ? 'loading...' : (loadedStreams?.length ?? 0)}
         </Text>
       </View>
-      <View style={[styles.dateFilterOverlayContainer, { bottom: insets.bottom }]}>
-        <Pressable onPress={setFilterToLastYear} style={styles.dateFilterButton}>
-          <Text style={styles.dateFilterButtonLabel}>Year-1</Text>
+      <View style={[styles.dateFilterOverlayContainer, { bottom: bottomTabBarClearance }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Filter to ${lastYear}`}
+          onPress={setFilterToLastYear}
+          style={({ pressed }) => [
+            styles.dateFilterButton,
+            pressed ? styles.dateFilterButtonPressed : null
+          ]}
+        >
+          <Text style={styles.dateFilterButtonLabel}>{lastYear}</Text>
         </Pressable>
-        <Pressable onPress={setFilterToThisYear} style={styles.dateFilterButton}>
-          <Text style={styles.dateFilterButtonLabel}>Year</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Filter to ${currentYear}`}
+          onPress={setFilterToThisYear}
+          style={({ pressed }) => [
+            styles.dateFilterButton,
+            pressed ? styles.dateFilterButtonPressed : null
+          ]}
+        >
+          <Text style={styles.dateFilterButtonLabel}>{currentYear}</Text>
         </Pressable>
-        <Pressable onPress={() => setShowStartDatePicker(true)} style={styles.dateFilterButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Select start date"
+          onPress={() => setShowStartDatePicker(true)}
+          style={({ pressed }) => [
+            styles.dateFilterButton,
+            pressed ? styles.dateFilterButtonPressed : null
+          ]}
+        >
           <Text style={styles.dateFilterButtonLabel}>{startDate.toLocaleDateString()}</Text>
         </Pressable>
-        <Pressable onPress={() => setShowEndDatePicker(true)} style={styles.dateFilterButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Select end date"
+          onPress={() => setShowEndDatePicker(true)}
+          style={({ pressed }) => [
+            styles.dateFilterButton,
+            pressed ? styles.dateFilterButtonPressed : null
+          ]}
+        >
           <Text style={styles.dateFilterButtonLabel}>To: {endDate.toLocaleDateString()}</Text>
         </Pressable>
       </View>
@@ -494,14 +555,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     dateFilterOverlayContainer: {
       position: 'absolute',
-      bottom: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-around',
-      width: '90%',
-      marginVertical: 5,
-      marginRight: 10,
-      opacity: 0.9
+      alignSelf: 'center',
+      width: '94%',
+      opacity: 0.95,
+      zIndex: 10
     },
     dateFilterButton: {
       alignItems: 'center',
@@ -510,10 +570,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 10,
       borderWidth: 1,
       borderColor: theme.border,
-      elevation: 2,
+      elevation: 3,
       marginBottom: 4,
-      paddingHorizontal: 10,
+      paddingHorizontal: 8,
       paddingVertical: 6
+    },
+    dateFilterButtonPressed: {
+      opacity: 0.7
     },
     dateFilterButtonLabel: {
       color: theme.text,
