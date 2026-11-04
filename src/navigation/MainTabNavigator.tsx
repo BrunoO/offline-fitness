@@ -1,5 +1,5 @@
 import React, { JSX } from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabBarProps, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TAB_ROUTES } from '@/constants';
 import { MainTabParamList } from '@/shared/types/types';
 import { HomeScreen } from '@/features/home';
@@ -15,10 +15,14 @@ function EmptyRecordActionSlot(): JSX.Element | null {
   return null;
 }
 
+function renderFloatingTabBar(props: BottomTabBarProps): JSX.Element {
+  return <FloatingTabBar {...props} />;
+}
+
 export function MainTabNavigator(): JSX.Element {
   return (
     <Tab.Navigator
-      tabBar={FloatingTabBar}
+      tabBar={renderFloatingTabBar}
       screenOptions={{
         headerShown: true
       }}
