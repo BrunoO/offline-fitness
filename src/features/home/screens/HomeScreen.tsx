@@ -665,6 +665,21 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           styles={styles}
         />
 
+        {/* Recent Achievements Section */}
+        <RecentAchievementsSection
+          recentAchievements={recentAchievements}
+          achievementsStartDate={achievementsStartDate}
+          onSelectActivity={goToActivity}
+          onSeeAll={() =>
+            navigation.navigate(TAB_ROUTES.Stats, {
+              segment: STATS_SEGMENTS.Records
+            })
+          }
+          theme={theme}
+          styles={styles}
+        />
+        {/* End of Recent Achievements Section */}
+
         <HomeCalendarSection
           activities={globalActivities}
           calendarDate={calendarDate}
@@ -687,21 +702,6 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           />
         </View>
         {/* End of Recent Activity Section */}
-
-        {/* Recent Achievements Section */}
-        <RecentAchievementsSection
-          recentAchievements={recentAchievements}
-          achievementsStartDate={achievementsStartDate}
-          onSelectActivity={goToActivity}
-          onSeeAll={() =>
-            navigation.navigate(TAB_ROUTES.Stats, {
-              segment: STATS_SEGMENTS.Records
-            })
-          }
-          theme={theme}
-          styles={styles}
-        />
-        {/* End of Recent Achievements Section */}
 
         <HomeActivityMapSection
           stream={homeScreenStream?.stream}

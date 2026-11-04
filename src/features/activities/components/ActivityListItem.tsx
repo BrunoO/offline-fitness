@@ -208,9 +208,11 @@ export function ActivityListItem({
             <Text style={styles.itemIcon}>{getActivityIcon(activity.type)}</Text>
             <Text style={styles.pressableText} numberOfLines={2} ellipsizeMode="tail">
               {activityToString(activity) +
-                ' at avg ' +
-                calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
-                ' km/h'}
+                (activity.distance > 0
+                  ? ' at avg ' +
+                    calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
+                    ' km/h'
+                  : '')}
             </Text>
           </View>
         </Pressable>

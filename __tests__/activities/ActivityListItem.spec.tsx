@@ -83,6 +83,30 @@ describe('ActivityListItem', () => {
     expect(mockOnPress).toHaveBeenCalledWith('test-act-1');
   });
 
+  it('omits average speed suffix for Yoga and activities with no distance', () => {
+    const yogaActivity = makeTestActivity({
+      id: 'test-yoga-1',
+      name: 'Evening Yoga',
+      type: 'Yoga',
+      distance: 0,
+      moving_time: 1800,
+      elapsed_time: 1800
+    });
+
+    const { getByText, queryByText } = render(
+      <ActivityListItem
+        activity={yogaActivity}
+        onPress={mockOnPress}
+        selectedActivityId={null}
+        deleteActivity={mockDeleteActivity}
+        editActivity={mockEditActivity}
+      />
+    );
+
+    expect(getByText(/Evening Yoga \(Yoga\)/)).toBeTruthy();
+    expect(queryByText(/at avg/)).toBeNull();
+  });
+
   it('provides accessible buttons for edit and delete in swipe actions', () => {
     const { getByLabelText } = render(
       <ActivityListItem
