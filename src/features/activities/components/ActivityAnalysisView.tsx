@@ -14,6 +14,8 @@ import {
   calculateTrendLine,
   findSimilarActivities,
   ActivityStream,
+  getActivityIcon,
+  seconds_to_label,
   simpleLogger
 } from '@/shared';
 import { exportData } from '@/shared/services/exportData';
@@ -474,38 +476,211 @@ function ElevationGainChart({
 }
 
 /**
- * Component for displaying activity details
+ * Hero summary card displaying primary metrics (Distance, Time, Pace/Speed, Elevation).
+ */
+function ActivityHeroSummary({ item }: Readonly<{ item: Activity }>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const distanceKm = (item.distance / 1000).toFixed(2);
+  const durationLabel = seconds_to_label(item.moving_time || item.elapsed_time || 0);
+  const avgSpeedKmh = calculateSpeedKmh(item.distance, item.moving_time || item.elapsed_time);
+
+  // For runs / walks / hikes, show pace (min/km); for bike / other, speed (km/h)
+  const isPaceSport = ['Run', 'Walk', 'Hike', 'TrailRun'].includes(item.type);
+  let paceOrSpeedValue = `${avgSpeedKmh.toFixed(1)} km/h`;
+  let paceOrSpeedLabel = 'Avg Speed';
+  if (isPaceSport && item.distance > 0 && (item.moving_time || item.elapsed_time) > 0) {
+    const totalMinutes = (item.moving_time || item.elapsed_time) / 60;
+    const paceMinPerKm = totalMinutes / (item.distance / 1000);
+    const paceMin = Math.floor(paceMinPerKm);
+    const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
+    paceOrSpeedValue = `${paceMin}:${paceSec < 10 ? '0' : ''}${paceSec} /km`;
+    paceOrSpeedLabel = 'Avg Pace';
+  }
+
+  const elevationGain = Math.round(item.total_elevation_gain || 0);
+
+  return (
+    <View style={styles.heroCard}>
+      <View style={styles.heroHeader}>
+        <View style={styles.heroIconContainer}>
+          <Text style={styles.heroIcon}>{getActivityIcon(item.type)}</Text>
+        </View>
+        <View style={styles.heroHeaderText}>
+          <Text selectable style={styles.heroTitle} numberOfLines={1}>
+            {item.name || item.type}
+          </Text>
+          <Text selectable style={styles.heroSubtitle}>
+            {formatActivityLocalDateTime(item)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.heroGrid}>
+        <View style={styles.heroMetricItem}>
+          <Text selectable style={styles.heroMetricValue}>
+            {distanceKm} km
+          </Text>
+          <Text style={styles.heroMetricLabel}>Distance</Text>
+        </View>
+        <View style={styles.heroMetricItem}>
+          <Text selectable style={styles.heroMetricValue}>
+            {durationLabel}
+          </Text>
+          <Text style={styles.heroMetricLabel}>Moving Time</Text>
+        </View>
+        <View style={styles.heroMetricItem}>
+          <Text selectable style={styles.heroMetricValue}>
+            {paceOrSpeedValue}
+          </Text>
+          <Text style={styles.heroMetricLabel}>{paceOrSpeedLabel}</Text>
+        </View>
+        <View style={styles.heroMetricItem}>
+          <Text selectable style={styles.heroMetricValue}>
+            +{elevationGain} m
+          </Text>
+          <Text style={styles.heroMetricLabel}>Elevation Gain</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Clean, structured display of activity properties with collapsible raw metadata.
  */
 function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const [showRaw, setShowRaw] = useState(false);
+
+  const avgSpeedKmh = calculateSpeedKmh(
+    item.distance,
+    item.moving_time || item.elapsed_time
+  ).toFixed(1);
+
+  // Group raw entries for the collapsible section, filtering out properties already cleanly presented
+  const cleanPresentedKeys = new Set([
+    'name',
+    'type',
+    'distance',
+    'moving_time',
+    'elapsed_time',
+    'total_elevation_gain',
+    'elev_high',
+    'elev_low',
+    'average_speed',
+    'average_heartrate',
+    'max_heartrate',
+    'timezone',
+    'start_date_local',
+    'local_date',
+    'local_time'
+  ]);
+
+  const rawEntries = Object.entries(item).filter(([k]) => !cleanPresentedKeys.has(k));
+
   return (
-    <View style={{ padding: 10 }}>
-      <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.textStrong }}>
-        Activity Details:
-      </Text>
-      {Object.entries(item).map(([key, value]) => {
-        const valueString =
-          typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
-        return (
-          <View
-            key={key}
-            style={{
-              flexDirection: 'row',
-              marginVertical: 2,
-              borderBottomWidth: 1,
-              borderBottomColor: theme.border,
-              paddingBottom: 5
-            }}
+    <View style={styles.sectionCard}>
+      <Text style={styles.sectionTitle}>Activity Summary</Text>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Sport Type</Text>
+        <Text selectable style={styles.detailValue}>
+          {item.type}
+        </Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Elapsed Time</Text>
+        <Text selectable style={styles.detailValue}>
+          {seconds_to_label(item.elapsed_time || 0)}
+        </Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Average Speed</Text>
+        <Text selectable style={styles.detailValue}>
+          {avgSpeedKmh} km/h
+        </Text>
+      </View>
+
+      {item.elev_high !== undefined || item.elev_low !== undefined ? (
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Elevation (Min / Max)</Text>
+          <Text selectable style={styles.detailValue}>
+            {Math.round(item.elev_low || 0)} m / {Math.round(item.elev_high || 0)} m
+          </Text>
+        </View>
+      ) : null}
+
+      {item.average_heartrate ? (
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Average Heart Rate</Text>
+          <Text selectable style={styles.detailValue}>
+            {Math.round(item.average_heartrate)} bpm
+          </Text>
+        </View>
+      ) : null}
+
+      {item.max_heartrate ? (
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Max Heart Rate</Text>
+          <Text selectable style={styles.detailValue}>
+            {Math.round(item.max_heartrate)} bpm
+          </Text>
+        </View>
+      ) : null}
+
+      {item.timezone ? (
+        <View style={[styles.detailRow, styles.detailRowLast]}>
+          <Text style={styles.detailLabel}>Timezone</Text>
+          <Text selectable style={styles.detailValue} numberOfLines={1}>
+            {item.timezone}
+          </Text>
+        </View>
+      ) : null}
+
+      {rawEntries.length > 0 ? (
+        <>
+          <TouchableOpacity
+            style={styles.rawToggleBtn}
+            onPress={() => setShowRaw(!showRaw)}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle raw activity properties"
           >
-            <Text selectable style={{ fontWeight: 'bold', width: 150, color: theme.textStrong }}>
-              {key}
+            <Text style={styles.rawToggleText}>
+              {showRaw ? 'Hide Raw Metadata' : 'Show Raw Metadata'}
             </Text>
-            <Text selectable style={{ flex: 1, flexWrap: 'wrap', color: theme.text }}>
-              {valueString}
-            </Text>
-          </View>
-        );
-      })}
+            <MaterialCommunityIcons
+              name={showRaw ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color={theme.primary}
+            />
+          </TouchableOpacity>
+
+          {showRaw ? (
+            <View style={styles.rawContainer}>
+              {rawEntries.map(([key, value]) => {
+                const valueString =
+                  typeof value === 'object' && value !== null
+                    ? JSON.stringify(value)
+                    : String(value);
+                return (
+                  <View key={key} style={styles.detailRow}>
+                    <Text selectable style={styles.detailLabel}>
+                      {key}
+                    </Text>
+                    <Text selectable style={styles.detailValue}>
+                      {valueString}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -729,8 +904,12 @@ export function ActivityAnalysisView({
   };
 
   return (
-    <View>
-      <ScrollView>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator
+      >
         <View
           onLayout={event => {
             const { width } = event.nativeEvent.layout;
@@ -743,6 +922,7 @@ export function ActivityAnalysisView({
             title={item.name}
           />
         </View>
+        <ActivityHeroSummary item={item} />
         <View style={styles.similarActivitiesContainer}>
           <SimilarActivitiesHeader
             similarActivities={similarActivities}

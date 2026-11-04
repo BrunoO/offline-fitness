@@ -3,6 +3,152 @@ import { Platform, StyleSheet } from 'react-native';
 
 export const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
+    container: {
+      flex: 1
+    },
+    scrollView: {
+      flex: 1
+    },
+    scrollContent: {
+      paddingBottom: 32
+    },
+    heroCard: {
+      marginHorizontal: 12,
+      marginTop: 12,
+      marginBottom: 8,
+      padding: 16,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 4
+        },
+        android: {
+          elevation: 2
+        }
+      })
+    },
+    heroHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12
+    },
+    heroIconContainer: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: theme.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10
+    },
+    heroIcon: {
+      fontSize: 20
+    },
+    heroHeaderText: {
+      flex: 1
+    },
+    heroTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.textStrong
+    },
+    heroSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2
+    },
+    heroGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginHorizontal: -6
+    },
+    heroMetricItem: {
+      width: '50%',
+      paddingHorizontal: 6,
+      paddingVertical: 6
+    },
+    heroMetricValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.textStrong
+    },
+    heroMetricLabel: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2
+    },
+    sectionCard: {
+      marginHorizontal: 12,
+      marginTop: 16,
+      padding: 14,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3
+        },
+        android: {
+          elevation: 1
+        }
+      })
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.textStrong,
+      marginBottom: 10
+    },
+    detailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 7,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderSubtle
+    },
+    detailRowLast: {
+      borderBottomWidth: 0
+    },
+    detailLabel: {
+      fontSize: 13,
+      color: theme.textMuted
+    },
+    detailValue: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: theme.textStrong,
+      maxWidth: '60%',
+      textAlign: 'right'
+    },
+    rawToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 6,
+      marginTop: 4
+    },
+    rawToggleText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.primary
+    },
+    rawContainer: {
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderSubtle
+    },
     similarActivitiesContainer: {
       marginTop: 20,
       padding: 10,
