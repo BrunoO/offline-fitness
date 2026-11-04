@@ -1,6 +1,6 @@
 import { Activity } from '@/shared';
 import { IconButton } from '@/shared/utils/IconsUtils';
-import { activityToString, calculateSpeedKmh, getActivityIcon } from '@/shared/utils/utils';
+import { activityToString, formatActivityRate, getActivityIcon } from '@/shared/utils/utils';
 import { ResolvedTheme, useTheme } from '@/theme';
 import React, { useMemo, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -210,8 +210,11 @@ export function ActivityListItem({
               {activityToString(activity) +
                 (activity.distance > 0
                   ? ' at avg ' +
-                    calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1) +
-                    ' km/h'
+                    formatActivityRate(
+                      activity.distance,
+                      activity.moving_time || activity.elapsed_time,
+                      activity.type
+                    )
                   : '')}
             </Text>
           </View>

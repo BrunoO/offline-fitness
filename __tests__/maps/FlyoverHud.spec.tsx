@@ -28,4 +28,24 @@ describe('FlyoverHud', () => {
     expect(getByText('Distance')).toBeTruthy();
     expect(getByText('Elevation')).toBeTruthy();
   });
+
+  it('renders Pace (min/km) instead of Speed (km/h) for pace sports', () => {
+    const { getByText, queryByText } = render(
+      wrap(
+        <FlyoverHud
+          speedMps={1000 / 300} // 3.333 m/s => 5:00 /km
+          completedDistanceMeters={2000}
+          totalDistanceMeters={5000}
+          altitudeMeters={120}
+          elapsedSeconds={600}
+          totalDurationSeconds={1500}
+          activityType="Run"
+        />
+      )
+    );
+
+    expect(getByText('Pace')).toBeTruthy();
+    expect(getByText('5:00 /km')).toBeTruthy();
+    expect(queryByText('Speed')).toBeNull();
+  });
 });

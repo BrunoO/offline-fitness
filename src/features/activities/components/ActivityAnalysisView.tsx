@@ -11,9 +11,13 @@ import {
   activityUtcMs,
   compareActivitiesByUtcAsc,
   formatActivityLocalDateTime,
+  calculatePaceMinPerKm,
   calculateSpeedKmh,
   calculateTrendLine,
   findSimilarActivities,
+  formatActivityRate,
+  formatPace,
+  isPaceSport,
   ActivityStream,
   getActivityIcon,
   LatLng,
@@ -26,6 +30,7 @@ import { findSimilarActivitiesByTrack } from '@/shared/services/trackComparison'
 import { createChartTheme, useTheme } from '@/theme';
 import { createStyles } from './ActivityAnalysisView.styles';
 import { useLoadedStream } from '../hooks/useLoadedStream';
+import { computeStreamSplits, StreamSplit } from '../services/computeStreamSplits';
 import {
   LineSegment,
   VictoryAxis,
@@ -210,8 +215,12 @@ function SimilarActivitiesList({
                 </Text>
               ) : null}
               <Text selectable style={styles.similarActivityItemText}>
-                Average Speed:{' '}
-                {calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1)} km/h
+                {isPaceSport(activity.type) ? 'Average Pace' : 'Average Speed'}:{' '}
+                {formatActivityRate(
+                  activity.distance,
+                  activity.moving_time || activity.elapsed_time,
+                  activity.type
+                )}
               </Text>
             </View>
           </Pressable>
@@ -241,17 +250,23 @@ function SpeedTrendChart({
 }>): JSX.Element {
   const theme = useTheme();
   const chartTheme = useMemo(() => createChartTheme(theme), [theme]);
+  const paceSport = isPaceSport(item.type);
 
   // Scatter data is a sort+map over activities; memoize so VictoryScatter keeps
   // a stable data reference (the compiler can't see through the chained calls).
   const scatterData = useMemo(
     () =>
-      [item, ...similarActivities].sort(compareActivitiesByUtcAsc).map(a => ({
-        x: new Date(activityUtcMs(a)),
-        y: calculateSpeedKmh(a.distance, a.moving_time),
-        activity: a
-      })),
-    [item, similarActivities]
+      [item, ...similarActivities]
+        .sort(compareActivitiesByUtcAsc)
+        .map(a => ({
+          x: new Date(activityUtcMs(a)),
+          y: paceSport
+            ? calculatePaceMinPerKm(a.distance, a.moving_time || a.elapsed_time)
+            : calculateSpeedKmh(a.distance, a.moving_time || a.elapsed_time),
+          activity: a
+        }))
+        .filter(point => point.y > 0),
+    [item, similarActivities, paceSport]
   );
 
   // Precompute qualifying track classifications so the per-point fill check is O(1)
@@ -276,7 +291,7 @@ function SpeedTrendChart({
     <VictoryChart
       theme={chartTheme}
       width={mapWidth}
-      minDomain={{ y: 0 }}
+      minDomain={paceSport ? undefined : { y: 0 }}
       containerComponent={<VictoryZoomContainer zoomDimension="x" allowZoom allowPan />}
     >
       <VictoryAxis
@@ -289,7 +304,8 @@ function SpeedTrendChart({
       />
       <VictoryAxis
         dependentAxis
-        label="Avg Speed (km/h)"
+        label={paceSport ? 'Avg Pace (min/km)' : 'Avg Speed (km/h)'}
+        tickFormat={paceSport ? (y: number) => formatPace(y) : undefined}
         style={{
           axisLabel: { padding: 40 }
         }}
@@ -681,21 +697,11 @@ function ActivityHeroSummary({ item }: Readonly<{ item: Activity }>): JSX.Elemen
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const distanceKm = (item.distance / 1000).toFixed(2);
-  const durationLabel = seconds_to_label(item.moving_time || item.elapsed_time || 0);
-  const avgSpeedKmh = calculateSpeedKmh(item.distance, item.moving_time || item.elapsed_time);
-
-  // For runs / walks / hikes, show pace (min/km); for bike / other, speed (km/h)
-  const isPaceSport = ['Run', 'Walk', 'Hike', 'TrailRun'].includes(item.type);
-  let paceOrSpeedValue = `${avgSpeedKmh.toFixed(1)} km/h`;
-  let paceOrSpeedLabel = 'Avg Speed';
-  if (isPaceSport && item.distance > 0 && (item.moving_time || item.elapsed_time) > 0) {
-    const totalMinutes = (item.moving_time || item.elapsed_time) / 60;
-    const paceMinPerKm = totalMinutes / (item.distance / 1000);
-    const paceMin = Math.floor(paceMinPerKm);
-    const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
-    paceOrSpeedValue = `${paceMin}:${paceSec < 10 ? '0' : ''}${paceSec} /km`;
-    paceOrSpeedLabel = 'Avg Pace';
-  }
+  const durationSec = item.moving_time || item.elapsed_time || 0;
+  const durationLabel = seconds_to_label(durationSec);
+  const paceSport = isPaceSport(item.type);
+  const paceOrSpeedLabel = paceSport ? 'Avg Pace' : 'Avg Speed';
+  const paceOrSpeedValue = formatActivityRate(item.distance, durationSec, item.type);
 
   const elevationGain = Math.round(item.total_elevation_gain || 0);
 
@@ -744,39 +750,86 @@ function ActivityHeroSummary({ item }: Readonly<{ item: Activity }>): JSX.Elemen
   );
 }
 
+const CLEAN_PRESENTED_KEYS = new Set([
+  'name',
+  'type',
+  'distance',
+  'moving_time',
+  'elapsed_time',
+  'total_elevation_gain',
+  'elev_high',
+  'elev_low',
+  'average_speed',
+  'average_heartrate',
+  'max_heartrate',
+  'timezone',
+  'start_date_local',
+  'local_date',
+  'local_time'
+]);
+
+function RawMetadataSection({
+  rawEntries
+}: Readonly<{
+  rawEntries: [string, unknown][];
+}>): JSX.Element | null {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const [showRaw, setShowRaw] = useState(false);
+
+  if (rawEntries.length === 0) return null;
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.rawToggleBtn}
+        onPress={() => setShowRaw(!showRaw)}
+        accessibilityRole="button"
+        accessibilityLabel="Toggle raw activity properties"
+      >
+        <Text style={styles.rawToggleText}>
+          {showRaw ? 'Hide Raw Metadata' : 'Show Raw Metadata'}
+        </Text>
+        <MaterialCommunityIcons
+          name={showRaw ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color={theme.primary}
+        />
+      </TouchableOpacity>
+
+      {showRaw ? (
+        <View style={styles.rawContainer}>
+          {rawEntries.map(([key, value]) => {
+            const valueString =
+              typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+            return (
+              <View key={key} style={styles.detailRow}>
+                <Text selectable style={styles.detailLabel}>
+                  {key}
+                </Text>
+                <Text selectable style={styles.detailValue}>
+                  {valueString}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Clean, structured display of activity properties with collapsible raw metadata.
  */
 function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [showRaw, setShowRaw] = useState(false);
 
-  const avgSpeedKmh = calculateSpeedKmh(
-    item.distance,
-    item.moving_time || item.elapsed_time
-  ).toFixed(1);
-
-  // Group raw entries for the collapsible section, filtering out properties already cleanly presented
-  const cleanPresentedKeys = new Set([
-    'name',
-    'type',
-    'distance',
-    'moving_time',
-    'elapsed_time',
-    'total_elevation_gain',
-    'elev_high',
-    'elev_low',
-    'average_speed',
-    'average_heartrate',
-    'max_heartrate',
-    'timezone',
-    'start_date_local',
-    'local_date',
-    'local_time'
-  ]);
-
-  const rawEntries = Object.entries(item).filter(([k]) => !cleanPresentedKeys.has(k));
+  const activeTimeSec = item.moving_time || item.elapsed_time;
+  const avgSpeedKmh = calculateSpeedKmh(item.distance, activeTimeSec).toFixed(1);
+  const rawEntries = Object.entries(item).filter(([k]) => !CLEAN_PRESENTED_KEYS.has(k));
+  const hasMinMaxElev = item.elev_high !== undefined || item.elev_low !== undefined;
 
   return (
     <View style={styles.sectionCard}>
@@ -796,6 +849,15 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
         </Text>
       </View>
 
+      {isPaceSport(item.type) && item.distance > 0 ? (
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Average Pace</Text>
+          <Text selectable style={styles.detailValue}>
+            {formatActivityRate(item.distance, activeTimeSec, item.type)}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.detailRow}>
         <Text style={styles.detailLabel}>Average Speed</Text>
         <Text selectable style={styles.detailValue}>
@@ -803,7 +865,7 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
         </Text>
       </View>
 
-      {item.elev_high !== undefined || item.elev_low !== undefined ? (
+      {hasMinMaxElev ? (
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Elevation (Min / Max)</Text>
           <Text selectable style={styles.detailValue}>
@@ -839,46 +901,7 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
         </View>
       ) : null}
 
-      {rawEntries.length > 0 ? (
-        <>
-          <TouchableOpacity
-            style={styles.rawToggleBtn}
-            onPress={() => setShowRaw(!showRaw)}
-            accessibilityRole="button"
-            accessibilityLabel="Toggle raw activity properties"
-          >
-            <Text style={styles.rawToggleText}>
-              {showRaw ? 'Hide Raw Metadata' : 'Show Raw Metadata'}
-            </Text>
-            <MaterialCommunityIcons
-              name={showRaw ? 'chevron-up' : 'chevron-down'}
-              size={20}
-              color={theme.primary}
-            />
-          </TouchableOpacity>
-
-          {showRaw ? (
-            <View style={styles.rawContainer}>
-              {rawEntries.map(([key, value]) => {
-                const valueString =
-                  typeof value === 'object' && value !== null
-                    ? JSON.stringify(value)
-                    : String(value);
-                return (
-                  <View key={key} style={styles.detailRow}>
-                    <Text selectable style={styles.detailLabel}>
-                      {key}
-                    </Text>
-                    <Text selectable style={styles.detailValue}>
-                      {valueString}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
-        </>
-      ) : null}
+      <RawMetadataSection rawEntries={rawEntries} />
     </View>
   );
 }
@@ -1105,8 +1128,115 @@ interface RouteMatchesSectionProps {
   onActivityPress: (activity: Activity | null) => void;
 }
 
+function extractSplitRate(split: StreamSplit, paceSport: boolean): number {
+  if (paceSport) {
+    return split.paceMinPerKm > 0 ? 1 / split.paceMinPerKm : 0;
+  }
+  return split.speedKmh;
+}
+
+function computeSplitBarWidthPercent(
+  split: StreamSplit,
+  splits: readonly StreamSplit[],
+  paceSport: boolean
+): number {
+  const rates = splits.map(s => extractSplitRate(s, paceSport)).filter(r => r > 0);
+  if (rates.length === 0) return 50;
+  const minRate = Math.min(...rates);
+  const maxRate = Math.max(...rates);
+  const currentRate = extractSplitRate(split, paceSport);
+  if (maxRate <= minRate) return 85;
+  const normalized = (currentRate - minRate) / (maxRate - minRate);
+  return Math.round(38 + normalized * 62);
+}
+
+function formatSplitElevation(delta: number | null): string {
+  if (delta === null) return '—';
+  if (delta > 0) return `+${delta} m`;
+  return `${delta} m`;
+}
+
+function SplitsSection({
+  splits,
+  activityType
+}: Readonly<{
+  splits: readonly StreamSplit[];
+  activityType: string;
+}>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const paceSport = isPaceSport(activityType);
+  const hasElevation = splits.some(s => s.elevationDeltaM !== null);
+  const hasHeartRate = splits.some(s => s.avgHeartRateBpm !== null);
+
+  return (
+    <View style={styles.sectionCard}>
+      <Text style={styles.sectionTitle}>Splits (1 km)</Text>
+      <View style={styles.splitsHeaderRow}>
+        <Text style={[styles.splitsHeaderCell, { width: 44 }]}>Km</Text>
+        <Text style={[styles.splitsHeaderCell, { flex: 1 }]}>
+          {paceSport ? 'Pace (/km)' : 'Speed (km/h)'}
+        </Text>
+        {hasElevation ? (
+          <Text style={[styles.splitsHeaderCell, { width: 56, textAlign: 'right' }]}>Elev</Text>
+        ) : null}
+        {hasHeartRate ? (
+          <Text style={[styles.splitsHeaderCell, { width: 56, textAlign: 'right' }]}>HR</Text>
+        ) : null}
+      </View>
+      {splits.map((split, idx) => {
+        const isLast = idx === splits.length - 1;
+        const kmLabel = split.isPartial
+          ? `${(split.distanceMeters / 1000).toFixed(1)}`
+          : `${split.splitNumber}`;
+        const rateLabel = paceSport
+          ? formatPace(split.paceMinPerKm)
+          : `${split.speedKmh.toFixed(1)}`;
+        const widthPct = computeSplitBarWidthPercent(split, splits, paceSport);
+
+        return (
+          <View
+            key={split.splitNumber}
+            style={[styles.splitRow, isLast ? styles.splitRowLast : null]}
+          >
+            <Text selectable style={styles.splitKmCell}>
+              {kmLabel}
+            </Text>
+            <View style={styles.splitPaceBarTrack}>
+              <View
+                style={[
+                  styles.splitPaceBarFill,
+                  split.isFastest ? styles.splitPaceBarFillFastest : null,
+                  { width: `${widthPct}%` }
+                ]}
+              />
+              <View style={styles.splitPaceTextRow}>
+                <Text selectable style={styles.splitPaceText}>
+                  {rateLabel}
+                </Text>
+                {split.isFastest ? <Text style={styles.splitFastestBadge}>Fastest</Text> : null}
+              </View>
+            </View>
+            {hasElevation ? (
+              <Text selectable style={styles.splitMetaCell}>
+                {formatSplitElevation(split.elevationDeltaM)}
+              </Text>
+            ) : null}
+            {hasHeartRate ? (
+              <Text selectable style={styles.splitMetaCell}>
+                {split.avgHeartRateBpm !== null ? `${split.avgHeartRateBpm}` : '—'}
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 interface OverviewSectionProps {
   item: Activity;
+  splits: readonly StreamSplit[];
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
   hasDistanceAxis: boolean;
@@ -1117,6 +1247,7 @@ interface OverviewSectionProps {
 
 function OverviewSection({
   item,
+  splits,
   altitudeDataXY,
   mapWidth,
   hasDistanceAxis,
@@ -1130,6 +1261,7 @@ function OverviewSection({
   return (
     <>
       <ActivityDetails item={item} />
+      {splits.length > 0 ? <SplitsSection splits={splits} activityType={item.type} /> : null}
       {altitudeDataXY && altitudeDataXY.length > 0 ? (
         <View style={styles.chartSectionCard}>
           <View style={styles.chartHeaderRow}>
@@ -1301,13 +1433,23 @@ export function ActivityAnalysisView({
     const trackSimilarActivities = similarActivitiesByTrack
       .filter(a => a.similarity >= trackSimilarityThreshold && !a.reversed)
       .map(a => a.activity);
+    const paceSport = isPaceSport(item.type);
+    const valueExtractor = paceSport
+      ? (a: Activity) => calculatePaceMinPerKm(a.distance, a.moving_time || a.elapsed_time)
+      : (a: Activity) => calculateSpeedKmh(a.distance, a.moving_time || a.elapsed_time);
     setTrackTrendLineData(
-      trackSimilarActivities.length > 0 ? calculateTrendLine([item, ...trackSimilarActivities]) : []
+      trackSimilarActivities.length > 0
+        ? calculateTrendLine([item, ...trackSimilarActivities], valueExtractor)
+        : []
     );
   }, [item, similarActivitiesByTrack, trackSimilarityThreshold]);
 
   const coordinates = loadedStream?.streamSet.coordinates;
   const timeData = loadedStream?.streamSet.time;
+  const splits = useMemo(
+    () => (item.type === 'Swim' ? [] : computeStreamSplits(loadedStream?.streamSet)),
+    [item.type, loadedStream?.streamSet]
+  );
 
   // workaround for Strava swimming activities (altitude data is not good enough)
   const altitudeData = item.type === 'Swim' ? undefined : loadedStream?.streamSet.altitude;
@@ -1320,8 +1462,7 @@ export function ActivityAnalysisView({
     const bestIdx = findNearestProfileIndex(altitudeDataXY, scrubX);
     if (bestIdx < 0) return null;
     const point = altitudeDataXY[bestIdx];
-    const coord =
-      coordinates && coordinates.length === altitudeDataXY.length ? coordinates[bestIdx] : null;
+    const coord = coordinates?.length === altitudeDataXY.length ? coordinates[bestIdx] : null;
     return {
       index: bestIdx,
       x: point.x,
@@ -1379,6 +1520,7 @@ export function ActivityAnalysisView({
             stream={loadedStream?.streamSet}
             overlayStream={overlayStream}
             title={item.name}
+            activityType={item.type}
             highlightCoordinate={scrubDetails?.coordinate}
           />
         </View>
@@ -1393,6 +1535,7 @@ export function ActivityAnalysisView({
         {activeTab === 'overview' ? (
           <OverviewSection
             item={item}
+            splits={splits}
             altitudeDataXY={altitudeDataXY}
             mapWidth={mapWidth}
             hasDistanceAxis={hasDistanceAxis}

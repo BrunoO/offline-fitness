@@ -15,6 +15,7 @@ export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
   title?: string;
+  activityType?: string;
   allowFlyover?: boolean;
   highlightCoordinate?: LatLng | null;
 };
@@ -187,6 +188,7 @@ type MiniMapFlyoverProps = {
   onClose: () => void;
   stream: ActivityStream | undefined;
   title?: string;
+  activityType?: string;
   theme: ReturnType<typeof useTheme>;
   styles: ReturnType<typeof createStyles>;
 };
@@ -197,6 +199,7 @@ function MiniMapFlyover({
   onClose,
   stream,
   title,
+  activityType,
   theme,
   styles
 }: Readonly<MiniMapFlyoverProps>) {
@@ -211,7 +214,13 @@ function MiniMapFlyover({
         <Ionicons name="airplane" size={13} color={theme.primary} />
         <Text style={styles.flyoverPillText}>Flyover</Text>
       </TouchableOpacity>
-      <FlyoverModal visible={visible} onClose={onClose} stream={stream} title={title} />
+      <FlyoverModal
+        visible={visible}
+        onClose={onClose}
+        stream={stream}
+        title={title}
+        activityType={activityType}
+      />
     </>
   );
 }
@@ -361,6 +370,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
               onClose={() => setIsFlyoverOpen(false)}
               stream={props.stream}
               title={props.title}
+              activityType={props.activityType}
               theme={theme}
               styles={styles}
             />

@@ -230,6 +230,82 @@ export const createStyles = (theme: ResolvedTheme) =>
       borderTopWidth: 1,
       borderTopColor: theme.borderSubtle
     },
+    splitsHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingBottom: 6,
+      marginBottom: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border
+    },
+    splitsHeaderCell: {
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      color: theme.textMuted
+    },
+    splitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 7,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderSubtle
+    },
+    splitRowLast: {
+      borderBottomWidth: 0
+    },
+    splitKmCell: {
+      width: 44,
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    splitPaceBarTrack: {
+      flex: 1,
+      height: 24,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 6,
+      overflow: 'hidden',
+      justifyContent: 'center',
+      marginRight: 8,
+      position: 'relative'
+    },
+    splitPaceBarFill: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      backgroundColor: theme.primarySoft,
+      borderRightWidth: 2,
+      borderRightColor: theme.primary
+    },
+    splitPaceBarFillFastest: {
+      backgroundColor: theme.successSoft,
+      borderRightColor: theme.success
+    },
+    splitPaceTextRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 8
+    },
+    splitPaceText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    splitFastestBadge: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.success
+    },
+    splitMetaCell: {
+      width: 56,
+      fontSize: 12,
+      fontWeight: '500',
+      color: theme.text,
+      textAlign: 'right'
+    },
     similarActivitiesContainer: {
       marginTop: 20,
       padding: 10,

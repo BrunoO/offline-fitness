@@ -7,6 +7,8 @@ export type MiniMapComponentProps = {
   overlayStream?: ActivityStream;
   /** Activity title displayed in flyover header on Android */
   title?: string;
+  /** Activity sport type used by FlyoverHud to choose Pace vs Speed */
+  activityType?: string;
   /** Whether flyover button is enabled on Android (defaults to true) */
   allowFlyover?: boolean;
   /** Optional highlighted point to scrub along the track */

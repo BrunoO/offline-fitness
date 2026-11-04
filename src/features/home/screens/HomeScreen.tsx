@@ -708,6 +708,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           isLoading={isLoadingStream}
           mapRefreshKey={mapRefreshKey}
           activityTitle={selectedActivity?.name ?? 'Recent Activity'}
+          activityType={selectedActivity?.type}
           styles={styles}
         />
 

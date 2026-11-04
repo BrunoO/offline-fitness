@@ -210,13 +210,14 @@ export function lastWeeksFrom(date: Date, numberWeeks: number): WeekIdentifier[]
  * };
  *
  * const activityString = activityToString(activity);
- * console.log(activityString); // "Morning Run (Run) on 15/7/2023 at 16:14 for 1h 0m 0s"
+ * console.log(activityString); // "Morning Run (Run) on 15/7/2023 at 16:14 for 01:00"
  */
 export function activityToString(activity: Activity): string {
   const at = activity.local_time ? ` at ${activity.local_time.slice(0, 5)}` : ''; // HH:MM, seconds dropped for compactness
+  const dist = activity.distance > 0 ? ` • ${(activity.distance / 1000).toFixed(1)} km` : '';
   return `${activity.name} (${activity.type}) on ${activity.start_day}/${
     activity.start_month + 1
-  }/${activity.start_year}${at} for ${seconds_to_label(activity.elapsed_time)}`;
+  }/${activity.start_year}${at}${dist} for ${seconds_to_label(activity.elapsed_time)}`;
 }
 
 /** Activity emoji by type; runners is the safe default for unknown types. */
@@ -529,17 +530,106 @@ export function calculateSpeedKmh(distance: number, moving_time: number): number
   return (distance / moving_time) * 3.6;
 }
 
+const PACE_SPORT_TYPES = new Set([
+  'run',
+  'running',
+  'trailrun',
+  'trail run',
+  'virtualrun',
+  'virtual run',
+  'walk',
+  'walking',
+  'hike',
+  'hiking'
+]);
+
+/**
+ * Returns true if the sport typically measures performance by pace (min/km)
+ * rather than speed (km/h).
+ */
+export function isPaceSport(sport: string | undefined | null): boolean {
+  if (!sport) return false;
+  return PACE_SPORT_TYPES.has(sport.toLowerCase());
+}
+
+/**
+ * Calculates the pace in minutes per kilometer from a distance in meters and a time in seconds.
+ * @param distanceMeters The distance in meters.
+ * @param timeSeconds The time in seconds.
+ * @returns The pace in min/km, or 0 if distance or time is non-positive.
+ */
+export function calculatePaceMinPerKm(distanceMeters: number, timeSeconds: number): number {
+  if (
+    !Number.isFinite(distanceMeters) ||
+    !Number.isFinite(timeSeconds) ||
+    distanceMeters <= 0 ||
+    timeSeconds <= 0
+  ) {
+    return 0;
+  }
+  return timeSeconds / 60 / (distanceMeters / 1000);
+}
+
+/**
+ * Formats a pace in minutes per kilometer into "M:SS".
+ * If value is not finite or <= 0, returns "-".
+ */
+export function formatPace(minPerKm: number): string {
+  if (!Number.isFinite(minPerKm) || minPerKm <= 0) return '-';
+  const m = Math.floor(minPerKm);
+  const s = Math.round((minPerKm - m) * 60);
+  if (s === 60) {
+    return `${m + 1}:00`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Formats an activity's movement rate using sport-appropriate units:
+ * - Swim: "M:SS /100m"
+ * - Pace sports (Run, TrailRun, Walk, Hike): "M:SS /km"
+ * - All other sports (Ride, Ski, etc.): "X.X km/h"
+ */
+export function formatActivityRate(
+  distanceMeters: number,
+  timeSeconds: number,
+  activityType?: string | null
+): string {
+  if (
+    !Number.isFinite(distanceMeters) ||
+    !Number.isFinite(timeSeconds) ||
+    distanceMeters <= 0 ||
+    timeSeconds <= 0
+  ) {
+    return '-';
+  }
+  const normalizedType = activityType?.toLowerCase();
+  if (normalizedType === 'swim' || normalizedType === 'swimming') {
+    const minPer100m = timeSeconds / 60 / (distanceMeters / 100);
+    return `${formatPace(minPer100m)} /100m`;
+  }
+  if (isPaceSport(activityType)) {
+    return `${formatPace(calculatePaceMinPerKm(distanceMeters, timeSeconds))} /km`;
+  }
+  return `${calculateSpeedKmh(distanceMeters, timeSeconds).toFixed(1)} km/h`;
+}
+
 /**
  * Calculates the trend line of a set of activities.
  * @param activities The array of activities.
+ * @param valueFn Optional extractor for the Y-axis metric; defaults to speed in km/h.
  * @returns An array of two points representing the trend line.
  */
-export const calculateTrendLine = (activities: Activity[]) => {
+export const calculateTrendLine = (
+  activities: Activity[],
+  valueFn: (a: Activity) => number = a => calculateSpeedKmh(a.distance, a.moving_time)
+) => {
   const data = activities
     .map(a => ({
       x: activityUtcMs(a),
-      y: calculateSpeedKmh(a.distance, a.moving_time)
+      y: valueFn(a)
     }))
+    .filter(p => Number.isFinite(p.y) && p.y > 0)
     .sort((a, b) => a.x - b.x);
 
   if (data.length < 2) {
@@ -559,7 +649,12 @@ export const calculateTrendLine = (activities: Activity[]) => {
     sumX2 += point.x * point.x;
   }
 
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const denominator = n * sumX2 - sumX * sumX;
+  if (denominator === 0) {
+    return [];
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / denominator;
   const intercept = (sumY - slope * sumX) / n;
 
   const firstPoint = {

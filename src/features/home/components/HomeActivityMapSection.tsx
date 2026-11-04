@@ -9,6 +9,7 @@ export type HomeActivityMapProps = {
   isLoading: boolean;
   mapRefreshKey: number;
   activityTitle: string;
+  activityType?: string;
   styles: ReturnType<typeof createStyles>;
 };
 
@@ -17,6 +18,7 @@ export function HomeActivityMapSection({
   isLoading,
   mapRefreshKey,
   activityTitle,
+  activityType,
   styles
 }: Readonly<HomeActivityMapProps>) {
   return (
@@ -31,7 +33,12 @@ export function HomeActivityMapSection({
           </View>
         ) : null}
         {!isLoading && stream ? (
-          <MiniMapComponent key={mapRefreshKey} stream={stream} title={activityTitle} />
+          <MiniMapComponent
+            key={mapRefreshKey}
+            stream={stream}
+            title={activityTitle}
+            activityType={activityType}
+          />
         ) : null}
         {!isLoading && !stream ? (
           <View style={styles.noDataContainer}>

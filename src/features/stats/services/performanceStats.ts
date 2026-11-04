@@ -1,5 +1,7 @@
 import { Activity } from '@/shared/types/types';
 
+export { formatPace, isPaceSport } from '@/shared/utils/utils';
+
 export interface YearPerformanceStats {
   year: number;
   activityCount: number;
@@ -23,30 +25,6 @@ interface YearAccumulator {
   distanceMeters: number;
   timeSeconds: number;
   elevationMeters: number;
-}
-
-const PACE_ACTIVITY_TYPES = new Set(['Run', 'TrailRun', 'Walk', 'Hike', 'VirtualRun']);
-
-/**
- * Returns true if the sport typically measures performance by pace (min/km)
- * rather than speed (km/h).
- */
-export function isPaceSport(sport: string): boolean {
-  return PACE_ACTIVITY_TYPES.has(sport);
-}
-
-/**
- * Formats a pace in minutes per kilometer into "M:SS".
- * If value is not finite or <= 0, returns "-".
- */
-export function formatPace(minPerKm: number): string {
-  if (!Number.isFinite(minPerKm) || minPerKm <= 0) return '-';
-  const m = Math.floor(minPerKm);
-  const s = Math.round((minPerKm - m) * 60);
-  if (s === 60) {
-    return `${m + 1}:00`;
-  }
-  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function processActivity(

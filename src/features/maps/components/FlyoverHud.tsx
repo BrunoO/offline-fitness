@@ -1,10 +1,11 @@
-import { seconds_to_label } from '@/shared';
+import { formatPace, isPaceSport, seconds_to_label } from '@/shared';
 import { useTheme } from '@/theme';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 const MPS_TO_KMH = 3.6;
 const METERS_TO_KM = 1000;
+const MIN_PACE_SPEED_MPS = 0.4;
 
 export interface FlyoverHudProps {
   speedMps: number;
@@ -13,6 +14,7 @@ export interface FlyoverHudProps {
   altitudeMeters: number;
   elapsedSeconds: number;
   totalDurationSeconds: number;
+  activityType?: string;
 }
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
@@ -63,14 +65,22 @@ export default function FlyoverHud({
   totalDistanceMeters,
   altitudeMeters,
   elapsedSeconds,
-  totalDurationSeconds
+  totalDurationSeconds,
+  activityType
 }: Readonly<FlyoverHudProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Cheap derived formatting: the React Compiler memoises these per-component,
   // so manual useMemo adds no value here (see docs/memoization-audit.md).
-  const speedKmh = (speedMps * MPS_TO_KMH).toFixed(1);
+  const showPace = isPaceSport(activityType);
+  const rateLabel = showPace ? 'Pace' : 'Speed';
+  let rateValue: string;
+  if (showPace) {
+    rateValue = speedMps >= MIN_PACE_SPEED_MPS ? `${formatPace(1000 / speedMps / 60)} /km` : '—';
+  } else {
+    rateValue = `${(speedMps * MPS_TO_KMH).toFixed(1)} km/h`;
+  }
   const distanceKm = `${(completedDistanceMeters / METERS_TO_KM).toFixed(1)} / ${(totalDistanceMeters / METERS_TO_KM).toFixed(1)}`;
   const timeFormatted = `${seconds_to_label(Math.round(elapsedSeconds))} / ${seconds_to_label(Math.round(totalDurationSeconds))}`;
   const altitudeRounded = `${Math.round(altitudeMeters)} m`;
@@ -87,8 +97,8 @@ export default function FlyoverHud({
       </View>
       <View style={styles.divider} />
       <View style={styles.metricColumn}>
-        <Text style={styles.metricLabel}>Speed</Text>
-        <Text style={styles.metricValue}>{speedKmh} km/h</Text>
+        <Text style={styles.metricLabel}>{rateLabel}</Text>
+        <Text style={styles.metricValue}>{rateValue}</Text>
       </View>
       <View style={styles.divider} />
       <View style={styles.metricColumn}>

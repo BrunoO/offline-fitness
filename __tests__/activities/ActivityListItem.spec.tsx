@@ -65,7 +65,7 @@ describe('ActivityListItem', () => {
     jest.clearAllMocks();
   });
 
-  it('renders activity details and responds to row press', () => {
+  it('renders activity details with distance and pace for a Run and responds to row press', () => {
     const { getByText } = render(
       <ActivityListItem
         activity={mockActivity}
@@ -76,11 +76,35 @@ describe('ActivityListItem', () => {
       />
     );
 
-    // Row text contains speed and name
-    expect(getByText(/10\.0 km\/h/)).toBeTruthy();
+    // Row text contains distance (10.0 km) and pace (6:00 /km) for a Run
+    expect(getByText(/10\.0 km/)).toBeTruthy();
+    expect(getByText(/6:00 \/km/)).toBeTruthy();
 
-    fireEvent.press(getByText(/10\.0 km\/h/));
+    fireEvent.press(getByText(/6:00 \/km/));
     expect(mockOnPress).toHaveBeenCalledWith('test-act-1');
+  });
+
+  it('renders speed in km/h for cycling activities', () => {
+    const rideActivity = makeTestActivity({
+      id: 'test-ride-1',
+      name: 'Morning Ride',
+      type: 'Ride',
+      distance: 25000,
+      moving_time: 3600
+    });
+
+    const { getByText } = render(
+      <ActivityListItem
+        activity={rideActivity}
+        onPress={mockOnPress}
+        selectedActivityId={null}
+        deleteActivity={mockDeleteActivity}
+        editActivity={mockEditActivity}
+      />
+    );
+
+    expect(getByText(/25\.0 km/)).toBeTruthy();
+    expect(getByText(/25\.0 km\/h/)).toBeTruthy();
   });
 
   it('omits average speed suffix for Yoga and activities with no distance', () => {

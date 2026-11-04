@@ -2,7 +2,13 @@ import { ResolvedTheme, useTheme } from '@/theme';
 import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Activity, calculateSpeedKmh, getActivityIcon, seconds_to_label } from '@/shared';
+import {
+  Activity,
+  formatActivityRate,
+  getActivityIcon,
+  isPaceSport,
+  seconds_to_label
+} from '@/shared';
 import type { ActivityStats } from '@/features/stats';
 
 interface LastActivitySummaryProps {
@@ -124,7 +130,7 @@ export function LastActivitySummary({
               <View style={styles.compactItem}>
                 <Text style={styles.compactIcon}>🚀</Text>
                 <Text style={styles.compactText}>
-                  {calculateSpeedKmh(activity.distance, activity.moving_time).toFixed(1)} km/h
+                  {formatActivityRate(activity.distance, activity.moving_time, activity.type)}
                 </Text>
               </View>
             ) : null}
@@ -177,7 +183,9 @@ export function LastActivitySummary({
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryCellLabel}>Speed Rank</Text>
+              <Text style={styles.summaryCellLabel}>
+                {isPaceSport(activity.type) ? 'Pace Rank' : 'Speed Rank'}
+              </Text>
               <Text style={styles.summaryCell}>
                 Faster than {stats.speedPercentile.toFixed(0)}% {formatRank(stats.speedRank)}
               </Text>
