@@ -193,11 +193,12 @@ Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/feature
   Defined in `src/shared/utils/utils.ts` and `trackBoundingBox` in `src/features/strava-import/services/gpxParser.ts`.
   * Stored on `Activity.bounding_box` as `[[minLat, minLng], [maxLat, maxLng]]` (two coordinate pairs).
   * Used by `MapsScreen` viewport filtering and `backfillBoundingBox` (`src/features/activities/services/fetchAndStoreStreams.ts`).
-* **`ONT-SPATIAL-04` — Needleman-Wunsch Track Similarity (`compareTracks` in `src/shared/services/trackComparison.ts`):**
-  * Compares two `LatLng[]` tracks via dynamic programming global sequence alignment:
-    * Point match similarity kernel: $s(p_1, p_2) = \frac{a}{a + d_{\text{haversine}}(p_1, p_2)}$ with smoothing constant $a = 10\text{ m}$ (score in $(0, 1]$).
-    * Insertion/deletion `gapPenalty = -0.5`.
-  * **Normalization Invariant:** Because global alignment of tracks of unequal lengths $n \ne m$ incurs at least $|n - m| \times \text{gapPenalty}$, the maximum theoretical score is $\min(n, m) \cdot 1.0 + |n - m| \cdot (-0.5)$, **not** $\min(n, m)$. The normalized score is clamped to $[0, 1]$.
+* **`ONT-SPATIAL-04` — Corridor-Overlap Track Similarity (`compareTracks` in `src/shared/services/trackComparison.ts`):**
+  * Invalid points (non-finite or out-of-range lat/lon) are dropped; both tracks are projected into one local equirectangular plane (metres) centred on their mean latitude.
+  * Both tracks are **resampled by distance** every `max(10 m, longestLength / 2000)`, so the score depends on the route only — never on speed, pauses or recording rate.
+  * For each track, coverage = fraction of its resampled points within $R = 25\text{ m}$ (`CORRIDOR_RADIUS_M`) of the *other* track's polyline (point-to-segment distance, uniform-grid index → near-linear time, O(n + m) memory).
+  * **Similarity Invariant:** $\text{similarity} = \min(\text{coverage}_1, \text{coverage}_2) \in [0, 1]$ — symmetric, direction-agnostic (a reversed route scores 1), and reads as "at least X% of either route is shared". Default UI threshold: `0.7`.
+  * Retired: the previous Needleman-Wunsch index alignment (it scored identical routes at different speeds as 0 when $m \ge 3n$ and allocated an $n \times m$ table).
 
 ### 4.4 Geopolitical Timezone Resolution (`zoneLookup.ts`)
 * **`ONT-SPATIAL-05` — Coordinate-to-IANA Timezone (`createGeoZoneLookup`):**

@@ -40,6 +40,53 @@ describe('compareTracks', () => {
     expect(similarity).toBeGreaterThan(0);
     expect(similarity).toBeLessThan(1);
   });
+
+  // ~1 km eastward line near Paris; METRE_LON = degrees of longitude per metre.
+  const LAT = 48.85;
+  const METRE_LON = 1 / (111_320 * Math.cos((LAT * Math.PI) / 180));
+  const METRE_LAT = 1 / 111_320;
+  const line = (count: number, metres: number, offsetNorthM = 0, startM = 0) =>
+    Array.from({ length: count }, (_, i) => ({
+      latitude: LAT + offsetNorthM * METRE_LAT,
+      longitude: 2.35 + (startM + (metres * i) / (count - 1)) * METRE_LON
+    }));
+
+  it('is independent of sampling rate (same route, 5x more points)', () => {
+    expect(compareTracks(line(100, 1000), line(500, 1000))).toBeCloseTo(1, 5);
+  });
+
+  it('is independent of direction of travel', () => {
+    expect(compareTracks(line(100, 1000), line(100, 1000).reverse())).toBeCloseTo(1, 5);
+  });
+
+  it('tolerates GPS offset within the corridor', () => {
+    expect(compareTracks(line(100, 1000), line(100, 1000, 15))).toBeCloseTo(1, 5);
+  });
+
+  it('returns 0 for parallel routes outside the corridor', () => {
+    expect(compareTracks(line(100, 1000), line(100, 1000, 100))).toBe(0);
+  });
+
+  it('scores a partial overlap by the less-covered track', () => {
+    // Track 2 covers the first half of track 1.
+    expect(compareTracks(line(100, 1000), line(50, 500))).toBeCloseTo(0.5, 1);
+    // Track 2 shares 500 m of track 1 and adds 500 m of its own.
+    expect(compareTracks(line(100, 1000), line(100, 1000, 0, 500))).toBeCloseTo(0.5, 1);
+  });
+
+  it('ignores stationary points (pauses)', () => {
+    const paused = [
+      ...line(50, 500),
+      ...Array(1000).fill(line(50, 500)[49]),
+      ...line(50, 500, 0, 500)
+    ];
+    expect(compareTracks(line(100, 1000), paused)).toBeCloseTo(1, 5);
+  });
+
+  it('skips invalid coordinates', () => {
+    const noisy = [...line(100, 1000), { latitude: Number.NaN, longitude: 0 }];
+    expect(compareTracks(line(100, 1000), noisy)).toBeCloseTo(1, 5);
+  });
 });
 
 describe('findSimilarActivitiesByTrack', () => {
