@@ -21,6 +21,7 @@ import MapView, {
   Region
 } from 'react-native-maps';
 
+import * as Location from 'expo-location';
 import { getActivityStreams, useActivitiesDataContext } from '@/features/activities';
 import { useTheme } from '@/theme';
 import { TAB_ROUTES } from '@/constants';
@@ -258,6 +259,31 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
   };
 
   /**
+   * Centers the map on the user's current position. Replaces the built-in
+   * Google Maps my-location button, which overlapped the activity filter row
+   * at the top of the screen.
+   */
+  const handleShowMyLocation = async () => {
+    if (!isLocationGranted) return;
+    try {
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      mapRef.current?.animateToRegion(
+        {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01
+        },
+        500
+      );
+    } catch (error) {
+      simpleLogger.error('Failed to get current position:', error);
+    }
+  };
+
+  /**
    * Sets the date filter to the current year.
    */
   function setFilterToThisYear() {
@@ -363,7 +389,7 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
         style={{ flex: 1 }}
         provider={PROVIDER_GOOGLE}
         ref={mapRef}
-        showsMyLocationButton={isLocationGranted}
+        showsMyLocationButton={false}
         zoomControlEnabled={true}
         showsCompass={true}
         showsUserLocation={isLocationGranted}
@@ -435,6 +461,14 @@ export default function MapsScreen({ navigation }: Readonly<MapsScreenProps>): J
       <View style={{ flex: 1, width: '100%' }}>
         {mapContent}
         <View style={styles.mapButtonsOverlayContainer}>
+          {isLocationGranted ? (
+            <IconButton
+              icon="my-location"
+              onPress={handleShowMyLocation}
+              buttonStyle={styles.iconButton}
+              accessibilityLabel="Show my location"
+            />
+          ) : null}
           <IconButton
             icon="drive-folder-upload"
             onPress={loadStreamsAsync}
