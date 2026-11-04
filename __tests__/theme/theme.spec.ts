@@ -112,6 +112,8 @@ describe('accessibility floor', () => {
         expect(contrast(theme.textMuted, theme.surface)).toBeGreaterThanOrEqual(4.5);
         expect(contrast(theme.textStrong, theme.primarySoft)).toBeGreaterThanOrEqual(4.5);
         expect(contrast(theme.textStrong, theme.successSoft)).toBeGreaterThanOrEqual(4.5);
+        // Reverse-direction marker is used for dots and for its card label.
+        expect(contrast(theme.chartReverse, theme.surface)).toBeGreaterThanOrEqual(4.5);
 
         // Chart fills only need to be distinguishable: 3:1.
         theme.chartSeries.forEach(series => {

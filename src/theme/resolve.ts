@@ -33,6 +33,7 @@ interface NeutralTokens {
   chartGrid: string;
   chartAxis: string;
   chartComparison: string;
+  chartReverse: string;
   chartZeroFill: string;
   chartZeroStroke: string;
   mapTrack: string[];
@@ -67,6 +68,7 @@ const NEUTRALS: Record<ColorScheme, NeutralTokens> = {
     chartGrid: '#E5E7EB',
     chartAxis: '#90A4AE',
     chartComparison: '#90A4AE',
+    chartReverse: '#7B1FA2',
     chartZeroFill: '#E0E0E0',
     chartZeroStroke: '#BDBDBD',
     mapTrack: ['#00FF00', '#FFFF00', '#FF0000'],
@@ -110,6 +112,7 @@ const NEUTRALS: Record<ColorScheme, NeutralTokens> = {
     chartGrid: '#2A2E39',
     chartAxis: '#90A4AE',
     chartComparison: '#94A3B8',
+    chartReverse: '#CE93D8',
     chartZeroFill: '#2A2E39',
     chartZeroStroke: '#374151',
     mapTrack: ['#00FF00', '#FFFF00', '#FF0000'],
@@ -178,6 +181,7 @@ export function resolveTheme(palette: PaletteDefinition, scheme: ColorScheme): R
     chartGrid: n.chartGrid,
     chartAxis: n.chartAxis,
     chartComparison: n.chartComparison,
+    chartReverse: n.chartReverse,
     chartZeroFill: n.chartZeroFill,
     chartZeroStroke: n.chartZeroStroke,
 

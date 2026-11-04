@@ -193,11 +193,13 @@ Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/feature
   Defined in `src/shared/utils/utils.ts` and `trackBoundingBox` in `src/features/strava-import/services/gpxParser.ts`.
   * Stored on `Activity.bounding_box` as `[[minLat, minLng], [maxLat, maxLng]]` (two coordinate pairs).
   * Used by `MapsScreen` viewport filtering and `backfillBoundingBox` (`src/features/activities/services/fetchAndStoreStreams.ts`).
-* **`ONT-SPATIAL-04` — Corridor-Overlap Track Similarity (`compareTracks` in `src/shared/services/trackComparison.ts`):**
+* **`ONT-SPATIAL-04` — Corridor-Overlap Track Similarity & Direction Analysis (`compareTracks` in `src/shared/services/trackComparison.ts`):**
   * Invalid points (non-finite or out-of-range lat/lon) are dropped; both tracks are projected into one local equirectangular plane (metres) centred on their mean latitude.
   * Both tracks are **resampled by distance** every `max(10 m, longestLength / 2000)`, so the score depends on the route only — never on speed, pauses or recording rate.
   * For each track, coverage = fraction of its resampled points within $R = 25\text{ m}$ (`CORRIDOR_RADIUS_M`) of the *other* track's polyline (point-to-segment distance, uniform-grid index → near-linear time, O(n + m) memory).
   * **Similarity Invariant:** $\text{similarity} = \min(\text{coverage}_1, \text{coverage}_2) \in [0, 1]$ — symmetric, direction-agnostic (a reversed route scores 1), and reads as "at least X% of either route is shared". Default UI threshold: `0.7`.
+  * **Direction Invariant:** Each covered point's heading tangent is compared via dot product with the matched segment of the other track. When opposed headings significantly outnumber aligned headings (`opposed > aligned && opposed > 0.6 * (opposed + aligned)`), `reversed` is true.
+  * **UI Presentation:** Activities matching in reverse direction are highlighted distinctly (`theme.chartReverse`), labelled with `(⇄ reverse)`, counted separately in the header, and fitted with an independent trend line on the speed chart when at least 2 reverse activities exist.
   * Retired: the previous Needleman-Wunsch index alignment (it scored identical routes at different speeds as 0 when $m \ge 3n$ and allocated an $n \times m$ table).
 
 ### 4.4 Geopolitical Timezone Resolution (`zoneLookup.ts`)

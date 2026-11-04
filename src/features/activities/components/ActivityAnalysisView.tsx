@@ -46,6 +46,7 @@ const formatTime = (tick: number) => {
 function SimilarActivitiesHeader({
   similarActivities,
   trackSimilarCount,
+  trackReverseCount,
   iouThreshold,
   trackSimilarityThreshold,
   setIsIoUModalVisible,
@@ -54,6 +55,7 @@ function SimilarActivitiesHeader({
 }: Readonly<{
   similarActivities: Activity[];
   trackSimilarCount: number;
+  trackReverseCount: number;
   iouThreshold: number;
   trackSimilarityThreshold: number;
   setIsIoUModalVisible: (visible: boolean) => void;
@@ -88,6 +90,19 @@ function SimilarActivitiesHeader({
             {trackSimilarCount}
           </Text>
         </View>
+        {trackReverseCount > 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <MaterialCommunityIcons name="swap-horizontal" size={20} color={theme.chartReverse} />
+            <Text
+              style={[
+                styles.similarActivityTitle,
+                { marginLeft: 4, marginBottom: 0, color: theme.chartReverse }
+              ]}
+            >
+              {trackReverseCount}
+            </Text>
+          </View>
+        ) : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity
@@ -129,7 +144,7 @@ function SimilarActivitiesList({
   onActivityPress
 }: Readonly<{
   similarActivities: Activity[];
-  similarActivitiesByTrack: { activity: Activity; similarity: number }[];
+  similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarityThreshold: number;
   onActivityPress: (activity: Activity | null) => void;
 }>): JSX.Element {
@@ -138,7 +153,7 @@ function SimilarActivitiesList({
   // Index track-similarity results by activity id once (O(n)) instead of an
   // O(n) .find() inside the render loop (O(n^2) for large similar sets).
   const trackSimilarityById = useMemo(() => {
-    const map = new Map<string, { activity: Activity; similarity: number }>();
+    const map = new Map<string, { activity: Activity; similarity: number; reversed: boolean }>();
     similarActivitiesByTrack.forEach(entry => {
       map.set(entry.activity.id, entry);
     });
@@ -153,20 +168,25 @@ function SimilarActivitiesList({
     >
       {similarActivities.map(activity => {
         const similarByTrackInfo = trackSimilarityById.get(activity.id);
-        const isSimilarByTrack =
+        const isSimilar =
           !!similarByTrackInfo && similarByTrackInfo.similarity >= trackSimilarityThreshold;
+        const isReversed = isSimilar && similarByTrackInfo.reversed;
+        const isSameDirection = isSimilar && !similarByTrackInfo.reversed;
+
+        let cardStyle = null;
+        if (isSameDirection) {
+          cardStyle = styles.similarActivityItemTrackMatch;
+        } else if (isReversed) {
+          cardStyle = styles.similarActivityItemTrackReverseMatch;
+        }
+
         return (
           <Pressable
             key={activity.id}
             onPressIn={() => onActivityPress(activity)}
             onPressOut={() => onActivityPress(null)}
           >
-            <View
-              style={[
-                styles.similarActivityItem,
-                isSimilarByTrack ? styles.similarActivityItemTrackMatch : null
-              ]}
-            >
+            <View style={[styles.similarActivityItem, cardStyle]}>
               <Text selectable style={styles.similarActivityItemTitle}>
                 {activity.name}
               </Text>
@@ -179,6 +199,7 @@ function SimilarActivitiesList({
               {similarByTrackInfo ? (
                 <Text selectable style={styles.similarActivityItemText}>
                   Similarity: {similarByTrackInfo.similarity.toFixed(2)}
+                  {isReversed ? ' (⇄ reverse)' : ''}
                 </Text>
               ) : null}
               <Text selectable style={styles.similarActivityItemText}>
@@ -203,14 +224,16 @@ function SpeedTrendChart({
   trackSimilarityThreshold,
   trendLineData,
   trackTrendLineData,
+  trackReverseTrendLineData,
   mapWidth
 }: Readonly<{
   item: Activity;
   similarActivities: Activity[];
-  similarActivitiesByTrack: { activity: Activity; similarity: number }[];
+  similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarityThreshold: number;
   trendLineData: { x: Date; y: number }[];
   trackTrendLineData: { x: Date; y: number }[];
+  trackReverseTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
 }>): JSX.Element {
   const theme = useTheme();
@@ -228,16 +251,20 @@ function SpeedTrendChart({
     [item, similarActivities]
   );
 
-  // Precompute qualifying track ids so the per-point fill check is O(1)
-  // instead of O(n) per point (O(n^2) overall).
-  const qualifyingTrackIds = useMemo(() => {
-    const ids = new Set<string>();
+  // Precompute qualifying track classifications so the per-point fill check is O(1)
+  const { qualifyingTrackIds, qualifyingReverseTrackIds } = useMemo(() => {
+    const sameDir = new Set<string>();
+    const revDir = new Set<string>();
     for (const entry of similarActivitiesByTrack) {
       if (entry.similarity >= trackSimilarityThreshold) {
-        ids.add(entry.activity.id);
+        if (entry.reversed) {
+          revDir.add(entry.activity.id);
+        } else {
+          sameDir.add(entry.activity.id);
+        }
       }
     }
-    return ids;
+    return { qualifyingTrackIds: sameDir, qualifyingReverseTrackIds: revDir };
   }, [similarActivitiesByTrack, trackSimilarityThreshold]);
 
   if (similarActivities.length === 0) return <></>;
@@ -275,6 +302,9 @@ function SpeedTrendChart({
               if (qualifyingTrackIds.has(datum.activity.id)) {
                 return theme.success;
               }
+              if (qualifyingReverseTrackIds.has(datum.activity.id)) {
+                return theme.chartReverse;
+              }
               return theme.info;
             }
           }
@@ -293,6 +323,14 @@ function SpeedTrendChart({
           data={trackTrendLineData}
           style={{
             data: { stroke: theme.success, strokeWidth: 2, strokeDasharray: '2' }
+          }}
+        />
+      ) : null}
+      {trackReverseTrendLineData.length > 0 ? (
+        <VictoryLine
+          data={trackReverseTrendLineData}
+          style={{
+            data: { stroke: theme.chartReverse, strokeWidth: 2, strokeDasharray: '2' }
           }}
         />
       ) : null}
@@ -619,15 +657,21 @@ export function ActivityAnalysisView({
   const [overlayStream, setOverlayStream] = useState<ActivityStream | undefined>();
   const [similarActivities, setSimilarActivities] = useState<Activity[]>([]);
   const [similarActivitiesByTrack, setSimilarActivitiesByTrack] = useState<
-    { activity: Activity; similarity: number }[]
+    { activity: Activity; similarity: number; reversed: boolean }[]
   >([]);
   const [trendLineData, setTrendLineData] = useState<{ x: Date; y: number }[]>([]);
   const [trackTrendLineData, setTrackTrendLineData] = useState<{ x: Date; y: number }[]>([]);
+  const [trackReverseTrendLineData, setTrackReverseTrendLineData] = useState<
+    { x: Date; y: number }[]
+  >([]);
   const [exportProgress, setExportProgress] = useState(0);
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const trackSimilarCount = similarActivitiesByTrack.filter(
-    a => a.similarity >= trackSimilarityThreshold
+    a => a.similarity >= trackSimilarityThreshold && !a.reversed
+  ).length;
+  const trackReverseCount = similarActivitiesByTrack.filter(
+    a => a.similarity >= trackSimilarityThreshold && a.reversed
   ).length;
 
   // Heavy effect: re-runs only when item, activities, or IoU threshold changes.
@@ -664,10 +708,18 @@ export function ActivityAnalysisView({
   // the expensive findSimilarActivitiesByTrack above.
   useEffect(() => {
     const trackSimilarActivities = similarActivitiesByTrack
-      .filter(a => a.similarity >= trackSimilarityThreshold)
+      .filter(a => a.similarity >= trackSimilarityThreshold && !a.reversed)
       .map(a => a.activity);
     setTrackTrendLineData(
       trackSimilarActivities.length > 0 ? calculateTrendLine([item, ...trackSimilarActivities]) : []
+    );
+
+    const trackReverseActivities = similarActivitiesByTrack
+      .filter(a => a.similarity >= trackSimilarityThreshold && a.reversed)
+      .map(a => a.activity);
+    // Draw reverse trend line when there are at least 2 reverse activities
+    setTrackReverseTrendLineData(
+      trackReverseActivities.length >= 2 ? calculateTrendLine(trackReverseActivities) : []
     );
   }, [item, similarActivitiesByTrack, trackSimilarityThreshold]);
 
@@ -728,6 +780,7 @@ export function ActivityAnalysisView({
           <SimilarActivitiesHeader
             similarActivities={similarActivities}
             trackSimilarCount={trackSimilarCount}
+            trackReverseCount={trackReverseCount}
             iouThreshold={iouThreshold}
             trackSimilarityThreshold={trackSimilarityThreshold}
             setIsIoUModalVisible={setIsIoUModalVisible}
@@ -752,6 +805,7 @@ export function ActivityAnalysisView({
             trackSimilarityThreshold={trackSimilarityThreshold}
             trendLineData={trendLineData}
             trackTrendLineData={trackTrendLineData}
+            trackReverseTrendLineData={trackReverseTrendLineData}
             mapWidth={mapWidth}
           />
         </View>

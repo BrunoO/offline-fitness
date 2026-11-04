@@ -115,6 +115,8 @@ export interface ResolvedTheme {
   chartGrid: string;
   chartAxis: string;
   chartComparison: string;
+  /** Same route travelled in the opposite direction (track similarity). */
+  chartReverse: string;
   chartZeroFill: string;
   chartZeroStroke: string;
 

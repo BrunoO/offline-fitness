@@ -17,6 +17,11 @@ interface XY {
   y: number;
 }
 
+export interface TrackComparisonResult {
+  similarity: number;
+  reversed: boolean;
+}
+
 function isValidPoint(p: LatLng | null | undefined): p is LatLng {
   return (
     !!p &&
@@ -95,7 +100,7 @@ class SegmentGrid {
   private readonly cellSize: number;
 
   constructor(
-    private readonly points: XY[],
+    readonly points: XY[],
     radius: number,
     maxSegment: number
   ) {
@@ -118,9 +123,11 @@ class SegmentGrid {
     return `${cx},${cy}`;
   }
 
-  isWithin(p: XY, radius: number): boolean {
+  findClosestSegment(p: XY, radius: number): { index: number; dist: number } | null {
     const cx = Math.floor(p.x / this.cellSize);
     const cy = Math.floor(p.y / this.cellSize);
+    let bestDist = radius;
+    let bestIndex = -1;
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
         const bucket = this.cells.get(this.key(cx + dx, cy + dy));
@@ -128,47 +135,89 @@ class SegmentGrid {
         for (const i of bucket) {
           const a = this.points[i];
           const b = this.points[Math.min(i + 1, this.points.length - 1)];
-          if (pointToSegmentDistance(p, a, b) <= radius) return true;
+          const dist = pointToSegmentDistance(p, a, b);
+          if (dist <= bestDist) {
+            bestDist = dist;
+            bestIndex = i;
+          }
         }
       }
     }
-    return false;
+    return bestIndex >= 0 ? { index: bestIndex, dist: bestDist } : null;
   }
 }
 
-function coverage(points: XY[], grid: SegmentGrid, radius: number): number {
+interface CoverageAnalysis {
+  coverage: number;
+  alignedCount: number;
+  opposedCount: number;
+}
+
+function analyzeCoverage(points: XY[], grid: SegmentGrid, radius: number): CoverageAnalysis {
   let inside = 0;
-  for (const p of points) {
-    if (grid.isWithin(p, radius)) inside++;
+  let alignedCount = 0;
+  let opposedCount = 0;
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const match = grid.findClosestSegment(p, radius);
+    if (!match) continue;
+    inside++;
+
+    // Compute tangent of current track at point i
+    const nextIdx = Math.min(i + 1, points.length - 1);
+    const prevIdx = Math.max(i - 1, 0);
+    const tdx = points[nextIdx].x - points[prevIdx].x;
+    const tdy = points[nextIdx].y - points[prevIdx].y;
+
+    // Compute tangent of matched segment in other track
+    const a = grid.points[match.index];
+    const b = grid.points[Math.min(match.index + 1, grid.points.length - 1)];
+    const mdx = b.x - a.x;
+    const mdy = b.y - a.y;
+
+    const dot = tdx * mdx + tdy * mdy;
+    if (dot > 0) {
+      alignedCount++;
+    } else if (dot < 0) {
+      opposedCount++;
+    }
   }
-  return inside / points.length;
+
+  return {
+    coverage: points.length === 0 ? 0 : inside / points.length,
+    alignedCount,
+    opposedCount
+  };
 }
 
 /**
- * Compares two activity tracks with a symmetric corridor-overlap metric
+ * Compares two activity tracks with a corridor-overlap metric and direction analysis
  * (ONT-SPATIAL-04).
  *
  * Both tracks are resampled every ~10 m along their length, then for each
  * track we measure the fraction of its points lying within
  * {@link CORRIDOR_RADIUS_M} of the other track's polyline. The similarity is
- * the smaller of the two fractions, so it reads as "at least X% of either
- * route is shared". It is independent of speed, pauses, sampling rate and
- * direction of travel, and runs in near-linear time.
+ * the smaller of the two fractions.
+ *
+ * Additionally, each covered point's heading tangent is compared against the
+ * matched segment's tangent. If a substantial majority of covered points are opposed,
+ * `reversed` is true.
  *
  * @param track1 The first track, an array of LatLng points.
  * @param track2 The second track, an array of LatLng points.
  * @param radius Corridor half-width in metres.
- * @returns A similarity score between 0 and 1.
+ * @returns An object `{ similarity: number, reversed: boolean }`.
  */
 export function compareTracks(
   track1: LatLng[],
   track2: LatLng[],
   radius: number = CORRIDOR_RADIUS_M
-): number {
+): TrackComparisonResult {
   const clean1 = (track1 ?? []).filter(isValidPoint);
   const clean2 = (track2 ?? []).filter(isValidPoint);
   if (clean1.length === 0 || clean2.length === 0) {
-    return 0;
+    return { similarity: 0, reversed: false };
   }
 
   const [xy1, xy2] = projectTracks(clean1, clean2);
@@ -177,15 +226,23 @@ export function compareTracks(
   const r1 = resample(xy1, step);
   const r2 = resample(xy2, step);
 
-  const coverage1 = coverage(r1, new SegmentGrid(r2, radius, step), radius);
-  const coverage2 = coverage(r2, new SegmentGrid(r1, radius, step), radius);
-  return Math.min(coverage1, coverage2);
+  const res1 = analyzeCoverage(r1, new SegmentGrid(r2, radius, step), radius);
+  const res2 = analyzeCoverage(r2, new SegmentGrid(r1, radius, step), radius);
+
+  const similarity = Math.min(res1.coverage, res2.coverage);
+
+  const totalAligned = res1.alignedCount + res2.alignedCount;
+  const totalOpposed = res1.opposedCount + res2.opposedCount;
+  const reversed =
+    totalOpposed > totalAligned && totalOpposed > (totalAligned + totalOpposed) * 0.6;
+
+  return { similarity, reversed };
 }
 
 export async function findSimilarActivitiesByTrack(
   activity: Activity,
   similarActivities: Activity[]
-): Promise<{ activity: Activity; similarity: number }[]> {
+): Promise<{ activity: Activity; similarity: number; reversed: boolean }[]> {
   if (similarActivities.length === 0) {
     return [];
   }
@@ -226,14 +283,14 @@ export async function findSimilarActivitiesByTrack(
         hasStream: !!otherActivityStream,
         hasCoordinates: !!otherActivityStream?.streamSet.coordinates
       });
-      return { activity: otherActivity, similarity: 0 };
+      return { activity: otherActivity, similarity: 0, reversed: false };
     }
 
-    const similarity = compareTracks(
+    const { similarity, reversed } = compareTracks(
       activityStream.streamSet.coordinates,
       otherActivityStream.streamSet.coordinates
     );
-    return { activity: otherActivity, similarity };
+    return { activity: otherActivity, similarity, reversed };
   });
 
   simpleLogger.log(`Completed similarity calculation for activity ${activity.id}`, {

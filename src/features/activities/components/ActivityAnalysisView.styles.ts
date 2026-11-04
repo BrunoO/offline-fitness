@@ -32,6 +32,10 @@ export const createStyles = (theme: ResolvedTheme) =>
       backgroundColor: theme.successSoft,
       borderColor: theme.success
     },
+    similarActivityItemTrackReverseMatch: {
+      backgroundColor: theme.surfaceMuted,
+      borderColor: theme.chartReverse
+    },
     similarActivityItemTitle: {
       fontSize: 14,
       fontWeight: '600',
