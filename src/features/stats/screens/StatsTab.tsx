@@ -1,11 +1,11 @@
 import { useActivitiesContext } from '@/features/activities';
 import { ResolvedTheme, useTheme } from '@/theme';
-import { IconButton, StatsTabParamList, StatsTabScreenProps } from '@/shared';
+import { IconButton, StatsTabScreenProps } from '@/shared';
+import { STATS_SEGMENTS, StatsSegment } from '@/constants';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import CodeEditor, { CodeEditorSyntaxStyles } from '@rivascva/react-native-code-editor';
-import React, { JSX, useEffect, useMemo, useState } from 'react';
+import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -19,14 +19,11 @@ import {
 } from 'react-native';
 import { validateGoal } from '../services/GoalService';
 import { useSettings } from '../StatsTabSettingsContext';
+import { StatsSegmentedControl } from '../components/StatsSegmentedControl';
 import { RecentMonthsScreen } from './RecentMonthsScreen';
 import { RecordsScreen } from './RecordsScreen';
 import { RecentWeeksScreen } from './RecentWeeksScreen';
 import { RecentYearsScreen } from './RecentYearsScreen';
-
-type IoniconName = keyof typeof Ionicons.glyphMap;
-
-const Tab = createBottomTabNavigator<StatsTabParamList>();
 
 const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
@@ -222,6 +219,12 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     cancelButtonText: {
       color: theme.text
+    },
+    screenContainer: {
+      flex: 1
+    },
+    hidden: {
+      display: 'none'
     }
   });
 
@@ -525,9 +528,48 @@ const SettingsModal = ({
   );
 };
 
-export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>): JSX.Element {
+type StatsTabProps = {
+  navigation?: StatsTabScreenProps['navigation'];
+  route?: StatsTabScreenProps['route'];
+};
+
+function resolveSegmentFromParams(params?: {
+  segment?: StatsSegment;
+  screen?: string;
+}): StatsSegment {
+  if (params?.segment) {
+    return params.segment;
+  }
+  if (params?.screen === 'RecentYearsScreen') return STATS_SEGMENTS.Years;
+  if (params?.screen === 'RecentMonthsScreen') return STATS_SEGMENTS.Months;
+  if (params?.screen === 'RecordsScreen') return STATS_SEGMENTS.Records;
+  return STATS_SEGMENTS.Weeks;
+}
+
+export function StatsTab({ navigation, route }: Readonly<StatsTabProps>): JSX.Element {
   useActivitiesContext();
-  const [isSettingsVisible, setIsSettingsVisible] = React.useState(false);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+
+  const initialSegment = useMemo(() => resolveSegmentFromParams(route?.params), [route?.params]);
+  const [activeSegment, setActiveSegment] = useState<StatsSegment>(initialSegment);
+  const [visitedSegments, setVisitedSegments] = useState<Set<StatsSegment>>(
+    () => new Set([initialSegment])
+  );
+
+  useEffect(() => {
+    if (route?.params) {
+      const target = resolveSegmentFromParams(route.params);
+      setActiveSegment(target);
+      setVisitedSegments(prev => new Set(prev).add(target));
+    }
+  }, [route?.params]);
+
+  const handleSelectSegment = useCallback((segment: StatsSegment) => {
+    setActiveSegment(segment);
+    setVisitedSegments(prev => new Set(prev).add(segment));
+  }, []);
 
   React.useLayoutEffect(() => {
     navigation?.setOptions({
@@ -546,45 +588,52 @@ export function StatsTab({ navigation }: Readonly<Partial<StatsTabScreenProps>>)
         isSettingsVisible={isSettingsVisible}
         setIsSettingsVisible={setIsSettingsVisible}
       />
-      <Tab.Navigator backBehavior="history">
-        <Tab.Screen
-          name="RecentWeeksScreen"
-          component={RecentWeeksScreen}
-          options={getTabOptions('Last weeks', 'bar-chart-outline')}
-        />
-        <Tab.Screen
-          name="RecentMonthsScreen"
-          component={RecentMonthsScreen}
-          options={getTabOptions('Last months', 'trending-up-outline')}
-        />
-        <Tab.Screen
-          name="RecentYearsScreen"
-          component={RecentYearsScreen}
-          options={getTabOptions('Last years', 'calculator-outline')}
-        />
-        <Tab.Screen
-          name="RecordsScreen"
-          component={RecordsScreen}
-          options={getTabOptions('Records', 'trophy-outline')}
-        />
-      </Tab.Navigator>
+      <StatsSegmentedControl
+        selectedSegment={activeSegment}
+        onSelectSegment={handleSelectSegment}
+      />
+      <View style={{ flex: 1 }}>
+        {visitedSegments.has(STATS_SEGMENTS.Weeks) ? (
+          <View
+            style={[
+              styles.screenContainer,
+              activeSegment === STATS_SEGMENTS.Weeks ? null : styles.hidden
+            ]}
+          >
+            <RecentWeeksScreen />
+          </View>
+        ) : null}
+        {visitedSegments.has(STATS_SEGMENTS.Months) ? (
+          <View
+            style={[
+              styles.screenContainer,
+              activeSegment === STATS_SEGMENTS.Months ? null : styles.hidden
+            ]}
+          >
+            <RecentMonthsScreen />
+          </View>
+        ) : null}
+        {visitedSegments.has(STATS_SEGMENTS.Years) ? (
+          <View
+            style={[
+              styles.screenContainer,
+              activeSegment === STATS_SEGMENTS.Years ? null : styles.hidden
+            ]}
+          >
+            <RecentYearsScreen />
+          </View>
+        ) : null}
+        {visitedSegments.has(STATS_SEGMENTS.Records) ? (
+          <View
+            style={[
+              styles.screenContainer,
+              activeSegment === STATS_SEGMENTS.Records ? null : styles.hidden
+            ]}
+          >
+            <RecordsScreen />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
-}
-
-/**
- * Gets the options for a tab in the stats tab navigator.
- * @param label The label for the tab.
- * @param iconName The name of the icon for the tab.
- * @returns The options for the tab.
- */
-function getTabOptions(label: string, iconName: IoniconName) {
-  return {
-    headerShown: false,
-    tabBarLabel: label,
-    // The tint comes from the navigation theme, which follows the active palette.
-    tabBarIcon: (tabInfo: { focused: boolean; color: string; size: number }) => (
-      <Ionicons name={iconName} size={tabInfo.size} color={tabInfo.color} />
-    )
-  };
 }
