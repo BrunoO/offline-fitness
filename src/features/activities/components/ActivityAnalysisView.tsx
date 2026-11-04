@@ -610,7 +610,7 @@ export function ActivityAnalysisView({
   item: Activity;
   allActivities: Activity[];
 }>): JSX.Element {
-  const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.15);
+  const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.7);
   const [iouThreshold, setIouThreshold] = useState<number>(0.8);
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
   const [isTrackModalVisible, setIsTrackModalVisible] = useState<boolean>(false);
