@@ -55,34 +55,6 @@ export type Activity = {
 
 export type ActivityAccessor<T> = (arg0: Activity) => T;
 
-export type RootDrawerParamList = {
-  Home: undefined;
-  Record: undefined;
-  Stats:
-    | NavigatorScreenParams<StatsTabParamList>
-    | { segment?: StatsSegment; screen?: keyof StatsTabParamList }
-    | undefined;
-  TimerRecord: undefined;
-  Logs: undefined;
-  Maps: undefined;
-  Profile: undefined;
-  Details:
-    | {
-        allActivities?: Activity[];
-        selectedActivityId?: string;
-        filterLabel?: string;
-        useElapsedTime?: boolean;
-      }
-    | undefined;
-};
-
-export type StatsTabParamList = {
-  RecentWeeksScreen: undefined;
-  RecentYearsScreen: undefined;
-  RecentMonthsScreen: undefined;
-  RecordsScreen: undefined;
-};
-
 export type MainTabParamList = {
   Home: undefined;
   Activities:

@@ -56,29 +56,6 @@ export const STORAGE_KEYS = {
  */
 export const STALE_BACKUP_MS = 14 * 24 * 60 * 60 * 1000;
 
-// Route names for the drawer navigator. Keys mirror `RootDrawerParamList` so
-// the constant stays in 1:1 harmony with the navigation param list. Centralised
-// so navigation calls don't repeat bare string literals (typo-safe, single
-// source of truth).
-export const DRAWER_ROUTES = {
-  Details: 'Details',
-  Home: 'Home',
-  Logs: 'Logs',
-  Maps: 'Maps',
-  Profile: 'Profile',
-  Record: 'Record',
-  Stats: 'Stats',
-  TimerRecord: 'TimerRecord'
-} as const;
-
-// Route names for the Stats tab navigator. Keys mirror `StatsTabParamList`.
-export const STATS_TAB_ROUTES = {
-  RecentMonthsScreen: 'RecentMonthsScreen',
-  RecentWeeksScreen: 'RecentWeeksScreen',
-  RecentYearsScreen: 'RecentYearsScreen',
-  RecordsScreen: 'RecordsScreen'
-} as const;
-
 // Route names for the modern floating Tab navigator.
 export const TAB_ROUTES = {
   Home: 'Home',
@@ -106,9 +83,7 @@ export const STATS_SEGMENTS = {
   Records: 'records'
 } as const;
 
-export type DrawerRouteName = (typeof DRAWER_ROUTES)[keyof typeof DRAWER_ROUTES];
-export type StatsTabRouteName = (typeof STATS_TAB_ROUTES)[keyof typeof STATS_TAB_ROUTES];
 export type TabRouteName = (typeof TAB_ROUTES)[keyof typeof TAB_ROUTES];
 export type StackRouteName = (typeof STACK_ROUTES)[keyof typeof STACK_ROUTES];
 export type StatsSegment = (typeof STATS_SEGMENTS)[keyof typeof STATS_SEGMENTS];
-export type RouteName = DrawerRouteName | StatsTabRouteName | TabRouteName | StackRouteName;
+export type RouteName = TabRouteName | StackRouteName;

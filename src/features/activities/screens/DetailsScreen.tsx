@@ -794,7 +794,6 @@ function FilteredViewBanner({
 export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const listRef = useRef<{
     scrollToIndex: (params: {
       index: number;
@@ -840,23 +839,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     () => baseActivities.map(a => editedMap.get(a.id) ?? a),
     [baseActivities, editedMap]
   );
-
-  // Reset selected activity if it's no longer in the updated activities list
-  React.useEffect(() => {
-    if (selectedActivity && !allActivities.some(a => a.id === selectedActivity.id)) {
-      setSelectedActivity(null);
-    }
-  }, [allActivities, selectedActivity]);
-
-  // Honor a requested activity (e.g. coming from the Records screen).
-  React.useEffect(() => {
-    const requestedId = route.params?.selectedActivityId;
-    if (!requestedId) return;
-    const match = allActivities.find(a => a.id === requestedId);
-    if (match && selectedActivity?.id !== match.id) {
-      setSelectedActivity(match);
-    }
-  }, [route.params?.selectedActivityId, allActivities, selectedActivity?.id]);
 
   // Debug log to track activities updates
   React.useEffect(() => {
@@ -912,10 +894,8 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   const handleResetToAllActivities = useCallback(() => {
     navigation.setParams({
       allActivities: undefined,
-      filterLabel: undefined,
-      selectedActivityId: undefined
+      filterLabel: undefined
     });
-    setSelectedActivity(null);
     setSearchQuery('');
     setSelectedTypes(new Set());
     setHideNoStream(false);
@@ -969,20 +949,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     [filteredActivities]
   );
 
-  // Keep the selected activity visible in the list (e.g. after navigating
-  // from the Records screen), so its short description can be checked.
-  React.useEffect(() => {
-    if (!selectedActivity) return;
-    const index = filteredActivities.findIndex(a => a.id === selectedActivity.id);
-    if (index < 0) return;
-    const frame = requestAnimationFrame(() => {
-      listRef.current
-        ?.scrollToIndex({ index, animated: true, viewPosition: 0.5 })
-        .catch(() => undefined);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [selectedActivity, filteredActivities]);
-
   const toggleType = (type: string) => {
     setSelectedTypes(prev => {
       const next = new Set(prev);
@@ -1027,12 +993,12 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       <ActivityListItem
         activity={item}
         onPress={handleActivityPress}
-        selectedActivityId={selectedActivity?.id ?? null}
+        selectedActivityId={null}
         deleteActivity={onDeleteActivity}
         editActivity={handleEditActivity}
       />
     ),
-    [selectedActivity?.id, handleActivityPress, onDeleteActivity, handleEditActivity]
+    [handleActivityPress, onDeleteActivity, handleEditActivity]
   );
 
   const clearSearch = () => {
@@ -1106,7 +1072,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             data={filteredActivities}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
-            extraData={selectedActivity}
             onRefresh={refreshActivities}
             refreshing={fetchingData}
             contentContainerStyle={{ paddingBottom: 88 + insets.bottom }}

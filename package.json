@@ -46,7 +46,6 @@
     "@react-native-community/slider": "5.2.0",
     "@react-native/assets-registry": "^0.72.0",
     "@react-navigation/bottom-tabs": "^7.4.7",
-    "@react-navigation/drawer": "^7.5.8",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/native-stack": "^7.21.0",
     "@rivascva/react-native-code-editor": "^1.2.2",
