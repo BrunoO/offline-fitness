@@ -237,7 +237,6 @@ graph TB
    These items must be imported directly, not through barrel exports:
 
    **Components:**
-   - `CustomDrawer` from `@/shared/components/CustomDrawer`
    - `MiniMapComponent` from `@/features/maps/components/MiniMapComponent`
    - `ButtonList` from `@/features/home/components/ButtonList`
    - `RecordChooserSheet` from `@/features/activities/components/RecordChooserSheet` (mounted beside the navigator, never inside the drawer panel)

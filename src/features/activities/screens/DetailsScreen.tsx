@@ -5,7 +5,7 @@ import {
   getNoStreamIds
 } from '@/features/activities/services/fetchAndStoreStreams';
 import { MERGED_ACTIVITY_TYPES } from '@/features/activities/services/mergeActivities';
-import { STORAGE_KEYS } from '@/constants';
+import { STACK_ROUTES, STORAGE_KEYS } from '@/constants';
 import {
   Activity,
   compareActivitiesByUtcDesc,
@@ -33,7 +33,6 @@ import {
 } from 'react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ActivityAnalysisView } from '../components/ActivityAnalysisView';
 import { ActivityListItem } from '../components/ActivityListItem';
 import { useFilteredActivities } from '../hooks/useFilteredActivities';
 
@@ -596,23 +595,6 @@ function ActivitiesEmptyState({
   );
 }
 
-function ActivityMapContainer({
-  selectedActivity,
-  allActivities,
-  styles
-}: Readonly<{
-  selectedActivity: Activity | null;
-  allActivities: Activity[];
-  styles: ReturnType<typeof createStyles>;
-}>): React.JSX.Element | null {
-  if (!selectedActivity) return null;
-  return (
-    <View style={styles.mapContainer}>
-      <ActivityAnalysisView item={selectedActivity} allActivities={allActivities} />
-    </View>
-  );
-}
-
 function ClearSearchButtonSlot({
   visible,
   onClear,
@@ -1017,14 +999,9 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   // across unrelated re-renders (e.g. while typing in search).
   const handleActivityPress = useCallback(
     (activityId: string) => {
-      setSelectedActivity(prev => {
-        if (prev?.id === activityId) {
-          return null;
-        }
-        return allActivities.find(a => a.id === activityId) || null;
-      });
+      navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
     },
-    [allActivities]
+    [navigation]
   );
 
   // Stable identity for the memoised ActivityListItem (state setters are stable).
@@ -1063,7 +1040,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
   };
 
   return (
-    <View style={[styles.container, { paddingTop: 0, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}>
       <View style={styles.listContainer}>
         <FilteredBannerSlot
           isFiltered={route.params?.allActivities !== undefined}
@@ -1132,6 +1109,7 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
             extraData={selectedActivity}
             onRefresh={refreshActivities}
             refreshing={fetchingData}
+            contentContainerStyle={{ paddingBottom: 88 + insets.bottom }}
             ListEmptyComponent={
               <ActivitiesEmptyState
                 fetchingData={fetchingData}
@@ -1145,11 +1123,6 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
           />
         </View>
       </View>
-      <ActivityMapContainer
-        selectedActivity={selectedActivity}
-        allActivities={allActivities}
-        styles={styles}
-      />
       <EditActivityModal
         activity={editingActivity}
         onClose={() => setEditingActivity(null)}

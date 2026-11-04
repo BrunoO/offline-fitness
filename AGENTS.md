@@ -26,7 +26,7 @@ This document provides essential context and rules for AI agents working on this
 ### Build & Deployment
 
 - **Builds are local only**: We do not use EAS Build. All builds run locally (`npx expo prebuild`, `npm run build:local*`, `npx expo run:android`/`run:ios`). There is no remote build quota to worry about.
-- **JDK for Android builds**: use OpenJDK 21 (Android Studio's bundled JBR, e.g. `/Applications/Android Studio.app/Contents/jbr/Contents/Home`). Zulu 17's Gradle daemon cannot spawn `node` during `settings.gradle` evaluation, and OpenJDK 27 breaks the Android toolchain (jlink). Set `JAVA_HOME` accordingly before running `npm run build:local*` / `android:dev:*`.
+- **JDK for Android builds**: use **OpenJDK 21**. Android Studio's bundled JBR is now 25.x, which breaks `react-native-worklets`' `GeneratePrefabPackages` step (restricted `java.lang.System` method), and OpenJDK 27 breaks the Android toolchain (jlink). Install via `brew install openjdk@21` and set `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` (or your platform's Java 21) before running `npm run build:local*` / `android:dev:*`. Zulu 17's Gradle daemon cannot spawn `node` during `settings.gradle` evaluation, so it is not usable either.
 - **Local Development**: Agents may freely run:
   - `npx expo start` (dev server)
   - `npx expo start --android` / `--ios` (platform-specific)
@@ -299,7 +299,6 @@ import logo from '@/assets/logo.png'; // ❌ Use relative path
 ```
 
 **Known Circular Dependency Exceptions (ALWAYS import directly, never via barrel):**
-- `import CustomDrawer from '@/shared/components/CustomDrawer'`
 - `import MiniMapComponent from '@/features/maps/components/MiniMapComponent'`
 - `import ButtonList from '@/features/home/components/ButtonList'`
 - `import { RecordChooserSheet } from '@/features/activities/components/RecordChooserSheet'`

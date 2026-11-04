@@ -1,7 +1,7 @@
 import {
   Activity,
   ChipMultiSelect,
-  RootDrawerParamList,
+  MainTabNavigationProp,
   seconds_to_label,
   simpleLogger
 } from '@/shared';
@@ -9,7 +9,7 @@ import {
 import { monthlyData2, MonthSummary } from '../services/stats';
 
 import { createChartTheme, ResolvedTheme, useTheme } from '@/theme';
-import { DRAWER_ROUTES } from '@/constants';
+import { TAB_ROUTES } from '@/constants';
 
 import {
   ActivityIndicator,
@@ -22,7 +22,6 @@ import {
   View
 } from 'react-native';
 
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useNavigation } from '@react-navigation/native';
 import React, { JSX, useCallback, useMemo, useState } from 'react';
 
@@ -173,7 +172,7 @@ export function RecentMonthsScreen(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { numberRecentMonths, useElapsedTime } = useSettings();
-  const navigation = useNavigation<DrawerNavigationProp<RootDrawerParamList>>();
+  const navigation = useNavigation<MainTabNavigationProp>();
   const { globalActivities, myActivitiesDiscovered, refreshActivities, fetchingData } =
     useActivitiesContext();
   const activityTypes = useMemo(
@@ -231,7 +230,7 @@ export function RecentMonthsScreen(): JSX.Element {
         year: 'numeric'
       });
 
-      navigation.navigate(DRAWER_ROUTES.Details, {
+      navigation.navigate(TAB_ROUTES.Activities, {
         allActivities: monthActivities,
         filterLabel: monthLabel,
         useElapsedTime

@@ -1,10 +1,9 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import type { RootDrawerParamList } from '@/shared/types/types';
+import type { RootStackNavigationProp } from '@/shared/types/types';
 import { ManualActivitySheet } from './components/ManualActivitySheet';
 import { RecordChooserSheet } from './components/RecordChooserSheet';
-import { DRAWER_ROUTES } from '@/constants';
+import { STACK_ROUTES } from '@/constants';
 
 type ManualEntryContextType = {
   /**
@@ -29,7 +28,7 @@ const ManualEntryContext = createContext<ManualEntryContextType | undefined>(und
  * all call `openRecordChooser`, so the form state lives in exactly one place.
  */
 export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigation = useNavigation<DrawerNavigationProp<RootDrawerParamList>>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [initialDate, setInitialDate] = useState<string | undefined>(undefined);
   const [chooserVisible, setChooserVisible] = useState(false);
@@ -50,11 +49,11 @@ export const ManualEntryProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const closeChooser = useCallback(() => setChooserVisible(false), []);
 
   const handleRecord = useCallback(() => {
-    navigation.navigate(DRAWER_ROUTES.Record);
+    navigation.navigate(STACK_ROUTES.Record);
   }, [navigation]);
 
   const handleRecordTimer = useCallback(() => {
-    navigation.navigate(DRAWER_ROUTES.TimerRecord);
+    navigation.navigate(STACK_ROUTES.TimerRecord);
   }, [navigation]);
 
   const handleEnterManually = useCallback(() => {

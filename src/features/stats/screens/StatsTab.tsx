@@ -25,6 +25,7 @@ import { RecentMonthsScreen } from './RecentMonthsScreen';
 import { RecordsScreen } from './RecordsScreen';
 import { RecentWeeksScreen } from './RecentWeeksScreen';
 import { RecentYearsScreen } from './RecentYearsScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
@@ -550,6 +551,7 @@ function resolveSegmentFromParams(params?: {
 export function StatsTab({ navigation, route }: Readonly<StatsTabProps>): JSX.Element {
   useActivitiesContext();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
@@ -594,7 +596,7 @@ export function StatsTab({ navigation, route }: Readonly<StatsTabProps>): JSX.El
         selectedSegment={activeSegment}
         onSelectSegment={handleSelectSegment}
       />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingBottom: 72 + insets.bottom }}>
         {visitedSegments.has(STATS_SEGMENTS.Weeks) ? (
           <View
             style={[

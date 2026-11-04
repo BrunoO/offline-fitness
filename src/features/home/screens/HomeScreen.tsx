@@ -1,5 +1,5 @@
 import { ResolvedTheme, useTheme } from '@/theme';
-import { DRAWER_ROUTES, STATS_TAB_ROUTES } from '@/constants';
+import { STACK_ROUTES, STATS_SEGMENTS, TAB_ROUTES } from '@/constants';
 import { createStyles } from './HomeScreen.styles';
 import {
   DayActivitiesSheet,
@@ -29,8 +29,8 @@ import {
   activityUtcMs,
   ActivityStream,
   BACKUP_LAST_SYNC_KEY,
+  HomeScreenProps as SharedHomeScreenProps,
   retrieveStringValue,
-  RootDrawerParamList,
   simpleLogger
 } from '@/shared';
 import {
@@ -39,15 +39,15 @@ import {
   computeWeeklyGoalStreaks
 } from '@/shared/services/streaks';
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type HomeScreenProps = {
-  navigation: DrawerNavigationProp<RootDrawerParamList, 'Home'>;
-};
+export interface HomeScreenProps {
+  navigation: SharedHomeScreenProps['navigation'];
+  route?: SharedHomeScreenProps['route'];
+}
 
 /**
  * The home screen of the app.
@@ -463,12 +463,7 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
 
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
-    const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate(DRAWER_ROUTES.Details, {
-      allActivities: targetActivity ? [targetActivity] : globalActivities,
-      selectedActivityId: activityId,
-      filterLabel: targetActivity?.name ? `Achievement: ${targetActivity.name}` : 'Achievement'
-    });
+    navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
   };
 
   const handleActivityChange = (activity: Activity) => {
@@ -642,7 +637,11 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
   return (
     <View style={{ flex: 1, paddingTop: 0, paddingBottom: insets.bottom }}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 16,
+          paddingBottom: 88 + insets.bottom
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -660,8 +659,8 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           goalWeekStreak={goalWeekStreak}
           currentYearStats={currentYearConsistency}
           onSeeAnnualTrends={() =>
-            navigation.navigate(DRAWER_ROUTES.Stats, {
-              screen: STATS_TAB_ROUTES.RecentYearsScreen
+            navigation.navigate(TAB_ROUTES.Stats, {
+              segment: STATS_SEGMENTS.Years
             })
           }
           styles={styles}
@@ -696,7 +695,9 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           achievementsStartDate={achievementsStartDate}
           onSelectActivity={goToActivity}
           onSeeAll={() =>
-            navigation.navigate(DRAWER_ROUTES.Stats, { screen: STATS_TAB_ROUTES.RecordsScreen })
+            navigation.navigate(TAB_ROUTES.Stats, {
+              segment: STATS_SEGMENTS.Records
+            })
           }
           theme={theme}
           styles={styles}

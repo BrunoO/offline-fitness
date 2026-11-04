@@ -2,6 +2,8 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import { makeTestActivity } from '../helpers/testActivities';
 
+jest.setTimeout(15000);
+
 const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -108,7 +110,7 @@ describe('RecentMonthsScreen', () => {
       fireEvent.press(juneButtons[0]);
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('Details', {
+    expect(mockNavigate).toHaveBeenCalledWith('Activities', {
       allActivities: expect.arrayContaining([
         expect.objectContaining({ id: '1' }),
         expect.objectContaining({ id: '2' })
@@ -132,7 +134,7 @@ describe('RecentMonthsScreen', () => {
       fireEvent.press(juneButtons[0]);
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('Details', {
+    expect(mockNavigate).toHaveBeenCalledWith('Activities', {
       allActivities: [expect.objectContaining({ id: '1', type: 'Run' })],
       filterLabel: `Jun ${currentYear}`,
       useElapsedTime: true

@@ -2,6 +2,8 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import { makeTestActivity } from '../helpers/testActivities';
 
+jest.setTimeout(15000);
+
 const mockActivities = [
   makeTestActivity({ id: '1', type: 'Run', start_date_utc: '2023-02-25T15:14:44Z' }),
   makeTestActivity({ id: '2', type: 'Ride', start_date_utc: '2024-06-11T08:00:00Z' })

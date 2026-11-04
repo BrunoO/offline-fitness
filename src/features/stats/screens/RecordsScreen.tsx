@@ -1,13 +1,12 @@
 import { useActivitiesContext } from '@/features/activities';
-import { Activity, RootDrawerParamList } from '@/shared';
+import { Activity, RootStackNavigationProp } from '@/shared';
 import { ResolvedTheme, useTheme } from '@/theme';
-import { DRAWER_ROUTES } from '@/constants';
+import { STACK_ROUTES } from '@/constants';
 
 import { computeDayStreaks, computeWeekStreaks } from '@/shared/services/streaks';
 import { isNoGpsActivity } from '@/shared/utils/activityCategories';
 import { weeklyData } from '../services/stats';
 import { useSettings } from '../StatsTabSettingsContext';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useNavigation } from '@react-navigation/native';
 import React, { JSX, useMemo } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -28,18 +27,13 @@ interface RecordItem {
 export function RecordsScreen(): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const navigation = useNavigation<DrawerNavigationProp<RootDrawerParamList>>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const { globalActivities } = useActivitiesContext();
   const { numberRecentWeeks, useElapsedTime } = useSettings();
 
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
-    const targetActivity = globalActivities.find(a => a.id === activityId);
-    navigation.navigate(DRAWER_ROUTES.Details, {
-      allActivities: targetActivity ? [targetActivity] : globalActivities,
-      selectedActivityId: activityId,
-      filterLabel: targetActivity?.name ? `Record: ${targetActivity.name}` : 'Record'
-    });
+    navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
   };
 
   // Aggregate all-time extremes/streaks over the full activity set; memoize so

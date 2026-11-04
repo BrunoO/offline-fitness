@@ -3,8 +3,11 @@
 // outside React Native. See `docs/desktop-import-plan.md` and the guard in
 // `__tests__/stravaImport/importCorePortability.spec.ts`.
 import type { BottomTabNavigationProp, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { DrawerNavigationProp, DrawerScreenProps } from '@react-navigation/drawer';
-import type { NavigatorScreenParams } from '@react-navigation/native';
+import type {
+  CompositeNavigationProp,
+  CompositeScreenProps,
+  NavigatorScreenParams
+} from '@react-navigation/native';
 import type {
   NativeStackNavigationProp,
   NativeStackScreenProps
@@ -121,17 +124,30 @@ export type MainTabNavigationProp<T extends keyof MainTabParamList = keyof MainT
   BottomTabNavigationProp<MainTabParamList, T>;
 
 export type MapsScreenProps = {
-  navigation: DrawerNavigationProp<RootDrawerParamList>;
+  navigation: CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList, 'Maps'>,
+    NativeStackNavigationProp<RootStackParamList>
+  >;
 };
 
-export type DetailsScreenProps = DrawerScreenProps<RootDrawerParamList, 'Details'>;
+export type DetailsScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Activities'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export type HomeScreenProps = DrawerScreenProps<RootDrawerParamList, 'Home'>;
-export type LogScreenProps = DrawerScreenProps<RootDrawerParamList, 'Logs'>;
+export type HomeScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Home'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export type MapsDetailsScreenProps = DrawerScreenProps<RootDrawerParamList, 'Maps'>;
+export type LogScreenProps = NativeStackScreenProps<RootStackParamList, 'Logs'>;
 
-export type StatsTabScreenProps = DrawerScreenProps<RootDrawerParamList, 'Stats'>;
+export type MapsDetailsScreenProps = MapsScreenProps;
+
+export type StatsTabScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Stats'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export type RecentYearsScreenProps = Record<string, never>;
 

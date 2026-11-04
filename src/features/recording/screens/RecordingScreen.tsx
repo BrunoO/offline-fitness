@@ -16,11 +16,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContext } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRecording } from '../hooks/useRecording';
 import { HeartRateCard } from '@/features/heart-rate';
-import type { RootDrawerParamList } from '@/shared';
+import { STACK_ROUTES } from '@/constants';
 import type { LiveStats, Profile, RecordingMeta, RecordingSummary } from '../services/gpsTracker';
 import type { SplitEvent } from '../services/splits';
 import {
@@ -175,19 +174,18 @@ const gpsAccuracyColor = (meters: number, theme: ResolvedTheme): string => {
 };
 
 const navigateToActivityDetails = (
-  navigation: Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'> | undefined,
+  navigation: { navigate: (route: string, params?: unknown) => void } | undefined,
   activityId: string | undefined
 ): void => {
   if (activityId) {
-    navigation?.navigate('Details', {
-      allActivities: undefined,
-      selectedActivityId: activityId
+    navigation?.navigate(STACK_ROUTES.ActivityDetail, {
+      activityId
     });
   }
 };
 
 export interface RecordingScreenProps {
-  readonly navigation?: Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'>;
+  readonly navigation?: { navigate: (route: string, params?: unknown) => void };
 }
 
 /**
@@ -206,7 +204,7 @@ export function RecordingScreen({
   const navContext = useContext(NavigationContext);
   const navigation =
     navigationProp ??
-    (navContext as Pick<DrawerNavigationProp<RootDrawerParamList>, 'navigate'> | undefined);
+    (navContext as { navigate: (route: string, params?: unknown) => void } | undefined);
   const {
     capabilities,
     state,
