@@ -1516,6 +1516,7 @@ export function ActivityAnalysisView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
+        <ActivityHeroSummary item={item} />
         <View
           onLayout={event => {
             const { width } = event.nativeEvent.layout;
@@ -1530,7 +1531,6 @@ export function ActivityAnalysisView({
             highlightCoordinate={scrubDetails?.coordinate}
           />
         </View>
-        <ActivityHeroSummary item={item} />
 
         <AnalysisTabBar
           activeTab={activeTab}
