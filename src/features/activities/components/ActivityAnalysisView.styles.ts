@@ -355,6 +355,76 @@ export const createStyles = (theme: ResolvedTheme) =>
       marginBottom: 10,
       color: theme.textStrong
     },
+    headerBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 1
+    },
+    headerBadgeArea: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    headerBadgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.text
+    },
+    headerBadgeTrack: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    headerBadgeTrackText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    headerBadgeReverse: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.chartReverse
+    },
+    headerBadgeReverseText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.chartReverse
+    },
+    filterPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.primary
+    },
+    filterPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.primary
+    },
     chip: {
       paddingHorizontal: 10,
       paddingVertical: 6,
@@ -375,13 +445,81 @@ export const createStyles = (theme: ResolvedTheme) =>
     modalCard: {
       backgroundColor: theme.surface,
       padding: 16,
-      borderTopLeftRadius: 12,
-      borderTopRightRadius: 12
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border
     },
     modalRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 8
+    },
+    modalSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2
+    },
+    modalSection: {
+      marginTop: 10,
+      marginBottom: 4
+    },
+    modalSectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 2
+    },
+    modalSectionTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    modalSectionCaption: {
+      fontSize: 11,
+      color: theme.textMuted,
+      marginBottom: 4
+    },
+    modalValueBadge: {
+      fontSize: 13,
+      fontWeight: '700',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: theme.surfaceAlt,
+      color: theme.textStrong,
+      borderWidth: 1,
+      borderColor: theme.border,
+      overflow: 'hidden'
+    },
+    modalScaleLegend: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 2,
+      marginTop: -2
+    },
+    modalScaleLabel: {
+      fontSize: 10,
+      color: theme.textMuted
+    },
+    modalDivider: {
+      height: 1,
+      backgroundColor: theme.border,
+      marginVertical: 12
+    },
+    modalFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 14,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: theme.border
+    },
+    modalResetText: {
+      fontSize: 13,
+      color: theme.textMuted,
+      textDecorationLine: 'underline'
     }
   });

@@ -60,89 +60,68 @@ function SimilarActivitiesHeader({
   similarActivities,
   trackSimilarCount,
   trackReverseCount,
-  iouThreshold,
   trackSimilarityThreshold,
-  setIsIoUModalVisible,
-  setIsTrackModalVisible,
+  onOpenSettings,
   onExport
 }: Readonly<{
   similarActivities: Activity[];
   trackSimilarCount: number;
   trackReverseCount: number;
-  iouThreshold: number;
   trackSimilarityThreshold: number;
-  setIsIoUModalVisible: (visible: boolean) => void;
-  setIsTrackModalVisible: (visible: boolean) => void;
+  onOpenSettings: () => void;
   onExport: () => void;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const filterPercentage = Math.round(trackSimilarityThreshold * 100);
+
   return (
     <View
       style={{
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        marginBottom: 8
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <MaterialCommunityIcons name="alpha-s-box-outline" size={24} color={theme.success} />
-          <Text
-            style={[
-              styles.similarActivityTitle,
-              { marginLeft: 6, marginBottom: 0, color: theme.success }
-            ]}
-          >
-            {similarActivities.length}
-          </Text>
+      <View style={styles.headerBadgeRow}>
+        <View style={styles.headerBadgeArea}>
+          <MaterialCommunityIcons name="map-marker-outline" size={14} color={theme.textMuted} />
+          <Text style={styles.headerBadgeText}>{`${similarActivities.length} area`}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <MaterialCommunityIcons name="alpha-t-circle-outline" size={24} color={theme.textMuted} />
-          <Text style={[styles.similarActivityTitle, { marginLeft: 6, marginBottom: 0 }]}>
-            {trackSimilarCount}
-          </Text>
+        <View style={styles.headerBadgeTrack}>
+          <MaterialCommunityIcons name="routes" size={14} color={theme.success} />
+          <Text style={styles.headerBadgeTrackText}>{`${trackSimilarCount} route`}</Text>
         </View>
         {trackReverseCount > 0 ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <MaterialCommunityIcons name="swap-horizontal" size={20} color={theme.chartReverse} />
-            <Text
-              style={[
-                styles.similarActivityTitle,
-                { marginLeft: 4, marginBottom: 0, color: theme.chartReverse }
-              ]}
-            >
-              {trackReverseCount}
-            </Text>
+          <View style={styles.headerBadgeReverse}>
+            <MaterialCommunityIcons name="swap-horizontal" size={15} color={theme.chartReverse} />
+            <Text style={styles.headerBadgeReverseText}>{`${trackReverseCount} rev`}</Text>
           </View>
         ) : null}
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <TouchableOpacity
-          onPress={() => setIsIoUModalVisible(true)}
+          onPress={onOpenSettings}
           accessibilityRole="button"
-          accessibilityLabel="Adjust IoU threshold"
-          style={styles.chip}
+          accessibilityLabel={`Matching sensitivity filters, current threshold ${filterPercentage} percent`}
+          style={styles.filterPill}
         >
-          <Text style={styles.chipText}>{`IoU: ${iouThreshold.toFixed(2)}`}</Text>
+          <MaterialCommunityIcons name="tune-variant" size={14} color={theme.primary} />
+          <Text style={styles.filterPillText}>{`Filter (${filterPercentage}%)`}</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          onPress={() => setIsTrackModalVisible(true)}
+          onPress={onExport}
           accessibilityRole="button"
-          accessibilityLabel="Adjust track similarity threshold"
-          style={styles.chip}
+          accessibilityLabel="Export similar activities"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ padding: 4 }}
         >
-          <Text style={styles.chipText}>{`Track: ${trackSimilarityThreshold.toFixed(2)}`}</Text>
+          <MaterialCommunityIcons name="application-export" size={22} color={theme.textMuted} />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        onPress={onExport}
-        accessibilityRole="button"
-        accessibilityLabel="Export similar activities"
-        style={{ padding: 6 }}
-      >
-        <MaterialCommunityIcons name="application-export" size={24} color={theme.textMuted} />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -907,104 +886,153 @@ function ActivityDetails({ item }: Readonly<{ item: Activity }>): JSX.Element {
   );
 }
 
-/**
- * Component for IoU threshold modal.
- * Uses internal display state so the label updates live during drag,
- * while onSlidingComplete is called only on release to avoid triggering
- * the expensive findSimilarActivities on every slider step.
- */
-function IoUThresholdModal({
-  isVisible,
-  iouThreshold,
-  onClose,
-  onSlidingComplete
-}: Readonly<{
+interface MatchSettingsModalProps {
   isVisible: boolean;
+  activity: Activity;
+  similarActivitiesCount: number;
+  trackSimilarCount: number;
+  trackReverseCount: number;
   iouThreshold: number;
+  trackSimilarityThreshold: number;
   onClose: () => void;
-  onSlidingComplete: (value: number) => void;
-}>): JSX.Element {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-  const [displayValue, setDisplayValue] = useState(iouThreshold);
-
-  // Sync display value when modal opens with current threshold
-  useEffect(() => {
-    if (isVisible) setDisplayValue(iouThreshold);
-  }, [isVisible, iouThreshold]);
-
-  return (
-    <Modal transparent animationType="slide" visible={isVisible} onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalCard} onPress={() => {}}>
-          <View style={styles.modalRow}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.textStrong }}>
-              IoU Threshold
-            </Text>
-            <Text style={{ fontSize: 14, color: theme.text }}>{displayValue.toFixed(2)}</Text>
-          </View>
-          <Slider
-            minimumValue={0.05}
-            maximumValue={0.95}
-            step={0.05}
-            value={displayValue}
-            minimumTrackTintColor={theme.primary}
-            maximumTrackTintColor={theme.surfaceMuted}
-            thumbTintColor={theme.primaryPressed}
-            onValueChange={setDisplayValue}
-            onSlidingComplete={onSlidingComplete}
-            accessibilityLabel="IoU threshold slider"
-          />
-          <View style={[styles.modalRow, { marginTop: 12 }]}>
-            <Button title="Close" onPress={onClose} />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
+  onTrackSimilarityChange: (value: number) => void;
+  onIoUChange: (value: number) => void;
+  onResetDefaults: () => void;
 }
 
 /**
- * Component for track similarity threshold modal
+ * Unified modal sheet for tuning route similarity and area tolerance.
  */
-function TrackSimilarityModal({
+function MatchSettingsModal({
   isVisible,
+  activity,
+  similarActivitiesCount,
+  trackSimilarCount,
+  trackReverseCount,
+  iouThreshold,
   trackSimilarityThreshold,
   onClose,
-  onValueChange
-}: Readonly<{
-  isVisible: boolean;
-  trackSimilarityThreshold: number;
-  onClose: () => void;
-  onValueChange: (value: number) => void;
-}>): JSX.Element {
+  onTrackSimilarityChange,
+  onIoUChange,
+  onResetDefaults
+}: Readonly<MatchSettingsModalProps>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const [displayTrack, setDisplayTrack] = useState(trackSimilarityThreshold);
+  const [displayIoU, setDisplayIoU] = useState(iouThreshold);
+
+  useEffect(() => {
+    if (isVisible) {
+      setDisplayTrack(trackSimilarityThreshold);
+      setDisplayIoU(iouThreshold);
+    }
+  }, [isVisible, trackSimilarityThreshold, iouThreshold]);
+
+  const defaultIoU = useMemo(() => getDefaultIoUThreshold(activity), [activity]);
+
   return (
     <Modal transparent animationType="slide" visible={isVisible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => {}}>
+          {/* Header */}
           <View style={styles.modalRow}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.textStrong }}>
-              Track Similarity
-            </Text>
-            <Text style={{ fontSize: 14, color: theme.text }}>
-              {trackSimilarityThreshold.toFixed(2)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.textStrong }}>
+                Matching Sensitivity
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                Tune how strictly matching routes are detected
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={styles.headerBadgeArea}>
+                <Text style={styles.headerBadgeText}>{`${similarActivitiesCount} in area`}</Text>
+              </View>
+              <View style={styles.headerBadgeTrack}>
+                <Text style={styles.headerBadgeTrackText}>
+                  {`${trackSimilarCount} matched${trackReverseCount > 0 ? ` (⇄ ${trackReverseCount})` : ''}`}
+                </Text>
+              </View>
+            </View>
           </View>
-          <Slider
-            minimumValue={0}
-            maximumValue={1}
-            step={0.05}
-            value={trackSimilarityThreshold}
-            minimumTrackTintColor={theme.primary}
-            maximumTrackTintColor={theme.surfaceMuted}
-            thumbTintColor={theme.primaryPressed}
-            onValueChange={onValueChange}
-            accessibilityLabel="Track similarity threshold slider"
-          />
-          <View style={[styles.modalRow, { marginTop: 12 }]}>
-            <Button title="Close" onPress={onClose} />
+
+          {/* Slider 1: Route Similarity (Primary) */}
+          <View style={styles.modalSection}>
+            <View style={styles.modalSectionHeader}>
+              <View>
+                <Text style={styles.modalSectionTitle}>Route Match</Text>
+                <Text style={styles.modalSectionCaption}>
+                  How closely the GPS path must overlap this route
+                </Text>
+              </View>
+              <Text style={styles.modalValueBadge}>{`${Math.round(displayTrack * 100)}%`}</Text>
+            </View>
+            <Slider
+              minimumValue={0}
+              maximumValue={1}
+              step={0.05}
+              value={displayTrack}
+              minimumTrackTintColor={theme.primary}
+              maximumTrackTintColor={theme.surfaceMuted}
+              thumbTintColor={theme.primaryPressed}
+              onValueChange={setDisplayTrack}
+              onSlidingComplete={onTrackSimilarityChange}
+              accessibilityLabel="Route similarity threshold slider"
+            />
+            <View style={styles.modalScaleLegend}>
+              <Text style={styles.modalScaleLabel}>Loose (0%)</Text>
+              <Text style={styles.modalScaleLabel}>Recommended (70%)</Text>
+              <Text style={styles.modalScaleLabel}>Exact (100%)</Text>
+            </View>
+          </View>
+
+          <View style={styles.modalDivider} />
+
+          {/* Slider 2: Geographic Area Tolerance */}
+          <View style={styles.modalSection}>
+            <View style={styles.modalSectionHeader}>
+              <View>
+                <Text style={styles.modalSectionTitle}>Area Tolerance</Text>
+                <Text style={styles.modalSectionCaption}>Coarse location bounding-box overlap</Text>
+              </View>
+              <Text style={styles.modalValueBadge}>{`${Math.round(displayIoU * 100)}%`}</Text>
+            </View>
+            <Slider
+              minimumValue={0.05}
+              maximumValue={0.95}
+              step={0.05}
+              value={displayIoU}
+              minimumTrackTintColor={theme.primary}
+              maximumTrackTintColor={theme.surfaceMuted}
+              thumbTintColor={theme.primaryPressed}
+              onValueChange={setDisplayIoU}
+              onSlidingComplete={onIoUChange}
+              accessibilityLabel="Area tolerance threshold slider"
+            />
+            <View style={styles.modalScaleLegend}>
+              <Text style={styles.modalScaleLabel}>5% (Swims / Loops)</Text>
+              <Text
+                style={styles.modalScaleLabel}
+              >{`Default (${Math.round(defaultIoU * 100)}%)`}</Text>
+              <Text style={styles.modalScaleLabel}>95% (Strict)</Text>
+            </View>
+          </View>
+
+          {/* Footer actions */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              onPress={() => {
+                onResetDefaults();
+                setDisplayTrack(0.7);
+                setDisplayIoU(defaultIoU);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Reset sensitivity thresholds to defaults"
+            >
+              <Text style={styles.modalResetText}>Reset to Defaults</Text>
+            </TouchableOpacity>
+            <Button title="Done" onPress={onClose} />
           </View>
         </Pressable>
       </Pressable>
@@ -1118,13 +1146,11 @@ interface RouteMatchesSectionProps {
   similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarCount: number;
   trackReverseCount: number;
-  iouThreshold: number;
   trackSimilarityThreshold: number;
   exportProgress: number;
   trackTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
-  setIsIoUModalVisible: (visible: boolean) => void;
-  setIsTrackModalVisible: (visible: boolean) => void;
+  onOpenSettings: () => void;
   onExport: () => void;
   onActivityPress: (activity: Activity | null) => void;
 }
@@ -1309,13 +1335,11 @@ function RouteMatchesSection({
   similarActivitiesByTrack,
   trackSimilarCount,
   trackReverseCount,
-  iouThreshold,
   trackSimilarityThreshold,
   exportProgress,
   trackTrendLineData,
   mapWidth,
-  setIsIoUModalVisible,
-  setIsTrackModalVisible,
+  onOpenSettings,
   onExport,
   onActivityPress
 }: Readonly<RouteMatchesSectionProps>): JSX.Element {
@@ -1328,10 +1352,8 @@ function RouteMatchesSection({
         similarActivities={similarActivities}
         trackSimilarCount={trackSimilarCount}
         trackReverseCount={trackReverseCount}
-        iouThreshold={iouThreshold}
         trackSimilarityThreshold={trackSimilarityThreshold}
-        setIsIoUModalVisible={setIsIoUModalVisible}
-        setIsTrackModalVisible={setIsTrackModalVisible}
+        onOpenSettings={onOpenSettings}
         onExport={onExport}
       />
       {exportProgress > 0 && exportProgress < 1 ? (
@@ -1374,8 +1396,7 @@ export function ActivityAnalysisView({
   const [iouThreshold, setIouThreshold] = useState<number>(() => getDefaultIoUThreshold(item));
   const [activeTab, setActiveTab] = useState<AnalysisTab>('routes');
   const [scrubX, setScrubX] = useState<number | null>(null);
-  const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
-  const [isTrackModalVisible, setIsTrackModalVisible] = useState<boolean>(false);
+  const [isMatchSettingsVisible, setIsMatchSettingsVisible] = useState<boolean>(false);
   const [mapWidth, setMapWidth] = useState<number>(0);
   const { loadedStream } = useLoadedStream(item);
   const [overlayStream, setOverlayStream] = useState<ActivityStream | undefined>();
@@ -1545,13 +1566,11 @@ export function ActivityAnalysisView({
             similarActivitiesByTrack={similarActivitiesByTrack}
             trackSimilarCount={trackSimilarCount}
             trackReverseCount={trackReverseCount}
-            iouThreshold={iouThreshold}
             trackSimilarityThreshold={trackSimilarityThreshold}
             exportProgress={exportProgress}
             trackTrendLineData={trackTrendLineData}
             mapWidth={mapWidth}
-            setIsIoUModalVisible={setIsIoUModalVisible}
-            setIsTrackModalVisible={setIsTrackModalVisible}
+            onOpenSettings={() => setIsMatchSettingsVisible(true)}
             onExport={handleExport}
             onActivityPress={handleActivityPress}
           />
@@ -1585,17 +1604,21 @@ export function ActivityAnalysisView({
           />
         ) : null}
       </ScrollView>
-      <IoUThresholdModal
-        isVisible={isIoUModalVisible}
+      <MatchSettingsModal
+        isVisible={isMatchSettingsVisible}
+        activity={item}
+        similarActivitiesCount={similarActivities.length}
+        trackSimilarCount={trackSimilarCount}
+        trackReverseCount={trackReverseCount}
         iouThreshold={iouThreshold}
-        onClose={() => setIsIoUModalVisible(false)}
-        onSlidingComplete={setIouThreshold}
-      />
-      <TrackSimilarityModal
-        isVisible={isTrackModalVisible}
         trackSimilarityThreshold={trackSimilarityThreshold}
-        onClose={() => setIsTrackModalVisible(false)}
-        onValueChange={setTrackSimilarityThreshold}
+        onClose={() => setIsMatchSettingsVisible(false)}
+        onTrackSimilarityChange={setTrackSimilarityThreshold}
+        onIoUChange={setIouThreshold}
+        onResetDefaults={() => {
+          setTrackSimilarityThreshold(0.7);
+          setIouThreshold(getDefaultIoUThreshold(item));
+        }}
       />
     </View>
   );
