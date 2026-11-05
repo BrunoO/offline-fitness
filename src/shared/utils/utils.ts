@@ -487,20 +487,46 @@ function calculateIoU(
 }
 
 /**
+ * Calculates a sport- and scale-adapted default IoU threshold for bounding-box pre-filtering.
+ * Compact or jitter-prone activities (like open-water swims or short walks) require a lower threshold
+ * because GPS boundary error represents a large fraction of the total bounding box area.
+ */
+export function getDefaultIoUThreshold(activity?: Activity | null): number {
+  if (!activity) {
+    return 0.7;
+  }
+  if (activity.type === 'Swim') {
+    return 0.25;
+  }
+  if (activity.distance > 0 && activity.distance < 3000) {
+    return 0.45;
+  }
+  if (activity.type === 'Walk' || activity.type === 'Hike') {
+    return 0.5;
+  }
+  if (activity.type === 'Run' || activity.type === 'TrailRun') {
+    return 0.6;
+  }
+  return 0.7;
+}
+
+/**
  * Finds activities with a similar location to a given activity.
  * @param activity The activity to find similar activities for.
  * @param allActivities The array of all activities.
- * @param iouThreshold The IoU threshold to use for similarity.
+ * @param iouThreshold The IoU threshold to use for similarity (defaults to sport/scale-adapted threshold).
  * @returns An array of similar activities.
  */
 export function findSimilarActivities(
   activity: Activity,
   allActivities: Activity[],
-  iouThreshold: number = 0.8
+  iouThreshold?: number
 ): Activity[] {
   if (!activity.bounding_box) {
     return [];
   }
+
+  const effectiveThreshold = iouThreshold ?? getDefaultIoUThreshold(activity);
 
   return allActivities.filter(otherActivity => {
     if (
@@ -513,7 +539,7 @@ export function findSimilarActivities(
 
     const iou = calculateIoU(activity.bounding_box!, otherActivity.bounding_box!);
 
-    return iou >= iouThreshold;
+    return iou >= effectiveThreshold;
   });
 }
 

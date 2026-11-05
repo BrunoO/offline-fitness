@@ -1,5 +1,5 @@
 import { Activity } from '../src/shared/types/types';
-import { findSimilarActivities } from '../src/shared/utils/utils';
+import { findSimilarActivities, getDefaultIoUThreshold } from '../src/shared/utils/utils';
 
 describe('findSimilarActivities', () => {
   const activity1: Activity = {
@@ -116,5 +116,75 @@ describe('findSimilarActivities', () => {
   it('should return an empty array if the list of all activities is empty', () => {
     const similar = findSimilarActivities(activity1, []);
     expect(similar).toEqual([]);
+  });
+
+  it('should use sport-adapted default threshold for swims', () => {
+    // Swim with moderate overlap (~0.3 IoU) should match under swim default (0.25)
+    const swim1: Activity = {
+      ...activity1,
+      id: 's1',
+      type: 'Swim',
+      distance: 1500,
+      bounding_box: [
+        [43.0, 6.0],
+        [43.002, 6.002]
+      ]
+    };
+    const swim2: Activity = {
+      ...swim1,
+      id: 's2',
+      bounding_box: [
+        [43.0008, 6.0008],
+        [43.0028, 6.0028]
+      ]
+    };
+    // Intersection: [43.0008, 6.0008] to [43.002, 6.002] = 0.0012 * 0.0012 = 0.00000144
+    // Each box: 0.002 * 0.002 = 0.000004
+    // Union: 0.000008 - 0.00000144 = 0.00000656
+    // IoU: ~0.22
+    // With a slightly closer box:
+    const swim3: Activity = {
+      ...swim1,
+      id: 's3',
+      bounding_box: [
+        [43.0005, 6.0005],
+        [43.0025, 6.0025]
+      ]
+    };
+    // Intersection: 0.0015 * 0.0015 = 0.00000225, Union: 0.00000575, IoU ~0.39
+    const similar = findSimilarActivities(swim1, [swim1, swim2, swim3]);
+    expect(similar.map(s => s.id)).toEqual(['s3']);
+  });
+});
+
+describe('getDefaultIoUThreshold', () => {
+  it('returns 0.7 if activity is null/undefined', () => {
+    expect(getDefaultIoUThreshold(null)).toBe(0.7);
+    expect(getDefaultIoUThreshold(undefined)).toBe(0.7);
+  });
+
+  it('returns 0.25 for Swim', () => {
+    expect(getDefaultIoUThreshold({ type: 'Swim', distance: 1500 } as Activity)).toBe(0.25);
+    expect(getDefaultIoUThreshold({ type: 'Swim', distance: 10000 } as Activity)).toBe(0.25);
+  });
+
+  it('returns 0.45 for short activities (< 3000m)', () => {
+    expect(getDefaultIoUThreshold({ type: 'Run', distance: 2500 } as Activity)).toBe(0.45);
+    expect(getDefaultIoUThreshold({ type: 'Ride', distance: 1200 } as Activity)).toBe(0.45);
+  });
+
+  it('returns 0.50 for Walk and Hike', () => {
+    expect(getDefaultIoUThreshold({ type: 'Walk', distance: 5000 } as Activity)).toBe(0.5);
+    expect(getDefaultIoUThreshold({ type: 'Hike', distance: 12000 } as Activity)).toBe(0.5);
+  });
+
+  it('returns 0.60 for Run and TrailRun', () => {
+    expect(getDefaultIoUThreshold({ type: 'Run', distance: 10000 } as Activity)).toBe(0.6);
+    expect(getDefaultIoUThreshold({ type: 'TrailRun', distance: 25000 } as Activity)).toBe(0.6);
+  });
+
+  it('returns 0.70 for Ride and longer activities', () => {
+    expect(getDefaultIoUThreshold({ type: 'Ride', distance: 45000 } as Activity)).toBe(0.7);
+    expect(getDefaultIoUThreshold({ type: 'NordicSki', distance: 15000 } as Activity)).toBe(0.7);
   });
 });

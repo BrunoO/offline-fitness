@@ -189,10 +189,17 @@ Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/feature
   * Camera defaults: `DEFAULT_PITCH_DEGREES = 60`, `DEFAULT_MIN_MOVEMENT_METERS = 1.5` (holds previous bearing below 1.5 m movement).
 
 ### 4.3 Spatial Indexing & Global Track Alignment
-* **`ONT-SPATIAL-03` — Axis-Aligned Bounding Boxes (`calculateBoundingBox`):**
+* **`ONT-SPATIAL-03` — Axis-Aligned Bounding Boxes & Candidate Pre-Filtering (`calculateBoundingBox`, `calculateIoU`, `getDefaultIoUThreshold`):**
   Defined in `src/shared/utils/utils.ts` and `trackBoundingBox` in `src/features/strava-import/services/gpxParser.ts`.
   * Stored on `Activity.bounding_box` as `[[minLat, minLng], [maxLat, maxLng]]` (two coordinate pairs).
-  * Used by `MapsScreen` viewport filtering and `backfillBoundingBox` (`src/features/activities/services/fetchAndStoreStreams.ts`).
+  * Used by `MapsScreen` viewport filtering, `backfillBoundingBox` (`src/features/activities/services/fetchAndStoreStreams.ts`), and as a fast bounding-box IoU pre-filter before track stream loading (`findSimilarActivities`).
+  * **Scale-Adapted IoU Thresholds:** Because bounding-box IoU ($\frac{\text{inter}}{\text{union}}$) is extremely sensitive to physical footprint (boundary error and GPS drift represent a massive fraction of small boxes), default IoU thresholds are sport- and distance-adapted (`getDefaultIoUThreshold`):
+    - `Swim`: `0.25` (small spatial envelope, water attenuation / GPS jitter).
+    - Short activities ($< 3\text{ km}$): `0.45`.
+    - `Walk` / `Hike`: `0.50`.
+    - `Run` / `TrailRun`: `0.60`.
+    - `Ride` / long sports: `0.70`.
+  * The manual IoU slider in `IoUThresholdModal` unlocks down to `0.05` (step `0.05`) so users can relax spatial pre-filtering for compact, irregular, or high-drift activities.
 * **`ONT-SPATIAL-04` — Corridor-Overlap Track Similarity & Direction Analysis (`compareTracks` in `src/shared/services/trackComparison.ts`):**
   * Invalid points (non-finite or out-of-range lat/lon) are dropped; both tracks are projected into one local equirectangular plane (metres) centred on their mean latitude.
   * Both tracks are **resampled by distance** every `max(10 m, longestLength / 2000)`, so the score depends on the route only — never on speed, pauses or recording rate.

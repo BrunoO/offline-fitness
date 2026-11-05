@@ -17,6 +17,7 @@ import {
   findSimilarActivities,
   formatActivityRate,
   formatPace,
+  getDefaultIoUThreshold,
   isPaceSport,
   ActivityStream,
   getActivityIcon,
@@ -943,7 +944,7 @@ function IoUThresholdModal({
             <Text style={{ fontSize: 14, color: theme.text }}>{displayValue.toFixed(2)}</Text>
           </View>
           <Slider
-            minimumValue={0.5}
+            minimumValue={0.05}
             maximumValue={0.95}
             step={0.05}
             value={displayValue}
@@ -1370,7 +1371,7 @@ export function ActivityAnalysisView({
   allActivities: Activity[];
 }>): JSX.Element {
   const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.7);
-  const [iouThreshold, setIouThreshold] = useState<number>(0.8);
+  const [iouThreshold, setIouThreshold] = useState<number>(() => getDefaultIoUThreshold(item));
   const [activeTab, setActiveTab] = useState<AnalysisTab>('overview');
   const [scrubX, setScrubX] = useState<number | null>(null);
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
@@ -1397,6 +1398,11 @@ export function ActivityAnalysisView({
   useEffect(() => {
     setScrubX(null);
   }, [item.id, activeTab]);
+
+  // Sync default IoU threshold when activity changes
+  useEffect(() => {
+    setIouThreshold(getDefaultIoUThreshold(item));
+  }, [item]);
 
   // Heavy effect: re-runs only when item, activities, or IoU threshold changes.
   // trackSimilarityThreshold intentionally excluded — it only filters the
