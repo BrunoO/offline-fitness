@@ -110,4 +110,46 @@ describe('MiniMapComponent (Android)', () => {
 
     expect(getByText("Alpe d'Huez")).toBeTruthy();
   });
+
+  it('renders Option A circular chevron badges for primary and overlay streams and adapts to zoom', () => {
+    const overlayStream: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.002, longitude: 5.002 }
+      ],
+      altitude: [100, 200],
+      time: [0, 20]
+    };
+
+    const { getAllByTestId, getByTestId } = render(
+      wrap(
+        <MiniMapComponent
+          stream={sampleStream}
+          overlayStream={overlayStream}
+          title="Overlay Comparison"
+        />
+      )
+    );
+
+    const primaryBadges = getAllByTestId('direction-arrow-badge-primary');
+    const overlayBadges = getAllByTestId('direction-arrow-badge-overlay');
+    expect(primaryBadges).toHaveLength(5);
+    expect(overlayBadges.length).toBeGreaterThanOrEqual(4);
+    expect(primaryBadges[0].props.style.width).toBe(18);
+    expect(overlayBadges[0].props.style.width).toBe(16);
+
+    // Simulate zooming out via onRegionChangeComplete on MapView
+    const mapView = getByTestId('mock-map-view');
+    act(() => {
+      mapView.props.onRegionChangeComplete({
+        latitude: 45.001,
+        longitude: 5.001,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05
+      });
+    });
+
+    const zoomedOutPrimaryBadges = getAllByTestId('direction-arrow-badge-primary');
+    expect(zoomedOutPrimaryBadges[0].props.style.width).toBeLessThan(18);
+  });
 });

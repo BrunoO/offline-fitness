@@ -1,12 +1,16 @@
 import { APP_CONFIG } from '@/constants';
 import { ActivityStream, LatLng } from '@/shared';
 import { useTheme } from '@/theme';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { calculateBearing } from '../services/flyoverInterpolator';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import {
+  computeDirectionArrows,
+  DirectionArrowPlacement,
+  DirectionArrowVisualSpec
+} from '../services/directionArrows';
 import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
 import FlyoverModal from './FlyoverModal';
 import MapsUnavailablePlaceholder from './MapsUnavailablePlaceholder';
@@ -28,71 +32,80 @@ const NUM_DIRECTION_ARROWS = APP_CONFIG.NUM_DIRECTION_ARROWS;
 const TRACK_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.PRIMARY;
 const TRACK_OVERLAY_COLOR = APP_CONFIG.TRACK_COLORS.OVERLAY;
 const FILL_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.FILL_PRIMARY;
-// Arrow colors (semi-transparent to be lighter than polylines)
-const ARROW_PRIMARY_COLOR = 'rgba(255, 0, 0, 0.6)';
-const ARROW_OVERLAY_COLOR = 'rgba(0, 0, 255, 0.6)';
+// High-contrast solid badge fills (WCAG AA >= 4.5:1 against white chevron & ring)
+const ARROW_PRIMARY_COLOR = '#DC2626';
+const ARROW_OVERLAY_COLOR = '#2563EB';
+const ARROW_BADGE_HALO_COLOR = '#FFFFFF';
+const PRIMARY_ARROW_Z_INDEX = 30;
+const OVERLAY_ARROW_Z_INDEX = 20;
 
-const calculateSmoothBearing = (track: LatLng[], index: number, windowSize: number = 3) => {
-  // Calculate the window size based on available points
-  const halfWindow = Math.floor(windowSize / 2);
-  const startIndex = Math.max(0, index - halfWindow);
-  const endIndex = Math.min(track.length - 1, index + halfWindow);
-
-  // If we don't have enough points for the window, use what we have
-  if (endIndex - startIndex < 2) {
-    return calculateBearing(track[startIndex], track[endIndex]);
-  }
-
-  // Calculate bearing from start to end of the window
-  return calculateBearing(track[startIndex], track[endIndex]);
-};
-
-const renderDirectionArrows = (
-  track: LatLng[] | undefined,
+const renderDirectionArrowMarkers = (
+  arrows: readonly DirectionArrowPlacement[],
+  visualSpec: DirectionArrowVisualSpec,
   color: string,
-  numArrows: number = NUM_DIRECTION_ARROWS
+  layerKey: string,
+  zIndex: number
 ) => {
-  if (!track || track.length < 2 || numArrows <= 0) {
+  if (arrows.length === 0) {
     return null;
   }
 
-  const clampedArrows = Math.max(1, Math.min(numArrows, 20));
-  const step = Math.max(1, Math.floor(track.length / (clampedArrows + 1)));
+  const { badgeSize, iconSize, borderWidth } = visualSpec;
 
-  const markers: React.ReactElement[] = [];
-  for (let i = 1; i <= clampedArrows; i++) {
-    const index = Math.min(track.length - 1, i * step);
-    if (index <= 0 || index >= track.length) continue;
-
-    // Use smooth bearing calculation with a window of 5 points (2 before, 2 after)
-    const bearing = calculateSmoothBearing(track, index, 5);
-
-    markers.push(
-      <Marker
-        coordinate={track[index]}
-        anchor={{ x: 0.5, y: 0.5 }}
-        rotation={bearing}
-        key={`${color}-${i}-${index}`}
+  return arrows.map((arrow, i) => (
+    <Marker
+      coordinate={arrow.coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      flat
+      rotation={arrow.bearing}
+      tracksViewChanges={false}
+      zIndex={zIndex}
+      key={`${layerKey}-${i}-${Math.round(arrow.distanceMeters)}-${badgeSize}`}
+    >
+      <View
+        testID={`direction-arrow-badge-${layerKey}`}
+        style={{
+          width: badgeSize,
+          height: badgeSize,
+          borderRadius: badgeSize / 2,
+          backgroundColor: color,
+          borderWidth,
+          borderColor: ARROW_BADGE_HALO_COLOR,
+          alignItems: 'center',
+          justifyContent: 'center',
+          elevation: 3
+        }}
       >
-        <MaterialCommunityIcons name="navigation" size={36} color={color} />
-      </Marker>
-    );
-  }
-
-  return markers;
+        <Ionicons name="chevron-up" size={iconSize} color={ARROW_BADGE_HALO_COLOR} />
+      </View>
+    </Marker>
+  ));
 };
 
 type MiniMapLayersProps = {
   coordinates: LatLng[] | undefined;
   overlayCoordinates: LatLng[] | undefined;
   highlightCoordinate?: LatLng | null;
+  region?: Region | null;
 };
 
 function MiniMapLayers({
   coordinates,
   overlayCoordinates,
-  highlightCoordinate
+  highlightCoordinate,
+  region
 }: Readonly<MiniMapLayersProps>) {
+  const primaryArrows = computeDirectionArrows(coordinates, {
+    baseArrowCount: NUM_DIRECTION_ARROWS,
+    region
+  });
+  const overlayArrows = computeDirectionArrows(overlayCoordinates, {
+    baseArrowCount: NUM_DIRECTION_ARROWS,
+    region,
+    isOverlay: true,
+    occupiedCoordinates: primaryArrows.arrows.map(a => a.coordinate)
+  });
+
   return (
     <>
       {coordinates?.length ? (
@@ -118,8 +131,20 @@ function MiniMapLayers({
           strokeColor={TRACK_OVERLAY_COLOR}
         />
       ) : null}
-      {renderDirectionArrows(coordinates, ARROW_PRIMARY_COLOR)}
-      {renderDirectionArrows(overlayCoordinates, ARROW_OVERLAY_COLOR)}
+      {renderDirectionArrowMarkers(
+        primaryArrows.arrows,
+        primaryArrows.visualSpec,
+        ARROW_PRIMARY_COLOR,
+        'primary',
+        PRIMARY_ARROW_Z_INDEX
+      )}
+      {renderDirectionArrowMarkers(
+        overlayArrows.arrows,
+        overlayArrows.visualSpec,
+        ARROW_OVERLAY_COLOR,
+        'overlay',
+        OVERLAY_ARROW_Z_INDEX
+      )}
       {highlightCoordinate ? (
         <Marker coordinate={highlightCoordinate} anchor={{ x: 0.5, y: 0.5 }} zIndex={100}>
           <View
@@ -239,6 +264,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
     : undefined;
 
   const [isMapReady, setIsMapReady] = React.useState(false);
+  const [currentRegion, setCurrentRegion] = React.useState<Region | null>(null);
   const canShowFlyover = Boolean(hasGpsTrack && allowFlyover && isMapReady);
   const [mapKey, setMapKey] = React.useState(0); // Force re-render when needed
 
@@ -306,6 +332,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
     React.useCallback(() => {
       // Reset map state when screen comes into focus
       setIsMapReady(false);
+      setCurrentRegion(null);
       setMapKey(prev => prev + 1); // Force map re-render
 
       // Small delay to ensure proper initialization
@@ -353,6 +380,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
             onMapReady={onMapReady}
             onMapLoaded={onMapLoaded}
             onLayout={onLayout}
+            onRegionChangeComplete={setCurrentRegion}
             initialRegion={initialRegion}
             userInterfaceStyle="light" // Force light theme regardless of system theme
           >
@@ -360,6 +388,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
               coordinates={coordinates}
               overlayCoordinates={props.overlayStream?.coordinates}
               highlightCoordinate={props.highlightCoordinate}
+              region={currentRegion}
             />
           </MapView>
 

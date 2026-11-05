@@ -187,6 +187,7 @@ Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/feature
   * `shortestAngularDifference(from, to)`: Signed delta in $[-180^\circ, 180^\circ)$ via `((to - from + 540) % 360) - 180`.
   * `circularMean(bearings)`: Smooths camera headings over a sliding window (`DEFAULT_SMOOTHING_WINDOW = 5`) using unit-vector summation $\text{atan2}(\sum \sin\theta, \sum \cos\theta)$ so headings oscillating across North ($359^\circ \leftrightarrow 1^\circ$) average to $0^\circ$, never $180^\circ$.
   * Camera defaults: `DEFAULT_PITCH_DEGREES = 60`, `DEFAULT_MIN_MOVEMENT_METERS = 1.5` (holds previous bearing below 1.5 m movement).
+  * `computeDirectionArrows(track, options)` (`directionArrows.ts`): Places minimap circular chevron badges by geodesic arc-length rather than RDP vertex index, aligns bearings via a symmetric metric tangent window ($\pm 8\text{–}25\text{ m}$), avoids sharp turn apexes and occupied coordinates (Start pin, out-and-back return legs, primary vs. overlay tracks), and scales badge size (`14–20 px`) and count with the active `MapView` zoom region.
 
 ### 4.3 Spatial Indexing & Global Track Alignment
 * **`ONT-SPATIAL-03` — Axis-Aligned Bounding Boxes & Candidate Pre-Filtering (`calculateBoundingBox`, `calculateIoU`, `getDefaultIoUThreshold`):**

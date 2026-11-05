@@ -15,6 +15,13 @@ export type { FlyoverControlsProps } from './components/FlyoverControls';
 export { default as MapsScreen } from './screens/MapsScreen';
 
 // Services
+export { computeArrowVisualSpec, computeDirectionArrows } from './services/directionArrows';
+export type {
+  ComputeDirectionArrowsOptions,
+  ComputeDirectionArrowsResult,
+  DirectionArrowPlacement,
+  DirectionArrowVisualSpec
+} from './services/directionArrows';
 export { simplifyGPS } from './services/gps-simplify';
 export { HAS_GOOGLE_MAPS_KEY } from './services/googleMapsKey';
 
