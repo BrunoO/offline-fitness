@@ -132,11 +132,16 @@ describe('MiniMapComponent (Android)', () => {
     );
 
     const primaryBadges = getAllByTestId('direction-arrow-badge-primary');
+    const primaryChevrons = getAllByTestId('direction-arrow-chevron-primary');
     const overlayBadges = getAllByTestId('direction-arrow-badge-overlay');
     expect(primaryBadges).toHaveLength(5);
+    expect(primaryChevrons).toHaveLength(5);
     expect(overlayBadges.length).toBeGreaterThanOrEqual(4);
     expect(primaryBadges[0].props.style.width).toBe(18);
+    expect(primaryBadges[0].props.style.backgroundColor).toBe('#B91C1C');
+    expect(primaryBadges[0].props.pointerEvents).toBe('none');
     expect(overlayBadges[0].props.style.width).toBe(16);
+    expect(overlayBadges[0].props.style.backgroundColor).toBe('#1D4ED8');
 
     // Simulate zooming out via onRegionChangeComplete on MapView
     const mapView = getByTestId('mock-map-view');

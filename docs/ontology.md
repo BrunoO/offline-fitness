@@ -179,15 +179,18 @@ Agents must never confuse the four coordinate shapes used across the codebase:
 | **Ramer-Douglas-Peucker (`simplify-js`)** | `compressStreamSet` (`src/features/activities/services/fetchAndStoreStreams.ts`) | `{ x: longitude, y: latitude }` | Mapped temporarily for `simplify(points, tolerance, highestQuality)` while preserving index alignment across `altitude`, `time`, and `heartrate` |
 
 ### 4.2 Geodesic Distance, Bearing & 3D Flyover Kinematics
-Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/features/recording/services/replaySession.ts`, and `src/shared/services/trackComparison.ts`:
+Implemented in `src/features/maps/services/flyoverInterpolator.ts`, `src/features/maps/services/directionArrows.ts`, `src/features/recording/services/replaySession.ts`, and `src/shared/services/trackComparison.ts`:
 * **`ONT-SPATIAL-01` — Orthodromic Distance (`haversineDistance` / `haversineMeters`):**
   Great-circle distance on a spherical Earth of radius $R = 6,371,000\text{ m}$.
-* **`ONT-SPATIAL-02` — Azimuth & Circular Angle Algebra (`flyoverInterpolator.ts`):**
+* **`ONT-SPATIAL-02` — Azimuth, Circular Angle Algebra & Minimap Direction Badges (`flyoverInterpolator.ts`, `directionArrows.ts`):**
   * `calculateBearing(p1, p2)`: Forward initial azimuth in $[0^\circ, 360^\circ)$ clockwise from true North.
   * `shortestAngularDifference(from, to)`: Signed delta in $[-180^\circ, 180^\circ)$ via `((to - from + 540) % 360) - 180`.
   * `circularMean(bearings)`: Smooths camera headings over a sliding window (`DEFAULT_SMOOTHING_WINDOW = 5`) using unit-vector summation $\text{atan2}(\sum \sin\theta, \sum \cos\theta)$ so headings oscillating across North ($359^\circ \leftrightarrow 1^\circ$) average to $0^\circ$, never $180^\circ$.
   * Camera defaults: `DEFAULT_PITCH_DEGREES = 60`, `DEFAULT_MIN_MOVEMENT_METERS = 1.5` (holds previous bearing below 1.5 m movement).
-  * `computeDirectionArrows(track, options)` (`directionArrows.ts`): Places minimap circular chevron badges by geodesic arc-length rather than RDP vertex index, aligns bearings via a symmetric metric tangent window ($\pm 8\text{–}25\text{ m}$), avoids sharp turn apexes and occupied coordinates (Start pin, out-and-back return legs, primary vs. overlay tracks), and scales badge size (`14–20 px`) and count with the active `MapView` zoom region.
+  * `computeDirectionArrows(track, options)` (`src/features/maps/services/directionArrows.ts`, rendered by `MiniMapLayers` in `src/features/maps/components/MiniMapComponent.android.tsx`):
+    * **Geodesic Arc-Length Placement & Disjoint Viewport Intervals:** Samples positions by cumulative orthodromic distance rather than RDP vertex index. When zoomed in (`zoomRatio > 1.35`), collects contiguous visible distance intervals (`resolveVisibleDistanceIntervals`) so loops and multi-pass routes place arrows strictly on visible sub-segments.
+    * **Metric Tangent Window & Apex/Collision Avoidance:** Computes bearings over a symmetric metric window (`MIN_BEARING_WINDOW_METERS = 8`, `MAX_BEARING_WINDOW_METERS = 25`), scores candidate offsets to avoid sharp turn/hairpin apexes, and de-conflicts against `track[0]` (Start), `track.at(-1)` (Finish), `highlightCoordinate` (active chart scrubber), out-and-back return legs, and primary vs. overlay tracks.
+    * **Zoom-Adaptive Non-Interactive Badges (`computeArrowVisualSpec`):** Scales circular badge diameter (`PRIMARY_MIN_BADGE_SIZE = 14` to `PRIMARY_MAX_BADGE_SIZE = 20`, overlay `13–18` px) and target count with `MapView` zoom. Rendered on `<Marker flat tappable={false} tracksViewChanges={false}>` with a pure geometric `<View>` chevron (`pointerEvents="none"`) and WCAG 2.1 AA high-contrast fills (`#B91C1C` primary / `#1D4ED8` overlay over `#EF4444` / `#3B82F6` polylines).
 
 ### 4.3 Spatial Indexing & Global Track Alignment
 * **`ONT-SPATIAL-03` — Axis-Aligned Bounding Boxes & Candidate Pre-Filtering (`calculateBoundingBox`, `calculateIoU`, `getDefaultIoUThreshold`):**

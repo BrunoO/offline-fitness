@@ -29,9 +29,9 @@ export const APP_CONFIG = {
   STREAMS_FOLDER: 'streams/',
   NUM_DIRECTION_ARROWS: 5,
   TRACK_COLORS: {
-    PRIMARY: 'red',
-    OVERLAY: 'blue',
-    FILL_PRIMARY: 'rgba(255,0,0,0.5)'
+    PRIMARY: '#EF4444',
+    OVERLAY: '#3B82F6',
+    FILL_PRIMARY: 'rgba(239, 68, 68, 0.35)'
   }
 } as const;
 

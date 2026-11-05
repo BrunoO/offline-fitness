@@ -930,6 +930,7 @@ function MatchSettingsModal({
   }, [isVisible, trackSimilarityThreshold, iouThreshold]);
 
   const defaultIoU = useMemo(() => getDefaultIoUThreshold(activity), [activity]);
+  const reverseSuffix = trackReverseCount > 0 ? ` (⇄ ${trackReverseCount})` : '';
 
   return (
     <Modal transparent animationType="slide" visible={isVisible} onRequestClose={onClose}>
@@ -951,7 +952,7 @@ function MatchSettingsModal({
               </View>
               <View style={styles.headerBadgeTrack}>
                 <Text style={styles.headerBadgeTrackText}>
-                  {`${trackSimilarCount} matched${trackReverseCount > 0 ? ` (⇄ ${trackReverseCount})` : ''}`}
+                  {`${trackSimilarCount} matched${reverseSuffix}`}
                 </Text>
               </View>
             </View>

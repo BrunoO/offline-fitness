@@ -71,6 +71,12 @@ checkRegex('src/features/recording/services/slope.ts', /export const SLOPE_MIN_D
 checkRegex('src/features/recording/services/slope.ts', /export const SLOPE_DEADBAND_BARO_M\s*=\s*0\.4/, 'SLOPE_DEADBAND_BARO_M = 0.4');
 checkRegex('src/features/recording/services/slope.ts', /export const SLOPE_DEADBAND_GPS_M\s*=\s*1(?:\.0)?;/, 'SLOPE_DEADBAND_GPS_M = 1 or 1.0');
 
+// 3.5 ONT-SPATIAL: Minimap Direction Arrows & Track Similarity Constants
+checkRegex('src/features/maps/services/directionArrows.ts', /const\s+MIN_BEARING_WINDOW_METERS\s*=\s*8/, 'MIN_BEARING_WINDOW_METERS = 8');
+checkRegex('src/features/maps/services/directionArrows.ts', /const\s+MAX_BEARING_WINDOW_METERS\s*=\s*25/, 'MAX_BEARING_WINDOW_METERS = 25');
+checkRegex('src/features/maps/services/directionArrows.ts', /const\s+PRIMARY_MIN_BADGE_SIZE\s*=\s*14/, 'PRIMARY_MIN_BADGE_SIZE = 14');
+checkRegex('src/features/maps/services/directionArrows.ts', /const\s+PRIMARY_MAX_BADGE_SIZE\s*=\s*20/, 'PRIMARY_MAX_BADGE_SIZE = 20');
+
 // 4. ONT-KIN: Profiles & Filter Envelopes
 checkFileContains('src/features/recording/services/profiles.ts', "export const PROFILES: Profile[] = ['walking', 'running', 'hiking', 'cycling', 'swimming'];", 'PROFILES list');
 checkRegex('src/features/recording/services/replaySession.ts', /const\s+HR_MATCH_WINDOW_MS\s*=\s*10_?000/, 'HR_MATCH_WINDOW_MS = 10000');

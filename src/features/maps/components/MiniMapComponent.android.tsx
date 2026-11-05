@@ -32,9 +32,10 @@ const NUM_DIRECTION_ARROWS = APP_CONFIG.NUM_DIRECTION_ARROWS;
 const TRACK_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.PRIMARY;
 const TRACK_OVERLAY_COLOR = APP_CONFIG.TRACK_COLORS.OVERLAY;
 const FILL_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.FILL_PRIMARY;
-// High-contrast solid badge fills (WCAG AA >= 4.5:1 against white chevron & ring)
-const ARROW_PRIMARY_COLOR = '#DC2626';
-const ARROW_OVERLAY_COLOR = '#2563EB';
+// High-contrast solid badge fills (WCAG AA >= 6.4:1 against white chevron & ring,
+// and tonally deeper than the #EF4444 / #3B82F6 polylines underneath)
+const ARROW_PRIMARY_COLOR = '#B91C1C';
+const ARROW_OVERLAY_COLOR = '#1D4ED8';
 const ARROW_BADGE_HALO_COLOR = '#FFFFFF';
 const PRIMARY_ARROW_Z_INDEX = 30;
 const OVERLAY_ARROW_Z_INDEX = 20;
@@ -50,13 +51,17 @@ const renderDirectionArrowMarkers = (
     return null;
   }
 
-  const { badgeSize, iconSize, borderWidth } = visualSpec;
+  const { badgeSize, borderWidth } = visualSpec;
+  const chevronArmSize = Math.max(5, Math.round(badgeSize * 0.36));
+  const chevronStrokeWidth = badgeSize >= 18 ? 2.2 : 2;
+  const chevronOpticalOffsetY = Math.round(chevronArmSize * 0.22 * 10) / 10;
 
   return arrows.map((arrow, i) => (
     <Marker
       coordinate={arrow.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       flat
+      tappable={false}
       rotation={arrow.bearing}
       tracksViewChanges={false}
       zIndex={zIndex}
@@ -64,6 +69,7 @@ const renderDirectionArrowMarkers = (
     >
       <View
         testID={`direction-arrow-badge-${layerKey}`}
+        pointerEvents="none"
         style={{
           width: badgeSize,
           height: badgeSize,
@@ -76,7 +82,17 @@ const renderDirectionArrowMarkers = (
           elevation: 3
         }}
       >
-        <Ionicons name="chevron-up" size={iconSize} color={ARROW_BADGE_HALO_COLOR} />
+        <View
+          testID={`direction-arrow-chevron-${layerKey}`}
+          style={{
+            width: chevronArmSize,
+            height: chevronArmSize,
+            borderTopWidth: chevronStrokeWidth,
+            borderLeftWidth: chevronStrokeWidth,
+            borderColor: ARROW_BADGE_HALO_COLOR,
+            transform: [{ translateY: chevronOpticalOffsetY }, { rotate: '45deg' }]
+          }}
+        />
       </View>
     </Marker>
   ));
@@ -95,15 +111,17 @@ function MiniMapLayers({
   highlightCoordinate,
   region
 }: Readonly<MiniMapLayersProps>) {
+  const scrubberOccupied = highlightCoordinate ? [highlightCoordinate] : [];
   const primaryArrows = computeDirectionArrows(coordinates, {
     baseArrowCount: NUM_DIRECTION_ARROWS,
-    region
+    region,
+    occupiedCoordinates: scrubberOccupied
   });
   const overlayArrows = computeDirectionArrows(overlayCoordinates, {
     baseArrowCount: NUM_DIRECTION_ARROWS,
     region,
     isOverlay: true,
-    occupiedCoordinates: primaryArrows.arrows.map(a => a.coordinate)
+    occupiedCoordinates: [...scrubberOccupied, ...primaryArrows.arrows.map(a => a.coordinate)]
   });
 
   return (

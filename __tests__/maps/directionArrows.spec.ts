@@ -139,4 +139,33 @@ describe('directionArrows service', () => {
       expect(arrow.coordinate.latitude).toBeLessThanOrEqual(45.035);
     }
   });
+
+  it('places arrows only on visible intervals when zoomed into the start/finish of a wide loop', () => {
+    // A loop that starts at (45.0, 5.0), travels 10km North to (45.1, 5.05), and returns to (45.0, 5.001)
+    const loopTrack: LatLng[] = [
+      { latitude: 45.0, longitude: 5.0 },
+      { latitude: 45.02, longitude: 5.0 },
+      { latitude: 45.1, longitude: 5.0 },
+      { latitude: 45.1, longitude: 5.01 },
+      { latitude: 45.02, longitude: 5.01 },
+      { latitude: 45.0, longitude: 5.01 }
+    ];
+
+    // Zoomed into the southern start/finish zone (latitude 45.00 to 45.02)
+    const result = computeDirectionArrows(loopTrack, {
+      baseArrowCount: 4,
+      region: {
+        latitude: 45.01,
+        longitude: 5.005,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02
+      }
+    });
+
+    expect(result.arrows.length).toBeGreaterThanOrEqual(2);
+    // Every placed arrow must be in the visible southern zone, never in the northern 45.03..45.10 section
+    for (const arrow of result.arrows) {
+      expect(arrow.coordinate.latitude).toBeLessThanOrEqual(45.025);
+    }
+  });
 });

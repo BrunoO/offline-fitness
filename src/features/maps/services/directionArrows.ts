@@ -43,6 +43,11 @@ interface TangentMetrics {
   turnAngleDegrees: number;
 }
 
+interface DistanceInterval {
+  start: number;
+  end: number;
+}
+
 const DEFAULT_BASE_ARROW_COUNT = 5;
 const MIN_ARROW_COUNT = 1;
 const MAX_ARROW_COUNT = 20;
@@ -54,6 +59,9 @@ const CANDIDATE_STEP_OFFSETS = [0, -0.24, 0.24, -0.46, 0.46, -0.64, 0.64] as con
 const OFFSET_TIE_BREAK_WEIGHT = 15;
 const VIEWPORT_PADDING_FACTOR = 1.15;
 const ZOOM_IN_VIEWPORT_THRESHOLD = 1.35;
+const VIEWPORT_SAMPLE_STEPS = 80;
+const MIN_INTERVAL_FRACTION = 0.01;
+const MIN_TOTAL_VISIBLE_FRACTION = 0.03;
 
 const PRIMARY_DEFAULT_BADGE_SIZE = 18;
 const PRIMARY_MIN_BADGE_SIZE = 14;
@@ -239,44 +247,78 @@ function isPointInPaddedRegion(point: LatLng, region: Region): boolean {
   );
 }
 
-function resolveActiveDistanceBounds(
+function collectSampledVisibleIntervals(
+  profile: PolylineProfile,
+  region: Region
+): DistanceInterval[] {
+  const { totalDistance } = profile;
+  const minIntervalLength = totalDistance * MIN_INTERVAL_FRACTION;
+  const intervals: DistanceInterval[] = [];
+  let openStart: number | null = null;
+  let lastDist = 0;
+
+  for (let s = 0; s <= VIEWPORT_SAMPLE_STEPS; s++) {
+    const dist = (s / VIEWPORT_SAMPLE_STEPS) * totalDistance;
+    const isVisible = isPointInPaddedRegion(interpolateAtDistance(profile, dist), region);
+    if (isVisible) {
+      openStart ??= dist;
+      lastDist = dist;
+    } else if (openStart !== null) {
+      if (lastDist - openStart >= minIntervalLength) {
+        intervals.push({ start: openStart, end: lastDist });
+      }
+      openStart = null;
+    }
+  }
+
+  if (openStart !== null && lastDist - openStart >= minIntervalLength) {
+    intervals.push({ start: openStart, end: lastDist });
+  }
+
+  return intervals;
+}
+
+function resolveVisibleDistanceIntervals(
   profile: PolylineProfile,
   region: Region | null | undefined
-): [number, number] {
+): DistanceInterval[] {
   const { totalDistance, trackSpanMeters } = profile;
+  const fullTrackInterval: DistanceInterval[] = [{ start: 0, end: totalDistance }];
   if (!region || totalDistance <= 0) {
-    return [0, totalDistance];
+    return fullTrackInterval;
   }
 
   const regionSpan = computeRegionSpanMeters(region, trackSpanMeters);
   const zoomRatio = regionSpan > 0 ? trackSpanMeters / regionSpan : 1;
   if (zoomRatio <= ZOOM_IN_VIEWPORT_THRESHOLD) {
-    return [0, totalDistance];
+    return fullTrackInterval;
   }
 
-  // Sample 40 points along the track to find the visible distance window when zoomed in
-  const sampleCount = 40;
-  let firstVisibleDist: number | null = null;
-  let lastVisibleDist: number | null = null;
+  const intervals = collectSampledVisibleIntervals(profile, region);
+  const totalVisibleLength = sumIntervalLengths(intervals);
 
-  for (let s = 0; s <= sampleCount; s++) {
-    const dist = (s / sampleCount) * totalDistance;
-    const coord = interpolateAtDistance(profile, dist);
-    if (isPointInPaddedRegion(coord, region)) {
-      firstVisibleDist ??= dist;
-      lastVisibleDist = dist;
+  return totalVisibleLength >= totalDistance * MIN_TOTAL_VISIBLE_FRACTION
+    ? intervals
+    : fullTrackInterval;
+}
+
+function mapVirtualDistanceToInterval(
+  intervals: readonly DistanceInterval[],
+  virtualDist: number
+): { targetDist: number; interval: DistanceInterval } {
+  let accumulated = 0;
+  for (const interval of intervals) {
+    const len = interval.end - interval.start;
+    if (virtualDist <= accumulated + len) {
+      return {
+        targetDist: interval.start + (virtualDist - accumulated),
+        interval
+      };
     }
+    accumulated += len;
   }
-
-  if (
-    firstVisibleDist !== null &&
-    lastVisibleDist !== null &&
-    lastVisibleDist - firstVisibleDist >= totalDistance * 0.05
-  ) {
-    return [firstVisibleDist, lastVisibleDist];
-  }
-
-  return [0, totalDistance];
+  const last = intervals.at(-1)!;
+  return { targetDist: last.end, interval: last };
 }
 
 function isTooCloseToOccupied(
@@ -331,6 +373,57 @@ function selectBestCandidateForSlot(
   return bestCandidate;
 }
 
+function sumIntervalLengths(intervals: readonly DistanceInterval[]): number {
+  let total = 0;
+  for (const iv of intervals) {
+    total += iv.end - iv.start;
+  }
+  return total;
+}
+
+function placeArrowsAcrossIntervals(
+  profile: PolylineProfile,
+  intervals: readonly DistanceInterval[],
+  activeSpan: number,
+  targetCount: number,
+  region: Region | null | undefined,
+  occupiedCoordinates: readonly LatLng[] | undefined
+): DirectionArrowPlacement[] {
+  const stepDistance = activeSpan / (targetCount + 1);
+  const regionSpanMeters = computeRegionSpanMeters(region, profile.trackSpanMeters);
+  const effectiveSpan = Math.min(profile.trackSpanMeters, regionSpanMeters);
+  const minSeparationMeters = Math.min(0.4 * stepDistance, Math.max(5, effectiveSpan * 0.08));
+
+  // Seed occupied points with Start (points[0]), Finish (points.at(-1)), and caller-provided coordinates
+  const occupied: LatLng[] = [
+    profile.points[0],
+    profile.points.at(-1)!,
+    ...(occupiedCoordinates ?? [])
+  ];
+  const arrows: DirectionArrowPlacement[] = [];
+
+  for (let i = 1; i <= targetCount; i++) {
+    const virtualDist = i * stepDistance;
+    const { targetDist, interval } = mapVirtualDistanceToInterval(intervals, virtualDist);
+    const localStep = Math.min(stepDistance, (interval.end - interval.start) / 2);
+    const chosen = selectBestCandidateForSlot(
+      profile,
+      targetDist,
+      localStep,
+      interval.start,
+      interval.end,
+      occupied,
+      minSeparationMeters
+    );
+    if (chosen) {
+      arrows.push(chosen);
+      occupied.push(chosen.coordinate);
+    }
+  }
+
+  return arrows;
+}
+
 /**
  * Computes distance-spaced, tangent-aligned, and spatially de-conflicted direction
  * arrow placements along a GPS polyline, adapting marker size and count to map zoom.
@@ -362,37 +455,20 @@ export function computeDirectionArrows(
     return { arrows: [], visualSpec };
   }
 
-  const [minBound, maxBound] = resolveActiveDistanceBounds(profile, region);
-  const activeSpan = maxBound - minBound;
+  const intervals = resolveVisibleDistanceIntervals(profile, region);
+  const activeSpan = sumIntervalLengths(intervals);
   if (activeSpan <= 0) {
     return { arrows: [], visualSpec };
   }
 
-  const stepDistance = activeSpan / (visualSpec.targetCount + 1);
-  const regionSpanMeters = computeRegionSpanMeters(region, profile.trackSpanMeters);
-  const effectiveSpan = Math.min(profile.trackSpanMeters, regionSpanMeters);
-  const minSeparationMeters = Math.min(0.4 * stepDistance, Math.max(5, effectiveSpan * 0.08));
-
-  // Seed occupied points with the Start pin (track[0]) and any caller-provided occupied coordinates
-  const occupied: LatLng[] = [track[0], ...(options?.occupiedCoordinates ?? [])];
-  const arrows: DirectionArrowPlacement[] = [];
-
-  for (let i = 1; i <= visualSpec.targetCount; i++) {
-    const targetDist = minBound + i * stepDistance;
-    const chosen = selectBestCandidateForSlot(
-      profile,
-      targetDist,
-      stepDistance,
-      minBound,
-      maxBound,
-      occupied,
-      minSeparationMeters
-    );
-    if (chosen) {
-      arrows.push(chosen);
-      occupied.push(chosen.coordinate);
-    }
-  }
+  const arrows = placeArrowsAcrossIntervals(
+    profile,
+    intervals,
+    activeSpan,
+    visualSpec.targetCount,
+    region,
+    options?.occupiedCoordinates
+  );
 
   return { arrows, visualSpec };
 }
