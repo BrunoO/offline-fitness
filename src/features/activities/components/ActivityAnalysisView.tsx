@@ -560,9 +560,9 @@ function AnalysisTabBar({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const tabs: { key: AnalysisTab; label: string }[] = [
+    { key: 'routes', label: similarCount > 0 ? `Matches (${similarCount})` : 'Matches' },
     { key: 'overview', label: 'Overview' },
-    { key: 'charts', label: 'Telemetry' },
-    { key: 'routes', label: similarCount > 0 ? `Matches (${similarCount})` : 'Matches' }
+    { key: 'charts', label: 'Telemetry' }
   ];
 
   return (
@@ -1372,7 +1372,7 @@ export function ActivityAnalysisView({
 }>): JSX.Element {
   const [trackSimilarityThreshold, setTrackSimilarityThreshold] = useState<number>(0.7);
   const [iouThreshold, setIouThreshold] = useState<number>(() => getDefaultIoUThreshold(item));
-  const [activeTab, setActiveTab] = useState<AnalysisTab>('overview');
+  const [activeTab, setActiveTab] = useState<AnalysisTab>('routes');
   const [scrubX, setScrubX] = useState<number | null>(null);
   const [isIoUModalVisible, setIsIoUModalVisible] = useState<boolean>(false);
   const [isTrackModalVisible, setIsTrackModalVisible] = useState<boolean>(false);
@@ -1538,6 +1538,25 @@ export function ActivityAnalysisView({
           similarCount={similarActivities.length}
         />
 
+        {activeTab === 'routes' ? (
+          <RouteMatchesSection
+            item={item}
+            similarActivities={similarActivities}
+            similarActivitiesByTrack={similarActivitiesByTrack}
+            trackSimilarCount={trackSimilarCount}
+            trackReverseCount={trackReverseCount}
+            iouThreshold={iouThreshold}
+            trackSimilarityThreshold={trackSimilarityThreshold}
+            exportProgress={exportProgress}
+            trackTrendLineData={trackTrendLineData}
+            mapWidth={mapWidth}
+            setIsIoUModalVisible={setIsIoUModalVisible}
+            setIsTrackModalVisible={setIsTrackModalVisible}
+            onExport={handleExport}
+            onActivityPress={handleActivityPress}
+          />
+        ) : null}
+
         {activeTab === 'overview' ? (
           <OverviewSection
             item={item}
@@ -1563,25 +1582,6 @@ export function ActivityAnalysisView({
             scrubX={scrubX}
             scrubDetails={scrubDetails}
             onScrubChange={setScrubX}
-          />
-        ) : null}
-
-        {activeTab === 'routes' ? (
-          <RouteMatchesSection
-            item={item}
-            similarActivities={similarActivities}
-            similarActivitiesByTrack={similarActivitiesByTrack}
-            trackSimilarCount={trackSimilarCount}
-            trackReverseCount={trackReverseCount}
-            iouThreshold={iouThreshold}
-            trackSimilarityThreshold={trackSimilarityThreshold}
-            exportProgress={exportProgress}
-            trackTrendLineData={trackTrendLineData}
-            mapWidth={mapWidth}
-            setIsIoUModalVisible={setIsIoUModalVisible}
-            setIsTrackModalVisible={setIsTrackModalVisible}
-            onExport={handleExport}
-            onActivityPress={handleActivityPress}
           />
         ) : null}
       </ScrollView>
