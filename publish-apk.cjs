@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /* eslint-env node */
-/* global console, process */
 
 // const { execSync } = require('child_process');
 const fs = require('fs');
@@ -9,6 +8,53 @@ const path = require('path');
 // Where the built APK is copied to. Set APK_PUBLISH_DIR to your own folder.
 const GOOGLE_DRIVE_PATH = process.env.APK_PUBLISH_DIR ?? '';
 const LOCAL_APK_PATH = './android/app/build/outputs/apk/release/app-release.apk';
+
+/**
+ * Copies a file to destination with atomic replacement and retry logic.
+ * Cloud sync providers (like Google Drive, OneDrive, or iCloud) may temporarily lock files
+ * during active uploads, causing EPERM or EBUSY errors on overwrite.
+ */
+async function copyFileResilient(src, dest, maxRetries = 4, delayMs = 2500) {
+  const tempPath = `${dest}.tmp-${Date.now()}`;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // 1. Copy to a temporary file in the destination directory
+      fs.copyFileSync(src, tempPath);
+      // 2. Atomically rename temp file over destination
+      fs.renameSync(tempPath, dest);
+      return;
+    } catch (err) {
+      // Clean up temp file if left behind
+      if (fs.existsSync(tempPath)) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
+      const isLockError = err.code === 'EPERM' || err.code === 'EBUSY';
+      if (isLockError && attempt < maxRetries) {
+        console.warn(
+          `⚠️  Destination file is locked (likely syncing with Google Drive / CloudStorage). Retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`
+        );
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else if (isLockError) {
+        throw new Error(
+          `Operation not permitted (${err.code}) while copying to:\n  ${dest}\n` +
+            `The destination file appears to be locked by Google Drive while syncing or is in use.\n` +
+            `Suggestions:\n` +
+            `  1. Wait a moment for Google Drive to finish syncing, then try again.\n` +
+            `  2. Remove the existing file manually from Google Drive.\n` +
+            `  3. Verify terminal file permissions in System Settings > Privacy & Security > Files and Folders.`
+        );
+      } else {
+        throw err;
+      }
+    }
+  }
+}
 
 async function publishAPK() {
   try {
@@ -69,8 +115,12 @@ async function publishAPK() {
       fs.mkdirSync(GOOGLE_DRIVE_PATH, { recursive: true });
     }
 
-    // Copy the file
-    fs.copyFileSync(LOCAL_APK_PATH, destinationPath);
+    if (fs.existsSync(destinationPath)) {
+      console.log('⚠️  Destination file already exists, replacing...');
+    }
+
+    // Copy the file with resilience against cloud-sync locks
+    await copyFileResilient(LOCAL_APK_PATH, destinationPath);
 
     console.log('✅ APK successfully published!');
     console.log(`📱 File: ${filename}`);
