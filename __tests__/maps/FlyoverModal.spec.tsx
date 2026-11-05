@@ -199,6 +199,31 @@ describe('FlyoverModal', () => {
     expect(getByText('Follow')).toBeTruthy();
   });
 
+  it('renders Start and Finish endpoint pins and displays full route preview in Overview mode', () => {
+    const { getByTestId, getByLabelText, queryAllByTestId } = render(
+      wrap(
+        <FlyoverModal
+          visible={true}
+          onClose={jest.fn()}
+          stream={sampleStream}
+          title="Mountain Stage"
+        />
+      )
+    );
+
+    expect(getByTestId('flyover-start-pin')).toBeTruthy();
+    expect(getByTestId('flyover-finish-pin')).toBeTruthy();
+    expect( getByTestId('flyover-elevation-sparkline')).toBeTruthy();
+
+    // Switch from Follow -> North-Up -> Overview
+    const cameraModeBtn = getByLabelText(/Camera mode:/);
+    fireEvent.press(cameraModeBtn);
+    fireEvent.press(cameraModeBtn);
+
+    // Overview mode renders the full route preview polyline even at progress 0
+    expect(queryAllByTestId('mock-polyline')).toHaveLength(1);
+  });
+
   it('resets progress to 0 when modal is closed after scrubbing', () => {
     const onClose = jest.fn();
     const { getByTestId, getByLabelText } = render(

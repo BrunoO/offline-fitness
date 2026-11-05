@@ -9,8 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlyoverPlayback } from '../hooks/useFlyoverPlayback';
 import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
 import {
+  buildElevationSparkline,
   computeAdaptiveZoom,
+  computeFollowCameraCenter,
   computeLookAheadBearing,
+  getFlyoverPointAtProgress,
   getFlyoverPointAtTime,
   haversineDistance,
   interpolateAngle,
@@ -118,22 +121,80 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
   });
 
 interface FlyoverMapLayersProps {
+  streamCoordinates?: LatLng[];
   traveledCoordinates: LatLng[];
   currentPoint: FlyoverPoint | null;
+  cameraMode: FlyoverCameraMode;
   primaryColor: string;
   markerContainerStyle: StyleProp<ViewStyle>;
 }
 
+const ENDPOINT_DOT_STYLE: ViewStyle = {
+  width: 12,
+  height: 12,
+  borderRadius: 6,
+  borderWidth: 2,
+  borderColor: '#FFFFFF'
+};
+
 function FlyoverMapLayers({
+  streamCoordinates,
   traveledCoordinates,
   currentPoint,
+  cameraMode,
   primaryColor,
   markerContainerStyle
 }: Readonly<FlyoverMapLayersProps>) {
+  const showOverviewRoute =
+    cameraMode === 'overview' && Boolean(streamCoordinates && streamCoordinates.length > 1);
+  const startCoord = streamCoordinates?.[0];
+  const finishCoord =
+    streamCoordinates && streamCoordinates.length > 1 ? streamCoordinates.at(-1) : undefined;
+
   return (
     <>
+      {showOverviewRoute && streamCoordinates ? (
+        <Polyline
+          coordinates={streamCoordinates}
+          strokeColor="rgba(255, 255, 255, 0.45)"
+          strokeWidth={3}
+        />
+      ) : null}
+
       {traveledCoordinates.length > 1 ? (
         <Polyline coordinates={traveledCoordinates} strokeColor={primaryColor} strokeWidth={5} />
+      ) : null}
+
+      {startCoord ? (
+        <Marker
+          coordinate={startCoord}
+          anchor={{ x: 0.5, y: 0.5 }}
+          flat
+          tappable={false}
+          tracksViewChanges={false}
+        >
+          <View
+            testID="flyover-start-pin"
+            pointerEvents="none"
+            style={[ENDPOINT_DOT_STYLE, { backgroundColor: '#16A34A' }]}
+          />
+        </Marker>
+      ) : null}
+
+      {finishCoord ? (
+        <Marker
+          coordinate={finishCoord}
+          anchor={{ x: 0.5, y: 0.5 }}
+          flat
+          tappable={false}
+          tracksViewChanges={false}
+        >
+          <View
+            testID="flyover-finish-pin"
+            pointerEvents="none"
+            style={[ENDPOINT_DOT_STYLE, { backgroundColor: '#18181B' }]}
+          />
+        </Marker>
       ) : null}
 
       {currentPoint ? (
@@ -144,10 +205,17 @@ function FlyoverMapLayers({
           }}
           anchor={{ x: 0.5, y: 0.5 }}
           flat
+          tappable={false}
+          tracksViewChanges={false}
           rotation={currentPoint.smoothBearing}
         >
-          <View style={markerContainerStyle}>
-            <Ionicons name="navigate" size={18} color={primaryColor} />
+          <View style={markerContainerStyle} pointerEvents="none">
+            <Ionicons
+              name="navigate"
+              size={18}
+              color={primaryColor}
+              style={{ transform: [{ rotate: '-45deg' }] }}
+            />
           </View>
         </Marker>
       ) : null}
@@ -246,7 +314,7 @@ function animateCameraByMode({
   }
 
   const heading = resolveDampedHeading(track, point, force, lastHeadingRef);
-  const center = { latitude: point.latitude, longitude: point.longitude };
+  const center = computeFollowCameraCenter(track, point);
   lastCenterRef.current = center;
   map.animateCamera(
     {
@@ -261,9 +329,110 @@ function animateCameraByMode({
 
 function resolvePointAtProgress(track: FlyoverTrack, targetProgress: number): FlyoverPoint | null {
   if (track.points.length === 0) return null;
+  if (track.totalDistance > 0) {
+    return getFlyoverPointAtProgress(track, targetProgress);
+  }
   const startTime = track.points[0].time;
   const targetTime = startTime + targetProgress * track.totalDuration;
   return getFlyoverPointAtTime(track, targetTime);
+}
+
+interface DispatchCameraUpdateParams extends CameraAnimationParams {
+  coordinates: LatLng[] | undefined;
+  lastCameraUpdateRef: React.RefObject<number>;
+}
+
+function dispatchCameraUpdate({
+  map,
+  point,
+  track,
+  cameraMode,
+  force,
+  coordinates,
+  lastCameraUpdateRef,
+  lastHeadingRef,
+  lastCenterRef
+}: DispatchCameraUpdateParams): void {
+  if (!map) return;
+  if (cameraMode === 'overview') {
+    if (force) {
+      fitMapToOverview(map, coordinates);
+    }
+    return;
+  }
+  if (!point) return;
+  const now = Date.now();
+  if (!force && now - lastCameraUpdateRef.current < CAMERA_UPDATE_THROTTLE_MS) {
+    return;
+  }
+  lastCameraUpdateRef.current = now;
+  animateCameraByMode({
+    map,
+    point,
+    track,
+    cameraMode,
+    force,
+    lastHeadingRef,
+    lastCenterRef
+  });
+}
+
+function resolveInitialMapState(stream: ActivityStream | undefined | null): {
+  provider: typeof PROVIDER_GOOGLE | undefined;
+  hasValidTrack: boolean;
+  initialCoord: LatLng;
+} {
+  const coordinates = stream?.coordinates;
+  const hasValidTrack = Boolean(coordinates && coordinates.length >= 2);
+  const initialCoord = coordinates?.[0] ?? { latitude: 0, longitude: 0 };
+  const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
+  return { provider, hasValidTrack, initialCoord };
+}
+
+function resolveHudMetrics(currentPoint: FlyoverPoint | null): {
+  speedMps: number;
+  altitudeMeters: number;
+  gradePercent: number | undefined;
+  heartrateBpm: number | null | undefined;
+} {
+  if (!currentPoint) {
+    return {
+      speedMps: 0,
+      altitudeMeters: 0,
+      gradePercent: undefined,
+      heartrateBpm: undefined
+    };
+  }
+  return {
+    speedMps: currentPoint.speed,
+    altitudeMeters: currentPoint.altitude,
+    gradePercent: currentPoint.grade,
+    heartrateBpm: currentPoint.heartrate
+  };
+}
+
+function useKeepFlyoverAwake(visible: boolean): void {
+  // Keep the screen awake while the flyover is on screen, so a long flyover
+  // (which can run for over a minute) does not let the display dim/black out.
+  useEffect(() => {
+    if (visible) {
+      void activateKeepAwakeAsync();
+    } else {
+      void deactivateKeepAwake();
+    }
+    return () => {
+      void deactivateKeepAwake();
+    };
+  }, [visible]);
+}
+
+function shouldFollowCameraUpdate(
+  visible: boolean,
+  currentPoint: FlyoverPoint | null,
+  cameraMode: FlyoverCameraMode
+): boolean {
+  if (!visible || !currentPoint) return false;
+  return cameraMode !== 'overview';
 }
 
 export default function FlyoverModal({
@@ -280,18 +449,7 @@ export default function FlyoverModal({
     [theme, insets.top, insets.bottom]
   );
 
-  // Keep the screen awake while the flyover is on screen, so a long flyover
-  // (which can run for over a minute) does not let the display dim/black out.
-  useEffect(() => {
-    if (visible) {
-      void activateKeepAwakeAsync();
-    } else {
-      void deactivateKeepAwake();
-    }
-    return () => {
-      void deactivateKeepAwake();
-    };
-  }, [visible]);
+  useKeepFlyoverAwake(visible);
 
   const [mapType, setMapType] = useState<MapType>('hybrid');
   const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
@@ -326,25 +484,14 @@ export default function FlyoverModal({
 
   const applyCameraForPoint = useCallback(
     (targetPoint: FlyoverPoint | null, mode: FlyoverCameraMode, force: boolean) => {
-      if (!mapRef.current) return;
-      if (mode === 'overview') {
-        if (force) {
-          fitMapToOverview(mapRef.current, stream?.coordinates);
-        }
-        return;
-      }
-      if (!targetPoint) return;
-      const now = Date.now();
-      if (!force && now - lastCameraUpdateRef.current < CAMERA_UPDATE_THROTTLE_MS) {
-        return;
-      }
-      lastCameraUpdateRef.current = now;
-      animateCameraByMode({
+      dispatchCameraUpdate({
         map: mapRef.current,
         point: targetPoint,
         track: playback.track,
         cameraMode: mode,
         force,
+        coordinates: stream?.coordinates,
+        lastCameraUpdateRef,
         lastHeadingRef,
         lastCenterRef
       });
@@ -359,7 +506,7 @@ export default function FlyoverModal({
   }, [cameraMode, currentPoint, applyCameraForPoint]);
 
   useEffect(() => {
-    if (visible && currentPoint && cameraMode !== 'overview') {
+    if (shouldFollowCameraUpdate(visible, currentPoint, cameraMode)) {
       applyCameraForPoint(currentPoint, cameraMode, false);
     }
   }, [visible, currentPoint, cameraMode, applyCameraForPoint]);
@@ -402,9 +549,12 @@ export default function FlyoverModal({
     onClose();
   }, [pause, seekTo, onClose]);
 
-  const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
-  const hasValidTrack = Boolean(stream?.coordinates && stream.coordinates.length >= 2);
-  const initialCoord = stream?.coordinates?.[0] ?? { latitude: 0, longitude: 0 };
+  const { provider, hasValidTrack, initialCoord } = resolveInitialMapState(stream);
+  const hudMetrics = resolveHudMetrics(currentPoint);
+  const elevationSparkline = useMemo(
+    () => buildElevationSparkline(playback.track),
+    [playback.track]
+  );
 
   return (
     <Modal
@@ -435,8 +585,10 @@ export default function FlyoverModal({
                 rotateEnabled
               >
                 <FlyoverMapLayers
+                  streamCoordinates={stream?.coordinates}
                   traveledCoordinates={traveledCoordinates}
                   currentPoint={currentPoint}
+                  cameraMode={cameraMode}
                   primaryColor={theme.primary}
                   markerContainerStyle={styles.markerContainer}
                 />
@@ -457,13 +609,15 @@ export default function FlyoverModal({
 
             <View style={styles.hudContainer}>
               <FlyoverHud
-                speedMps={currentPoint?.speed ?? 0}
+                speedMps={hudMetrics.speedMps}
                 completedDistanceMeters={completedDistanceMeters}
                 totalDistanceMeters={totalDistanceMeters}
-                altitudeMeters={currentPoint?.altitude ?? 0}
+                altitudeMeters={hudMetrics.altitudeMeters}
                 elapsedSeconds={elapsedSeconds}
                 totalDurationSeconds={totalDurationSeconds}
                 activityType={activityType}
+                gradePercent={hudMetrics.gradePercent}
+                heartrateBpm={hudMetrics.heartrateBpm}
               />
             </View>
 
@@ -472,6 +626,7 @@ export default function FlyoverModal({
                 isPlaying={isPlaying}
                 progress={progress}
                 speedMultiplier={speedMultiplier}
+                elevationProfile={elevationSparkline}
                 onTogglePlay={togglePlay}
                 onRestart={restart}
                 onSeek={handleSeek}

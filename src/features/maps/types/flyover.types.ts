@@ -21,6 +21,10 @@ export interface FlyoverPoint {
   smoothBearing: number;
   /** Camera pitch/tilt angle in degrees (e.g. 50-65) */
   pitch: number;
+  /** Smoothed terrain slope/grade percentage in [-40, 40] */
+  grade?: number;
+  /** Heart rate in beats per minute, or null when unavailable */
+  heartrate?: number | null;
 }
 
 export interface FlyoverTrack {

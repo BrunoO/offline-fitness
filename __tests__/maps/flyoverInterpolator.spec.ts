@@ -1,9 +1,11 @@
 import { parseGpx, toStreamSet } from '@/features/strava-import/services/gpxParser';
 import {
+  buildElevationSparkline,
   buildFlyoverTrack,
   calculateBearing,
   circularMean,
   computeAdaptiveZoom,
+  computeFollowCameraCenter,
   computeLookAheadBearing,
   getFlyoverPointAtProgress,
   getFlyoverPointAtTime,
@@ -475,6 +477,37 @@ describe('computeLookAheadBearing and computeAdaptiveZoom', () => {
     expect(computeAdaptiveZoom(20_000)).toBe(14.5);
     expect(computeAdaptiveZoom(50_000)).toBe(14.0);
     expect(computeAdaptiveZoom(120_000)).toBe(13.5);
+  });
+
+  it('computes grade, heartrate, follow camera look-ahead center, and elevation sparkline', () => {
+    const stream: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.001, longitude: 5.0 }, // ~111m North
+        { latitude: 45.002, longitude: 5.0 } // ~222m North
+      ],
+      altitude: [100, 111, 122], // ~10% climb
+      time: [0, 20, 40],
+      heartrate: [140, 155, 170]
+    };
+
+    const track = buildFlyoverTrack(stream);
+    expect(track.points[1].grade).toBeGreaterThan(8);
+    expect(track.points[1].grade).toBeLessThan(12);
+    expect(track.points[1].heartrate).toBe(155);
+
+    // At start (distance 0), follow camera center anchors directly on start point
+    const startCenter = computeFollowCameraCenter(track, track.points[0]);
+    expect(startCenter).toEqual({ latitude: 45.0, longitude: 5.0 });
+
+    // Mid-route, follow camera center leads ahead of current point
+    const midCenter = computeFollowCameraCenter(track, track.points[1]);
+    expect(midCenter.latitude).toBeGreaterThan(track.points[1].latitude);
+
+    const sparkline = buildElevationSparkline(track, 16);
+    expect(sparkline).toHaveLength(16);
+    expect(sparkline[0]).toBeCloseTo(0.18, 2);
+    expect(sparkline.at(-1)).toBeCloseTo(1.0, 2);
   });
 });
 

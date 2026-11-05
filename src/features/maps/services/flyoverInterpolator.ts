@@ -104,6 +104,17 @@ export function circularMean(bearings: number[]): number {
   return (meanAngle + FULL_CIRCLE_DEGREES) % FULL_CIRCLE_DEGREES;
 }
 
+function interpolateHeartrate(
+  hr1: number | null | undefined,
+  hr2: number | null | undefined,
+  ratio: number
+): number | null {
+  if (hr1 != null && hr2 != null) {
+    return Math.round(hr1 + (hr2 - hr1) * ratio);
+  }
+  return hr1 ?? hr2 ?? null;
+}
+
 /**
  * Smoothly interpolates all scalar and angular properties between two FlyoverPoints.
  * @param p1 Segment start point.
@@ -117,6 +128,8 @@ export function interpolateFlyoverPoint(
   ratio: number
 ): FlyoverPoint {
   const t = Math.max(0, Math.min(1, ratio));
+  const g1 = p1.grade ?? 0;
+  const g2 = p2.grade ?? 0;
   return {
     latitude: p1.latitude + (p2.latitude - p1.latitude) * t,
     longitude: p1.longitude + (p2.longitude - p1.longitude) * t,
@@ -126,7 +139,9 @@ export function interpolateFlyoverPoint(
     speed: p1.speed + (p2.speed - p1.speed) * t,
     bearing: interpolateAngle(p1.bearing, p2.bearing, t),
     smoothBearing: interpolateAngle(p1.smoothBearing, p2.smoothBearing, t),
-    pitch: p1.pitch + (p2.pitch - p1.pitch) * t
+    pitch: p1.pitch + (p2.pitch - p1.pitch) * t,
+    grade: g1 + (g2 - g1) * t,
+    heartrate: interpolateHeartrate(p1.heartrate, p2.heartrate, t)
   };
 }
 
@@ -207,6 +222,28 @@ function resolvePointAltitude(
 }
 
 /**
+ * Resolves heart rate for a coordinate index, returning null if missing or non-positive.
+ */
+function resolvePointHeartrate(
+  index: number,
+  totalPoints: number,
+  hrArray: (number | null)[] | undefined
+): number | null {
+  if (!hrArray || hrArray.length === 0) {
+    return null;
+  }
+  const targetIdx =
+    hrArray.length === totalPoints
+      ? index
+      : Math.min(
+          hrArray.length - 1,
+          Math.max(0, Math.round((index / Math.max(1, totalPoints - 1)) * (hrArray.length - 1)))
+        );
+  const val = hrArray[targetIdx];
+  return val != null && Number.isFinite(val) && val > 0 ? Math.round(val) : null;
+}
+
+/**
  * Builds an empty FlyoverTrack representation.
  */
 function createEmptyTrack(): FlyoverTrack {
@@ -230,6 +267,7 @@ function createSinglePointTrack(
 ): FlyoverTrack {
   const singleAlt = resolvePointAltitude(0, 1, stream.altitude);
   const singleTime = resolvePointTime(0, 1, stream.time, 0);
+  const singleHr = resolvePointHeartrate(0, 1, stream.heartrate);
   const singlePoint: FlyoverPoint = {
     latitude: coord.latitude,
     longitude: coord.longitude,
@@ -239,7 +277,9 @@ function createSinglePointTrack(
     speed: 0,
     bearing: 0,
     smoothBearing: 0,
-    pitch: defaultPitch
+    pitch: defaultPitch,
+    grade: 0,
+    heartrate: singleHr
   };
   return {
     points: [singlePoint],
@@ -395,6 +435,37 @@ export function smoothSpeeds(rawSpeeds: number[], windowSize: number): number[] 
   return result;
 }
 
+const GRADE_WINDOW_METERS = 25;
+const GRADE_MIN_HORIZONTAL_METERS = 8;
+const MAX_ABS_GRADE_PERCENT = 40;
+
+function computeSmoothedGrades(points: readonly IntermediatePoint[]): number[] {
+  const count = points.length;
+  const grades = new Array<number>(count).fill(0);
+  if (count < 2) {
+    return grades;
+  }
+
+  for (let i = 0; i < count; i++) {
+    const centerDist = points[i].dist;
+    let backIdx = i;
+    while (backIdx > 0 && centerDist - points[backIdx].dist < GRADE_WINDOW_METERS) {
+      backIdx--;
+    }
+    let aheadIdx = i;
+    while (aheadIdx < count - 1 && points[aheadIdx].dist - centerDist < GRADE_WINDOW_METERS) {
+      aheadIdx++;
+    }
+    const deltaDist = points[aheadIdx].dist - points[backIdx].dist;
+    if (deltaDist >= GRADE_MIN_HORIZONTAL_METERS) {
+      const rawGrade = ((points[aheadIdx].alt - points[backIdx].alt) / deltaDist) * 100;
+      grades[i] = Math.max(-MAX_ABS_GRADE_PERCENT, Math.min(MAX_ABS_GRADE_PERCENT, rawGrade));
+    }
+  }
+
+  return grades;
+}
+
 /**
  * Processes a raw ActivityStream into a pre-computed FlyoverTrack with distance,
  * speeds, raw bearings, and circular-smoothed bearings.
@@ -432,6 +503,7 @@ export function buildFlyoverTrack(
 
   const rawSpeeds = intermediatePoints.map(p => p.speed);
   const smoothedSpeeds = smoothSpeeds(rawSpeeds, smoothingWindow);
+  const pointGrades = computeSmoothedGrades(intermediatePoints);
 
   let maxSmoothedSpeed = 0;
   const finalPoints: FlyoverPoint[] = intermediatePoints.map((pt, idx) => {
@@ -448,7 +520,9 @@ export function buildFlyoverTrack(
       speed: spd,
       bearing: pt.rawBearing,
       smoothBearing: smoothedBearings[idx],
-      pitch: defaultPitch
+      pitch: defaultPitch,
+      grade: pointGrades[idx],
+      heartrate: resolvePointHeartrate(idx, coords.length, stream.heartrate)
     };
   });
 
@@ -645,4 +719,72 @@ export function computeAdaptiveZoom(totalDistanceMeters: number): number {
   if (totalDistanceMeters <= 30_000) return 14.5;
   if (totalDistanceMeters <= 80_000) return 14.0;
   return 13.5;
+}
+
+const FOLLOW_LEAD_FRACTION = 0.015;
+const MIN_FOLLOW_LEAD_METERS = 20;
+const MAX_FOLLOW_LEAD_METERS = 180;
+const DEFAULT_SPARKLINE_BARS = 32;
+const MIN_SPARKLINE_ELEVATION_RANGE_M = 3;
+
+/**
+ * Computes a look-ahead camera center for Follow mode so the athlete marker sits
+ * in the lower-middle portion of the tilted viewport during active movement, while
+ * remaining anchored directly on the start/finish at route boundaries.
+ */
+export function computeFollowCameraCenter(track: FlyoverTrack, point: FlyoverPoint): LatLng {
+  if (
+    track.points.length < 2 ||
+    track.totalDistance <= 0 ||
+    point.distance <= 0 ||
+    point.distance >= track.totalDistance
+  ) {
+    return { latitude: point.latitude, longitude: point.longitude };
+  }
+
+  const leadDist = Math.max(
+    MIN_FOLLOW_LEAD_METERS,
+    Math.min(MAX_FOLLOW_LEAD_METERS, track.totalDistance * FOLLOW_LEAD_FRACTION)
+  );
+  const targetProgress = Math.min(1, (point.distance + leadDist) / track.totalDistance);
+  const aheadPoint = getFlyoverPointAtProgress(track, targetProgress);
+  if (!aheadPoint) {
+    return { latitude: point.latitude, longitude: point.longitude };
+  }
+
+  return {
+    latitude: point.latitude + (aheadPoint.latitude - point.latitude) * 0.35,
+    longitude: point.longitude + (aheadPoint.longitude - point.longitude) * 0.35
+  };
+}
+
+/**
+ * Builds an array of normalized bar heights in [0.18, 1.0] representing the route's
+ * elevation profile across uniform distance steps, or an empty array when flat.
+ */
+export function buildElevationSparkline(
+  track: FlyoverTrack,
+  barCount: number = DEFAULT_SPARKLINE_BARS
+): number[] {
+  const elevRange = track.maxAltitude - track.minAltitude;
+  if (
+    track.points.length < 2 ||
+    track.totalDistance <= 0 ||
+    elevRange < MIN_SPARKLINE_ELEVATION_RANGE_M
+  ) {
+    return [];
+  }
+
+  const count = Math.max(4, Math.min(64, Math.round(barCount)));
+  const bars = new Array<number>(count);
+
+  for (let i = 0; i < count; i++) {
+    const progress = count > 1 ? i / (count - 1) : 0;
+    const pt = getFlyoverPointAtProgress(track, progress);
+    const alt = pt ? pt.altitude : track.minAltitude;
+    const norm = Math.max(0, Math.min(1, (alt - track.minAltitude) / elevRange));
+    bars[i] = 0.18 + norm * 0.82;
+  }
+
+  return bars;
 }

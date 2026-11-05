@@ -38,10 +38,12 @@ export type {
   FlyoverTrack
 } from './types/flyover.types';
 export {
+  buildElevationSparkline,
   buildFlyoverTrack,
   calculateBearing,
   circularMean,
   computeAdaptiveZoom,
+  computeFollowCameraCenter,
   computeLookAheadBearing,
   getFlyoverPointAtProgress,
   getFlyoverPointAtTime,

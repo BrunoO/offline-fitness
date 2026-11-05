@@ -84,4 +84,29 @@ describe('FlyoverControls', () => {
     fireEvent.press(speedHalfX);
     expect(onSetSpeed).toHaveBeenCalledWith(0.5);
   });
+
+  it('renders elevation profile sparkline and seeks when a bar is pressed', () => {
+    const onSeek = jest.fn();
+    const onSlidingComplete = jest.fn();
+    const { getByTestId } = render(
+      wrap(
+        <FlyoverControls
+          isPlaying={false}
+          progress={0.25}
+          speedMultiplier={1}
+          elevationProfile={[0.2, 0.5, 0.8, 1.0, 0.6]}
+          onTogglePlay={jest.fn()}
+          onRestart={jest.fn()}
+          onSeek={onSeek}
+          onSetSpeed={jest.fn()}
+          onSlidingComplete={onSlidingComplete}
+        />
+      )
+    );
+
+    expect(getByTestId('flyover-elevation-sparkline')).toBeTruthy();
+    fireEvent.press(getByTestId('flyover-elevation-bar-2'));
+    expect(onSeek).toHaveBeenCalledWith(0.5);
+    expect(onSlidingComplete).toHaveBeenCalledWith(0.5);
+  });
 });

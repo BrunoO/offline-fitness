@@ -15,6 +15,8 @@ export interface FlyoverHudProps {
   elapsedSeconds: number;
   totalDurationSeconds: number;
   activityType?: string;
+  gradePercent?: number;
+  heartrateBpm?: number | null;
 }
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
@@ -24,7 +26,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingVertical: 10,
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
       borderRadius: 14,
       backgroundColor:
         theme.scheme === 'dark' ? 'rgba(24, 24, 27, 0.92)' : 'rgba(255, 255, 255, 0.94)',
@@ -38,7 +40,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     metricColumn: {
       alignItems: 'center',
-      minWidth: 64
+      minWidth: 56
     },
     metricLabel: {
       fontSize: 11,
@@ -48,9 +50,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       marginBottom: 2
     },
     metricValue: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '700',
-      color: theme.textStrong
+      color: theme.textStrong,
+      fontVariant: ['tabular-nums']
+    },
+    elevationRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 4
+    },
+    gradeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: theme.textMuted,
+      fontVariant: ['tabular-nums']
     },
     divider: {
       width: 1,
@@ -59,6 +73,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     }
   });
 
+function formatGradeLabel(gradePercent: number | undefined): string | null {
+  if (gradePercent === undefined || !Number.isFinite(gradePercent)) {
+    return null;
+  }
+  const rounded = Math.round(gradePercent * 10) / 10;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(1)}%`;
+}
+
 export default function FlyoverHud({
   speedMps,
   completedDistanceMeters,
@@ -66,7 +89,9 @@ export default function FlyoverHud({
   altitudeMeters,
   elapsedSeconds,
   totalDurationSeconds,
-  activityType
+  activityType,
+  gradePercent,
+  heartrateBpm
 }: Readonly<FlyoverHudProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -84,6 +109,8 @@ export default function FlyoverHud({
   const distanceKm = `${(completedDistanceMeters / METERS_TO_KM).toFixed(1)} / ${(totalDistanceMeters / METERS_TO_KM).toFixed(1)}`;
   const timeFormatted = `${seconds_to_label(Math.round(elapsedSeconds))} / ${seconds_to_label(Math.round(totalDurationSeconds))}`;
   const altitudeRounded = `${Math.round(altitudeMeters)} m`;
+  const gradeLabel = formatGradeLabel(gradePercent);
+  const hasHeartrate = heartrateBpm != null && Number.isFinite(heartrateBpm) && heartrateBpm > 0;
 
   return (
     <View
@@ -108,8 +135,20 @@ export default function FlyoverHud({
       <View style={styles.divider} />
       <View style={styles.metricColumn}>
         <Text style={styles.metricLabel}>Elevation</Text>
-        <Text style={styles.metricValue}>{altitudeRounded}</Text>
+        <View style={styles.elevationRow}>
+          <Text style={styles.metricValue}>{altitudeRounded}</Text>
+          {gradeLabel ? <Text style={styles.gradeText}>{gradeLabel}</Text> : null}
+        </View>
       </View>
+      {hasHeartrate ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.metricColumn}>
+            <Text style={styles.metricLabel}>HR</Text>
+            <Text style={styles.metricValue}>{`${Math.round(heartrateBpm)} bpm`}</Text>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }

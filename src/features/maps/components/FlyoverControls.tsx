@@ -2,17 +2,19 @@ import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const SPEED_OPTIONS = [0.5, 1, 2, 4];
 const SLIDER_STEP = 0.001;
 const MIN_SLIDER_VAL = 0;
 const MAX_SLIDER_VAL = 1;
+const SPARKLINE_MAX_HEIGHT = 24;
 
 export interface FlyoverControlsProps {
   isPlaying: boolean;
   progress: number;
   speedMultiplier: number;
+  elevationProfile?: readonly number[];
   onTogglePlay: () => void;
   onRestart: () => void;
   onSeek: (targetProgress: number) => void;
@@ -36,6 +38,24 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       shadowOpacity: 0.15,
       shadowRadius: 8,
       elevation: 6
+    },
+    sparklineRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      height: SPARKLINE_MAX_HEIGHT,
+      paddingHorizontal: 10,
+      marginBottom: 2,
+      gap: 2
+    },
+    sparklineBarTouch: {
+      flex: 1,
+      height: SPARKLINE_MAX_HEIGHT,
+      justifyContent: 'flex-end'
+    },
+    sparklineBar: {
+      width: '100%',
+      borderRadius: 2
     },
     sliderRow: {
       width: '100%',
@@ -104,10 +124,39 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     }
   });
 
+interface SparklineBarDescriptor {
+  id: string;
+  slotIndex: number;
+  progress: number;
+  barHeight: number;
+}
+
+function buildSparklineBars(
+  elevationProfile: readonly number[] | undefined
+): SparklineBarDescriptor[] {
+  if (!elevationProfile || elevationProfile.length <= 1) {
+    return [];
+  }
+  const lastIdx = elevationProfile.length - 1;
+  const bars: SparklineBarDescriptor[] = [];
+  for (let slotIndex = 0; slotIndex < elevationProfile.length; slotIndex++) {
+    const normHeight = elevationProfile[slotIndex];
+    const barProgress = slotIndex / lastIdx;
+    bars.push({
+      id: `elev-slot-${slotIndex}-${normHeight.toFixed(3)}`,
+      slotIndex,
+      progress: barProgress,
+      barHeight: Math.max(4, Math.round(normHeight * SPARKLINE_MAX_HEIGHT))
+    });
+  }
+  return bars;
+}
+
 export default function FlyoverControls({
   isPlaying,
   progress,
   speedMultiplier,
+  elevationProfile,
   onTogglePlay,
   onRestart,
   onSeek,
@@ -117,6 +166,7 @@ export default function FlyoverControls({
 }: Readonly<FlyoverControlsProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const sparklineBars = useMemo(() => buildSparklineBars(elevationProfile), [elevationProfile]);
 
   return (
     <View
@@ -124,6 +174,42 @@ export default function FlyoverControls({
       accessibilityRole="toolbar"
       accessibilityLabel="Flyover playback controls"
     >
+      {sparklineBars.length > 0 ? (
+        <View
+          testID="flyover-elevation-sparkline"
+          style={styles.sparklineRow}
+          accessibilityLabel="Elevation profile scrubber"
+        >
+          {sparklineBars.map(bar => {
+            const isReached = bar.progress <= progress + 0.005;
+            return (
+              <Pressable
+                key={bar.id}
+                testID={`flyover-elevation-bar-${bar.slotIndex}`}
+                style={styles.sparklineBarTouch}
+                onPress={() => {
+                  onSeek(bar.progress);
+                  onSlidingComplete?.(bar.progress);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Seek to ${Math.round(bar.progress * 100)}% distance`}
+              >
+                <View
+                  style={[
+                    styles.sparklineBar,
+                    {
+                      height: bar.barHeight,
+                      backgroundColor: isReached ? theme.primary : theme.border,
+                      opacity: isReached ? 0.9 : 0.45
+                    }
+                  ]}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
       <View style={styles.sliderRow}>
         <Slider
           style={styles.slider}

@@ -48,4 +48,25 @@ describe('FlyoverHud', () => {
     expect(getByText('5:00 /km')).toBeTruthy();
     expect(queryByText('Speed')).toBeNull();
   });
+
+  it('displays grade percentage and heart rate when provided', () => {
+    const { getByText } = render(
+      wrap(
+        <FlyoverHud
+          speedMps={8}
+          completedDistanceMeters={3000}
+          totalDistanceMeters={10000}
+          altitudeMeters={950}
+          elapsedSeconds={400}
+          totalDurationSeconds={1200}
+          gradePercent={6.42}
+          heartrateBpm={162}
+        />
+      )
+    );
+
+    expect(getByText('+6.4%')).toBeTruthy();
+    expect(getByText('HR')).toBeTruthy();
+    expect(getByText('162 bpm')).toBeTruthy();
+  });
 });

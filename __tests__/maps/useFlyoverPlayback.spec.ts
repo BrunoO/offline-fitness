@@ -343,4 +343,34 @@ describe('useFlyoverPlayback', () => {
     });
     expect(result.current.progress).toBeCloseTo(0.1 + 0.2 / 30, 4);
   });
+
+  it('glides smoothly by distance without freezing on a mid-ride pause gap', () => {
+    // 1km East in 100s, then a 1,800s (30-min) pause across 1 meter, then 1km East in 100s
+    const streamWithPause: ActivityStream = {
+      coordinates: [
+        { latitude: 45.0, longitude: 5.0 },
+        { latitude: 45.0, longitude: 5.01 },
+        { latitude: 45.0, longitude: 5.01001 }, // 30-min café stop (< 1m movement)
+        { latitude: 45.0, longitude: 5.02 }
+      ],
+      altitude: [100, 120, 120, 140],
+      time: [0, 100, 1900, 2000]
+    };
+
+    const { result } = renderHook(() => useFlyoverPlayback(streamWithPause));
+
+    act(() => {
+      result.current.seekTo(0.25);
+    });
+    const lonAt25 = result.current.currentPoint!.longitude;
+
+    act(() => {
+      result.current.seekTo(0.75);
+    });
+    const lonAt75 = result.current.currentPoint!.longitude;
+
+    // Because progress is distance-paced, 25% and 75% are cleanly at 25% and 75% of longitude span
+    expect(lonAt25).toBeCloseTo(5.005, 3);
+    expect(lonAt75).toBeCloseTo(5.015, 3);
+  });
 });

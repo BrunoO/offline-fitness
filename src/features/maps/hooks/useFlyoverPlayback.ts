@@ -1,6 +1,10 @@
 import { ActivityStream, LatLng } from '@/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildFlyoverTrack, getFlyoverPointAtTime } from '../services/flyoverInterpolator';
+import {
+  buildFlyoverTrack,
+  getFlyoverPointAtProgress,
+  getFlyoverPointAtTime
+} from '../services/flyoverInterpolator';
 import {
   FlyoverPlaybackOptions,
   FlyoverPlaybackState,
@@ -143,21 +147,24 @@ export function useFlyoverPlayback(
   }, [targetDurationSeconds]);
 
   const totalDurationSeconds = track.totalDuration;
+  const totalDistanceMeters = track.totalDistance;
   const elapsedSeconds = progress * totalDurationSeconds;
 
   const currentPoint = useMemo(() => {
     if (track.points.length === 0) {
       return null;
     }
+    if (totalDistanceMeters > 0) {
+      return getFlyoverPointAtProgress(track, progress);
+    }
     const startTime = track.points[0].time;
     return getFlyoverPointAtTime(track, startTime + elapsedSeconds);
-  }, [track, elapsedSeconds]);
+  }, [track, totalDistanceMeters, progress, elapsedSeconds]);
 
   const traveledCoordinates = useMemo(
     () => deriveTraveledCoordinates(track, currentPoint),
     [track, currentPoint]
   );
-  const totalDistanceMeters = track.totalDistance;
   const completedDistanceMeters = currentPoint ? currentPoint.distance : 0;
 
   const play = useCallback(() => {
