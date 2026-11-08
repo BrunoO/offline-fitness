@@ -1,3 +1,8 @@
+import {
+  computeHeartRateZones,
+  formatMaxHrSourceLabel,
+  resolveMaxHeartRate
+} from '@/features/heart-rate';
 import { simpleLogger } from '@/shared';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
@@ -17,6 +22,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   loadUserProfile,
+  MAX_CUSTOM_MAX_HR_BPM,
+  MIN_CUSTOM_MAX_HR_BPM,
   parseCsvWeightEntries,
   saveUserProfile,
   todayIso,
@@ -35,6 +42,7 @@ export function ProfileScreen(): JSX.Element {
   const [profile, setProfile] = useState<UserProfile>({ weightEntries: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [ageInput, setAgeInput] = useState('');
+  const [maxHrInput, setMaxHrInput] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingDateOriginal, setEditingDateOriginal] = useState<string | null>(null);
   const [initialEditWeight, setInitialEditWeight] = useState<number | undefined>(undefined);
@@ -51,6 +59,7 @@ export function ProfileScreen(): JSX.Element {
       if (!isMounted) return;
       setProfile(loaded);
       setAgeInput(loaded.age !== undefined ? String(loaded.age) : '');
+      setMaxHrInput(loaded.maxHeartRate !== undefined ? String(loaded.maxHeartRate) : '');
       setIsLoading(false);
     })();
     return () => {
@@ -86,6 +95,39 @@ export function ProfileScreen(): JSX.Element {
     }
     void persist({ ...profile, age: parsed });
   }, [ageInput, persist, profile]);
+
+  const handleMaxHrChange = useCallback((value: string) => {
+    setMaxHrInput(value);
+  }, []);
+
+  const handleMaxHrBlur = useCallback(() => {
+    const trimmed = maxHrInput.trim();
+    if (trimmed === '') {
+      void persist({ ...profile, maxHeartRate: undefined });
+      return;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < MIN_CUSTOM_MAX_HR_BPM ||
+      parsed > MAX_CUSTOM_MAX_HR_BPM
+    ) {
+      Alert.alert(
+        'Invalid max heart rate',
+        `Please enter a value between ${MIN_CUSTOM_MAX_HR_BPM} and ${MAX_CUSTOM_MAX_HR_BPM} bpm, or leave it blank.`
+      );
+      setMaxHrInput(profile.maxHeartRate !== undefined ? String(profile.maxHeartRate) : '');
+      return;
+    }
+    void persist({ ...profile, maxHeartRate: parsed });
+  }, [maxHrInput, persist, profile]);
+
+  const maxHrResolution = useMemo(() => resolveMaxHeartRate({ profile }), [profile]);
+
+  const previewZones = useMemo(
+    () => computeHeartRateZones(maxHrResolution.maxHr),
+    [maxHrResolution.maxHr]
+  );
 
   const handleOpenAddForm = useCallback(() => {
     setEditingDateOriginal(null);
@@ -227,19 +269,71 @@ export function ProfileScreen(): JSX.Element {
           keep private.
         </Text>
 
-        {/* Age */}
-        <Text style={styles.sectionTitle}>Age</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={ageInput}
-          onChangeText={handleAgeChange}
-          onBlur={handleAgeBlur}
-          placeholder="e.g. 30"
-          placeholderTextColor={theme.textMuted}
-          accessibilityLabel="Age in years"
-        />
-        <Text style={styles.hint}>Years. Optional.</Text>
+        {/* Biometrics: Age & Max HR */}
+        <View style={styles.biometricsRow}>
+          <View style={styles.biometricField}>
+            <Text style={styles.sectionTitle}>Age</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={ageInput}
+              onChangeText={handleAgeChange}
+              onBlur={handleAgeBlur}
+              placeholder="e.g. 30"
+              placeholderTextColor={theme.textMuted}
+              accessibilityLabel="Age in years"
+            />
+            <Text style={styles.hint}>Years (1–120). Optional.</Text>
+          </View>
+          <View style={styles.biometricField}>
+            <Text style={styles.sectionTitle}>Max Heart Rate</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={maxHrInput}
+              onChangeText={handleMaxHrChange}
+              onBlur={handleMaxHrBlur}
+              placeholder={`e.g. ${maxHrResolution.maxHr}`}
+              placeholderTextColor={theme.textMuted}
+              accessibilityLabel="Maximum heart rate in bpm"
+            />
+            <Text style={styles.hint}>BPM (100–240). Overrides 220 − age.</Text>
+          </View>
+        </View>
+
+        {/* 5-Zone HR Preview Card */}
+        <View style={styles.zonesPreviewCard}>
+          <View style={styles.zonesPreviewHeader}>
+            <Text style={styles.zonesPreviewTitle}>Heart-Rate Zones</Text>
+            <Text style={styles.zonesPreviewSubtitle}>
+              Max HR {maxHrResolution.maxHr} bpm ({formatMaxHrSourceLabel(maxHrResolution.source)})
+            </Text>
+          </View>
+          <View style={styles.zonesPreviewList}>
+            {previewZones.map((zone, idx) => {
+              const color = theme.heartRateZones[idx] ?? theme.primary;
+              const rangeLabel =
+                zone.zone === 5 ? `≥ ${zone.minBpm} bpm` : `${zone.minBpm}–${zone.maxBpm} bpm`;
+              const pctLabel =
+                zone.zone === 5
+                  ? '90–100%+'
+                  : `${Math.round(zone.minPct * 100)}–${Math.round(zone.maxPct * 100)}%`;
+              return (
+                <View key={zone.code} style={styles.zonePreviewRow}>
+                  <View style={styles.zonePreviewLeft}>
+                    <View style={[styles.zonePreviewDot, { backgroundColor: color }]} />
+                    <Text style={styles.zonePreviewCode}>{zone.code}</Text>
+                    <Text style={styles.zonePreviewName}>{zone.name}</Text>
+                  </View>
+                  <View style={styles.zonePreviewRight}>
+                    <Text style={styles.zonePreviewPct}>{pctLabel}</Text>
+                    <Text style={styles.zonePreviewBpm}>{rangeLabel}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
 
         {/* Weight history */}
         <View style={styles.sectionHeader}>
@@ -397,6 +491,86 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.textMuted,
       marginTop: 4,
       marginBottom: 8
+    },
+    biometricsRow: {
+      flexDirection: 'row',
+      gap: 12
+    },
+    biometricField: {
+      flex: 1
+    },
+    zonesPreviewCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      marginTop: 6,
+      marginBottom: 8
+    },
+    zonesPreviewHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 10
+    },
+    zonesPreviewTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.textStrong
+    },
+    zonesPreviewSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      fontWeight: '500'
+    },
+    zonesPreviewList: {
+      gap: 6
+    },
+    zonePreviewRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 4
+    },
+    zonePreviewLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6
+    },
+    zonePreviewDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4
+    },
+    zonePreviewCode: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.textStrong,
+      width: 22
+    },
+    zonePreviewName: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: theme.text
+    },
+    zonePreviewRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10
+    },
+    zonePreviewPct: {
+      fontSize: 12,
+      color: theme.textMuted
+    },
+    zonePreviewBpm: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text,
+      minWidth: 86,
+      textAlign: 'right'
     },
     muted: {
       fontSize: 13,

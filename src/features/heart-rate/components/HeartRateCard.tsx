@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { type ResolvedTheme, useTheme } from '@/theme';
+import { useUserProfile } from '@/features/profile';
 import { simpleLogger } from '@/shared';
 import { useHeartRate } from '../hooks/useHeartRate';
 import { useHeartRatePermissions } from '../hooks/useHeartRatePermissions';
 import type { HeartRateDevice, HeartRateState } from '../services/heartRate';
+import { getZoneForBpm, resolveMaxHeartRate } from '../services/heartRateZones';
 
 function getStatusMessage(
   connected: boolean,
@@ -90,14 +92,32 @@ function ConnectionErrorNotice({
 
 interface ConnectedMetricsProps {
   liveHr: number | null;
+  maxHr: number;
+  theme: ResolvedTheme;
   styles: ReturnType<typeof createStyles>;
 }
 
-function ConnectedMetrics({ liveHr, styles }: Readonly<ConnectedMetricsProps>): JSX.Element {
+function ConnectedMetrics({
+  liveHr,
+  maxHr,
+  theme,
+  styles
+}: Readonly<ConnectedMetricsProps>): JSX.Element {
+  const activeZone = liveHr !== null ? getZoneForBpm(liveHr, maxHr) : null;
+  const zoneColor = activeZone
+    ? (theme.heartRateZones[activeZone.zone - 1] ?? theme.primary)
+    : theme.primary;
+
   return (
     <View style={styles.liveHrRow}>
       <Text style={styles.liveHrValue}>{liveHr ?? '—'}</Text>
       <Text style={styles.liveHrUnit}>bpm</Text>
+      {activeZone ? (
+        <View style={[styles.liveZoneBadge, { borderColor: zoneColor }]}>
+          <View style={[styles.liveZoneDot, { backgroundColor: zoneColor }]} />
+          <Text style={styles.liveZoneText}>{`${activeZone.code} · ${activeZone.name}`}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -310,6 +330,8 @@ export function HeartRateCard(): JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const hr = useHeartRate();
   const perms = useHeartRatePermissions();
+  const userProfile = useUserProfile();
+  const { maxHr } = useMemo(() => resolveMaxHeartRate({ profile: userProfile }), [userProfile]);
   const [manualId, setManualId] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -403,7 +425,9 @@ export function HeartRateCard(): JSX.Element {
         />
       ) : null}
 
-      {isConnected ? <ConnectedMetrics liveHr={hr.liveHr} styles={styles} /> : null}
+      {isConnected ? (
+        <ConnectedMetrics liveHr={hr.liveHr} maxHr={maxHr} theme={theme} styles={styles} />
+      ) : null}
 
       {!isConnected && hr.connectionState !== 'error' && shouldShowDisconnected ? (
         <DisconnectedSection
@@ -527,6 +551,28 @@ const createStyles = (theme: ResolvedTheme) =>
     liveHrUnit: {
       color: theme.textMuted,
       marginLeft: 6
+    },
+    liveZoneBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginLeft: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      backgroundColor: theme.surfaceSunken,
+      alignSelf: 'center'
+    },
+    liveZoneDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4
+    },
+    liveZoneText: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600'
     },
     actionButton: {
       paddingVertical: 8,

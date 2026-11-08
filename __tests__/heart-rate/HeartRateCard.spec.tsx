@@ -15,6 +15,9 @@ jest.mock('@/features/heart-rate/hooks/useHeartRate', () => ({
 jest.mock('@/features/heart-rate/hooks/useHeartRatePermissions', () => ({
   useHeartRatePermissions: () => mockUseHeartRatePermissions()
 }));
+jest.mock('@/features/profile', () => ({
+  useUserProfile: () => ({ weightEntries: [] })
+}));
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons'
 }));
@@ -95,6 +98,7 @@ describe('HeartRateCard', () => {
     const { getByText, getByLabelText, queryByText } = render(wrap(<HeartRateCard />));
     expect(getByText('Connected: Polar H10')).toBeTruthy();
     expect(getByText('72')).toBeTruthy();
+    expect(getByText('Z1 · Recovery')).toBeTruthy();
     // Disconnect and Forget are no longer rendered as raw stacked text in the card body
     expect(queryByText('Disconnect')).toBeNull();
     expect(queryByText('Forget device')).toBeNull();
@@ -107,11 +111,11 @@ describe('HeartRateCard', () => {
       expect.any(Array)
     );
 
-    const alertButtons = alertSpy.mock.calls[0][2] as Array<{
+    const alertButtons = alertSpy.mock.calls[0][2] as {
       text: string;
       style?: string;
       onPress?: () => void;
-    }>;
+    }[];
     expect(alertButtons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ text: 'Disconnect' }),

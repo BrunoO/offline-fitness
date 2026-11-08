@@ -119,6 +119,8 @@ export interface ResolvedTheme {
   chartReverse: string;
   chartZeroFill: string;
   chartZeroStroke: string;
+  /** Five physiological heart-rate zone colours (Z1 Recovery .. Z5 Anaerobic). */
+  heartRateZones: [string, string, string, string, string];
 
   // Map
   mapTrack: string[];

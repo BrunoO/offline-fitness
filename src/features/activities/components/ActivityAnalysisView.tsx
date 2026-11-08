@@ -1,5 +1,12 @@
 import { getActivityStreams } from '@/features/activities/services/fetchAndStoreStreams';
+import {
+  computeHeartRateZoneDistribution,
+  HeartRateZoneDistribution,
+  HeartRateZonesCard,
+  resolveMaxHeartRate
+} from '@/features/heart-rate';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
+import { useUserProfile } from '@/features/profile';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
@@ -1046,6 +1053,7 @@ interface TelemetryChartsProps {
   elevationGain: { x: number; y: number }[] | undefined;
   heartRateDataXY: { x: number; y: number }[] | undefined;
   heartRateSummary: { avg: number; max: number } | null;
+  hrZoneDistribution: HeartRateZoneDistribution | null;
   hasDistanceAxis: boolean;
   hasTimeAxis: boolean;
   mapWidth: number;
@@ -1059,6 +1067,7 @@ function TelemetryChartsSection({
   elevationGain,
   heartRateDataXY,
   heartRateSummary,
+  hrZoneDistribution,
   hasDistanceAxis,
   hasTimeAxis,
   mapWidth,
@@ -1135,6 +1144,9 @@ function TelemetryChartsSection({
             mapWidth={mapWidth}
             hasTimeAxis={hasTimeAxis}
           />
+          {hrZoneDistribution ? (
+            <HeartRateZonesCard distribution={hrZoneDistribution} embedded />
+          ) : null}
         </View>
       ) : null}
     </>
@@ -1265,6 +1277,7 @@ function SplitsSection({
 interface OverviewSectionProps {
   item: Activity;
   splits: readonly StreamSplit[];
+  hrZoneDistribution: HeartRateZoneDistribution | null;
   altitudeDataXY: { x: number; y: number }[] | undefined;
   mapWidth: number;
   hasDistanceAxis: boolean;
@@ -1276,6 +1289,7 @@ interface OverviewSectionProps {
 function OverviewSection({
   item,
   splits,
+  hrZoneDistribution,
   altitudeDataXY,
   mapWidth,
   hasDistanceAxis,
@@ -1290,6 +1304,7 @@ function OverviewSection({
     <>
       <ActivityDetails item={item} />
       {splits.length > 0 ? <SplitsSection splits={splits} activityType={item.type} /> : null}
+      {hrZoneDistribution ? <HeartRateZonesCard distribution={hrZoneDistribution} /> : null}
       {altitudeDataXY && altitudeDataXY.length > 0 ? (
         <View style={styles.chartSectionCard}>
           <View style={styles.chartHeaderRow}>
@@ -1407,6 +1422,7 @@ export function ActivityAnalysisView({
   >([]);
   const [trackTrendLineData, setTrackTrendLineData] = useState<{ x: Date; y: number }[]>([]);
   const [exportProgress, setExportProgress] = useState(0);
+  const userProfile = useUserProfile();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const trackSimilarCount = similarActivitiesByTrack.filter(
@@ -1508,6 +1524,30 @@ export function ActivityAnalysisView({
     return { avg, max };
   }, [heartRateData]);
 
+  const hrZoneDistribution = useMemo(() => {
+    if (!heartRateData || heartRateData.length === 0) return null;
+    const maxHrResolution = resolveMaxHeartRate({
+      profile: userProfile,
+      activities: allActivities,
+      activityMaxHr: heartRateSummary?.max ?? item.max_heartrate
+    });
+    return computeHeartRateZoneDistribution({
+      heartrate: heartRateData,
+      time: timeData,
+      maxHrResolution,
+      fallbackDurationSeconds: item.moving_time || item.elapsed_time
+    });
+  }, [
+    heartRateData,
+    timeData,
+    userProfile,
+    allActivities,
+    heartRateSummary?.max,
+    item.max_heartrate,
+    item.moving_time,
+    item.elapsed_time
+  ]);
+
   const handleActivityPress = async (activity: Activity | null) => {
     try {
       if (activity) {
@@ -1581,6 +1621,7 @@ export function ActivityAnalysisView({
           <OverviewSection
             item={item}
             splits={splits}
+            hrZoneDistribution={hrZoneDistribution}
             altitudeDataXY={altitudeDataXY}
             mapWidth={mapWidth}
             hasDistanceAxis={hasDistanceAxis}
@@ -1596,6 +1637,7 @@ export function ActivityAnalysisView({
             elevationGain={elevationGain}
             heartRateDataXY={heartRateDataXY}
             heartRateSummary={heartRateSummary}
+            hrZoneDistribution={hrZoneDistribution}
             hasDistanceAxis={hasDistanceAxis}
             hasTimeAxis={!!timeData?.length}
             mapWidth={mapWidth}

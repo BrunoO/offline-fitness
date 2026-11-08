@@ -176,4 +176,27 @@ describe('ProfileScreen date and weight inputs', () => {
     // Form should NOT have opened in edit mode
     expect(queryByText('Edit entry (2026-03-20)')).toBeNull();
   });
+
+  it('displays 5-zone heart rate preview from age and updates when custom Max HR is entered', async () => {
+    const { getByLabelText, getByText, findByText } = renderWithProviders(<ProfileScreen />);
+
+    await findByText('2026-03-20');
+    // Age = 28 -> 220 - 28 = 192 bpm (220 − age)
+    expect(getByText('Max HR 192 bpm (220 − age)')).toBeTruthy();
+
+    const maxHrInput = getByLabelText('Maximum heart rate in bpm');
+    fireEvent.changeText(maxHrInput, '200');
+    fireEvent(maxHrInput, 'blur');
+
+    await waitFor(() => {
+      expect(profileStorage.saveUserProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          age: 28,
+          maxHeartRate: 200
+        })
+      );
+    });
+    expect(getByText('Max HR 200 bpm (custom profile)')).toBeTruthy();
+    expect(getByText('≥ 180 bpm')).toBeTruthy();
+  });
 });

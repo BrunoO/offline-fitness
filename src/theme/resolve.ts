@@ -36,6 +36,7 @@ interface NeutralTokens {
   chartReverse: string;
   chartZeroFill: string;
   chartZeroStroke: string;
+  heartRateZones: [string, string, string, string, string];
   mapTrack: string[];
   swipeReveal: string;
   scrim: string;
@@ -71,6 +72,7 @@ const NEUTRALS: Record<ColorScheme, NeutralTokens> = {
     chartReverse: '#7B1FA2',
     chartZeroFill: '#E0E0E0',
     chartZeroStroke: '#BDBDBD',
+    heartRateZones: ['#0284C7', '#15803D', '#B45309', '#C2410C', '#B91C1C'],
     mapTrack: ['#00FF00', '#FFFF00', '#FF0000'],
     swipeReveal: '#FFEFD5',
     scrim: 'rgba(0, 0, 0, 0.5)',
@@ -115,6 +117,7 @@ const NEUTRALS: Record<ColorScheme, NeutralTokens> = {
     chartReverse: '#CE93D8',
     chartZeroFill: '#2A2E39',
     chartZeroStroke: '#374151',
+    heartRateZones: ['#38BDF8', '#4ADE80', '#FBBF24', '#FB923C', '#F87171'],
     mapTrack: ['#00FF00', '#FFFF00', '#FF0000'],
     swipeReveal: '#3A3222',
     scrim: 'rgba(0, 0, 0, 0.6)',
@@ -184,6 +187,7 @@ export function resolveTheme(palette: PaletteDefinition, scheme: ColorScheme): R
     chartReverse: n.chartReverse,
     chartZeroFill: n.chartZeroFill,
     chartZeroStroke: n.chartZeroStroke,
+    heartRateZones: n.heartRateZones,
 
     mapTrack: n.mapTrack,
 

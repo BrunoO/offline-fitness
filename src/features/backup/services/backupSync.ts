@@ -578,8 +578,22 @@ async function fetchStreamContent(
   return bytes ?? (await getDavFile(config, APP_CONFIG.BACKUP_STREAMS_FOLDER, name));
 }
 
+function mergeUserProfiles(localProfile: UserProfile, remoteProfile: UserProfile): UserProfile {
+  const age = localProfile.age ?? remoteProfile.age;
+  const maxHeartRate = localProfile.maxHeartRate ?? remoteProfile.maxHeartRate;
+  const byDate = new Map<string, { date: string; weightKg: number }>();
+  for (const entry of remoteProfile.weightEntries ?? []) {
+    byDate.set(entry.date, entry);
+  }
+  for (const entry of localProfile.weightEntries ?? []) {
+    byDate.set(entry.date, entry); // local wins
+  }
+  const weightEntries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+  return { age, maxHeartRate, weightEntries };
+}
+
 /**
- * Restores the user profile (age + weight history) from the remote collection
+ * Restores the user profile (age + maxHR + weight history) from the remote collection
  * when present. Local entries win on per-date conflicts; a missing remote file
  * is not an error.
  */
@@ -594,16 +608,7 @@ async function restoreUserProfile(config: WebDavConfig, summary: RestoreSummary)
       return;
     }
     const localProfile = await loadUserProfile();
-    const age = localProfile?.age ?? remoteProfile?.age;
-    const byDate = new Map<string, { date: string; weightKg: number }>();
-    for (const entry of remoteProfile.weightEntries ?? []) {
-      byDate.set(entry.date, entry);
-    }
-    for (const entry of localProfile.weightEntries ?? []) {
-      byDate.set(entry.date, entry); // local wins
-    }
-    const mergedEntries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
-    await saveUserProfile({ age, weightEntries: mergedEntries });
+    await saveUserProfile(mergeUserProfiles(localProfile, remoteProfile));
   } catch (error) {
     if (!(error instanceof WebDavTransportError) || error.status !== 404) {
       summary.errors.push(`profile: ${describeError(error)}`);

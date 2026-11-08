@@ -119,6 +119,11 @@ describe('accessibility floor', () => {
         theme.chartSeries.forEach(series => {
           expect(contrast(series, theme.surface)).toBeGreaterThanOrEqual(3);
         });
+        expect(theme.heartRateZones).toHaveLength(5);
+        theme.heartRateZones.forEach(zoneColor => {
+          expect(contrast(zoneColor, theme.surface)).toBeGreaterThanOrEqual(3);
+          expect(contrast(zoneColor, theme.surfaceSunken)).toBeGreaterThanOrEqual(3);
+        });
       });
     });
   });

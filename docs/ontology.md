@@ -264,6 +264,18 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
     * The heart-rate chart remains visible for zero-elevation activities (`item.total_elevation_gain === 0` or flat/indoor tracks).
     * When an activity stream has heart rate but no time series (`timeData` absent/empty), the x-axis falls back to the sample index (`hasTimeAxis = false`, labeled "Sample") rather than failing to render.
     * Average and maximum heart rate are displayed as textual summary badges (`Heart rate: avg X bpm • max Y bpm`) alongside the stream chart.
+* **`ONT-KIN-07` — Athlete Maximum Heart Rate ($\text{HR}_{\max}$) Resolution & 5-Zone Taxonomy (`src/features/heart-rate/services/heartRateZones.ts`):**
+  * `resolveMaxHeartRate` resolves the athlete's $\text{HR}_{\max}$ deterministically across 4 tiers:
+    1. `'custom'`: explicit `UserProfile.maxHeartRate` ($100\text{–}240\text{ bpm}$) stored in `src/features/profile/services/profileStorage.ts`.
+    2. `'age'`: Fox age-predicted formula $\text{HR}_{\max} = 220 - \text{UserProfile.age}$ (clamped to $[100, 220]\text{ bpm}$).
+    3. `'observed'`: highest recorded `Activity.max_heartrate` across `globalActivities` or the current activity ($\ge 120\text{ bpm}$, `MIN_OBSERVED_MAX_HR_BPM`).
+    4. `'default'`: fallback `DEFAULT_MAX_HEART_RATE = 190` bpm.
+  * `computeHeartRateZones` partitions valid BPM readings ($> 0$) into 5 half-open zones ($T_p = \lfloor p \times \text{HR}_{\max} \rfloor$): `Z1` Recovery ($< T_{0.60}$, displayed as $T_{0.50}\text{–}(T_{0.60}-1)$), `Z2` Aerobic ($[T_{0.60}, T_{0.70}-1]$), `Z3` Tempo ($[T_{0.70}, T_{0.80}-1]$), `Z4` Threshold ($[T_{0.80}, T_{0.90}-1]$), and `Z5` Anaerobic ($\ge T_{0.90}$, unbounded above so supra-maximal spikes $> \text{HR}_{\max}$ are retained in `Z5`).
+* **`ONT-KIN-08` — Time-Weighted Heart-Rate Zone Integration (`computeHeartRateZoneDistribution` in `src/features/heart-rate/services/heartRateZones.ts`):**
+  * **No Sample-Index Counting When Time Series Exists:** Because Ramer-Douglas-Peucker (`compressStreamSet`) simplifies track geometry unevenly (`ONT-SPATIAL-01`), counting raw array elements biases zone distribution toward curvy terrain.
+  * When an aligned `time` series is present (`time.length === heartrate.length`), each valid non-`null` sample at index $i \ge 1$ accrues $\Delta t_{\text{eff}} = \min(\text{time}[i] - \text{time}[i - 1], \text{MAX\_HR\_SAMPLE\_GAP\_SECONDS})$ where `MAX_HR_SAMPLE_GAP_SECONDS = 30` s, preventing manual pauses or sensor dropouts from crediting stopped time to a single post-pause fix.
+  * When `time` is absent (`ONT-KIN-04`), valid non-`null` samples are weighted equally across `fallbackDurationSeconds`.
+  * Rendered via `HeartRateZonesCard` (`src/features/heart-rate/components/HeartRateZonesCard.tsx`) in both the `Overview` and `Telemetry` tabs of `ActivityAnalysisView.tsx`, using `ResolvedTheme.heartRateZones` (`src/theme/resolve.ts`).
 
 ### 5.4 Splits & Crash-Recovery Semantics
 * **`ONT-KIN-05` — Metric-Only Splits (`src/features/recording/services/splits.ts`, `docs/splits-decisions.md`):**
@@ -282,7 +294,7 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 * **`AsyncStorage` (`src/shared/services/storage.ts`):**
   * Activities: stored individually under key `a_<id>` (`STORAGE_KEYS.ACTIVITY_PREFIX`). Batch writes use `storeMultiActivities` (`AsyncStorage.multiSet`).
   * Deletion Tombstones: `STORAGE_KEYS.WEBDAV_TOMBSTONES` (`Record<activityId, deletedAtIsoString>`).
-  * Preferences & State: `STORAGE_KEYS` (`webdav_*`, `backup_last_sync`, `manual_last_type`, `manual_custom_types`, `recording_last_profile`, `dismissed_swipe_tip`); plus `PALETTE_STORAGE_KEY` (`'paletteId'`) in `src/theme/ThemeProvider.tsx` and literal AsyncStorage keys for stats settings (`numberRecentWeeks`, `numberRecentMonths`, `useElapsedTime`, `mergeSimilarActivities`, `userWeeklyGoal`) in `src/features/stats/StatsTabSettingsContext.tsx`.
+  * Preferences & State: `STORAGE_KEYS` (`webdav_*`, `backup_last_sync`, `manual_last_type`, `manual_custom_types`, `recording_last_profile`, `dismissed_swipe_tip`); `userProfile` (`UserProfile`: `age`, `maxHeartRate`, `weightEntries`, synced to WebDAV `profile.json` in `src/features/backup/services/backupSync.ts`) in `src/features/profile/services/profileStorage.ts`; plus `PALETTE_STORAGE_KEY` (`'paletteId'`) in `src/theme/ThemeProvider.tsx` and literal AsyncStorage keys for stats settings (`numberRecentWeeks`, `numberRecentMonths`, `useElapsedTime`, `mergeSimilarActivities`, `userWeeklyGoal`) in `src/features/stats/StatsTabSettingsContext.tsx`.
 * **`FileSystem` (`expo-file-system` `Paths.document`):**
   * Stream Cache (`streams/<id>.json`): Despite the `.json` extension (kept for WebDAV collection path compatibility), files written under schema version 2 contain the **binary `'OF'` v1 payload**; `readStreamFile` transparently decodes both `'OF'` binary payloads and legacy UTF-8 JSON payloads.
   * Recording Fix Logs (`recording/<sessionId>/`): `meta.json`, `fixes.jsonl` (read in 256 KB chunks via `readFixLog` in `src/features/recording/services/fixLog.ts`), and `heartrate.jsonl`.
