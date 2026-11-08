@@ -68,6 +68,44 @@ export const createStyles = (theme: ResolvedTheme) =>
       fontSize: 14,
       textAlign: 'center'
     },
+    landscapeHrRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'center',
+      marginTop: 12
+    },
+    landscapeHrValue: {
+      color: theme.textStrong,
+      fontSize: 28,
+      fontWeight: '700'
+    },
+    landscapeHrUnit: {
+      color: theme.textMuted,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    landscapeZoneBadge: {
+      alignItems: 'center',
+      backgroundColor: theme.surfaceSunken,
+      borderRadius: 12,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 6,
+      marginLeft: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4
+    },
+    landscapeZoneDot: {
+      borderRadius: 4,
+      height: 8,
+      width: 8
+    },
+    landscapeZoneText: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '600'
+    },
     statusRow: {
       alignItems: 'center',
       flexDirection: 'row',

@@ -278,6 +278,10 @@ export interface TimerActivityInput {
   name?: string;
   /** IANA zone label; defaults to the device zone. */
   timezone?: string;
+  /** Optional average heart rate in bpm from a connected BLE sensor. */
+  averageHeartRate?: number;
+  /** Optional maximum heart rate in bpm from a connected BLE sensor. */
+  maxHeartRate?: number;
 }
 
 let timerIdCounter = 0;
@@ -335,6 +339,8 @@ export function buildTimerActivity(input: TimerActivityInput): Activity {
     type,
     average_speed: 0,
     total_elevation_gain: 0,
+    average_heartrate: input.averageHeartRate,
+    max_heartrate: input.maxHeartRate,
     elev_high: 0,
     elev_low: 0,
     start_latlng: [],

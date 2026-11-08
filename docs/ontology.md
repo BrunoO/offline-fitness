@@ -53,7 +53,7 @@ Every workout in the system converges into the canonical `Activity` interface (`
 | Origin | ID Pattern | Builder / Mapper | Timezone Source of Truth | Stream / Track Presence |
 | --- | --- | --- | --- | --- |
 | **Archive-Imported** | `<numericId>` (e.g. `"1234567890"`) | `rowToActivity` in `src/features/strava-import/services/activityMapper.ts` | IANA zone of the GPS track start coordinate via `createGeoZoneLookup` (`scripts/strava-import-tool/zoneLookup.ts`), falling back to CLI `--tz`. **Never** the desktop machine's ambient timezone. | Optional (`streams/<id>.json` in `'OF'` v1 binary format if `.gpx` track existed in export). |
-| **On-Device Recorded** | `recorded-<startUtcMs>-<counter>` (counter = trailing segment of the session id) | `buildRecordedActivity` in `src/features/recording/services/buildRecordedActivity.ts` | Device IANA timezone at recording save time (`deviceTimezoneLabel()`). | Present if accepted GPS fixes $> 0$; written via `writeStreamFile` (`src/features/recording/services/writeStreamFile.ts`) before `addActivity`. |
+| **On-Device Recorded** | `recorded-<startUtcMs>-<counter>` (GPS) or `timer-<startUtcMs>-<base36Counter>` (Timer) | `buildRecordedActivity` (`src/features/recording/services/buildRecordedActivity.ts`) / `buildTimerActivity` (`src/features/activities/services/manualActivity.ts`) | Device IANA timezone at recording save time (`deviceTimezoneLabel()`). | Present if accepted GPS fixes $> 0$ (or BLE heart-rate samples $> 0$ for timer recordings); written via `writeStreamFile` (`src/features/recording/services/writeStreamFile.ts`) before `addActivity`. |
 | **Manually Entered** | `manual-<startUtcMs>-<base36Counter>` | `buildManualActivity` in `src/features/activities/services/manualActivity.ts` | Device local timezone evaluated **at the entered historical date/time** (`wallClock.getTimezoneOffset()`), preserving historical DST. | Always empty (`start_latlng: []`, `end_latlng: []`), even when retroactive `distanceKm` or `elevationGainM` is supplied. |
 
 ### 1.2 Activity Type Taxonomy & Categorization Rules
@@ -255,11 +255,12 @@ The 5 recording profiles (`PROFILES`: `'walking' | 'running' | 'hiking' | 'cycli
 Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording/services/heartRateLog.ts`, and `src/features/recording/services/replaySession.ts`:
 * **`ONT-KIN-03` — Standard BLE GATT Profile:**
   Uses Bluetooth SIG Heart Rate Service (`0x180D`), Heart Rate Measurement (`0x2A37`), and Battery Service (`0x180F` / `0x2A19`). Validates sensor-contact bits and physiological bounds before emitting samples.
-* **`ONT-KIN-04` — Temporal Alignment & Null Semantics (`nearestHeartRate`):**
-  * Raw HR samples (`{ t: number, bpm: number }` in `heartrate.jsonl`) recorded during a manual pause are discarded (`!isSampleInManualPause`).
+* **`ONT-KIN-04` — Temporal Alignment & Null Semantics (`nearestHeartRate` & `buildTimerHeartRateData`):**
+  * **GPS-Tracked Sessions (`replaySession.ts`):** Raw HR samples (`{ t: number, bpm: number }` in `heartrate.jsonl`) recorded during a manual pause are discarded (`!isSampleInManualPause`).
   * For each accepted GPS fix at timestamp $t$, binary search finds the closest HR sample within `HR_MATCH_WINDOW_MS = 10_000` ($\pm 10\text{ s}$).
   * If no sample lies within $\pm 10\text{ s}$, the stream entry is `null` (**never `0`**), distinguishing "no sensor reading / contact lost" from a numeric measurement.
-  * `averageHeartRate` and `maxHeartRate` on `ReplayResult.stats` (and `Activity.average_heartrate` / `max_heartrate`) are computed over valid non-paused samples only.
+  * **Timer-Recorded Indoor / GPS-less Sessions (`useTimerRecording.ts`):** Subscribes to `heartRateService` only while `phase === 'running'` (ignoring paused intervals), collects `{ elapsedSec, bpm }` samples, and via `buildTimerHeartRateData` produces `averageHeartRate` / `maxHeartRate` on `buildTimerActivity` plus a time-aligned `{ time, heartrate }` binary stream (`latlng: []`, `altitude: []`) written via `writeStreamFile`.
+  * `averageHeartRate` and `maxHeartRate` on `ReplayResult.stats` / `TimerHeartRateSummary` (and `Activity.average_heartrate` / `max_heartrate`) are computed over valid non-paused samples only.
   * **Display & Analysis Invariant (`ActivityAnalysisView.tsx`):**
     * The heart-rate chart remains visible for zero-elevation activities (`item.total_elevation_gain === 0` or flat/indoor tracks).
     * When an activity stream has heart rate but no time series (`timeData` absent/empty), the x-axis falls back to the sample index (`hasTimeAxis = false`, labeled "Sample") rather than failing to render.

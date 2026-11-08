@@ -175,12 +175,14 @@ describe('useActivities.addActivity', () => {
 });
 
 describe('buildTimerActivity', () => {
-  it('preserves elapsed seconds and marks the activity as GPS-less', () => {
+  it('preserves elapsed seconds, optional heart rate, and marks the activity as GPS-less', () => {
     const activity = buildTimerActivity({
       type: 'Yoga',
       startUtcMs: new Date('2026-10-20T18:30:00').getTime(),
       durationSec: 125,
-      name: 'Evening yoga'
+      name: 'Evening yoga',
+      averageHeartRate: 98,
+      maxHeartRate: 124
     });
     expect(activity.type).toBe('Yoga');
     expect(activity.name).toBe('Evening yoga');
@@ -188,6 +190,8 @@ describe('buildTimerActivity', () => {
     expect(activity.moving_time).toBe(125);
     expect(activity.distance).toBe(0);
     expect(activity.total_elevation_gain).toBe(0);
+    expect(activity.average_heartrate).toBe(98);
+    expect(activity.max_heartrate).toBe(124);
     expect(activity.start_latlng).toEqual([]);
     expect(activity.end_latlng).toEqual([]);
   });
