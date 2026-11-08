@@ -130,6 +130,13 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Profile UX improvements (Date & Weight inputs + Interactive Chart)**:
+  - **Ergonomic Date Picker**: integrated `@react-native-community/datetimepicker` with a calendar display pressable capped at today, plus quick-select chips for "Today" and "Yesterday".
+  - **Quick Weight Logging & Adjusters**: auto-prefilled weight input with the latest logged weight; added quick step adjusters (`-0.5`, `-0.1`, `+0.1`, `+0.5` kg).
+  - **Edit & Delta History List**: tapped entries can now be edited directly; history list items display color-coded weight changes relative to the prior entry.
+  - **Interactive Weight Trend Chart**: enabled x-dimension zoom and pan using `VictoryZoomContainer`, touch-to-inspect point banner, range filters (`1M`, `3M`, `6M`, `1Y`, `ALL`), a summary metrics bar (Current, Min/Max, Total Change), and a Reset Zoom control.
+  - **Modular Architecture & Unit Tests**: decomposed `ProfileScreen` into `WeightEntryForm` and `WeightHistoryList` components to keep cognitive complexity low; added full test suite in `__tests__/profile/ProfileScreen.spec.tsx`.
+
 - **Navigation Modernization (Tier 3: Floating Shell & Sheet-Driven Architecture)** (`docs/navigation-tier3-plan.md`):
   - **Native Stack + Floating Tab Shell**: migrated the top-level app navigation from `DrawerNavigator` to `@react-navigation/native-stack` + `@react-navigation/bottom-tabs`. Created `src/navigation/FloatingTabBar.tsx` with 5 primary destinations (`Home`, `Activities`, elevated center hero `RecordAction` button, `Stats`, `Maps`), haptic micro-interactions (`expo-haptics`), and adaptive safe-area insets.
   - **Screen Decoupling & Push Stack**: extracted `ActivityDetailScreen` (`STACK_ROUTES.ActivityDetail`) for full-screen map flyovers, elevation profiles, and track comparisons, removing the awkward split-screen container from `DetailsScreen`.

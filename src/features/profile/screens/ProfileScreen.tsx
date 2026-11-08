@@ -20,9 +20,12 @@ import {
   parseCsvWeightEntries,
   saveUserProfile,
   todayIso,
-  type UserProfile
+  type UserProfile,
+  type WeightEntry
 } from '../services/profileStorage';
 import { WeightChart } from '../components/WeightChart';
+import { WeightEntryForm } from '../components/WeightEntryForm';
+import { WeightHistoryList } from '../components/WeightHistoryList';
 
 export function ProfileScreen(): JSX.Element {
   const theme = useTheme();
@@ -33,6 +36,7 @@ export function ProfileScreen(): JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [ageInput, setAgeInput] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingDateOriginal, setEditingDateOriginal] = useState<string | null>(null);
   const [newDate, setNewDate] = useState(todayIso());
   const [newWeight, setNewWeight] = useState('');
   const [showImport, setShowImport] = useState(false);
@@ -82,6 +86,28 @@ export function ProfileScreen(): JSX.Element {
     void persist({ ...profile, age: parsed });
   }, [ageInput, persist, profile]);
 
+  const handleOpenAddForm = useCallback(() => {
+    setEditingDateOriginal(null);
+    setNewDate(todayIso());
+    const latest = profile.weightEntries[0]?.weightKg;
+    setNewWeight(latest !== undefined ? String(latest) : '');
+    setShowAddForm(true);
+  }, [profile.weightEntries]);
+
+  const handleEditEntry = useCallback((entry: WeightEntry) => {
+    setEditingDateOriginal(entry.date);
+    setNewDate(entry.date);
+    setNewWeight(String(entry.weightKg));
+    setShowAddForm(true);
+  }, []);
+
+  const handleCloseForm = useCallback(() => {
+    setShowAddForm(false);
+    setEditingDateOriginal(null);
+    setNewWeight('');
+    setNewDate(todayIso());
+  }, []);
+
   const handleAddEntry = useCallback(() => {
     const trimmedWeight = newWeight.trim();
     const weight = Number.parseFloat(trimmedWeight);
@@ -92,18 +118,27 @@ export function ProfileScreen(): JSX.Element {
       Alert.alert('Invalid date', 'Use YYYY-MM-DD.');
       return;
     }
+    if (newDate > todayIso()) {
+      Alert.alert('Invalid date', 'Date cannot be in the future.');
+      return;
+    }
     if (!Number.isFinite(weight) || weight <= 0 || weight > 500) {
       Alert.alert('Invalid weight', 'Enter a weight in kg between 0 and 500.');
       return;
     }
-    const byDate = new Map(profile.weightEntries.map(e => [e.date, e]));
-    byDate.set(newDate, { date: newDate, weightKg: weight });
+    const filtered = editingDateOriginal
+      ? profile.weightEntries.filter(e => e.date !== editingDateOriginal)
+      : profile.weightEntries;
+
+    const byDate = new Map(filtered.map(e => [e.date, e]));
+    byDate.set(newDate, { date: newDate, weightKg: Math.round(weight * 10) / 10 });
     const nextEntries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
     void persist({ ...profile, weightEntries: nextEntries });
     setNewWeight('');
     setNewDate(todayIso());
+    setEditingDateOriginal(null);
     setShowAddForm(false);
-  }, [newDate, newWeight, persist, profile]);
+  }, [editingDateOriginal, newDate, newWeight, persist, profile]);
 
   const handleDeleteEntry = useCallback(
     (date: string) => {
@@ -115,11 +150,14 @@ export function ProfileScreen(): JSX.Element {
           onPress: () => {
             const nextEntries = profile.weightEntries.filter(e => e.date !== date);
             void persist({ ...profile, weightEntries: nextEntries });
+            if (editingDateOriginal === date) {
+              handleCloseForm();
+            }
           }
         }
       ]);
     },
-    [persist, profile]
+    [editingDateOriginal, handleCloseForm, persist, profile]
   );
 
   const handleImport = useCallback(() => {
@@ -199,10 +237,10 @@ export function ProfileScreen(): JSX.Element {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Body weight (kg)</Text>
           <Pressable
-            onPress={() => setShowAddForm(prev => !prev)}
+            onPress={showAddForm ? handleCloseForm : handleOpenAddForm}
             style={styles.smallButton}
             accessibilityRole="button"
-            accessibilityLabel="Add weight entry"
+            accessibilityLabel={showAddForm ? 'Cancel form' : 'Add weight entry'}
           >
             <Ionicons name={showAddForm ? 'close' : 'add'} size={18} color={theme.primary} />
             <Text style={styles.smallButtonLabel}>{showAddForm ? 'Cancel' : 'Add entry'}</Text>
@@ -210,37 +248,16 @@ export function ProfileScreen(): JSX.Element {
         </View>
 
         {showAddForm ? (
-          <View style={styles.addForm}>
-            <View style={styles.addFormRow}>
-              <TextInput
-                style={[styles.input, styles.addFormInput]}
-                value={newDate}
-                onChangeText={setNewDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.textMuted}
-                accessibilityLabel="Date"
-              />
-              <TextInput
-                style={[styles.input, styles.addFormInput]}
-                keyboardType="decimal-pad"
-                value={newWeight}
-                onChangeText={setNewWeight}
-                placeholder="kg"
-                placeholderTextColor={theme.textMuted}
-                accessibilityLabel="Weight in kg"
-              />
-            </View>
-            <Pressable onPress={handleAddEntry} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonLabel}>Save entry</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setNewDate(todayIso())}
-              style={styles.linkButton}
-              accessibilityRole="button"
-            >
-              <Text style={styles.linkLabel}>Use today</Text>
-            </Pressable>
-          </View>
+          <WeightEntryForm
+            theme={theme}
+            editingDateOriginal={editingDateOriginal}
+            newDate={newDate}
+            newWeight={newWeight}
+            latestLoggedWeight={profile.weightEntries[0]?.weightKg}
+            onDateChange={setNewDate}
+            onWeightChange={setNewWeight}
+            onSubmit={handleAddEntry}
+          />
         ) : null}
 
         {profile.weightEntries.length >= 2 ? <WeightChart entries={profile.weightEntries} /> : null}
@@ -248,23 +265,12 @@ export function ProfileScreen(): JSX.Element {
         {profile.weightEntries.length === 0 ? (
           <Text style={styles.muted}>No weight entries yet.</Text>
         ) : (
-          <ScrollView style={styles.entriesList} showsVerticalScrollIndicator nestedScrollEnabled>
-            {profile.weightEntries.map(entry => (
-              <View key={entry.date} style={styles.entryRow}>
-                <View>
-                  <Text style={styles.entryDate}>{entry.date}</Text>
-                  <Text style={styles.entryWeight}>{entry.weightKg} kg</Text>
-                </View>
-                <Pressable
-                  onPress={() => handleDeleteEntry(entry.date)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete entry ${entry.date}`}
-                >
-                  <Ionicons name="trash-outline" size={20} color={theme.danger} />
-                </Pressable>
-              </View>
-            ))}
-          </ScrollView>
+          <WeightHistoryList
+            entries={profile.weightEntries}
+            theme={theme}
+            onEdit={handleEditEntry}
+            onDelete={handleDeleteEntry}
+          />
         )}
 
         <Pressable onPress={() => setShowImport(true)} style={styles.secondaryButton}>
@@ -403,55 +409,6 @@ const createStyles = (theme: ResolvedTheme) =>
       color: theme.primary,
       fontSize: 13,
       fontWeight: '600'
-    },
-    addForm: {
-      marginBottom: 12,
-      gap: 8
-    },
-    addFormRow: {
-      flexDirection: 'row',
-      gap: 8
-    },
-    addFormInput: {
-      flex: 1
-    },
-    primaryButton: {
-      alignItems: 'center',
-      backgroundColor: theme.primary,
-      borderRadius: 10,
-      paddingVertical: 12
-    },
-    primaryButtonLabel: {
-      color: theme.onPrimary,
-      fontWeight: '600'
-    },
-    linkButton: {
-      alignItems: 'center',
-      paddingVertical: 6
-    },
-    linkLabel: {
-      color: theme.primary,
-      fontSize: 13
-    },
-    entryRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border
-    },
-    entriesList: {
-      maxHeight: 240
-    },
-    entryDate: {
-      color: theme.text,
-      fontSize: 14,
-      fontWeight: '600'
-    },
-    entryWeight: {
-      color: theme.textMuted,
-      fontSize: 13
     },
     secondaryButton: {
       flexDirection: 'row',
