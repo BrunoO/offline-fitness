@@ -1,14 +1,23 @@
 import { useActivitiesContext } from '@/features/activities';
-import { Activity, RootStackNavigationProp } from '@/shared';
+import { Activity, formatPace, isPaceSport, RootStackNavigationProp } from '@/shared';
 import { ResolvedTheme, useTheme } from '@/theme';
 import { STACK_ROUTES } from '@/constants';
 
 import { computeDayStreaks, computeWeekStreaks } from '@/shared/services/streaks';
 import { isNoGpsActivity } from '@/shared/utils/activityCategories';
+import {
+  ActivityExtremes,
+  computeActivityExtremes,
+  computeRecordSportOptions,
+  computeRunningBenchmarkPRs,
+  DistanceBenchmarkResult,
+  formatBenchmarkTime,
+  isRunningActivityType
+} from '../services/recordsStats';
 import { weeklyData } from '../services/stats';
 import { useSettings } from '../StatsTabSettingsContext';
 import { useNavigation } from '@react-navigation/native';
-import React, { JSX, useMemo } from 'react';
+import React, { JSX, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -21,7 +30,8 @@ interface RecordItem {
 }
 
 /**
- * A screen listing all-time personal records derived from the user's activities.
+ * A screen listing all-time personal records derived from the user's activities,
+ * with sport filtering and classic running distance benchmarks (5K, 10K, Half Marathon, Marathon).
  * @returns A React component.
  */
 export function RecordsScreen(): JSX.Element {
@@ -31,21 +41,49 @@ export function RecordsScreen(): JSX.Element {
   const { globalActivities } = useActivitiesContext();
   const { numberRecentWeeks, useElapsedTime } = useSettings();
 
+  const sportOptions = useMemo(
+    () => computeRecordSportOptions(globalActivities),
+    [globalActivities]
+  );
+
+  const [selectedSport, setSelectedSport] = useState<string>(() => {
+    const options = computeRecordSportOptions(globalActivities);
+    return options.includes('Run') ? 'Run' : 'All';
+  });
+
+  const activeSport = sportOptions.includes(selectedSport) ? selectedSport : 'All';
+
+  const filteredActivities = useMemo(() => {
+    if (activeSport === 'All') return globalActivities;
+    return globalActivities.filter(a => a.type === activeSport);
+  }, [globalActivities, activeSport]);
+
   const goToActivity = (activityId: string | null) => {
     if (!activityId) return;
     navigation.navigate(STACK_ROUTES.ActivityDetail, { activityId });
   };
 
-  // Aggregate all-time extremes/streaks over the full activity set; memoize so
+  // Aggregate all-time extremes/streaks over the filtered activity set; memoize so
   // it doesn't recompute on every render.
   const records = useMemo<RecordItem[]>(() => {
-    if (globalActivities.length === 0) return [];
-    const extremes = computeActivityExtremes(globalActivities);
-    const longestWeekKm = computeLongestWeekKm(globalActivities, numberRecentWeeks, useElapsedTime);
-    const dayStreak = computeDayStreaks(globalActivities);
-    const weekStreak = computeWeekStreaks(globalActivities);
-    return buildRecordItems(extremes, longestWeekKm, dayStreak.best, weekStreak.best);
-  }, [globalActivities, numberRecentWeeks, useElapsedTime]);
+    if (filteredActivities.length === 0) return [];
+    const extremes = computeActivityExtremes(filteredActivities, useElapsedTime);
+    const longestWeekKm = computeLongestWeekKm(
+      filteredActivities,
+      numberRecentWeeks,
+      useElapsedTime
+    );
+    const dayStreak = computeDayStreaks(filteredActivities);
+    const weekStreak = computeWeekStreaks(filteredActivities);
+    return buildRecordItems(extremes, longestWeekKm, dayStreak.best, weekStreak.best, activeSport);
+  }, [filteredActivities, numberRecentWeeks, useElapsedTime, activeSport]);
+
+  const runningBenchmarks = useMemo<DistanceBenchmarkResult[]>(() => {
+    const showBenchmarks = activeSport === 'All' || isRunningActivityType(activeSport);
+    if (!showBenchmarks) return [];
+    const sourceActivities = activeSport === 'All' ? globalActivities : filteredActivities;
+    return computeRunningBenchmarkPRs(sourceActivities, useElapsedTime);
+  }, [globalActivities, filteredActivities, activeSport, useElapsedTime]);
 
   // Best distance per activity type; memoize (O(n) scan + sort).
   const byType = useMemo(() => {
@@ -75,9 +113,47 @@ export function RecordsScreen(): JSX.Element {
     );
   }
 
+  const sectionHeading = activeSport === 'All' ? 'All-time records' : `${activeSport} records`;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.sectionTitle}>All-time records</Text>
+      {sportOptions.length > 2 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sportChipsContainer}
+        >
+          {sportOptions.map(sport => {
+            const isSelected = sport === activeSport;
+            return (
+              <TouchableOpacity
+                key={sport}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter records by ${sport}`}
+                onPress={() => setSelectedSport(sport)}
+                style={[styles.sportChip, isSelected ? styles.sportChipActive : null]}
+              >
+                <Text
+                  style={[styles.sportChipText, isSelected ? styles.sportChipTextActive : null]}
+                >
+                  {sport}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
+      {runningBenchmarks.length > 0 ? (
+        <RunningBenchmarksSection
+          benchmarks={runningBenchmarks}
+          onPressActivity={goToActivity}
+          styles={styles}
+          theme={theme}
+        />
+      ) : null}
+
+      <Text style={styles.sectionTitle}>{sectionHeading}</Text>
       <View style={styles.grid}>
         {records.map(record => (
           <TouchableOpacity
@@ -124,70 +200,46 @@ export function RecordsScreen(): JSX.Element {
   );
 }
 
-interface ExtremeRecord {
-  value: number;
-  name: string | null;
-  id: string | null;
+interface RunningBenchmarksSectionProps {
+  benchmarks: readonly DistanceBenchmarkResult[];
+  onPressActivity: (activityId: string) => void;
+  styles: ReturnType<typeof createStyles>;
+  theme: ResolvedTheme;
 }
 
-interface ActivityExtremes {
-  longestDistance: ExtremeRecord;
-  longestDuration: ExtremeRecord;
-  mostElevation: ExtremeRecord;
-  fastestSpeed: ExtremeRecord;
-  bestPace: ExtremeRecord;
-}
-
-function updateSpeedAndPace(
-  activity: Activity,
-  distanceKm: number,
-  extremes: { fastestSpeed: ExtremeRecord; bestPace: ExtremeRecord }
-): void {
-  if (activity.elapsed_time <= 0 || distanceKm <= 0) return;
-  const speedKmh = distanceKm / (activity.elapsed_time / 3600);
-  if (speedKmh > extremes.fastestSpeed.value) {
-    extremes.fastestSpeed = { value: speedKmh, name: activity.name, id: activity.id };
-  }
-  const paceMinPerKm = activity.elapsed_time / 60 / distanceKm;
-  if (paceMinPerKm < extremes.bestPace.value) {
-    extremes.bestPace = { value: paceMinPerKm, name: activity.name, id: activity.id };
-  }
-}
-
-function computeActivityExtremes(activities: readonly Activity[]): ActivityExtremes {
-  let longestDistance: ExtremeRecord = { value: 0, name: null, id: null };
-  let longestDuration: ExtremeRecord = { value: 0, name: null, id: null };
-  let mostElevation: ExtremeRecord = { value: 0, name: null, id: null };
-  const speedAndPace = {
-    fastestSpeed: { value: 0, name: null, id: null } as ExtremeRecord,
-    bestPace: { value: Infinity, name: null, id: null } as ExtremeRecord
-  };
-
-  for (const activity of activities) {
-    const distanceKm = activity.distance / 1000;
-    if (distanceKm > longestDistance.value) {
-      longestDistance = { value: distanceKm, name: activity.name, id: activity.id };
-    }
-    if (activity.elapsed_time > longestDuration.value) {
-      longestDuration = { value: activity.elapsed_time, name: activity.name, id: activity.id };
-    }
-    if (activity.total_elevation_gain > mostElevation.value) {
-      mostElevation = {
-        value: activity.total_elevation_gain,
-        name: activity.name,
-        id: activity.id
-      };
-    }
-    updateSpeedAndPace(activity, distanceKm, speedAndPace);
-  }
-
-  return {
-    longestDistance,
-    longestDuration,
-    mostElevation,
-    fastestSpeed: speedAndPace.fastestSpeed,
-    bestPace: speedAndPace.bestPace
-  };
+function RunningBenchmarksSection({
+  benchmarks,
+  onPressActivity,
+  styles,
+  theme
+}: Readonly<RunningBenchmarksSectionProps>): JSX.Element {
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Running distance benchmarks</Text>
+      <View style={styles.grid}>
+        {benchmarks.map(item => (
+          <TouchableOpacity
+            key={item.key}
+            style={styles.card}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.label} personal record ${formatBenchmarkTime(item.estimatedTimeSeconds)}`}
+            onPress={() => onPressActivity(item.activityId)}
+          >
+            <View style={styles.cardHeader}>
+              <Ionicons name="medal-outline" size={20} color={theme.primary} />
+              <Text style={styles.cardLabel}>{item.label}</Text>
+            </View>
+            <Text style={styles.cardValue}>{formatBenchmarkTime(item.estimatedTimeSeconds)}</Text>
+            <Text style={styles.benchmarkSubValue}>{formatPace(item.paceMinPerKm)} /km</Text>
+            <Text style={styles.cardName} numberOfLines={1}>
+              {item.activityName} ({(item.activityDistanceMeters / 1000).toFixed(1)} km)
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </>
+  );
 }
 
 function computeLongestWeekKm(
@@ -212,14 +264,45 @@ function computeLongestWeekKm(
   return longestWeekKm;
 }
 
+function appendRateRecords(
+  items: RecordItem[],
+  extremes: ActivityExtremes,
+  activeSport: string
+): void {
+  const { fastestSpeed, bestPace } = extremes;
+  const isSelectedPace = activeSport !== 'All' && isPaceSport(activeSport);
+  const showSpeed = activeSport === 'All' || !isSelectedPace;
+  const showPace = activeSport === 'All' || isSelectedPace;
+
+  if (showPace && bestPace.value !== Infinity) {
+    items.push({
+      icon: 'footsteps-outline',
+      label: 'Best pace',
+      value: `${formatPace(bestPace.value)} /km`,
+      name: bestPace.name,
+      activityId: bestPace.id
+    });
+  }
+  if (showSpeed && fastestSpeed.value > 0) {
+    items.push({
+      icon: 'speedometer-outline',
+      label: 'Fastest average speed',
+      value: `${fastestSpeed.value.toFixed(1)} km/h`,
+      name: fastestSpeed.name,
+      activityId: fastestSpeed.id
+    });
+  }
+}
+
 function buildRecordItems(
   extremes: ActivityExtremes,
   longestWeekKm: number,
   dayStreakBest: number,
-  weekStreakBest: number
+  weekStreakBest: number,
+  activeSport: string
 ): RecordItem[] {
   const items: RecordItem[] = [];
-  const { longestDistance, longestDuration, mostElevation, fastestSpeed, bestPace } = extremes;
+  const { longestDistance, longestDuration, mostElevation } = extremes;
 
   if (longestDistance.value > 0) {
     items.push({
@@ -248,24 +331,7 @@ function buildRecordItems(
       activityId: mostElevation.id
     });
   }
-  if (fastestSpeed.value > 0) {
-    items.push({
-      icon: 'speedometer-outline',
-      label: 'Fastest average speed',
-      value: `${fastestSpeed.value.toFixed(1)} km/h`,
-      name: fastestSpeed.name,
-      activityId: fastestSpeed.id
-    });
-  }
-  if (bestPace.value !== Infinity) {
-    items.push({
-      icon: 'footsteps-outline',
-      label: 'Best pace',
-      value: `${formatPace(bestPace.value)} /km`,
-      name: bestPace.name,
-      activityId: bestPace.id
-    });
-  }
+  appendRateRecords(items, extremes, activeSport);
   if (longestWeekKm > 0) {
     items.push({
       icon: 'calendar-outline',
@@ -305,12 +371,6 @@ function formatDuration(seconds: number): string {
   return `${s}s`;
 }
 
-function formatPace(minPerKm: number): string {
-  const m = Math.floor(minPerKm);
-  const s = Math.round((minPerKm - m) * 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 const createStyles = (theme: ResolvedTheme) =>
   StyleSheet.create({
     container: {
@@ -325,6 +385,32 @@ const createStyles = (theme: ResolvedTheme) =>
     emptyText: {
       color: theme.textMuted,
       fontSize: 16
+    },
+    sportChipsContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 2,
+      paddingBottom: 4
+    },
+    sportChip: {
+      paddingVertical: 6,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      backgroundColor: theme.surfaceSunken,
+      borderWidth: 1,
+      borderColor: theme.border
+    },
+    sportChipActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary
+    },
+    sportChipText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text
+    },
+    sportChipTextActive: {
+      color: theme.onPrimary
     },
     sectionTitle: {
       fontSize: 18,
@@ -373,6 +459,12 @@ const createStyles = (theme: ResolvedTheme) =>
       fontSize: 20,
       fontWeight: '700',
       color: theme.primary
+    },
+    benchmarkSubValue: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text,
+      marginTop: 2
     },
     cardName: {
       fontSize: 12,

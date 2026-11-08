@@ -31,6 +31,18 @@ export {
   type WeekSummary
 } from './services/stats';
 export {
+  computeActivityExtremes,
+  computeRecordSportOptions,
+  computeRunningBenchmarkPRs,
+  formatBenchmarkTime,
+  isRunningActivityType,
+  RUNNING_DISTANCE_BENCHMARKS,
+  type ActivityExtremes,
+  type DistanceBenchmarkDefinition,
+  type DistanceBenchmarkResult,
+  type ExtremeRecord
+} from './services/recordsStats';
+export {
   calculateYTDStats,
   type YTDDataPoint,
   type YTDStats,
