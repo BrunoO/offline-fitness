@@ -37,6 +37,7 @@ export function ProfileScreen(): JSX.Element {
   const [ageInput, setAgeInput] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingDateOriginal, setEditingDateOriginal] = useState<string | null>(null);
+  const [initialEditWeight, setInitialEditWeight] = useState<number | undefined>(undefined);
   const [newDate, setNewDate] = useState(todayIso());
   const [newWeight, setNewWeight] = useState('');
   const [showImport, setShowImport] = useState(false);
@@ -88,6 +89,7 @@ export function ProfileScreen(): JSX.Element {
 
   const handleOpenAddForm = useCallback(() => {
     setEditingDateOriginal(null);
+    setInitialEditWeight(undefined);
     setNewDate(todayIso());
     const latest = profile.weightEntries[0]?.weightKg;
     setNewWeight(latest !== undefined ? String(latest) : '');
@@ -96,6 +98,7 @@ export function ProfileScreen(): JSX.Element {
 
   const handleEditEntry = useCallback((entry: WeightEntry) => {
     setEditingDateOriginal(entry.date);
+    setInitialEditWeight(entry.weightKg);
     setNewDate(entry.date);
     setNewWeight(String(entry.weightKg));
     setShowAddForm(true);
@@ -104,6 +107,7 @@ export function ProfileScreen(): JSX.Element {
   const handleCloseForm = useCallback(() => {
     setShowAddForm(false);
     setEditingDateOriginal(null);
+    setInitialEditWeight(undefined);
     setNewWeight('');
     setNewDate(todayIso());
   }, []);
@@ -126,6 +130,9 @@ export function ProfileScreen(): JSX.Element {
       Alert.alert('Invalid weight', 'Enter a weight in kg between 0 and 500.');
       return;
     }
+    // If editing and changing the date, remove the old date record first.
+    // If newDate already exists in the profile, byDate.set(newDate, ...) merges/overwrites
+    // that date's record (one weight entry per calendar day by domain design).
     const filtered = editingDateOriginal
       ? profile.weightEntries.filter(e => e.date !== editingDateOriginal)
       : profile.weightEntries;
@@ -137,6 +144,7 @@ export function ProfileScreen(): JSX.Element {
     setNewWeight('');
     setNewDate(todayIso());
     setEditingDateOriginal(null);
+    setInitialEditWeight(undefined);
     setShowAddForm(false);
   }, [editingDateOriginal, newDate, newWeight, persist, profile]);
 
@@ -254,6 +262,7 @@ export function ProfileScreen(): JSX.Element {
             newDate={newDate}
             newWeight={newWeight}
             latestLoggedWeight={profile.weightEntries[0]?.weightKg}
+            initialEditWeight={initialEditWeight}
             onDateChange={setNewDate}
             onWeightChange={setNewWeight}
             onSubmit={handleAddEntry}

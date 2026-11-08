@@ -53,38 +53,41 @@ export function WeightHistoryList({
           }
 
           return (
-            <Pressable
-              key={entry.date}
-              style={styles.entryRow}
-              onPress={() => onEdit(entry)}
-              accessibilityRole="button"
-              accessibilityLabel={`Edit weight entry for ${entry.date}`}
-            >
-              <View style={styles.entryLeftCol}>
-                <Text style={styles.entryDate}>{entry.date}</Text>
-                <View style={styles.weightLine}>
-                  <Text style={styles.entryWeight}>{entry.weightKg.toFixed(1)} kg</Text>
-                  {deltaInfo !== null ? (
-                    <View style={styles.deltaBadge}>
-                      <Text style={[styles.deltaText, { color: deltaColor }]}>
-                        {deltaInfo.text}
-                      </Text>
-                    </View>
-                  ) : null}
+            <View key={entry.date} style={styles.entryRow}>
+              {/* Main content button triggers edit */}
+              <Pressable
+                style={styles.entryMainButton}
+                onPress={() => onEdit(entry)}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit weight entry for ${entry.date}`}
+              >
+                <View style={styles.entryLeftCol}>
+                  <Text style={styles.entryDate}>{entry.date}</Text>
+                  <View style={styles.weightLine}>
+                    <Text style={styles.entryWeight}>{entry.weightKg.toFixed(1)} kg</Text>
+                    {deltaInfo !== null ? (
+                      <View style={styles.deltaBadge}>
+                        <Text style={[styles.deltaText, { color: deltaColor }]}>
+                          {deltaInfo.text}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-              <View style={styles.entryActions}>
                 <Ionicons name="pencil" size={16} color={theme.textMuted} style={styles.editIcon} />
-                <Pressable
-                  onPress={() => onDelete(entry.date)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete entry ${entry.date}`}
-                  hitSlop={8}
-                >
-                  <Ionicons name="trash-outline" size={20} color={theme.danger} />
-                </Pressable>
-              </View>
-            </Pressable>
+              </Pressable>
+
+              {/* Separate delete action button (not nested) */}
+              <Pressable
+                onPress={() => onDelete(entry.date)}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete entry ${entry.date}`}
+                hitSlop={8}
+                style={styles.deleteButton}
+              >
+                <Ionicons name="trash-outline" size={20} color={theme.danger} />
+              </Pressable>
+            </View>
           );
         })}
       </ScrollView>
@@ -107,11 +110,17 @@ const createStyles = (theme: ResolvedTheme) =>
     },
     entryRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: theme.border
+    },
+    entryMainButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      paddingRight: 12
     },
     entryLeftCol: {
       flex: 1
@@ -140,12 +149,12 @@ const createStyles = (theme: ResolvedTheme) =>
       fontSize: 12,
       fontWeight: '600'
     },
-    entryActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12
-    },
     editIcon: {
       marginRight: 4
+    },
+    deleteButton: {
+      paddingVertical: 10,
+      paddingLeft: 8,
+      paddingRight: 4
     }
   });

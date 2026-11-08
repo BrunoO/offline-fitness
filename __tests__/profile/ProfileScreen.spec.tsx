@@ -100,6 +100,33 @@ describe('ProfileScreen date and weight inputs', () => {
     });
   });
 
+  it('allows picking date via DateTimePicker and quick date chips', async () => {
+    const { getByText, getByLabelText, findByText, getByTestId } = renderWithProviders(
+      <ProfileScreen />
+    );
+
+    await findByText('2026-03-20');
+    fireEvent.press(getByText('Add entry'));
+
+    // Open DateTimePicker modal
+    fireEvent.press(getByLabelText('Pick date'));
+    const picker = getByTestId('date-time-picker');
+    expect(picker).toBeTruthy();
+
+    // Trigger mock date selection (2026-03-15)
+    fireEvent(picker, 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
+    expect(getByText('2026-03-15')).toBeTruthy();
+
+    // Select "Yesterday" chip
+    const yesterdayChip = getByLabelText('Select yesterday');
+    fireEvent.press(yesterdayChip);
+
+    // Select "Today" chip
+    const todayChip = getByLabelText('Select today');
+    fireEvent.press(todayChip);
+    expect(getByText(profileStorage.todayIso())).toBeTruthy();
+  });
+
   it('allows tapping an entry to edit its date and weight', async () => {
     const { getByText, getByLabelText, findByText } = renderWithProviders(<ProfileScreen />);
 
@@ -110,6 +137,12 @@ describe('ProfileScreen date and weight inputs', () => {
     expect(getByText('Edit entry (2026-03-20)')).toBeTruthy();
     const weightInput = getByLabelText('Weight in kilograms');
     expect(weightInput.props.value).toBe('75');
+
+    // Clearing input and adjusting falls back to initialEditWeight (75), not latest entry if different
+    fireEvent.changeText(weightInput, '');
+    const plusPointOne = getByLabelText('Increase weight by 0.1 kg');
+    fireEvent.press(plusPointOne);
+    expect(weightInput.props.value).toBe('75.1');
 
     fireEvent.changeText(weightInput, '74.2');
     const updateButton = getByText('Update entry');
@@ -125,5 +158,16 @@ describe('ProfileScreen date and weight inputs', () => {
         })
       );
     });
+  });
+
+  it('allows deleting an entry without triggering edit', async () => {
+    const { getByLabelText, findByText, queryByText } = renderWithProviders(<ProfileScreen />);
+
+    await findByText('2026-03-20');
+    const deleteButton = getByLabelText('Delete entry 2026-03-20');
+    fireEvent.press(deleteButton);
+
+    // Form should NOT have opened in edit mode
+    expect(queryByText('Edit entry (2026-03-20)')).toBeNull();
   });
 });

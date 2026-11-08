@@ -11,6 +11,7 @@ interface WeightEntryFormProps {
   newDate: string;
   newWeight: string;
   latestLoggedWeight?: number;
+  initialEditWeight?: number;
   onDateChange: (date: string) => void;
   onWeightChange: (weight: string) => void;
   onSubmit: () => void;
@@ -35,6 +36,7 @@ export function WeightEntryForm({
   newDate,
   newWeight,
   latestLoggedWeight,
+  initialEditWeight,
   onDateChange,
   onWeightChange,
   onSubmit
@@ -49,13 +51,15 @@ export function WeightEntryForm({
   const handleAdjustWeight = useCallback(
     (delta: number) => {
       const current = Number.parseFloat(newWeight.trim());
-      const base = Number.isFinite(current) ? current : (latestLoggedWeight ?? 70);
+      // When input is cleared while editing, fall back to initialEditWeight; otherwise latestLoggedWeight.
+      const fallback = editingDateOriginal ? (initialEditWeight ?? 70) : (latestLoggedWeight ?? 70);
+      const base = Number.isFinite(current) ? current : fallback;
       const updated = Math.round((base + delta) * 10) / 10;
       if (updated > 0 && updated <= 500) {
         onWeightChange(String(updated));
       }
     },
-    [latestLoggedWeight, newWeight, onWeightChange]
+    [editingDateOriginal, initialEditWeight, latestLoggedWeight, newWeight, onWeightChange]
   );
 
   const handleDatePickerChange = useCallback(
