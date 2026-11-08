@@ -1,6 +1,6 @@
 import { ResolvedTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import React, { JSX, useCallback, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { todayIso } from '../services/profileStorage';
@@ -63,15 +63,13 @@ export function WeightEntryForm({
   );
 
   const handleDatePickerChange = useCallback(
-    (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    (_event: DateTimePickerChangeEvent, selectedDate: Date) => {
       if (Platform.OS === 'android') {
         setShowDatePicker(false);
       }
-      if (selectedDate) {
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        onDateChange(`${selectedDate.getFullYear()}-${month}-${day}`);
-      }
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      onDateChange(`${selectedDate.getFullYear()}-${month}-${day}`);
     },
     [onDateChange]
   );
@@ -137,7 +135,8 @@ export function WeightEntryForm({
               mode="date"
               display={Platform.OS === 'ios' ? 'inline' : 'default'}
               maximumDate={maxDateObj}
-              onChange={handleDatePickerChange}
+              onValueChange={handleDatePickerChange}
+              onDismiss={() => setShowDatePicker(false)}
             />
             {Platform.OS === 'ios' ? (
               <Pressable

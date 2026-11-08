@@ -82,7 +82,7 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
     const weights = data.map(d => d.y);
     const min = Math.min(...weights);
     const max = Math.max(...weights);
-    const latest = data[data.length - 1].y;
+    const latest = data.at(-1)?.y ?? 0;
     const first = data[0].y;
     const totalDiff = Math.round((latest - first) * 10) / 10;
     return {
@@ -99,7 +99,9 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
       setActiveRange(range);
       setSelectedPoint(null);
       if (data.length < 2) return;
-      const latestMs = data[data.length - 1].x;
+      const latestPoint = data.at(-1);
+      if (!latestPoint) return;
+      const latestMs = latestPoint.x;
       const startMs = getRangeStartTimestamp(latestMs, range);
       if (startMs === null) {
         setZoomDomainX(undefined);

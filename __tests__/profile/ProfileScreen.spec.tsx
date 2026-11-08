@@ -20,13 +20,19 @@ jest.mock('@react-native-community/datetimepicker', () => {
   const { View } = require('react-native');
   return {
     __esModule: true,
-    default: ({ testID, onChange }: { testID?: string; onChange?: (e: unknown, d?: Date) => void }) => {
+    default: ({
+      testID,
+      onValueChange
+    }: {
+      testID?: string;
+      onValueChange?: (e: unknown, d?: Date) => void;
+    }) => {
       return (
         <View
           testID={testID ?? 'date-time-picker'}
           accessibilityRole="adjustable"
           onAccessibilityAction={() => {
-            onChange?.({}, new Date(2026, 2, 15));
+            onValueChange?.({}, new Date(2026, 2, 15));
           }}
         />
       );
