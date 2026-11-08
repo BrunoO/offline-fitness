@@ -59,9 +59,21 @@ if [[ "$RUN_SCAN" == "true" ]]; then
     done
 fi
 
+# --- determine branch or pull request scope (in CI or local) ---
+SCOPE_PARAM=""
+if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+    # In GitHub Actions pull_request event, GITHUB_REF is refs/pull/<PR>/merge
+    PR_NUM=$(echo "${GITHUB_REF:-}" | sed -n 's|refs/pull/\([0-9]*\)/.*|\1|p')
+    if [[ -n "$PR_NUM" ]]; then
+        SCOPE_PARAM="pullRequest=${PR_NUM}&"
+    fi
+elif [[ -n "${GITHUB_REF_NAME:-}" ]]; then
+    SCOPE_PARAM="branch=${GITHUB_REF_NAME}&"
+fi
+
 # --- check: count OPEN/CONFIRMED issues via the API directly ---
 TOTAL=$(curl -s -u "$TOKEN:" \
-    "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&issueStatuses=OPEN,CONFIRMED&ps=100" \
+    "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&${SCOPE_PARAM}issueStatuses=OPEN,CONFIRMED&ps=100" \
     | jq -r '.total // empty')
 
 if [[ -z "$TOTAL" ]]; then
@@ -77,7 +89,7 @@ fi
 echo -e "${RED}❌ Sonar gate FAILED: ${TOTAL} open issue(s).${NC}"
 echo "Open issues by file (fix these; do NOT mark won't-fix as an agent):"
 curl -s -u "$TOKEN:" \
-    "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&issueStatuses=OPEN,CONFIRMED&ps=100" \
+    "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&${SCOPE_PARAM}issueStatuses=OPEN,CONFIRMED&ps=100" \
     | jq -r '.issues[] | "  \(.component | sub("^.*:"; "")):\(.line // "?") [\(.severity)] \(.rule) \(.message[0:80])"' | sort -u
 echo "Details: https://sonarcloud.io/project/issues?id=${PROJECT_KEY}&issueStatuses=open"
 exit 1
