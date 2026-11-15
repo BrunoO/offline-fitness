@@ -266,6 +266,26 @@ export function RecordingScreen({
     };
   }, [isLive]);
 
+  // Automatically lock screen when a new recording session begins.
+  const prevPhaseRef = useRef(state.phase);
+  useEffect(() => {
+    if (prevPhaseRef.current === 'idle' && state.phase === 'recording') {
+      setIsScreenLocked(true);
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state.phase]);
+
+  const handleStart = async () => {
+    try {
+      const started = await start(profile);
+      if (started !== false) {
+        setIsScreenLocked(true);
+      }
+    } catch {
+      setIsScreenLocked(false);
+    }
+  };
+
   const handleSelectProfile = (nextProfile: Profile) => {
     setProfile(nextProfile);
     void saveLastRecordingProfile(nextProfile);
@@ -359,7 +379,7 @@ export function RecordingScreen({
         isBusy={isBusy}
         isLocked={isScreenLocked}
         onStart={() => {
-          void start(profile);
+          void handleStart();
         }}
         onPause={() => {
           void pause();

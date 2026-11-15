@@ -45,7 +45,7 @@ export interface UseRecordingResult {
   unfinished: RecordingMeta[];
   saveUnfinished: (sessionId: string) => Promise<Activity | null>;
   discardUnfinished: (sessionId: string) => Promise<void>;
-  start: (profile: Profile) => Promise<void>;
+  start: (profile: Profile) => Promise<boolean>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
@@ -454,7 +454,7 @@ export function useRecording(): UseRecordingResult {
   }, []);
 
   const start = useCallback(
-    async (profile: Profile) => {
+    async (profile: Profile): Promise<boolean> => {
       setError(null);
       setIsBusy(true);
 
@@ -463,7 +463,7 @@ export function useRecording(): UseRecordingResult {
         if (!isLocationAllowed) {
           setError('Location permission is required to record.');
           setIsBusy(false);
-          return;
+          return false;
         }
 
         const meta = await GpsTracker.startRecording({
@@ -491,12 +491,14 @@ export function useRecording(): UseRecordingResult {
           startedAtUtcMs: meta.startedAtUtcMs
         });
         setLiveStats(null);
+        setIsBusy(false);
+        return true;
       } catch (cause: unknown) {
         simpleLogger.error('Could not start recording', cause);
         setError(describeError(cause, 'Could not start the recording service.'));
+        setIsBusy(false);
+        return false;
       }
-
-      setIsBusy(false);
     },
     [requestPermissions, capabilities]
   );

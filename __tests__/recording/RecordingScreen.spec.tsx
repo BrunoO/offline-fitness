@@ -561,6 +561,81 @@ describe('RecordingScreen', () => {
       expect(getByLabelText('Resume recording')).toBeTruthy();
       expect(getByLabelText('Stop recording')).toBeTruthy();
     });
+
+    it('automatically locks the screen when recording starts', async () => {
+      const start = jest.fn().mockResolvedValue(true);
+      mockUseRecording.mockReturnValue({
+        capabilities: { canRecord: true },
+        state: { phase: 'idle' },
+        activeProfile: null,
+        liveStats: null,
+        summary: null,
+        splits: [],
+        heartRateSummary: null,
+        lastSplit: null,
+        error: null,
+        isBusy: false,
+        isSaving: false,
+        unfinished: [],
+        start,
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        save: jest.fn(),
+        discard: jest.fn(),
+        saveUnfinished: jest.fn(),
+        discardUnfinished: jest.fn()
+      });
+
+      const { getByText, getByLabelText, queryByText } = render(wrap(<RecordingScreen />));
+
+      expect(queryByText('Screen locked')).toBeNull();
+      expect(getByLabelText('Start recording')).toBeTruthy();
+
+      await act(async () => {
+        fireEvent.press(getByLabelText('Start recording'));
+      });
+
+      expect(start).toHaveBeenCalledTimes(1);
+      expect(getByText('Screen locked')).toBeTruthy();
+      expect(getByLabelText('Hold to unlock screen')).toBeTruthy();
+    });
+
+    it('does not lock the screen if starting fails', async () => {
+      const start = jest.fn().mockResolvedValue(false);
+      mockUseRecording.mockReturnValue({
+        capabilities: { canRecord: true },
+        state: { phase: 'idle' },
+        activeProfile: null,
+        liveStats: null,
+        summary: null,
+        splits: [],
+        heartRateSummary: null,
+        lastSplit: null,
+        error: 'Location permission is required to record.',
+        isBusy: false,
+        isSaving: false,
+        unfinished: [],
+        start,
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        save: jest.fn(),
+        discard: jest.fn(),
+        saveUnfinished: jest.fn(),
+        discardUnfinished: jest.fn()
+      });
+
+      const { queryByText, getByLabelText } = render(wrap(<RecordingScreen />));
+
+      await act(async () => {
+        fireEvent.press(getByLabelText('Start recording'));
+      });
+
+      expect(start).toHaveBeenCalledTimes(1);
+      expect(queryByText('Screen locked')).toBeNull();
+      expect(queryByText('Hold to unlock screen')).toBeNull();
+    });
   });
 
   it('restores last-used profile from AsyncStorage, persists changes, and navigates to Details on save', async () => {
