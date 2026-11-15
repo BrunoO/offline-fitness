@@ -1575,9 +1575,6 @@ function OverviewSection({
   scrubDetails,
   onScrubChange
 }: Readonly<OverviewSectionProps>): JSX.Element {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-
   return (
     <>
       <ActivityDetails item={item} />
