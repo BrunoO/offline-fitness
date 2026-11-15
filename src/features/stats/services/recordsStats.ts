@@ -1,5 +1,5 @@
 import { Activity } from '@/shared/types/types';
-import { calculatePaceMinPerKm, calculateSpeedKmh } from '@/shared/utils/utils';
+import { calculatePaceMinPerKm, calculateSpeedKmh, formatDurationHms } from '@/shared/utils/utils';
 
 export interface ExtremeRecord {
   value: number;
@@ -208,17 +208,8 @@ export function computeRunningBenchmarkPRs(
 }
 
 /**
- * Formats a benchmark duration in seconds as `H:MM:SS` (when >= 1h) or `MM:SS` (when < 1h).
+ * Formats a benchmark duration in seconds as `H:MM:SS` (when >= 1h) or `M:SS` (when < 1h).
  */
 export function formatBenchmarkTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '-';
-  const rounded = Math.round(seconds);
-  const h = Math.floor(rounded / 3600);
-  const m = Math.floor((rounded % 3600) / 60);
-  const s = rounded % 60;
-  const ss = String(s).padStart(2, '0');
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${ss}`;
-  }
-  return `${m}:${ss}`;
+  return formatDurationHms(seconds, '-');
 }

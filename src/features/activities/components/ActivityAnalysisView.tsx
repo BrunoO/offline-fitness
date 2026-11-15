@@ -1286,6 +1286,66 @@ function MatchSettingsModal({
   );
 }
 
+interface AltitudeProfileCardProps {
+  subtitle: string;
+  hasDistanceAxis: boolean;
+  scrubDetails: { x: number; altitude: number } | null | undefined;
+  onClearScrub: () => void;
+  altitudeDataXY: { x: number; y: number }[] | undefined;
+  mapWidth: number;
+  scrubX?: number | null;
+  onScrubChange?: (x: number | null) => void;
+}
+
+function AltitudeProfileCard({
+  subtitle,
+  hasDistanceAxis,
+  scrubDetails,
+  onClearScrub,
+  altitudeDataXY,
+  mapWidth,
+  scrubX,
+  onScrubChange
+}: Readonly<AltitudeProfileCardProps>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <View style={styles.chartSectionCard}>
+      <View style={styles.chartHeaderRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.chartSectionTitle}>Altitude Profile</Text>
+          <Text style={styles.chartSectionSubtitle}>{subtitle}</Text>
+        </View>
+        {scrubDetails ? (
+          <View style={styles.scrubPill}>
+            <Text style={styles.scrubPillText}>
+              {hasDistanceAxis
+                ? `${scrubDetails.x.toFixed(2)} km • ${scrubDetails.altitude} m`
+                : `${formatTime(scrubDetails.x)} • ${scrubDetails.altitude} m`}
+            </Text>
+            <TouchableOpacity
+              onPress={onClearScrub}
+              accessibilityRole="button"
+              accessibilityLabel="Clear scrub cursor"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialCommunityIcons name="close-circle" size={16} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+      <AltitudeChart
+        altitudeDataXY={altitudeDataXY}
+        mapWidth={mapWidth}
+        hasDistanceAxis={hasDistanceAxis}
+        scrubX={scrubX}
+        onScrubChange={onScrubChange}
+      />
+    </View>
+  );
+}
+
 interface TelemetryChartsProps {
   altitudeDataXY: { x: number; y: number }[] | undefined;
   elevationGain: { x: number; y: number }[] | undefined;
@@ -1318,40 +1378,18 @@ function TelemetryChartsSection({
 
   return (
     <>
-      <View style={styles.chartSectionCard}>
-        <View style={styles.chartHeaderRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.chartSectionTitle}>Altitude Profile</Text>
-            <Text style={styles.chartSectionSubtitle}>
-              {hasDistanceAxis ? 'Drag or tap to inspect location on map' : 'Elevation along time'}
-            </Text>
-          </View>
-          {scrubDetails ? (
-            <View style={styles.scrubPill}>
-              <Text style={styles.scrubPillText}>
-                {hasDistanceAxis
-                  ? `${scrubDetails.x.toFixed(2)} km • ${scrubDetails.altitude} m`
-                  : `${formatTime(scrubDetails.x)} • ${scrubDetails.altitude} m`}
-              </Text>
-              <TouchableOpacity
-                onPress={() => onScrubChange?.(null)}
-                accessibilityRole="button"
-                accessibilityLabel="Clear scrub cursor"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialCommunityIcons name="close-circle" size={16} color={theme.textMuted} />
-              </TouchableOpacity>
-            </View>
-          ) : null}
-        </View>
-        <AltitudeChart
-          altitudeDataXY={altitudeDataXY}
-          mapWidth={mapWidth}
-          hasDistanceAxis={hasDistanceAxis}
-          scrubX={scrubX}
-          onScrubChange={onScrubChange}
-        />
-      </View>
+      <AltitudeProfileCard
+        subtitle={
+          hasDistanceAxis ? 'Drag or tap to inspect location on map' : 'Elevation along time'
+        }
+        hasDistanceAxis={hasDistanceAxis}
+        scrubDetails={scrubDetails}
+        onClearScrub={() => onScrubChange?.(null)}
+        altitudeDataXY={altitudeDataXY}
+        mapWidth={mapWidth}
+        scrubX={scrubX}
+        onScrubChange={onScrubChange}
+      />
 
       <View style={styles.chartSectionCard}>
         <View style={styles.chartHeaderRow}>
@@ -1546,40 +1584,16 @@ function OverviewSection({
       {splits.length > 0 ? <SplitsSection splits={splits} activityType={item.type} /> : null}
       {hrZoneDistribution ? <HeartRateZonesCard distribution={hrZoneDistribution} /> : null}
       {altitudeDataXY && altitudeDataXY.length > 0 ? (
-        <View style={styles.chartSectionCard}>
-          <View style={styles.chartHeaderRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.chartSectionTitle}>Altitude Profile</Text>
-              <Text style={styles.chartSectionSubtitle}>
-                {hasDistanceAxis ? 'Elevation over distance' : 'Elevation over time'}
-              </Text>
-            </View>
-            {scrubDetails ? (
-              <View style={styles.scrubPill}>
-                <Text style={styles.scrubPillText}>
-                  {hasDistanceAxis
-                    ? `${scrubDetails.x.toFixed(2)} km • ${scrubDetails.altitude} m`
-                    : `${formatTime(scrubDetails.x)} • ${scrubDetails.altitude} m`}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => onScrubChange(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear scrub cursor"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MaterialCommunityIcons name="close-circle" size={16} color={theme.textMuted} />
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </View>
-          <AltitudeChart
-            altitudeDataXY={altitudeDataXY}
-            mapWidth={mapWidth}
-            hasDistanceAxis={hasDistanceAxis}
-            scrubX={scrubX}
-            onScrubChange={onScrubChange}
-          />
-        </View>
+        <AltitudeProfileCard
+          subtitle={hasDistanceAxis ? 'Elevation over distance' : 'Elevation over time'}
+          hasDistanceAxis={hasDistanceAxis}
+          scrubDetails={scrubDetails}
+          onClearScrub={() => onScrubChange(null)}
+          altitudeDataXY={altitudeDataXY}
+          mapWidth={mapWidth}
+          scrubX={scrubX}
+          onScrubChange={onScrubChange}
+        />
       ) : null}
     </>
   );

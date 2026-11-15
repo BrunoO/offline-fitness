@@ -611,6 +611,23 @@ export function formatPace(minPerKm: number): string {
 }
 
 /**
+ * Formats a duration in seconds as `H:MM:SS` (when >= 1h) or `M:SS` (when < 1h).
+ * If value is not finite or <= 0, returns `emptyLabel`.
+ */
+export function formatDurationHms(seconds: number, emptyLabel = '0:00'): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return emptyLabel;
+  const rounded = Math.round(seconds);
+  const h = Math.floor(rounded / 3600);
+  const m = Math.floor((rounded % 3600) / 60);
+  const s = rounded % 60;
+  const ss = String(s).padStart(2, '0');
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+  }
+  return `${m}:${ss}`;
+}
+
+/**
  * Formats an activity's movement rate using sport-appropriate units:
  * - Swim: "M:SS /100m"
  * - Pace sports (Run, TrailRun, Walk, Hike): "M:SS /km"

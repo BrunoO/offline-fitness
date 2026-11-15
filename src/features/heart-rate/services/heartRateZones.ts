@@ -1,4 +1,5 @@
 import type { Activity } from '@/shared';
+import { formatDurationHms } from '@/shared/utils/utils';
 
 export interface HeartRateProfileInput {
   age?: number;
@@ -273,16 +274,7 @@ export function computeHeartRateZoneDistribution(params: {
  * Formats a duration in seconds as `H:MM:SS` (when >= 1h) or `M:SS` (when < 1h).
  */
 export function formatZoneDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
-  const rounded = Math.round(seconds);
-  const h = Math.floor(rounded / 3600);
-  const m = Math.floor((rounded % 3600) / 60);
-  const s = rounded % 60;
-  const ss = String(s).padStart(2, '0');
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${ss}`;
-  }
-  return `${m}:${ss}`;
+  return formatDurationHms(seconds, '0:00');
 }
 
 export function formatMaxHrSourceLabel(source: MaxHeartRateSource): string {
