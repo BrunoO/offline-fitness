@@ -22,20 +22,14 @@ export type MiniMapComponentProps = {
   activityType?: string;
   allowFlyover?: boolean;
   highlightCoordinate?: LatLng | null;
+  /** Optional custom color for the overlay stream (defaults to theme.info) */
+  overlayColor?: string;
 };
 
 // Adjust this constant to control how many direction arrows are displayed along the track
 // Recommended values are between 2 and 10
 const NUM_DIRECTION_ARROWS = APP_CONFIG.NUM_DIRECTION_ARROWS;
 
-// Track colors
-const TRACK_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.PRIMARY;
-const TRACK_OVERLAY_COLOR = APP_CONFIG.TRACK_COLORS.OVERLAY;
-const FILL_PRIMARY_COLOR = APP_CONFIG.TRACK_COLORS.FILL_PRIMARY;
-// High-contrast solid badge fills (WCAG AA >= 6.4:1 against white chevron & ring,
-// and tonally deeper than the #EF4444 / #3B82F6 polylines underneath)
-const ARROW_PRIMARY_COLOR = '#B91C1C';
-const ARROW_OVERLAY_COLOR = '#1D4ED8';
 const ARROW_BADGE_HALO_COLOR = '#FFFFFF';
 const PRIMARY_ARROW_Z_INDEX = 30;
 const OVERLAY_ARROW_Z_INDEX = 20;
@@ -103,13 +97,17 @@ type MiniMapLayersProps = {
   overlayCoordinates: LatLng[] | undefined;
   highlightCoordinate?: LatLng | null;
   region?: Region | null;
+  primaryColor: string;
+  overlayColor: string;
 };
 
 function MiniMapLayers({
   coordinates,
   overlayCoordinates,
   highlightCoordinate,
-  region
+  region,
+  primaryColor,
+  overlayColor
 }: Readonly<MiniMapLayersProps>) {
   const scrubberOccupied = highlightCoordinate ? [highlightCoordinate] : [];
   const primaryArrows = computeDirectionArrows(coordinates, {
@@ -135,31 +133,22 @@ function MiniMapLayers({
         />
       ) : null}
       {coordinates?.length ? (
-        <Polyline
-          coordinates={coordinates}
-          strokeWidth={5}
-          strokeColor={TRACK_PRIMARY_COLOR}
-          fillColor={FILL_PRIMARY_COLOR}
-        />
+        <Polyline coordinates={coordinates} strokeWidth={5} strokeColor={primaryColor} />
       ) : null}
       {overlayCoordinates?.length ? (
-        <Polyline
-          coordinates={overlayCoordinates}
-          strokeWidth={3}
-          strokeColor={TRACK_OVERLAY_COLOR}
-        />
+        <Polyline coordinates={overlayCoordinates} strokeWidth={4} strokeColor={overlayColor} />
       ) : null}
       {renderDirectionArrowMarkers(
         primaryArrows.arrows,
         primaryArrows.visualSpec,
-        ARROW_PRIMARY_COLOR,
+        primaryColor,
         'primary',
         PRIMARY_ARROW_Z_INDEX
       )}
       {renderDirectionArrowMarkers(
         overlayArrows.arrows,
         overlayArrows.visualSpec,
-        ARROW_OVERLAY_COLOR,
+        overlayColor,
         'overlay',
         OVERLAY_ARROW_Z_INDEX
       )}
@@ -172,7 +161,7 @@ function MiniMapLayers({
               borderRadius: 9,
               backgroundColor: '#FFFFFF',
               borderWidth: 3,
-              borderColor: '#1976D2',
+              borderColor: primaryColor,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.35,
@@ -407,6 +396,8 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
               overlayCoordinates={props.overlayStream?.coordinates}
               highlightCoordinate={props.highlightCoordinate}
               region={currentRegion}
+              primaryColor={theme.primary}
+              overlayColor={props.overlayColor ?? theme.info}
             />
           </MapView>
 

@@ -142,6 +142,16 @@ export const createStyles = (theme: ResolvedTheme) =>
     heroHeaderText: {
       flex: 1
     },
+    heroTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6
+    },
+    heroTitleDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4
+    },
     heroTitle: {
       fontSize: 16,
       fontWeight: 'bold',
@@ -188,6 +198,10 @@ export const createStyles = (theme: ResolvedTheme) =>
       fontSize: 12,
       color: theme.textMuted,
       marginTop: 2
+    },
+    heroMetricBaseReference: {
+      fontSize: 12,
+      fontWeight: '600'
     },
     sectionCard: {
       marginHorizontal: 12,

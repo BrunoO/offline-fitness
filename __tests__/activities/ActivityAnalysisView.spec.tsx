@@ -21,11 +21,12 @@ jest.mock('@/features/activities/services/fetchAndStoreStreams', () => ({
   getActivityStreams: (activities: Activity[]) => mockGetActivityStreams(activities)
 }));
 
-const mockMiniMapProps: { overlayStream?: ActivityStream } = {};
+const mockMiniMapProps: { overlayStream?: ActivityStream; overlayColor?: string } = {};
 jest.mock('@/features/maps/components/MiniMapComponent', () => {
   const { View } = require('react-native');
-  return function MockMiniMap(props: { overlayStream?: ActivityStream; title?: string }) {
+  return function MockMiniMap(props: { overlayStream?: ActivityStream; overlayColor?: string }) {
     mockMiniMapProps.overlayStream = props.overlayStream;
+    mockMiniMapProps.overlayColor = props.overlayColor;
     return <View testID="mock-mini-map" />;
   };
 });
@@ -134,7 +135,7 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
   });
 
   it('initially displays the base activity in the hero card without comparison', async () => {
-    const { getByTestId, findByText } = render(
+    const { getByTestId, queryByTestId, findByText } = render(
       <ThemeProvider>
         <ActivityAnalysisView item={baseActivity} allActivities={allActivities} />
       </ThemeProvider>
@@ -146,6 +147,7 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     // Initial hero card displays base activity
     await waitFor(() => {
       expect(getByTestId('hero-title').props.children).toBe('Morning 10k Run');
+      expect(queryByTestId('hero-comparison-dot')).toBeNull();
     });
   });
 
@@ -167,15 +169,17 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
 
     // The hero card now displays the similar activity's info
     expect(getByTestId('hero-title').props.children).toBe('Tempo Run Yesterday');
+    expect(getByTestId('hero-comparison-dot')).toBeTruthy();
     expect(getByText('10.20 km')).toBeTruthy();
 
     // Deltas and base reference labels are shown
     expect(getByText('+0.20 km')).toBeTruthy();
     expect(getByText('Distance (Base: 10.00 km)')).toBeTruthy();
 
-    // Overlay stream was loaded and passed to MiniMapComponent
+    // Overlay stream and color were loaded and passed to MiniMapComponent
     await waitFor(() => {
       expect(mockMiniMapProps.overlayStream).toEqual(sampleStream2);
+      expect(mockMiniMapProps.overlayColor).toBe('#1976D2');
     });
   });
 

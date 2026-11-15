@@ -13,6 +13,8 @@ export type MiniMapComponentProps = {
   allowFlyover?: boolean;
   /** Optional highlighted point to scrub along the track */
   highlightCoordinate?: LatLng | null;
+  /** Optional custom color for the overlay stream (defaults to theme.info) */
+  overlayColor?: string;
 };
 
 /**

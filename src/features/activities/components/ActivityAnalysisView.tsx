@@ -141,16 +141,19 @@ function SimilarActivitiesList({
   similarActivitiesByTrack,
   trackSimilarityThreshold,
   selectedActivityId,
+  comparisonColor,
   onActivityPress
 }: Readonly<{
   similarActivities: Activity[];
   similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarityThreshold: number;
   selectedActivityId?: string | null;
+  comparisonColor?: string;
   onActivityPress: (activity: Activity) => void;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const activeColor = comparisonColor ?? theme.info;
   // Index track-similarity results by activity id once (O(n)) instead of an
   // O(n) .find() inside the render loop (O(n^2) for large similar sets).
   const trackSimilarityById = useMemo(() => {
@@ -194,7 +197,9 @@ function SimilarActivitiesList({
               style={[
                 styles.similarActivityItem,
                 cardStyle,
-                isSelected ? styles.similarActivityItemSelected : null
+                isSelected
+                  ? [styles.similarActivityItemSelected, { borderColor: activeColor }]
+                  : null
               ]}
             >
               <View style={styles.similarActivityItemHeaderRow}>
@@ -202,7 +207,7 @@ function SimilarActivitiesList({
                   {activity.name}
                 </Text>
                 {isSelected ? (
-                  <View style={styles.similarActivityItemBadge}>
+                  <View style={[styles.similarActivityItemBadge, { backgroundColor: activeColor }]}>
                     <Text style={styles.similarActivityItemBadgeText}>Comparing</Text>
                   </View>
                 ) : null}
@@ -768,12 +773,16 @@ function HeroMetricItem({
   value,
   diffText,
   diffHighlight,
-  label
+  label,
+  baseReference,
+  baseColor
 }: Readonly<{
   value: string;
   diffText?: string | null;
   diffHighlight?: 'better' | 'worse';
   label: string;
+  baseReference?: string | null;
+  baseColor?: string;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -795,6 +804,11 @@ function HeroMetricItem({
       </View>
       <Text style={styles.heroMetricLabel} numberOfLines={1}>
         {label}
+        {baseReference ? (
+          <Text style={[styles.heroMetricBaseReference, { color: baseColor ?? theme.primary }]}>
+            {` (${baseReference})`}
+          </Text>
+        ) : null}
       </Text>
     </View>
   );
@@ -812,14 +826,14 @@ function buildHeroLabels(
   const paceOrSpeedLabel = paceSport ? 'Avg Pace' : 'Avg Speed';
 
   return {
-    distanceLabel: isComparing ? `Distance (Base: ${baseDistanceKm} km)` : 'Distance',
-    durationLabelFull: isComparing
-      ? `Moving Time (Base: ${seconds_to_label(baseDurationSec)})`
-      : 'Moving Time',
-    rateLabelFull: isComparing
-      ? `${paceOrSpeedLabel} (Base: ${basePaceOrSpeedValue})`
-      : paceOrSpeedLabel,
-    elevationLabel: isComparing ? `Elevation (Base: +${baseElevationGain} m)` : 'Elevation Gain'
+    distanceLabel: 'Distance',
+    distanceBaseRef: isComparing ? `Base: ${baseDistanceKm} km` : null,
+    durationLabelFull: 'Moving Time',
+    durationBaseRef: isComparing ? `Base: ${seconds_to_label(baseDurationSec)}` : null,
+    rateLabelFull: paceOrSpeedLabel,
+    rateBaseRef: isComparing ? `Base: ${basePaceOrSpeedValue}` : null,
+    elevationLabel: 'Elevation Gain',
+    elevationBaseRef: isComparing ? `Base: +${baseElevationGain} m` : null
   };
 }
 
@@ -875,32 +889,50 @@ function buildHeroMetrics(item: Activity, comparedItem?: Activity | null) {
  */
 function ActivityHeroSummary({
   item,
-  comparedItem
+  comparedItem,
+  comparisonColor
 }: Readonly<{
   item: Activity;
   comparedItem?: Activity | null;
+  comparisonColor?: string;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const m = buildHeroMetrics(item, comparedItem);
   const title = m.displayItem.name || m.displayItem.type;
+  const activeComparisonColor = comparisonColor ?? theme.info;
 
   return (
-    <View style={[styles.heroCard, m.isComparing ? styles.heroCardComparing : null]}>
+    <View
+      style={[
+        styles.heroCard,
+        m.isComparing ? [styles.heroCardComparing, { borderColor: activeComparisonColor }] : null
+      ]}
+    >
       <View style={styles.heroHeader}>
         <View
           style={[
             styles.heroIconContainer,
-            m.isComparing ? styles.heroIconContainerComparing : null
+            m.isComparing
+              ? [styles.heroIconContainerComparing, { borderColor: activeComparisonColor }]
+              : null
           ]}
         >
           <Text style={styles.heroIcon}>{getActivityIcon(m.displayItem.type)}</Text>
         </View>
         <View style={styles.heroHeaderText}>
-          <Text testID="hero-title" selectable style={styles.heroTitle} numberOfLines={1}>
-            {title}
-          </Text>
+          <View style={styles.heroTitleRow}>
+            {m.isComparing ? (
+              <View
+                testID="hero-comparison-dot"
+                style={[styles.heroTitleDot, { backgroundColor: activeComparisonColor }]}
+              />
+            ) : null}
+            <Text testID="hero-title" selectable style={styles.heroTitle} numberOfLines={1}>
+              {title}
+            </Text>
+          </View>
           <Text selectable style={styles.heroSubtitle}>
             {formatActivityLocalDateTime(m.displayItem)}
           </Text>
@@ -912,23 +944,31 @@ function ActivityHeroSummary({
           value={`${m.distanceKm} km`}
           diffText={m.distanceDiffText}
           label={m.distanceLabel}
+          baseReference={m.distanceBaseRef}
+          baseColor={theme.primary}
         />
         <HeroMetricItem
           value={m.durationLabel}
           diffText={m.durationDiffText}
           diffHighlight={m.durationIsFaster ? 'better' : 'worse'}
           label={m.durationLabelFull}
+          baseReference={m.durationBaseRef}
+          baseColor={theme.primary}
         />
         <HeroMetricItem
           value={m.paceOrSpeedValue}
           diffText={m.rateDiffText}
           diffHighlight={m.rateIsBetter ? 'better' : 'worse'}
           label={m.rateLabelFull}
+          baseReference={m.rateBaseRef}
+          baseColor={theme.primary}
         />
         <HeroMetricItem
           value={`+${m.elevationGain} m`}
           diffText={m.elevationDiffText}
           label={m.elevationLabel}
+          baseReference={m.elevationBaseRef}
+          baseColor={theme.primary}
         />
       </View>
     </View>
@@ -1362,6 +1402,7 @@ interface RouteMatchesSectionProps {
   trackTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
   selectedActivityId?: string | null;
+  comparisonColor?: string;
   onOpenSettings: () => void;
   onExport: () => void;
   onActivityPress: (activity: Activity) => void;
@@ -1555,6 +1596,7 @@ function RouteMatchesSection({
   trackTrendLineData,
   mapWidth,
   selectedActivityId,
+  comparisonColor,
   onOpenSettings,
   onExport,
   onActivityPress
@@ -1582,6 +1624,7 @@ function RouteMatchesSection({
         similarActivitiesByTrack={similarActivitiesByTrack}
         trackSimilarityThreshold={trackSimilarityThreshold}
         selectedActivityId={selectedActivityId}
+        comparisonColor={comparisonColor}
         onActivityPress={onActivityPress}
       />
       <SpeedTrendChart
@@ -1594,6 +1637,28 @@ function RouteMatchesSection({
       />
     </View>
   );
+}
+
+function checkIsSelectedReversed(
+  selectedSimilarActivity: Activity | null,
+  similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[]
+): boolean {
+  if (!selectedSimilarActivity) return false;
+  const match = similarActivitiesByTrack.find(
+    entry => entry.activity.id === selectedSimilarActivity.id
+  );
+  return Boolean(match?.reversed);
+}
+
+function computeHeartRateSummary(
+  heartRateData?: (number | null)[]
+): { avg: number; max: number } | null {
+  if (!heartRateData) return null;
+  const values = heartRateData.filter((v): v is number => v !== null);
+  if (values.length === 0) return null;
+  const avg = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+  const max = Math.max(...values);
+  return { avg, max };
 }
 
 /**
@@ -1725,14 +1790,7 @@ export function ActivityAnalysisView({
     };
   }, [scrubX, altitudeDataXY, coordinates]);
 
-  const heartRateSummary = useMemo(() => {
-    if (!heartRateData) return null;
-    const values = heartRateData.filter((v): v is number => v !== null);
-    if (values.length === 0) return null;
-    const avg = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
-    const max = Math.max(...values);
-    return { avg, max };
-  }, [heartRateData]);
+  const heartRateSummary = useMemo(() => computeHeartRateSummary(heartRateData), [heartRateData]);
 
   const hrZoneDistribution = useMemo(() => {
     if (!heartRateData || heartRateData.length === 0) return null;
@@ -1791,6 +1849,14 @@ export function ActivityAnalysisView({
     void exportData(setExportProgress, [item, ...similarActivities]);
   };
 
+  const comparisonColor = useMemo(
+    () =>
+      checkIsSelectedReversed(selectedSimilarActivity, similarActivitiesByTrack)
+        ? theme.chartReverse
+        : theme.info,
+    [selectedSimilarActivity, similarActivitiesByTrack, theme.chartReverse, theme.info]
+  );
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -1798,7 +1864,11 @@ export function ActivityAnalysisView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
-        <ActivityHeroSummary item={item} comparedItem={selectedSimilarActivity} />
+        <ActivityHeroSummary
+          item={item}
+          comparedItem={selectedSimilarActivity}
+          comparisonColor={comparisonColor}
+        />
         <View
           onLayout={event => {
             const { width } = event.nativeEvent.layout;
@@ -1808,6 +1878,7 @@ export function ActivityAnalysisView({
           <MiniMapComponent
             stream={loadedStream?.streamSet}
             overlayStream={overlayStream}
+            overlayColor={comparisonColor}
             title={item.name}
             activityType={item.type}
             highlightCoordinate={scrubDetails?.coordinate}
@@ -1832,6 +1903,7 @@ export function ActivityAnalysisView({
             trackTrendLineData={trackTrendLineData}
             mapWidth={mapWidth}
             selectedActivityId={selectedSimilarActivity?.id}
+            comparisonColor={comparisonColor}
             onOpenSettings={() => setIsMatchSettingsVisible(true)}
             onExport={handleExport}
             onActivityPress={handleActivityPress}
