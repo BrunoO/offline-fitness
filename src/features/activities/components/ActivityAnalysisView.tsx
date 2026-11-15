@@ -7,10 +7,10 @@ import {
 } from '@/features/heart-rate';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { useUserProfile } from '@/features/profile';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
-import React, { JSX, useEffect, useMemo, useState } from 'react';
+import React, { JSX, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 // Reverted: no gesture handler for chart zoom
 import {
@@ -140,12 +140,14 @@ function SimilarActivitiesList({
   similarActivities,
   similarActivitiesByTrack,
   trackSimilarityThreshold,
+  selectedActivityId,
   onActivityPress
 }: Readonly<{
   similarActivities: Activity[];
   similarActivitiesByTrack: { activity: Activity; similarity: number; reversed: boolean }[];
   trackSimilarityThreshold: number;
-  onActivityPress: (activity: Activity | null) => void;
+  selectedActivityId?: string | null;
+  onActivityPress: (activity: Activity) => void;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -166,6 +168,7 @@ function SimilarActivitiesList({
       contentContainerStyle={{ paddingHorizontal: 10 }}
     >
       {similarActivities.map(activity => {
+        const isSelected = selectedActivityId === activity.id;
         const similarByTrackInfo = trackSimilarityById.get(activity.id);
         const isSimilar =
           !!similarByTrackInfo && similarByTrackInfo.similarity >= trackSimilarityThreshold;
@@ -182,13 +185,28 @@ function SimilarActivitiesList({
         return (
           <Pressable
             key={activity.id}
-            onPressIn={() => onActivityPress(activity)}
-            onPressOut={() => onActivityPress(null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
+            accessibilityLabel={`${activity.name}, ${isSelected ? 'selected for comparison, tap to deselect' : 'tap to compare'}`}
+            onPress={() => onActivityPress(activity)}
           >
-            <View style={[styles.similarActivityItem, cardStyle]}>
-              <Text selectable style={styles.similarActivityItemTitle}>
-                {activity.name}
-              </Text>
+            <View
+              style={[
+                styles.similarActivityItem,
+                cardStyle,
+                isSelected ? styles.similarActivityItemSelected : null
+              ]}
+            >
+              <View style={styles.similarActivityItemHeaderRow}>
+                <Text selectable style={styles.similarActivityItemTitle}>
+                  {activity.name}
+                </Text>
+                {isSelected ? (
+                  <View style={styles.similarActivityItemBadge}>
+                    <Text style={styles.similarActivityItemBadgeText}>Comparing</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text selectable style={styles.similarActivityItemText}>
                 Date: {formatActivityLocalDateTime(activity)}
               </Text>
@@ -676,62 +694,271 @@ function buildElevationGainSeries(
   return elGain;
 }
 
-/**
- * Hero summary card displaying primary metrics (Distance, Time, Pace/Speed, Elevation).
- */
-function ActivityHeroSummary({ item }: Readonly<{ item: Activity }>): JSX.Element {
+function computeDistanceDelta(displayMeters: number, baseMeters: number): string | null {
+  const deltaDistKm = (displayMeters - baseMeters) / 1000;
+  if (Math.abs(deltaDistKm) < 0.01) {
+    return null;
+  }
+  return deltaDistKm > 0 ? `+${deltaDistKm.toFixed(2)} km` : `${deltaDistKm.toFixed(2)} km`;
+}
+
+function computeDurationDelta(
+  durationSec: number,
+  baseDurationSec: number
+): { diffText: string | null; isFaster: boolean } {
+  const deltaDurationSec = durationSec - baseDurationSec;
+  if (Math.abs(deltaDurationSec) < 1) {
+    return { diffText: null, isFaster: false };
+  }
+  const isFaster = deltaDurationSec < 0;
+  const diffText =
+    deltaDurationSec > 0
+      ? `+${seconds_to_label(deltaDurationSec)}`
+      : `-${seconds_to_label(Math.abs(deltaDurationSec))}`;
+  return { diffText, isFaster };
+}
+
+function computeRateDelta(
+  displayItem: Activity,
+  baseItem: Activity,
+  paceSport: boolean,
+  durationSec: number,
+  baseDurationSec: number
+): { diffText: string | null; isBetter: boolean } {
+  if (paceSport) {
+    const basePace = calculatePaceMinPerKm(baseItem.distance, baseDurationSec);
+    const compPace = calculatePaceMinPerKm(displayItem.distance, durationSec);
+    if (basePace <= 0 || compPace <= 0) {
+      return { diffText: null, isBetter: false };
+    }
+    const deltaSecPerKm = Math.round((compPace - basePace) * 60);
+    if (Math.abs(deltaSecPerKm) < 1) {
+      return { diffText: null, isBetter: false };
+    }
+    const isBetter = deltaSecPerKm < 0;
+    const diffText =
+      deltaSecPerKm < 0 ? `-${Math.abs(deltaSecPerKm)}s/km` : `+${deltaSecPerKm}s/km`;
+    return { diffText, isBetter };
+  }
+
+  const baseSpeed = calculateSpeedKmh(baseItem.distance, baseDurationSec);
+  const compSpeed = calculateSpeedKmh(displayItem.distance, durationSec);
+  if (baseSpeed <= 0 || compSpeed <= 0) {
+    return { diffText: null, isBetter: false };
+  }
+  const deltaSpeed = compSpeed - baseSpeed;
+  if (Math.abs(deltaSpeed) < 0.1) {
+    return { diffText: null, isBetter: false };
+  }
+  const isBetter = deltaSpeed > 0;
+  const diffText =
+    deltaSpeed > 0 ? `+${deltaSpeed.toFixed(1)} km/h` : `${deltaSpeed.toFixed(1)} km/h`;
+  return { diffText, isBetter };
+}
+
+function computeElevationDelta(elevationGain: number, baseElevationGain: number): string | null {
+  const deltaGain = elevationGain - baseElevationGain;
+  if (Math.abs(deltaGain) < 1) {
+    return null;
+  }
+  return deltaGain > 0 ? `+${deltaGain} m` : `${deltaGain} m`;
+}
+
+function HeroComparingBanner({
+  onClearComparison
+}: Readonly<{ onClearComparison?: () => void }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const distanceKm = (item.distance / 1000).toFixed(2);
-  const durationSec = item.moving_time || item.elapsed_time || 0;
-  const durationLabel = seconds_to_label(durationSec);
-  const paceSport = isPaceSport(item.type);
-  const paceOrSpeedLabel = paceSport ? 'Avg Pace' : 'Avg Speed';
-  const paceOrSpeedValue = formatActivityRate(item.distance, durationSec, item.type);
+  return (
+    <View style={styles.heroComparingBanner}>
+      <View style={styles.heroComparingBadge}>
+        <MaterialCommunityIcons name="swap-horizontal" size={15} color={theme.primary} />
+        <Text style={styles.heroComparingBadgeText}>Comparing with similar route</Text>
+      </View>
+      <TouchableOpacity
+        onPress={onClearComparison}
+        accessibilityRole="button"
+        accessibilityLabel="Close comparison and restore original activity"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.heroClearComparisonBtn}
+      >
+        <Ionicons name="close-circle" size={20} color={theme.textMuted} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
-  const elevationGain = Math.round(item.total_elevation_gain || 0);
+function HeroMetricItem({
+  value,
+  diffText,
+  diffHighlight,
+  label
+}: Readonly<{
+  value: string;
+  diffText?: string | null;
+  diffHighlight?: 'better' | 'worse';
+  label: string;
+}>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  let highlightStyle = null;
+  if (diffHighlight === 'better') {
+    highlightStyle = styles.heroMetricDiffBetter;
+  } else if (diffHighlight === 'worse') {
+    highlightStyle = styles.heroMetricDiffWorse;
+  }
 
   return (
-    <View style={styles.heroCard}>
+    <View style={styles.heroMetricItem}>
+      <View style={styles.heroMetricValueRow}>
+        <Text selectable style={styles.heroMetricValue}>
+          {value}
+        </Text>
+        {diffText ? <Text style={[styles.heroMetricDiff, highlightStyle]}>{diffText}</Text> : null}
+      </View>
+      <Text style={styles.heroMetricLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function buildHeroLabels(
+  isComparing: boolean,
+  paceSport: boolean,
+  item: Activity,
+  baseDurationSec: number,
+  baseElevationGain: number
+) {
+  const baseDistanceKm = (item.distance / 1000).toFixed(2);
+  const basePaceOrSpeedValue = formatActivityRate(item.distance, baseDurationSec, item.type);
+  const paceOrSpeedLabel = paceSport ? 'Avg Pace' : 'Avg Speed';
+
+  return {
+    distanceLabel: isComparing ? `Distance (Base: ${baseDistanceKm} km)` : 'Distance',
+    durationLabelFull: isComparing
+      ? `Moving Time (Base: ${seconds_to_label(baseDurationSec)})`
+      : 'Moving Time',
+    rateLabelFull: isComparing
+      ? `${paceOrSpeedLabel} (Base: ${basePaceOrSpeedValue})`
+      : paceOrSpeedLabel,
+    elevationLabel: isComparing ? `Elevation (Base: +${baseElevationGain} m)` : 'Elevation Gain'
+  };
+}
+
+function buildHeroMetrics(item: Activity, comparedItem?: Activity | null) {
+  const displayItem = comparedItem ?? item;
+  const isComparing = !!comparedItem;
+
+  const distanceKm = (displayItem.distance / 1000).toFixed(2);
+  const durationSec = displayItem.moving_time || displayItem.elapsed_time || 0;
+  const paceSport = isPaceSport(displayItem.type);
+  const paceOrSpeedValue = formatActivityRate(displayItem.distance, durationSec, displayItem.type);
+  const elevationGain = Math.round(displayItem.total_elevation_gain || 0);
+
+  const baseDurationSec = item.moving_time || item.elapsed_time || 0;
+  const baseElevationGain = Math.round(item.total_elevation_gain || 0);
+
+  const distanceDiffText = isComparing
+    ? computeDistanceDelta(displayItem.distance, item.distance)
+    : null;
+  const { diffText: durationDiffText, isFaster: durationIsFaster } = isComparing
+    ? computeDurationDelta(durationSec, baseDurationSec)
+    : { diffText: null, isFaster: false };
+  const { diffText: rateDiffText, isBetter: rateIsBetter } = isComparing
+    ? computeRateDelta(displayItem, item, paceSport, durationSec, baseDurationSec)
+    : { diffText: null, isBetter: false };
+  const elevationDiffText = isComparing
+    ? computeElevationDelta(elevationGain, baseElevationGain)
+    : null;
+
+  const labels = buildHeroLabels(isComparing, paceSport, item, baseDurationSec, baseElevationGain);
+
+  return {
+    displayItem,
+    isComparing,
+    distanceKm,
+    durationLabel: seconds_to_label(durationSec),
+    paceOrSpeedValue,
+    elevationGain,
+    distanceDiffText,
+    durationDiffText,
+    durationIsFaster,
+    rateDiffText,
+    rateIsBetter,
+    elevationDiffText,
+    ...labels
+  };
+}
+
+/**
+ * Hero summary card displaying primary metrics (Distance, Time, Pace/Speed, Elevation).
+ * When comparedItem is provided, displays the similar activity's metrics with comparison
+ * deltas against the base activity.
+ */
+function ActivityHeroSummary({
+  item,
+  comparedItem,
+  onClearComparison
+}: Readonly<{
+  item: Activity;
+  comparedItem?: Activity | null;
+  onClearComparison?: () => void;
+}>): JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const m = buildHeroMetrics(item, comparedItem);
+  const title = m.displayItem.name || m.displayItem.type;
+
+  return (
+    <View style={[styles.heroCard, m.isComparing ? styles.heroCardComparing : null]}>
+      {m.isComparing ? <HeroComparingBanner onClearComparison={onClearComparison} /> : null}
+
       <View style={styles.heroHeader}>
-        <View style={styles.heroIconContainer}>
-          <Text style={styles.heroIcon}>{getActivityIcon(item.type)}</Text>
+        <View
+          style={[
+            styles.heroIconContainer,
+            m.isComparing ? styles.heroIconContainerComparing : null
+          ]}
+        >
+          <Text style={styles.heroIcon}>{getActivityIcon(m.displayItem.type)}</Text>
         </View>
         <View style={styles.heroHeaderText}>
-          <Text selectable style={styles.heroTitle} numberOfLines={1}>
-            {item.name || item.type}
+          <Text testID="hero-title" selectable style={styles.heroTitle} numberOfLines={1}>
+            {title}
           </Text>
           <Text selectable style={styles.heroSubtitle}>
-            {formatActivityLocalDateTime(item)}
+            {formatActivityLocalDateTime(m.displayItem)}
           </Text>
         </View>
       </View>
+
       <View style={styles.heroGrid}>
-        <View style={styles.heroMetricItem}>
-          <Text selectable style={styles.heroMetricValue}>
-            {distanceKm} km
-          </Text>
-          <Text style={styles.heroMetricLabel}>Distance</Text>
-        </View>
-        <View style={styles.heroMetricItem}>
-          <Text selectable style={styles.heroMetricValue}>
-            {durationLabel}
-          </Text>
-          <Text style={styles.heroMetricLabel}>Moving Time</Text>
-        </View>
-        <View style={styles.heroMetricItem}>
-          <Text selectable style={styles.heroMetricValue}>
-            {paceOrSpeedValue}
-          </Text>
-          <Text style={styles.heroMetricLabel}>{paceOrSpeedLabel}</Text>
-        </View>
-        <View style={styles.heroMetricItem}>
-          <Text selectable style={styles.heroMetricValue}>
-            +{elevationGain} m
-          </Text>
-          <Text style={styles.heroMetricLabel}>Elevation Gain</Text>
-        </View>
+        <HeroMetricItem
+          value={`${m.distanceKm} km`}
+          diffText={m.distanceDiffText}
+          label={m.distanceLabel}
+        />
+        <HeroMetricItem
+          value={m.durationLabel}
+          diffText={m.durationDiffText}
+          diffHighlight={m.durationIsFaster ? 'better' : 'worse'}
+          label={m.durationLabelFull}
+        />
+        <HeroMetricItem
+          value={m.paceOrSpeedValue}
+          diffText={m.rateDiffText}
+          diffHighlight={m.rateIsBetter ? 'better' : 'worse'}
+          label={m.rateLabelFull}
+        />
+        <HeroMetricItem
+          value={`+${m.elevationGain} m`}
+          diffText={m.elevationDiffText}
+          label={m.elevationLabel}
+        />
       </View>
     </View>
   );
@@ -1163,9 +1390,10 @@ interface RouteMatchesSectionProps {
   exportProgress: number;
   trackTrendLineData: { x: Date; y: number }[];
   mapWidth: number;
+  selectedActivityId?: string | null;
   onOpenSettings: () => void;
   onExport: () => void;
-  onActivityPress: (activity: Activity | null) => void;
+  onActivityPress: (activity: Activity) => void;
 }
 
 function extractSplitRate(split: StreamSplit, paceSport: boolean): number {
@@ -1355,6 +1583,7 @@ function RouteMatchesSection({
   exportProgress,
   trackTrendLineData,
   mapWidth,
+  selectedActivityId,
   onOpenSettings,
   onExport,
   onActivityPress
@@ -1381,6 +1610,7 @@ function RouteMatchesSection({
         similarActivities={similarActivities}
         similarActivitiesByTrack={similarActivitiesByTrack}
         trackSimilarityThreshold={trackSimilarityThreshold}
+        selectedActivityId={selectedActivityId}
         onActivityPress={onActivityPress}
       />
       <SpeedTrendChart
@@ -1416,6 +1646,8 @@ export function ActivityAnalysisView({
   const [mapWidth, setMapWidth] = useState<number>(0);
   const { loadedStream } = useLoadedStream(item);
   const [overlayStream, setOverlayStream] = useState<ActivityStream | undefined>();
+  const [selectedSimilarActivity, setSelectedSimilarActivity] = useState<Activity | null>(null);
+  const streamLoadingIdRef = useRef<string | null>(null);
   const [similarActivities, setSimilarActivities] = useState<Activity[]>([]);
   const [similarActivitiesByTrack, setSimilarActivitiesByTrack] = useState<
     { activity: Activity; similarity: number; reversed: boolean }[]
@@ -1436,6 +1668,13 @@ export function ActivityAnalysisView({
   useEffect(() => {
     setScrubX(null);
   }, [item.id, activeTab]);
+
+  // Reset comparison overlay when the base activity changes
+  useEffect(() => {
+    setSelectedSimilarActivity(null);
+    setOverlayStream(undefined);
+    streamLoadingIdRef.current = null;
+  }, [item.id]);
 
   // Sync default IoU threshold when activity changes
   useEffect(() => {
@@ -1548,22 +1787,38 @@ export function ActivityAnalysisView({
     item.elapsed_time
   ]);
 
-  const handleActivityPress = async (activity: Activity | null) => {
+  const handleActivityPress = async (activity: Activity) => {
+    if (selectedSimilarActivity?.id === activity.id) {
+      streamLoadingIdRef.current = null;
+      setSelectedSimilarActivity(null);
+      setOverlayStream(undefined);
+      return;
+    }
+
+    setSelectedSimilarActivity(activity);
+    streamLoadingIdRef.current = activity.id;
+
     try {
-      if (activity) {
-        const streams = await getActivityStreams([activity]);
+      const streams = await getActivityStreams([activity]);
+      if (streamLoadingIdRef.current === activity.id) {
         if (streams.length > 0) {
           setOverlayStream(streams[0].streamSet);
         } else {
           setOverlayStream(undefined);
         }
-      } else {
-        setOverlayStream(undefined);
       }
     } catch (error) {
       simpleLogger.error('Failed to load overlay stream:', error);
-      setOverlayStream(undefined);
+      if (streamLoadingIdRef.current === activity.id) {
+        setOverlayStream(undefined);
+      }
     }
+  };
+
+  const handleClearComparison = () => {
+    streamLoadingIdRef.current = null;
+    setSelectedSimilarActivity(null);
+    setOverlayStream(undefined);
   };
 
   const handleExport = () => {
@@ -1578,7 +1833,11 @@ export function ActivityAnalysisView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
-        <ActivityHeroSummary item={item} />
+        <ActivityHeroSummary
+          item={item}
+          comparedItem={selectedSimilarActivity}
+          onClearComparison={handleClearComparison}
+        />
         <View
           onLayout={event => {
             const { width } = event.nativeEvent.layout;
@@ -1611,6 +1870,7 @@ export function ActivityAnalysisView({
             exportProgress={exportProgress}
             trackTrendLineData={trackTrendLineData}
             mapWidth={mapWidth}
+            selectedActivityId={selectedSimilarActivity?.id}
             onOpenSettings={() => setIsMatchSettingsVisible(true)}
             onExport={handleExport}
             onActivityPress={handleActivityPress}

@@ -114,6 +114,33 @@ export const createStyles = (theme: ResolvedTheme) =>
         }
       })
     },
+    heroCardComparing: {
+      borderColor: theme.primary,
+      borderWidth: 1.5
+    },
+    heroComparingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.primarySoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginBottom: 12
+    },
+    heroComparingBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6
+    },
+    heroComparingBadgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    heroClearComparisonBtn: {
+      padding: 2
+    },
     heroHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -127,6 +154,11 @@ export const createStyles = (theme: ResolvedTheme) =>
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 10
+    },
+    heroIconContainerComparing: {
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.primary
     },
     heroIcon: {
       fontSize: 20
@@ -154,10 +186,27 @@ export const createStyles = (theme: ResolvedTheme) =>
       paddingHorizontal: 6,
       paddingVertical: 6
     },
+    heroMetricValueRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      flexWrap: 'wrap',
+      gap: 4
+    },
     heroMetricValue: {
       fontSize: 18,
       fontWeight: 'bold',
       color: theme.textStrong
+    },
+    heroMetricDiff: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textMuted
+    },
+    heroMetricDiffBetter: {
+      color: theme.success
+    },
+    heroMetricDiffWorse: {
+      color: theme.textMuted
     },
     heroMetricLabel: {
       fontSize: 12,
@@ -338,6 +387,29 @@ export const createStyles = (theme: ResolvedTheme) =>
     similarActivityItemTrackReverseMatch: {
       backgroundColor: theme.surfaceMuted,
       borderColor: theme.chartReverse
+    },
+    similarActivityItemSelected: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+      backgroundColor: theme.primarySoft
+    },
+    similarActivityItemHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
+      marginBottom: 2
+    },
+    similarActivityItemBadge: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10
+    },
+    similarActivityItemBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: theme.onPrimary
     },
     similarActivityItemTitle: {
       fontSize: 14,
