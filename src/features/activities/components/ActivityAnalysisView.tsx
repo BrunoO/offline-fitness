@@ -7,7 +7,7 @@ import {
 } from '@/features/heart-rate';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
 import { useUserProfile } from '@/features/profile';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 import React, { JSX, useEffect, useMemo, useRef, useState } from 'react';
@@ -764,31 +764,6 @@ function computeElevationDelta(elevationGain: number, baseElevationGain: number)
   return deltaGain > 0 ? `+${deltaGain} m` : `${deltaGain} m`;
 }
 
-function HeroComparingBanner({
-  onClearComparison
-}: Readonly<{ onClearComparison?: () => void }>): JSX.Element {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-
-  return (
-    <View style={styles.heroComparingBanner}>
-      <View style={styles.heroComparingBadge}>
-        <MaterialCommunityIcons name="swap-horizontal" size={15} color={theme.primary} />
-        <Text style={styles.heroComparingBadgeText}>Comparing with similar route</Text>
-      </View>
-      <TouchableOpacity
-        onPress={onClearComparison}
-        accessibilityRole="button"
-        accessibilityLabel="Close comparison and restore original activity"
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={styles.heroClearComparisonBtn}
-      >
-        <Ionicons name="close-circle" size={20} color={theme.textMuted} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 function HeroMetricItem({
   value,
   diffText,
@@ -896,16 +871,14 @@ function buildHeroMetrics(item: Activity, comparedItem?: Activity | null) {
 /**
  * Hero summary card displaying primary metrics (Distance, Time, Pace/Speed, Elevation).
  * When comparedItem is provided, displays the similar activity's metrics with comparison
- * deltas against the base activity.
+ * deltas against the base activity without altering the card's dimensions or position.
  */
 function ActivityHeroSummary({
   item,
-  comparedItem,
-  onClearComparison
+  comparedItem
 }: Readonly<{
   item: Activity;
   comparedItem?: Activity | null;
-  onClearComparison?: () => void;
 }>): JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -915,8 +888,6 @@ function ActivityHeroSummary({
 
   return (
     <View style={[styles.heroCard, m.isComparing ? styles.heroCardComparing : null]}>
-      {m.isComparing ? <HeroComparingBanner onClearComparison={onClearComparison} /> : null}
-
       <View style={styles.heroHeader}>
         <View
           style={[
@@ -1815,12 +1786,6 @@ export function ActivityAnalysisView({
     }
   };
 
-  const handleClearComparison = () => {
-    streamLoadingIdRef.current = null;
-    setSelectedSimilarActivity(null);
-    setOverlayStream(undefined);
-  };
-
   const handleExport = () => {
     // exportData wraps its whole body in try/catch and logs internally; it never rejects.
     void exportData(setExportProgress, [item, ...similarActivities]);
@@ -1833,11 +1798,7 @@ export function ActivityAnalysisView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
-        <ActivityHeroSummary
-          item={item}
-          comparedItem={selectedSimilarActivity}
-          onClearComparison={handleClearComparison}
-        />
+        <ActivityHeroSummary item={item} comparedItem={selectedSimilarActivity} />
         <View
           onLayout={event => {
             const { width } = event.nativeEvent.layout;

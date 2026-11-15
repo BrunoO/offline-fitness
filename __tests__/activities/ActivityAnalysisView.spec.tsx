@@ -134,7 +134,7 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
   });
 
   it('initially displays the base activity in the hero card without comparison', async () => {
-    const { getByTestId, findByText, queryByText } = render(
+    const { getByTestId, findByText } = render(
       <ThemeProvider>
         <ActivityAnalysisView item={baseActivity} allActivities={allActivities} />
       </ThemeProvider>
@@ -146,7 +146,6 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     // Initial hero card displays base activity
     await waitFor(() => {
       expect(getByTestId('hero-title').props.children).toBe('Morning 10k Run');
-      expect(queryByText('Comparing with similar route')).toBeNull();
     });
   });
 
@@ -167,7 +166,6 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     });
 
     // The hero card now displays the similar activity's info
-    expect(getByText('Comparing with similar route')).toBeTruthy();
     expect(getByTestId('hero-title').props.children).toBe('Tempo Run Yesterday');
     expect(getByText('10.20 km')).toBeTruthy();
 
@@ -182,7 +180,7 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
   });
 
   it('toggles comparison off when the same similar activity is pressed again', async () => {
-    const { getByTestId, getByText, findByText, queryByText } = render(
+    const { getByTestId, findByText } = render(
       <ThemeProvider>
         <ActivityAnalysisView item={baseActivity} allActivities={allActivities} />
       </ThemeProvider>
@@ -194,7 +192,7 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     await act(async () => {
       fireEvent.press(similarCardButton);
     });
-    expect(getByText('Comparing with similar route')).toBeTruthy();
+    expect(getByTestId('hero-title').props.children).toBe('Tempo Run Yesterday');
 
     // Press again to toggle off
     await act(async () => {
@@ -202,13 +200,12 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     });
 
     // Reverted back to base activity
-    expect(queryByText('Comparing with similar route')).toBeNull();
     expect(getByTestId('hero-title').props.children).toBe('Morning 10k Run');
     expect(mockMiniMapProps.overlayStream).toBeUndefined();
   });
 
-  it('clears comparison when pressing the close button in the comparing banner', async () => {
-    const { getByTestId, getByText, getByLabelText, findByText, queryByText } = render(
+  it('resets comparison when the base activity prop changes', async () => {
+    const { getByTestId, findByText, rerender } = render(
       <ThemeProvider>
         <ActivityAnalysisView item={baseActivity} allActivities={allActivities} />
       </ThemeProvider>
@@ -220,18 +217,22 @@ describe('ActivityAnalysisView - Similar Activity Comparison', () => {
     await act(async () => {
       fireEvent.press(similarCardButton);
     });
-    expect(getByText('Comparing with similar route')).toBeTruthy();
+    expect(getByTestId('hero-title').props.children).toBe('Tempo Run Yesterday');
 
-    // Press clear button
-    const clearBtn = getByLabelText('Close comparison and restore original activity');
+    // Change base activity
     await act(async () => {
-      fireEvent.press(clearBtn);
+      rerender(
+        <ThemeProvider>
+          <ActivityAnalysisView item={similarActivity2} allActivities={allActivities} />
+        </ThemeProvider>
+      );
     });
 
-    // Reverted back to base activity
-    expect(queryByText('Comparing with similar route')).toBeNull();
-    expect(getByTestId('hero-title').props.children).toBe('Morning 10k Run');
-    expect(mockMiniMapProps.overlayStream).toBeUndefined();
+    // Reverted back to new base activity
+    await waitFor(() => {
+      expect(getByTestId('hero-title').props.children).toBe('Easy Recovery Run');
+      expect(mockMiniMapProps.overlayStream).toBeUndefined();
+    });
   });
 
   it('switches to a different similar activity when another card is pressed', async () => {

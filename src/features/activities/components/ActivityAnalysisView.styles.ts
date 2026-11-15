@@ -115,31 +115,7 @@ export const createStyles = (theme: ResolvedTheme) =>
       })
     },
     heroCardComparing: {
-      borderColor: theme.primary,
-      borderWidth: 1.5
-    },
-    heroComparingBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: theme.primarySoft,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
-      marginBottom: 12
-    },
-    heroComparingBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6
-    },
-    heroComparingBadgeText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: theme.textStrong
-    },
-    heroClearComparisonBtn: {
-      padding: 2
+      borderColor: theme.primary
     },
     heroHeader: {
       flexDirection: 'row',
