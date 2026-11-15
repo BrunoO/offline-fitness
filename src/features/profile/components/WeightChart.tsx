@@ -76,14 +76,30 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
     [entries]
   );
 
-  // Stats calculation over all entries
+  const effectiveDomainX = useMemo<DomainTuple>(() => {
+    if (zoomDomainX) return zoomDomainX;
+    return [data[0]?.x ?? 0, data.at(-1)?.x ?? 0];
+  }, [zoomDomainX, data]);
+
+  const visibleData = useMemo(() => {
+    if (data.length === 0) return [];
+    const [rawStart, rawEnd] = effectiveDomainX;
+    const start = typeof rawStart === 'number' ? rawStart : Number(rawStart);
+    const end = typeof rawEnd === 'number' ? rawEnd : Number(rawEnd);
+    const minX = Math.min(start, end);
+    const maxX = Math.max(start, end);
+    return data.filter(point => point.x >= minX && point.x <= maxX);
+  }, [data, effectiveDomainX]);
+
+  // Stats calculated over the currently visible range (zoom/pan or time filter)
   const stats = useMemo(() => {
-    if (data.length === 0) return null;
-    const weights = data.map(d => d.y);
+    const source = visibleData.length > 0 ? visibleData : data;
+    if (source.length === 0) return null;
+    const weights = source.map(d => d.y);
     const min = Math.min(...weights);
     const max = Math.max(...weights);
-    const latest = data.at(-1)?.y ?? 0;
-    const first = data[0].y;
+    const latest = source.at(-1)?.y ?? 0;
+    const first = source[0].y;
     const totalDiff = Math.round((latest - first) * 10) / 10;
     return {
       min,
@@ -92,7 +108,7 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
       first,
       totalDiff
     };
-  }, [data]);
+  }, [visibleData, data]);
 
   const handleSelectRange = useCallback(
     (range: TimeRangeOption) => {
@@ -122,6 +138,7 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
   const handleZoomDomainChange = useCallback((domain: { x: DomainTuple; y: DomainTuple }) => {
     if (domain?.x) {
       setZoomDomainX(domain.x);
+      setActiveRange('ALL');
     }
   }, []);
 
@@ -170,7 +187,7 @@ export function WeightChart({ entries }: Readonly<{ entries: WeightEntry[] }>): 
       {/* Stats Summary Bar */}
       <View style={styles.statsBar}>
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Current</Text>
+          <Text style={styles.statLabel}>Latest</Text>
           <Text style={styles.statValue}>{stats.latest.toFixed(1)} kg</Text>
         </View>
         <View style={styles.statItem}>
