@@ -32,14 +32,16 @@ type TokenType =
   | 'COMMA'
   | 'EOF';
 
+type PrimitiveValue = string | number | boolean;
+
 interface Token {
   type: TokenType;
-  value: string | number | boolean;
+  value: PrimitiveValue;
   pos: number;
 }
 
 type ASTNode =
-  | { type: 'Literal'; value: number | string | boolean }
+  | { type: 'Literal'; value: PrimitiveValue }
   | { type: 'Identifier'; name: string }
   | { type: 'UnaryOp'; op: '-' | '!'; argument: ASTNode }
   | { type: 'BinaryOp'; op: string; left: ASTNode; right: ASTNode }
@@ -88,13 +90,13 @@ function readNumberToken(input: string, startPos: number): { token: Token; nextI
   let i = startPos;
   let numStr = '';
 
-  while (i < input.length && (/[0-9]/.test(input[i]) || input[i] === '.')) {
+  while (i < input.length && (/\d/.test(input[i]) || input[i] === '.')) {
     numStr += input[i++];
   }
 
   const numVal = Number(numStr);
   if (Number.isNaN(numVal)) {
-    throw new Error(`Invalid number '${numStr}' at position ${startPos}`);
+    throw new TypeError(`Invalid number '${numStr}' at position ${startPos}`);
   }
 
   return {
@@ -107,13 +109,13 @@ function readIdentToken(input: string, startPos: number): { token: Token; nextIn
   let i = startPos;
   let ident = '';
 
-  while (i < input.length && /[a-zA-Z0-9_]/.test(input[i])) {
+  while (i < input.length && /\w/.test(input[i])) {
     ident += input[i++];
   }
 
   const lower = ident.toLowerCase();
   let type: TokenType = 'IDENT';
-  let value: string | number | boolean = ident;
+  let value: PrimitiveValue = ident;
 
   if (lower === 'and') {
     type = 'OP';
@@ -154,7 +156,7 @@ function readNextToken(input: string, i: number): { token: Token; nextIndex: num
     return readStringToken(input, i);
   }
 
-  if (/[0-9]/.test(ch) || (ch === '.' && /[0-9]/.test(input[i + 1] ?? ''))) {
+  if (/\d/.test(ch) || (ch === '.' && /\d/.test(input[i + 1] ?? ''))) {
     return readNumberToken(input, i);
   }
 
@@ -202,7 +204,7 @@ class TokenParser {
   private pos = 0;
   private depth = 0;
 
-  constructor(private tokens: Token[]) {}
+  constructor(private readonly tokens: Token[]) {}
 
   private peek(): Token {
     return this.tokens[this.pos] || { type: 'EOF', value: '', pos: this.pos };
@@ -499,7 +501,7 @@ function evaluateNode(
       return node.value;
 
     case 'Identifier': {
-      if (context && Object.prototype.hasOwnProperty.call(context, node.name)) {
+      if (context && Object.hasOwn(context, node.name)) {
         return context[node.name] as ExpressionValue;
       }
       return undefined;
