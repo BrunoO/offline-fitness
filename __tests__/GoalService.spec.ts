@@ -1,5 +1,8 @@
-import { Parser } from 'expr-eval';
-import { evaluateGoal, validateGoal } from '../src/features/stats/services/GoalService';
+import {
+  evaluateGoal,
+  GoalExpressionParser,
+  validateGoal
+} from '../src/features/stats/services/GoalService';
 import { Activity } from '../src/shared/types/types';
 
 const mockActivities: Activity[] = [
@@ -70,7 +73,7 @@ describe('GoalService', () => {
     });
 
     it('parses each filter expression only once per sum/count invocation regardless of activity count', () => {
-      const parseSpy = jest.spyOn(Parser.prototype, 'parse');
+      const parseSpy = jest.spyOn(GoalExpressionParser.prototype, 'parse');
       try {
         const result = evaluateGoal(
           'sum("elapsed_time", "type == \'Yoga\'") >= 3600 and count("type == \'Run\'") == 1',
@@ -84,6 +87,11 @@ describe('GoalService', () => {
         parseSpy.mockRestore();
       }
     });
+
+    it('treats positive numeric results as achieved', () => {
+      expect(evaluateGoal('sum("elapsed_time")', { activities: mockActivities })).toBe(true);
+      expect(evaluateGoal('0', { activities: mockActivities })).toBe(false);
+    });
   });
 
   describe('validateGoal', () => {
@@ -95,11 +103,51 @@ describe('GoalService', () => {
     it('should return an error message for an invalid field', () => {
       const result = validateGoal('sum("invalid_field") > 3600');
       expect(typeof result).toBe('string');
+      expect(result).toContain('Invalid field name');
     });
 
     it('should return an error message for a syntax error', () => {
       const result = validateGoal('sum("elapsed_time") >');
       expect(typeof result).toBe('string');
+    });
+  });
+
+  describe('GoalExpressionParser security and correctness', () => {
+    const parser = new GoalExpressionParser();
+
+    it('evaluates arithmetic, power, and logical operators correctly', () => {
+      expect(parser.evaluate('2 + 3 * 4')).toBe(14);
+      expect(parser.evaluate('(2 + 3) * 4')).toBe(20);
+      expect(parser.evaluate('2 ^ 3')).toBe(8);
+      expect(parser.evaluate('10 % 3')).toBe(1);
+      expect(parser.evaluate('true and not false')).toBe(true);
+      expect(parser.evaluate('false or (10 > 5 and 3 <= 3)')).toBe(true);
+    });
+
+    it('evaluates built-in safe math functions', () => {
+      expect(parser.evaluate('min(5, 2, 9)')).toBe(2);
+      expect(parser.evaluate('max(5, 2, 9)')).toBe(9);
+      expect(parser.evaluate('round(3.7)')).toBe(4);
+      expect(parser.evaluate('floor(3.7)')).toBe(3);
+      expect(parser.evaluate('ceil(3.2)')).toBe(4);
+      expect(parser.evaluate('abs(-15)')).toBe(15);
+      expect(parser.evaluate('clamp(120, 0, 100)')).toBe(100);
+    });
+
+    it('is immune to Prototype Pollution and does not resolve constructor or prototype properties', () => {
+      expect(parser.evaluate('constructor', {})).toBeUndefined();
+      expect(parser.evaluate('__proto__', {})).toBeUndefined();
+      expect(parser.evaluate('toString', {})).toBeUndefined();
+    });
+
+    it('throws errors on division by zero', () => {
+      expect(() => parser.evaluate('10 / 0')).toThrow('Division by zero');
+      expect(() => parser.evaluate('10 % 0')).toThrow('Modulo by zero');
+    });
+
+    it('throws errors on unterminated strings or invalid tokens', () => {
+      expect(() => parser.evaluate('"unterminated string')).toThrow('Unterminated string literal');
+      expect(() => parser.evaluate('2 @ 3')).toThrow('Unexpected character');
     });
   });
 });

@@ -130,6 +130,12 @@ are imported from a Strava data-export archive (no API subscription, no OAuth).
 
 ## Recent Updates
 
+- **Security & DSL: Replace vulnerable `expr-eval` with custom `GoalExpressionParser`**:
+  - **Eliminated Critical CVEs**: uninstalled `expr-eval` (which suffered from unpatched Prototype Pollution GHSA-8gw3-rxh4-v6jx, Arbitrary Code Execution GHSA-q9v2-7m5w-4693, and Unsafe Function Evaluation GHSA-jc85-fpwf-qm7x).
+  - **Dedicated Safe Evaluator**: introduced `GoalExpressionParser.ts` (zero dependencies, zero attack surface). Uses a recursive-descent parser and safe evaluator without `eval` or `new Function`.
+  - **Security Sandboxing**: variables are resolved strictly against own properties of the context; property traversal (`__proto__`, `constructor`, `prototype`) and member access syntax are omitted. Safe math functions (`min`, `max`, `round`, `floor`, `ceil`, `abs`, `clamp`) and recursion depth limit (64) are enforced.
+  - **Preserved Contracts**: `evaluateGoal`, `validateGoal`, and AST compilation (`parse` once per filter invocation) maintain 100% backward compatibility with user weekly goal formulas and streak tracking. All test suites pass.
+
 - **Profile UX improvements (Date & Weight inputs + Interactive Chart)**:
   - **Ergonomic Date Picker**: integrated `@react-native-community/datetimepicker` with a calendar display pressable capped at today, plus quick-select chips for "Today" and "Yesterday".
   - **Quick Weight Logging & Adjusters**: auto-prefilled weight input with the latest logged weight; added quick step adjusters (`-0.5`, `-0.1`, `+0.1`, `+0.5` kg).

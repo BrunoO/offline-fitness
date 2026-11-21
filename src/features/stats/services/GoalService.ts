@@ -1,5 +1,7 @@
 import { Activity } from '@/shared';
-import { Parser, Value } from 'expr-eval';
+import { EvaluationContext, ExpressionValue, GoalExpressionParser } from './GoalExpressionParser';
+
+export { GoalExpressionParser } from './GoalExpressionParser';
 
 /**
  * The data for a week that is passed to the goal expression evaluation.
@@ -9,35 +11,40 @@ export interface WeekData {
 }
 
 /**
- * Evaluates a goal expression for a given week.
- *
- * NOTE: This relies on the vulnerable `expr-eval` parser and is intentionally isolated
- * behind this function to make it easier to replace with a safer implementation.
+ * Evaluates a goal expression for a given week using a safe, dedicated parser.
  *
  * @param expression The expression to evaluate.
  * @param data The data for the week.
  * @returns Whether the expression evaluates to a truthy value.
  */
 export function evaluateGoal(expression: string, data: WeekData): boolean {
-  const parser = new Parser();
+  const parser = new GoalExpressionParser();
 
-  parser.functions.sum = (fieldName: string, filter?: string) => {
-    if (!isValidActivityField(fieldName) || data.activities.length === 0) {
+  parser.functions.sum = (fieldName: ExpressionValue, filter?: ExpressionValue) => {
+    if (
+      typeof fieldName !== 'string' ||
+      !isValidActivityField(fieldName) ||
+      data.activities.length === 0
+    ) {
       return 0;
     }
 
-    const filterExpression = filter ? parser.parse(filter) : null;
+    const filterExpression =
+      typeof filter === 'string' && filter.trim() ? parser.parse(filter) : null;
     let total = 0;
     for (const activity of data.activities) {
-      if (!filterExpression || filterExpression.evaluate(activity as unknown as Value)) {
+      if (
+        !filterExpression ||
+        filterExpression.evaluate(activity as unknown as EvaluationContext)
+      ) {
         total += getNumericFieldValue(activity, fieldName);
       }
     }
     return total;
   };
 
-  parser.functions.count = (filter?: string) => {
-    if (!filter) {
+  parser.functions.count = (filter?: ExpressionValue) => {
+    if (typeof filter !== 'string' || !filter.trim()) {
       return data.activities.length;
     }
     if (data.activities.length === 0) {
@@ -47,7 +54,7 @@ export function evaluateGoal(expression: string, data: WeekData): boolean {
     const filterExpression = parser.parse(filter);
     let count = 0;
     for (const activity of data.activities) {
-      if (filterExpression.evaluate(activity as unknown as Value)) {
+      if (filterExpression.evaluate(activity as unknown as EvaluationContext)) {
         count++;
       }
     }
@@ -117,20 +124,28 @@ function getNumericFieldValue(activity: Activity, fieldName: ValidActivityField)
  */
 export function validateGoal(expression: string): string | null {
   try {
-    const parser = new Parser();
+    const parser = new GoalExpressionParser();
 
     const dummyContext: Record<string, number> = {};
     (validActivityFields as readonly string[]).forEach(field => {
       dummyContext[field] = 0;
     });
 
-    parser.functions.sum = (fieldName: string) => {
-      if (!isValidActivityField(fieldName)) {
-        throw new Error(`Invalid field name: ${fieldName}`);
+    parser.functions.sum = (fieldName: ExpressionValue, filter?: ExpressionValue) => {
+      if (typeof fieldName !== 'string' || !isValidActivityField(fieldName)) {
+        throw new Error(`Invalid field name: ${String(fieldName)}`);
+      }
+      if (typeof filter === 'string' && filter.trim()) {
+        parser.parse(filter);
       }
       return 0;
     };
-    parser.functions.count = () => 0;
+    parser.functions.count = (filter?: ExpressionValue) => {
+      if (typeof filter === 'string' && filter.trim()) {
+        parser.parse(filter);
+      }
+      return 0;
+    };
 
     parser.evaluate(expression, dummyContext);
     return null;
