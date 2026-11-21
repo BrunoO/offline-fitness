@@ -240,11 +240,11 @@ describe('buildFlyoverTrack', () => {
   it('smooths noisy heading oscillations using circular window', () => {
     // Zig-zag heading oscillating around North (bearing alternating between 340 and 20)
     const coords: LatLng[] = [
-      { latitude: 45.000, longitude: 5.000 },
+      { latitude: 45.0, longitude: 5.0 },
       { latitude: 45.001, longitude: 4.999 }, // ~340 deg
       { latitude: 45.002, longitude: 5.001 }, // ~20 deg
       { latitude: 45.003, longitude: 4.999 }, // ~340 deg
-      { latitude: 45.004, longitude: 5.001 }  // ~20 deg
+      { latitude: 45.004, longitude: 5.001 } // ~20 deg
     ];
     const stream: ActivityStream = {
       coordinates: coords,
@@ -432,7 +432,7 @@ describe('speed calculation realism and stream alignment', () => {
       coordinates: [
         { latitude: 45.0, longitude: 5.0 },
         { latitude: 45.0045, longitude: 5.0 }, // ~500m
-        { latitude: 45.009, longitude: 5.0 }  // ~1000m
+        { latitude: 45.009, longitude: 5.0 } // ~1000m
       ],
       altitude: Array.from({ length: 30 }, (_, i) => 100 + i * 2),
       time: Array.from({ length: 30 }, (_, i) => i * 10) // 0 to 290 seconds (~1000m in ~300s -> ~3.4 m/s = 12 km/h)
@@ -510,4 +510,3 @@ describe('computeLookAheadBearing and computeAdaptiveZoom', () => {
     expect(sparkline.at(-1)).toBeCloseTo(1.0, 2);
   });
 });
-

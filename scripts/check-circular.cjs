@@ -70,7 +70,10 @@ function extractImports(filePath) {
     if (trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
     if (trimmed.startsWith('import type') || trimmed.startsWith('export type')) continue;
 
-    const match = /(?:import\s+(?:[\w*\s{},]*\s+from\s+)?|export\s+(?:[\w*\s{},]*\s+from\s+)|import\s*\(\s*)['"]([^'"]+)['"]/.exec(trimmed);
+    const match =
+      /(?:import\s+(?:[\w*\s{},]*\sfrom\s+)?|export\s+(?:[\w*\s{},]*\sfrom\s+)|import\s*\(\s*)['"]([^'"]+)['"]/.exec(
+        trimmed
+      );
     if (match) {
       const specifier = match[1];
       const resolved = resolveImportPath(filePath, specifier);

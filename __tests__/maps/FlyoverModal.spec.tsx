@@ -86,13 +86,7 @@ describe('FlyoverModal', () => {
 
   it('cycles through map types when map type button is pressed', () => {
     const { getByText, getByLabelText } = render(
-      wrap(
-        <FlyoverModal
-          visible={true}
-          onClose={jest.fn()}
-          stream={sampleStream}
-        />
-      )
+      wrap(<FlyoverModal visible={true} onClose={jest.fn()} stream={sampleStream} />)
     );
 
     // Initial is hybrid
@@ -114,14 +108,7 @@ describe('FlyoverModal', () => {
 
   it('renders clean empty state when stream has no GPS coordinates', () => {
     const { getByText } = render(
-      wrap(
-        <FlyoverModal
-          visible={true}
-          onClose={jest.fn()}
-          stream={null}
-          title="Indoor Rowing"
-        />
-      )
+      wrap(<FlyoverModal visible={true} onClose={jest.fn()} stream={null} title="Indoor Rowing" />)
     );
 
     expect(getByText('No GPS Track Data')).toBeTruthy();
@@ -213,7 +200,7 @@ describe('FlyoverModal', () => {
 
     expect(getByTestId('flyover-start-pin')).toBeTruthy();
     expect(getByTestId('flyover-finish-pin')).toBeTruthy();
-    expect( getByTestId('flyover-elevation-sparkline')).toBeTruthy();
+    expect(getByTestId('flyover-elevation-sparkline')).toBeTruthy();
 
     // Switch from Follow -> North-Up -> Overview
     const cameraModeBtn = getByLabelText(/Camera mode:/);
@@ -228,12 +215,7 @@ describe('FlyoverModal', () => {
     const onClose = jest.fn();
     const { getByTestId, getByLabelText } = render(
       wrap(
-        <FlyoverModal
-          visible={true}
-          onClose={onClose}
-          stream={sampleStream}
-          title="Morning Run"
-        />
+        <FlyoverModal visible={true} onClose={onClose} stream={sampleStream} title="Morning Run" />
       )
     );
 

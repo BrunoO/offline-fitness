@@ -124,7 +124,11 @@ describe('toStreamSet', () => {
     const converted = toStreamSet(parseGpx(SAMPLE_GPX).points);
 
     expect(converted).toEqual(
-      expect.objectContaining({ stream: expect.any(Object), startLatLng: expect.any(Array), endLatLng: expect.any(Array) })
+      expect.objectContaining({
+        stream: expect.any(Object),
+        startLatLng: expect.any(Array),
+        endLatLng: expect.any(Array)
+      })
     );
     const { stream, startLatLng, endLatLng } = converted!;
 

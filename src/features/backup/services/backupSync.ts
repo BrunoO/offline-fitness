@@ -710,13 +710,18 @@ async function pullBackup(
   let streamDone = 0;
   await runWithConcurrency(remoteStreams, SYNC_CONCURRENCY, async name => {
     try {
-      if (tombstonedIds.has(name.replace(/\.(nostreamflag|json)$/, ''))) {
+      const activityId = name.replace(/\.(nostreamflag|json)$/, '');
+      if (tombstonedIds.has(activityId)) {
         summary.skippedStreams += 1; // belongs to a deliberately deleted activity
         return;
       }
       const file = new File(streamsFolder, name);
       const existed = file.exists;
-      if (existed && (await localStreamMatchesIndex(file, remoteState.streamMd5?.[name]))) {
+      if (
+        existed &&
+        (localActivityIds.has(activityId) ||
+          (await localStreamMatchesIndex(file, remoteState.streamMd5?.[name])))
+      ) {
         summary.skippedStreams += 1;
       } else {
         file.write(await fetchStreamContent(config, name));

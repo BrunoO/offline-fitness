@@ -1013,3 +1013,24 @@ A comprehensive code review was performed, covering technical debt, architecture
   - Persisted the last-used recording sport profile in `AsyncStorage` (`recording.lastProfile`) and navigated directly to the saved activity's `Details` screen upon saving.
   - Enriched spoken audio split announcements with sport-appropriate rate (`km/h` for cycling, `min/km` otherwise), total elapsed time, and live BLE heart rate.
   - Added an optional **Swim distance in meters** override input in `LastSessionCard` for swimming sessions so swimmers can enter their exact pool or open-water distance (`distanceOverrideMeters`), live-updating the summary distance and `/100m` pace preview and persisting the overridden distance and recalculated `average_speed` on the saved `Activity`.
+
+## Activity Editing & Visual Stream Trimming - 2026-11-21
+
+- **Interactive Visual Trimming & Activity Editing (`src/features/activities/components/ActivityEditModal.tsx`, `ActivityEditModal.styles.ts`, `docs/activity-editing-and-trimming-plan.md`)**:
+  - Unified modal providing two tabs: **Details** (edit title, sport type chips, and manual duration/distance/elevation for streamless activities) and **Trim** (visual map-based stream trimmer for GPS activities; elapsed-time/HR trimmer for non-GPS/timer activities like Yoga).
+  - Visual map integration via `MiniMapComponent` with dual polylines: kept stream in primary theme color, cut stream in muted color, and active cut point marker.
+  - Trim controls: Start and End point sliders with `-10s`, `-1s`, `+1s`, `+10s` and Reset steppers. Cut point telemetry card displaying live cut index, timestamp, elapsed time, distance, altitude, heart rate, and speed.
+  - Live Before $\to$ After comparison card displaying updated moving time, distance, pace/speed, elevation gain ($D+$), and average/max heart rate.
+  - Destructive confirmation alert (`Alert.alert`) prior to committing stream trimming changes.
+  - Accessible directly via the header Edit button on `ActivityDetailScreen` and from `DetailsScreen`'s swipe-left edit modal with a "Trim / Shorten on Map →" shortcut.
+- **Pure Trimming Engine & Metrics recalculation (`src/features/activities/services/activityTrimmer.ts`, `ONT-DOM-06`, `ONT-KIN-09`)**:
+  - `applyActivityMetadataPatch`: updates title, sport type, and for streamless manual activities, recalculates `average_speed` from manual distance and elapsed time.
+  - `trimActivityStream`: slices stream sets `[startIndex..endIndex]`, re-zeroes time and distance, recalculates moving time using moving flags and $\ge 0.5\text{ m/s}$ speed threshold, shifts `start_timestamp_utc` and athlete-local date/time using the activity's IANA timezone (`ONT-TIME-01`), recomputes elevation gain via 1.5 m deadband hysteresis (`computeElevationHysteresisGain`), and re-averages heart rate.
+  - `computeCutPointMetrics`: calculates live telemetry at any stream index.
+  - `buildTrimPreviewStreams`: returns kept and cut coordinate slices for dual-polyline map visualization.
+- **Binary Codec Storage & WebDAV Restore Invariants (`src/features/recording/services/writeStreamFile.ts`, `src/features/backup/services/backupSync.ts`, `ONT-STORE-04`)**:
+  - Stream files are canonically encoded as `<id>.json` using 'OF' v1 binary codec (`encodeStreamSet`), with automatic removal of stale `<id>.bin` siblings.
+  - WebDAV restore in `pullBackup` enforces "local wins" for existing local activity streams, preventing server downloads from overwriting locally trimmed streams.
+- **Formal Ontology & Testing**:
+  - Documented `ONT-DOM-06` (§1), `ONT-KIN-09` (§5.4), and updated `ONT-STORE-04` (§6.3) in `docs/ontology.md`.
+  - Comprehensive unit and integration test coverage: 18 tests in `__tests__/activities/activityTrimmer.spec.ts`, 4 tests in `__tests__/activities/ActivityEditModal.spec.tsx`, and 12 tests in `__tests__/backupPull.spec.ts`. Full test suite passes: 81 test suites, 769 tests.

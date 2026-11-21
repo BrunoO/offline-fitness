@@ -257,6 +257,29 @@ describe('pullBackupNow (restore)', () => {
     expect(mockStorage.storeMultiActivities).not.toHaveBeenCalled();
   });
 
+  it('never overwrites a locally existing stream when the activity exists locally (local wins)', async () => {
+    const mockFiles = mockFileSystem.__mockFiles;
+    mockFiles.set('doc/streams/1.json', 'local-trimmed-stream-content');
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      const name = segments[segments.length - 1];
+      if (name === 'sync-state.json') {
+        return JSON.stringify({
+          activityMd5: {},
+          streamMd5: { '1.json': md5hex('remote-untrimmed-stream-content') }
+        });
+      }
+      if (segments[segments.length - 2] === 'streams') return 'remote-untrimmed-stream-content';
+      return '{}';
+    });
+    mockStorage.getAllActivitiesKeys.mockResolvedValue(['a_1']);
+
+    const summary = await pullBackupNow();
+
+    expect(summary.restoredStreams).toBe(0);
+    expect(summary.skippedStreams).toBe(1);
+    expect(mockFiles.get('doc/streams/1.json')).toBe('local-trimmed-stream-content');
+  });
+
   it('collects per-file errors without aborting the whole restore', async () => {
     mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
       const name = segments[segments.length - 1];

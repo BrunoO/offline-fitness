@@ -50,7 +50,7 @@ jest.mock('@/shared', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    SheetFooter: ({ buttons }: { buttons: Array<{ label: string; onPress: () => void }> }) => (
+    SheetFooter: ({ buttons }: { buttons: { label: string; onPress: () => void }[] }) => (
       <View testID="sheet-footer">
         {buttons.map(b => (
           <View key={b.label} testID={`sheet-btn-${b.label}`} />

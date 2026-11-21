@@ -18,11 +18,26 @@ interface HeartRateNativeModule {
   startHrStreaming(id: string): Promise<void>;
   stopHrStreaming(id: string): Promise<void>;
   getConnectedDeviceId(): Promise<string | null>;
-  addListener(eventName: 'onDeviceFound', listener: (d: HeartRateDevice) => void): EventSubscription;
-  addListener(eventName: 'onScanStateChanged', listener: (e: HeartRateScanStateEvent) => void): EventSubscription;
-  addListener(eventName: 'onConnectionStateChanged', listener: (e: HeartRateConnectionStateEvent) => void): EventSubscription;
-  addListener(eventName: 'onHeartRate', listener: (e: HeartRateSampleEvent) => void): EventSubscription;
-  addListener(eventName: 'onBatteryLevel', listener: (e: HeartRateBatteryLevelEvent) => void): EventSubscription;
+  addListener(
+    eventName: 'onDeviceFound',
+    listener: (d: HeartRateDevice) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onScanStateChanged',
+    listener: (e: HeartRateScanStateEvent) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onConnectionStateChanged',
+    listener: (e: HeartRateConnectionStateEvent) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onHeartRate',
+    listener: (e: HeartRateSampleEvent) => void
+  ): EventSubscription;
+  addListener(
+    eventName: 'onBatteryLevel',
+    listener: (e: HeartRateBatteryLevelEvent) => void
+  ): EventSubscription;
 }
 
 let nativeModule: HeartRateNativeModule | null = null;
@@ -47,8 +62,9 @@ export const heartRateEvents = {
     loadNativeModule().addListener('onDeviceFound', listener),
   addScanStateListener: (listener: (e: HeartRateScanStateEvent) => void): EventSubscription =>
     loadNativeModule().addListener('onScanStateChanged', listener),
-  addConnectionStateListener: (listener: (e: HeartRateConnectionStateEvent) => void): EventSubscription =>
-    loadNativeModule().addListener('onConnectionStateChanged', listener),
+  addConnectionStateListener: (
+    listener: (e: HeartRateConnectionStateEvent) => void
+  ): EventSubscription => loadNativeModule().addListener('onConnectionStateChanged', listener),
   addHeartRateListener: (listener: (e: HeartRateSampleEvent) => void): EventSubscription =>
     loadNativeModule().addListener('onHeartRate', listener),
   addBatteryLevelListener: (listener: (e: HeartRateBatteryLevelEvent) => void): EventSubscription =>

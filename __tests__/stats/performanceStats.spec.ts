@@ -1,4 +1,8 @@
-import { computeYearlyPerformanceStats, formatPace, isPaceSport } from '@/features/stats/services/performanceStats';
+import {
+  computeYearlyPerformanceStats,
+  formatPace,
+  isPaceSport
+} from '@/features/stats/services/performanceStats';
 import { makeTestActivity } from '../helpers/testActivities';
 
 describe('performanceStats', () => {

@@ -10,9 +10,13 @@ import {
   Activity,
   compareActivitiesByUtcDesc,
   DetailsScreenProps,
+  isNoGpsActivity,
   seconds_to_label,
   simpleLogger
 } from '@/shared';
+import { applyActivityMetadataPatch } from '../services/activityTrimmer';
+import { buildManualTypeList } from '../services/manualActivity';
+import { loadManualEntryPrefs } from '../services/manualEntryPrefs';
 import { HeaderHubButton } from '@/features/profile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -292,32 +296,69 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
 
 interface EditActivityModalProps {
   activity: Activity | null;
+  globalActivities: readonly Activity[];
   onClose: () => void;
   onSave: (activity: Activity, patch: Partial<Activity>) => Promise<void>;
+  onOpenTrim?: (activity: Activity) => void;
   theme: ReturnType<typeof useTheme>;
   styles: ReturnType<typeof createStyles>;
 }
 
 function EditActivityModal({
   activity,
+  globalActivities,
   onClose,
   onSave,
+  onOpenTrim,
   theme,
   styles
 }: Readonly<EditActivityModalProps>): React.JSX.Element {
   const [editingName, setEditingName] = useState<string>('');
+  const [editingType, setEditingType] = useState<string>('Workout');
   const [editingElevation, setEditingElevation] = useState<string>('');
+  const [editingDurationMin, setEditingDurationMin] = useState<string>('');
+  const [editingDurationSec, setEditingDurationSec] = useState<string>('');
+  const [editingDistanceKm, setEditingDistanceKm] = useState<string>('');
+  const [customTypes, setCustomTypes] = useState<string[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    if (activity) {
-      setEditingName(activity.name ?? '');
-      setEditingElevation(
-        activity.total_elevation_gain !== undefined ? String(activity.total_elevation_gain) : ''
-      );
-      setEditError(null);
-    }
+    if (!activity) return undefined;
+
+    setEditingName(activity.name ?? '');
+    setEditingType(activity.type ?? 'Workout');
+    setEditingElevation(
+      activity.total_elevation_gain !== undefined ? String(activity.total_elevation_gain) : ''
+    );
+    setEditingDurationMin(String(Math.floor(activity.elapsed_time / 60)));
+    setEditingDurationSec(String(activity.elapsed_time % 60));
+    setEditingDistanceKm(activity.distance > 0 ? (activity.distance / 1000).toFixed(2) : '');
+    setEditError(null);
+
+    let mounted = true;
+    loadManualEntryPrefs()
+      .then(prefs => {
+        if (mounted) setCustomTypes(prefs.customTypes);
+      })
+      .catch(() => {
+        if (mounted) setCustomTypes([]);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [activity]);
+
+  const hasGps = Boolean(activity?.start_latlng && activity.start_latlng.length >= 2);
+  const isSwim = editingType.toLowerCase() === 'swim';
+  const isNoGps = isNoGpsActivity(editingType);
+
+  const availableTypes = useMemo(() => {
+    return buildManualTypeList({
+      activities: globalActivities,
+      lastType: editingType,
+      customTypes
+    });
+  }, [globalActivities, editingType, customTypes]);
 
   const handleSave = async () => {
     if (!activity) return;
@@ -332,12 +373,29 @@ function EditActivityModal({
       }
       elevation = parsed;
     }
-    const patch: Partial<Activity> = { name: trimmedName };
-    if (elevation !== undefined) {
-      patch.total_elevation_gain = elevation;
+
+    let durationSec: number | undefined;
+    if (!hasGps) {
+      const min = Number(editingDurationMin) || 0;
+      const sec = Number(editingDurationSec) || 0;
+      durationSec = min * 60 + sec;
     }
+
+    let distanceMeters: number | undefined;
+    if (!hasGps && !isNoGps && editingDistanceKm.trim() !== '') {
+      distanceMeters = Number(editingDistanceKm) * 1000;
+    }
+
+    const patched = applyActivityMetadataPatch(activity, {
+      name: trimmedName,
+      type: editingType,
+      durationSec,
+      distanceMeters,
+      totalElevationGainM: elevation
+    });
+
     try {
-      await onSave(activity, patch);
+      await onSave(activity, patched);
       onClose();
     } catch {
       setEditError('Failed to save. Please try again.');
@@ -358,6 +416,7 @@ function EditActivityModal({
         <View
           style={{
             width: '100%',
+            maxHeight: '90%',
             backgroundColor: theme.surface,
             borderRadius: 12,
             padding: 16,
@@ -368,45 +427,187 @@ function EditActivityModal({
           <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
             Edit activity
           </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Name</Text>
-          <TextInput
-            value={editingName}
-            onChangeText={setEditingName}
-            placeholder="Activity name"
-            placeholderTextColor={theme.textMuted}
-            style={{
-              borderWidth: 1,
-              borderColor: theme.border,
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              color: theme.text,
-              marginBottom: 12
-            }}
-            autoFocus
-          />
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
-            Elevation gain (m)
-          </Text>
-          <TextInput
-            value={editingElevation}
-            onChangeText={setEditingElevation}
-            placeholder="Elevation gain in metres"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="decimal-pad"
-            style={{
-              borderWidth: 1,
-              borderColor: theme.border,
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              color: theme.text,
-              marginBottom: 8
-            }}
-          />
-          {editError ? (
-            <Text style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>{editError}</Text>
+
+          {hasGps && onOpenTrim && activity ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Trim on map"
+              onPress={() => onOpenTrim(activity)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 10,
+                backgroundColor: theme.surfaceMuted,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: theme.border,
+                marginBottom: 12
+              }}
+            >
+              <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>
+                Trim / Shorten on Map →
+              </Text>
+              <Text style={{ color: theme.primary, fontSize: 16 }}>›</Text>
+            </Pressable>
           ) : null}
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Name</Text>
+            <TextInput
+              value={editingName}
+              onChangeText={setEditingName}
+              placeholder="Activity name"
+              placeholderTextColor={theme.textMuted}
+              style={{
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                color: theme.text,
+                marginBottom: 12
+              }}
+              autoFocus
+            />
+
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
+              Sport Type
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ flexDirection: 'row', paddingVertical: 4, marginBottom: 12 }}
+            >
+              {availableTypes.map(t => {
+                const isSelected = t.toLowerCase() === editingType.toLowerCase();
+                return (
+                  <Pressable
+                    key={t}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select sport ${t}`}
+                    onPress={() => setEditingType(t)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: isSelected ? theme.primary : theme.border,
+                      backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                      marginRight: 6
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: isSelected ? theme.onPrimary : theme.text,
+                        fontWeight: isSelected ? '700' : '500'
+                      }}
+                    >
+                      {t}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {!hasGps ? (
+              <>
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
+                  Duration
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  <TextInput
+                    value={editingDurationMin}
+                    onChangeText={setEditingDurationMin}
+                    placeholder="Min"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="number-pad"
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      color: theme.text
+                    }}
+                  />
+                  <TextInput
+                    value={editingDurationSec}
+                    onChangeText={setEditingDurationSec}
+                    placeholder="Sec"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="number-pad"
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      color: theme.text
+                    }}
+                  />
+                </View>
+
+                {!isNoGps ? (
+                  <>
+                    <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
+                      Distance (km)
+                    </Text>
+                    <TextInput
+                      value={editingDistanceKm}
+                      onChangeText={setEditingDistanceKm}
+                      placeholder="Distance in km"
+                      placeholderTextColor={theme.textMuted}
+                      keyboardType="decimal-pad"
+                      style={{
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        color: theme.text,
+                        marginBottom: 12
+                      }}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null}
+
+            {!isSwim ? (
+              <>
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>
+                  Elevation gain (m)
+                </Text>
+                <TextInput
+                  value={editingElevation}
+                  onChangeText={setEditingElevation}
+                  placeholder="Elevation gain in metres"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="decimal-pad"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    color: theme.text,
+                    marginBottom: 8
+                  }}
+                />
+              </>
+            ) : null}
+
+            {editError ? (
+              <Text style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>
+                {editError}
+              </Text>
+            ) : null}
+          </ScrollView>
+
           <View style={styles.modalButtonsRow}>
             <Pressable
               accessibilityRole="button"
@@ -975,6 +1176,17 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
     setEditingActivity(activity);
   }, []);
 
+  const handleOpenTrim = useCallback(
+    (activity: Activity) => {
+      setEditingActivity(null);
+      navigation.navigate(STACK_ROUTES.ActivityDetail, {
+        activityId: activity.id,
+        openEdit: 'trim'
+      });
+    },
+    [navigation]
+  );
+
   const handleSaveEditedActivity = useCallback(
     async (activity: Activity, patch: Partial<Activity>) => {
       await updateActivity(activity, patch);
@@ -1090,8 +1302,10 @@ export function DetailsScreen({ navigation, route }: Readonly<DetailsScreenProps
       </View>
       <EditActivityModal
         activity={editingActivity}
+        globalActivities={globalActivities}
         onClose={() => setEditingActivity(null)}
         onSave={handleSaveEditedActivity}
+        onOpenTrim={handleOpenTrim}
         theme={theme}
         styles={styles}
       />

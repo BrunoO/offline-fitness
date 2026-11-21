@@ -66,7 +66,7 @@ function AppContent() {
       .finally(() => {
         void SplashScreen.hideAsync().catch(() => undefined);
         simpleLogger.log('✨ App UI loaded and ready');
-        // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue mutation is expected
+
         fadeAnim.value = withTiming(0, { duration: 150 }, finished => {
           if (finished) {
             scheduleOnRN(setSplashVisible, false);

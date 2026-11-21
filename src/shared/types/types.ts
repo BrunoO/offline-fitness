@@ -72,7 +72,7 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
-  ActivityDetail: { activityId: string };
+  ActivityDetail: { activityId: string; openEdit?: 'details' | 'trim' };
   Record: undefined;
   TimerRecord: undefined;
   Profile: undefined;

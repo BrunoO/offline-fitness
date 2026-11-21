@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { heartRateService } from '@/features/heart-rate/services/heartRate';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -10,11 +11,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }
 }));
 
-const mockListeners: Record<string, Array<(payload: any) => void>> = {};
+const mockListeners: Record<string, ((payload: any) => void)[]> = {};
 
 jest.mock('../../modules/heart-rate/src', () => {
   const mockNative = {
-    getCapabilities: jest.fn().mockResolvedValue({ canScan: true, canConnect: true, platform: 'android' }),
+    getCapabilities: jest
+      .fn()
+      .mockResolvedValue({ canScan: true, canConnect: true, platform: 'android' }),
     startScan: jest.fn().mockResolvedValue(undefined),
     stopScan: jest.fn().mockResolvedValue(undefined),
     connectToDevice: jest.fn().mockResolvedValue(undefined),
@@ -28,16 +31,29 @@ jest.mock('../../modules/heart-rate/src', () => {
     __esModule: true,
     HeartRate: mockNative,
     heartRateEvents: {
-      addDeviceFoundListener: jest.fn((cb: any) => { (mockListeners.onDeviceFound ??= []).push(cb); return { remove: () => {} }; }),
-      addScanStateListener: jest.fn((cb: any) => { (mockListeners.onScanStateChanged ??= []).push(cb); return { remove: () => {} }; }),
-      addConnectionStateListener: jest.fn((cb: any) => { (mockListeners.onConnectionStateChanged ??= []).push(cb); return { remove: () => {} }; }),
-      addHeartRateListener: jest.fn((cb: any) => { (mockListeners.onHeartRate ??= []).push(cb); return { remove: () => {} }; }),
-      addBatteryLevelListener: jest.fn((cb: any) => { (mockListeners.onBatteryLevel ??= []).push(cb); return { remove: () => {} }; })
+      addDeviceFoundListener: jest.fn((cb: any) => {
+        (mockListeners.onDeviceFound ??= []).push(cb);
+        return { remove: () => {} };
+      }),
+      addScanStateListener: jest.fn((cb: any) => {
+        (mockListeners.onScanStateChanged ??= []).push(cb);
+        return { remove: () => {} };
+      }),
+      addConnectionStateListener: jest.fn((cb: any) => {
+        (mockListeners.onConnectionStateChanged ??= []).push(cb);
+        return { remove: () => {} };
+      }),
+      addHeartRateListener: jest.fn((cb: any) => {
+        (mockListeners.onHeartRate ??= []).push(cb);
+        return { remove: () => {} };
+      }),
+      addBatteryLevelListener: jest.fn((cb: any) => {
+        (mockListeners.onBatteryLevel ??= []).push(cb);
+        return { remove: () => {} };
+      })
     }
   };
 });
-
-import { heartRateService } from '@/features/heart-rate/services/heartRate';
 
 const mockNative = (global as any).__mockNative;
 

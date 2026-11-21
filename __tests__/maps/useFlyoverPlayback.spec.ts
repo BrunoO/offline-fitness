@@ -242,7 +242,7 @@ describe('useFlyoverPlayback', () => {
       result.current.seekTo(1.0);
     });
 
-    expect(result.current.traveledCoordinates.length).toBe(3);
+    expect(result.current.traveledCoordinates).toHaveLength(3);
   });
 
   it('safely ignores NaN and non-finite inputs to seekTo, seekToTime, and setSpeed', () => {

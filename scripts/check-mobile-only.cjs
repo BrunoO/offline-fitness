@@ -132,9 +132,7 @@ checkAppJson();
 if (violations.length > 0) {
   console.error(`❌ ${violations.length} web-target violation(s):`);
   for (const violation of violations) console.error(`   ${violation}`);
-  console.error(
-    '\nThe app targets Android and iOS only. See docs/drop-web-support-plan.md.'
-  );
+  console.error('\nThe app targets Android and iOS only. See docs/drop-web-support-plan.md.');
   process.exit(1);
 }
 

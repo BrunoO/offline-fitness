@@ -31,10 +31,7 @@ describe('AnnualConsistencyCard', () => {
   it('renders consistency badges for active days, frequency, and streak', () => {
     const view = render(
       <ThemeProvider>
-        <AnnualConsistencyCard
-          activities={activities}
-          availableSports={['Run', 'Ride']}
-        />
+        <AnnualConsistencyCard activities={activities} availableSports={['Run', 'Ride']} />
       </ThemeProvider>
     );
 
@@ -47,10 +44,7 @@ describe('AnnualConsistencyCard', () => {
   it('filters consistency metrics by sport when selecting a sport chip', () => {
     const view = render(
       <ThemeProvider>
-        <AnnualConsistencyCard
-          activities={activities}
-          availableSports={['Run', 'Ride']}
-        />
+        <AnnualConsistencyCard activities={activities} availableSports={['Run', 'Ride']} />
       </ThemeProvider>
     );
 
@@ -65,10 +59,7 @@ describe('AnnualConsistencyCard', () => {
   it('allows clicking different metric badges to switch active chart metric', () => {
     const view = render(
       <ThemeProvider>
-        <AnnualConsistencyCard
-          activities={activities}
-          availableSports={['Run', 'Ride']}
-        />
+        <AnnualConsistencyCard activities={activities} availableSports={['Run', 'Ride']} />
       </ThemeProvider>
     );
 
@@ -89,10 +80,7 @@ describe('AnnualConsistencyCard', () => {
   it('returns null if activities array is empty', () => {
     const view = render(
       <ThemeProvider>
-        <AnnualConsistencyCard
-          activities={[]}
-          availableSports={['Run', 'Ride']}
-        />
+        <AnnualConsistencyCard activities={[]} availableSports={['Run', 'Ride']} />
       </ThemeProvider>
     );
 

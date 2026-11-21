@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { readHeartRateLog, heartRateLogUri, appendHeartRateSample } from '@/features/recording/services/heartRateLog';
+import {
+  readHeartRateLog,
+  heartRateLogUri,
+  appendHeartRateSample
+} from '@/features/recording/services/heartRateLog';
 import type { RecordingMeta } from '@/features/recording/services/gpsTracker';
 
 const LOG_URI = 'file:///tmp/heartrate.jsonl';
@@ -53,7 +57,11 @@ describe('heartRateLog', () => {
     const { __setMockFiles } = require('expo-file-system') as {
       __setMockFiles: (files: Record<string, unknown>) => void;
     };
-    const lines = [JSON.stringify({ t: 1, bpm: 70 }), 'not json', JSON.stringify({ t: 2, bpm: 71 })].join('\n');
+    const lines = [
+      JSON.stringify({ t: 1, bpm: 70 }),
+      'not json',
+      JSON.stringify({ t: 2, bpm: 71 })
+    ].join('\n');
     __setMockFiles({ [LOG_URI]: lines });
     const result = readHeartRateLog(LOG_URI);
     expect(result.samples).toHaveLength(2);

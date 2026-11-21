@@ -77,6 +77,11 @@ Every workout in the system converges into the canonical `Activity` interface (`
   Enforced in `applySwimMovingTime` / `correctSwimElevationGain` (`src/features/strava-import/services/activityMapper.ts`), `buildRecordedActivity` (`src/features/recording/services/buildRecordedActivity.ts`), `replaySession` (`src/features/recording/services/replaySession.ts`), and `buildManualActivity` (`src/features/activities/services/manualActivity.ts`):
   * For any `Swim` / `swimming` activity: `moving_time = elapsed_time` and `total_elevation_gain = 0` (and `elevationLossMeters = 0`, `slope = 0`).
   * **Rationale:** Open-water GPS vertical noise and slow turn/rest laps corrupt moving time and elevation gain; canonicalizing at write time guarantees byte-identical records across desktop seeding, phone recording, and WebDAV MD5 hashing.
+* **`ONT-DOM-06` — Activity Metadata Mutation & Sport-Type Reclassification (`applyActivityMetadataPatch`):**
+  Defined in `src/features/activities/services/activityTrimmer.ts`.
+  * When an activity's `type` is mutated to `'Swim'` (case-insensitive), `ONT-DOM-05` is enforced immediately: `moving_time = elapsed_time` and `total_elevation_gain = 0`.
+  * When `distance` or `durationSec` is edited on a streamless activity, `average_speed` is recalculated as $\text{distance} / (\text{moving\_time} > 0 ? \text{moving\_time} : \text{elapsed\_time})$.
+  * When an activity is reclassified to a `NO_GPS_ACTIVITY_TYPES` sport, its distance is forced to 0 for streamless entries, and views adapt dynamically.
 
 ---
 
@@ -286,6 +291,11 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 * **`ONT-KIN-06` — Finalize-Only Crash Recovery (`docs/crash-recovery-tradeoff.md`):**
   * `TrackingService` does **not** auto-resume live recording after an OS process kill (`START_STICKY` live resume and death-gap absorption are intentionally omitted).
   * Instead, `fixes.jsonl` is flushed every 10 fixes and on pause/stop. On next app launch, `listUnfinishedSessions` (`src/features/recording/services/fixLog.ts`) detects sessions without `savedActivityId` and no live service, surfacing them in `UnfinishedCard` so the user can **Save** (replay the partial fix log into a `recorded-*` activity) or **Discard**.
+* **`ONT-KIN-09` — Deterministic Stream Trimming (`trimActivityStream`):**
+  Defined in `src/features/activities/services/activityTrimmer.ts`.
+  * **Slicing & Rebasing:** Slices series `[startIndex..endIndex]`. Kept time samples rebase to 0: $t'[k] = t[k] - t[\text{startIndex}]$.
+  * **Temporal Shifting on Start Trim (`ONT-TIME-01`):** Advances `start_timestamp_utc` by $t[\text{startIndex}] \times 1000\text{ ms}$, derives athlete-local wall clock via `utcToLocalParts(newUtcMs, extractIanaTimezone(activity.timezone))` to guarantee historical timezone and DST preservation without ambient device clock drift.
+  * **Recalculation:** Recomputes Haversine distance, moving time (profile threshold $v_{\text{min}}$ + $\Delta t \le 30\text{ s}$, Swim moving = elapsed), elevation gain with 1.5 m deadband hysteresis, and average/max heart rate over non-null samples.
 
 ---
 
@@ -326,7 +336,8 @@ Spans `modules/heart-rate/`, `src/features/heart-rate/`, `src/features/recording
 * **`ONT-STORE-04` — "Local Always Wins" & 30-Day Tombstones (`TOMBSTONE_RETENTION_MS`):**
   * **On Push (`pushBackupNow`, wrapping internal `pushBackup`):** Uploads changed files (`SYNC_CONCURRENCY = 6`) by comparing local MD5 against `remoteState.activityMd5` / `streamMd5`. Unexpired local tombstones ($\le 30\text{ days}$) delete remote `activities/<id>.json` and `streams/<id>.json` and record `deletedAt` in `sync-state.json`.
   * **Resurrection Rule:** If an activity ID exists in `localActivityIds`, any local or remote tombstone for that ID is immediately dropped ("local wins").
-  * **On Restore (`pullBackupNow`, wrapping internal `pullBackup`):** Skips any remote activity present in `localActivityIds` or listed in `remoteState.deletedAt`, cleans up orphaned local stream files for tombstoned IDs, and flushes restored activities to `AsyncStorage` in batches of `ACTIVITY_BATCH_SIZE = 100`.
+  * **On Restore (`pullBackupNow`, wrapping internal `pullBackup`):** Skips any remote activity present in `localActivityIds` or listed in `remoteState.deletedAt`, cleans up orphaned local stream files for tombstoned IDs, preserves local stream files for existing local activities (`localActivityIds.has(activityId)`), and flushes restored activities to `AsyncStorage` in batches of `ACTIVITY_BATCH_SIZE = 100`.
+  * **Stream Canonicalization:** `writeStreamFile(id, stream)` writes `<id>.json` using `'OF'` v1 binary encoding and deletes legacy `<id>.bin` siblings so local storage, `fetchAndStoreStreams`, and WebDAV backup agree on canonical file naming.
 
 ### 6.4 Chunked Archive Export (`src/shared/services/exportData.ts`)
 * **`ONT-STORE-05` — 500-Activity Chunked ZIP Export & Post-Share Cleanup:**

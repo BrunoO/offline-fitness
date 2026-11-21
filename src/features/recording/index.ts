@@ -1,6 +1,7 @@
 export { appendHeartRateSample, heartRateLogUri, readHeartRateLog } from './services/heartRateLog';
 export type { ReadHeartRateLogResult } from './services/heartRateLog';
 export { discardSessionForActivity, sweepExpiredSessions } from './services/fixLog';
+export { writeStreamFile } from './services/writeStreamFile';
 export { GpsTracker, gpsTrackerEvents } from './services/gpsTracker';
 export type {
   FixLogEntry,

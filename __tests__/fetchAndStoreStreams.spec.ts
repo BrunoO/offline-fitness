@@ -58,9 +58,19 @@ describe('fetchAndStoreStreams', () => {
           resolution: 'high',
           series_type: 'distance'
         },
-        altitude: { data: [100, 110, 120], original_size: 3, resolution: 'high', series_type: 'distance' },
+        altitude: {
+          data: [100, 110, 120],
+          original_size: 3,
+          resolution: 'high',
+          series_type: 'distance'
+        },
         time: { data: [0, 10, 20], original_size: 3, resolution: 'high', series_type: 'distance' },
-        heartrate: { data: [130, 135, 140], original_size: 3, resolution: 'high', series_type: 'distance' }
+        heartrate: {
+          data: [130, 135, 140],
+          original_size: 3,
+          resolution: 'high',
+          series_type: 'distance'
+        }
       };
 
       const compressed = compressStreamSet(streamSet);
@@ -93,12 +103,17 @@ describe('fetchAndStoreStreams', () => {
           resolution: 'high',
           series_type: 'distance'
         },
-        time: { data: [0, 10, 25, 40, 55], original_size: 5, resolution: 'high', series_type: 'distance' }
+        time: {
+          data: [0, 10, 25, 40, 55],
+          original_size: 5,
+          resolution: 'high',
+          series_type: 'distance'
+        }
       };
 
       const compressed = compressStreamSet(swimStreamSet, { activityType: 'Swim' });
       // All 5 points should be preserved because lateral deviation (4m) exceeds the swim tolerance (~0.8m)
-      expect(compressed.coordinates.length).toBe(5);
+      expect(compressed.coordinates).toHaveLength(5);
     });
 
     it('respects explicit tolerance option override', () => {
@@ -129,7 +144,12 @@ describe('fetchAndStoreStreams', () => {
     it('returns default tolerance for tracks with 2 or fewer points', () => {
       expect(calculateAdaptiveTolerance([])).toBe(0.0001);
       expect(calculateAdaptiveTolerance([[45.0, 5.0]])).toBe(0.0001);
-      expect(calculateAdaptiveTolerance([[45.0, 5.0], [45.001, 5.001]])).toBe(0.0001);
+      expect(
+        calculateAdaptiveTolerance([
+          [45.0, 5.0],
+          [45.001, 5.001]
+        ])
+      ).toBe(0.0001);
     });
 
     it('computes tight tolerance for short swim tracks', () => {

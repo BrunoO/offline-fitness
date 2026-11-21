@@ -15,6 +15,16 @@ export function writeStreamFile(id: string, stream: EncodableStreamSet): void {
   const encoded = encodeStreamSet(stream);
   const folder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
   folder.create({ idempotent: true });
-  const file = new File(folder, `${id}.bin`);
-  file.write(encoded);
+  const jsonFile = new File(folder, `${id}.json`);
+  jsonFile.write(encoded);
+
+  // If a legacy .bin file exists for this activity, delete it so it cannot shadow the updated stream.
+  const legacyBinFile = new File(folder, `${id}.bin`);
+  if (legacyBinFile.exists) {
+    try {
+      legacyBinFile.delete();
+    } catch {
+      // Ignore cleanup error
+    }
+  }
 }

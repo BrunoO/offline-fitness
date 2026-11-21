@@ -33,6 +33,8 @@ export {
 
 // Components
 export { ActivityAnalysisView } from './components/ActivityAnalysisView';
+export { ActivityEditModal } from './components/ActivityEditModal';
+export type { ActivityEditModalProps } from './components/ActivityEditModal';
 export { ActivityListItem } from './components/ActivityListItem';
 export { DayActivitiesSheet } from './components/DayActivitiesSheet';
 export { LastActivitySummary } from './components/LastActivitySummary';
@@ -54,6 +56,24 @@ export {
   saveLastManualEntryType
 } from './services/manualEntryPrefs';
 export type { ManualEntryPrefs } from './services/manualEntryPrefs';
+
+export {
+  applyActivityMetadataPatch,
+  buildTrimPreviewStreams,
+  computeCutPointMetrics,
+  computeElevationHysteresisGain,
+  extractIanaTimezone,
+  getStationarySpeedThreshold,
+  previewTrimmedActivity,
+  trimActivityStream
+} from './services/activityTrimmer';
+export type {
+  ActivityMetadataPatch,
+  CutPointMetrics,
+  TrimPreviewResult,
+  TrimPreviewStreams,
+  TrimmedStreamResult
+} from './services/activityTrimmer';
 
 // Screens
 export { DetailsScreen } from './screens/DetailsScreen';

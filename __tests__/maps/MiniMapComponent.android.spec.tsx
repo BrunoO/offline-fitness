@@ -68,13 +68,7 @@ describe('MiniMapComponent (Android)', () => {
 
   it('does not display Flyover pill when allowFlyover is false', () => {
     const { queryByText } = render(
-      wrap(
-        <MiniMapComponent
-          stream={sampleStream}
-          title="Mountain Stage"
-          allowFlyover={false}
-        />
-      )
+      wrap(<MiniMapComponent stream={sampleStream} title="Mountain Stage" allowFlyover={false} />)
     );
 
     act(() => {
@@ -85,9 +79,7 @@ describe('MiniMapComponent (Android)', () => {
   });
 
   it('does not display Flyover pill when stream has no coordinates', () => {
-    const { queryByText } = render(
-      wrap(<MiniMapComponent stream={undefined} title="No Track" />)
-    );
+    const { queryByText } = render(wrap(<MiniMapComponent stream={undefined} title="No Track" />));
 
     act(() => {
       jest.advanceTimersByTime(1100);

@@ -1,6 +1,12 @@
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 
+import { HomeScreen } from '@/features/home/screens/HomeScreen';
+import { ThemeProvider } from '@/theme';
+import { SettingsProvider } from '@/features/stats/StatsTabSettingsContext';
+import { makeTestActivity } from '../helpers/testActivities';
+import { Activity } from '@/shared';
+
 jest.mock('react-native-worklets', () => ({}));
 jest.mock('react-native-reanimated', () => {
   const React = require('react');
@@ -25,12 +31,6 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getAllKeys: jest.fn(() => Promise.resolve([])),
   multiRemove: jest.fn(() => Promise.resolve())
 }));
-
-import { HomeScreen } from '@/features/home/screens/HomeScreen';
-import { ThemeProvider } from '@/theme';
-import { SettingsProvider } from '@/features/stats/StatsTabSettingsContext';
-import { makeTestActivity } from '../helpers/testActivities';
-import { Activity } from '@/shared';
 
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons'

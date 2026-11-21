@@ -1,8 +1,4 @@
-import {
-  computeArrowVisualSpec,
-  computeDirectionArrows,
-  haversineDistance
-} from '@/features/maps';
+import { computeArrowVisualSpec, computeDirectionArrows, haversineDistance } from '@/features/maps';
 import { LatLng } from '@/shared';
 
 describe('directionArrows service', () => {

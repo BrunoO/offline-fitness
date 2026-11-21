@@ -2,6 +2,10 @@ import React from 'react';
 import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
+import { DetailsScreen } from '@/features/activities/screens/DetailsScreen';
+import { makeTestActivity } from '../helpers/testActivities';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 jest.mock('react-native-worklets', () => ({}));
 jest.mock('react-native-reanimated', () => ({
   configureReanimatedLogger: jest.fn(),
@@ -25,18 +29,12 @@ jest.mock('@shopify/flash-list', () => {
       <View testID="mock-flash-list">
         {data.length === 0 && ListEmptyComponent ? ListEmptyComponent : null}
         {data.map((item: any, index: number) => (
-          <View key={keyExtractor ? keyExtractor(item) : index}>
-            {renderItem({ item, index })}
-          </View>
+          <View key={keyExtractor ? keyExtractor(item) : index}>{renderItem({ item, index })}</View>
         ))}
       </View>
     )
   };
 });
-
-import { DetailsScreen } from '@/features/activities/screens/DetailsScreen';
-import { makeTestActivity } from '../helpers/testActivities';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 jest.mock('@/theme', () => ({
   useTheme: () => ({
@@ -152,7 +150,9 @@ describe('DetailsScreen', () => {
   });
 
   const renderScreen = async () => {
-    const rendered = render(<DetailsScreen navigation={mockNavigation as any} route={mockRoute as any} />);
+    const rendered = render(
+      <DetailsScreen navigation={mockNavigation as any} route={mockRoute as any} />
+    );
     await act(async () => {
       await Promise.resolve();
     });
@@ -192,7 +192,9 @@ describe('DetailsScreen', () => {
       fireEvent.press(deleteBtn);
 
       const alertButtons = (Alert.alert as jest.Mock).mock.calls[0][2];
-      const confirmDeleteButton = alertButtons.find((btn: { text: string }) => btn.text === 'Delete');
+      const confirmDeleteButton = alertButtons.find(
+        (btn: { text: string }) => btn.text === 'Delete'
+      );
       expect(confirmDeleteButton).toBeDefined();
       expect(confirmDeleteButton.style).toBe('destructive');
 

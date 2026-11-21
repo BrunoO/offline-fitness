@@ -68,8 +68,8 @@ describe('LiveSlopeCalculator', () => {
     const calc = new LiveSlopeCalculator('walking');
     const stepM = 2.6;
     const elevations = [
-      210.0, 211.5, 212.0, 210.8, 209.0, 208.2, 208.0, 209.5,
-      211.0, 211.8, 210.5, 208.8, 208.1, 209.2, 210.6, 210.0
+      210.0, 211.5, 212.0, 210.8, 209.0, 208.2, 208.0, 209.5, 211.0, 211.8, 210.5, 208.8, 208.1,
+      209.2, 210.6, 210.0
     ];
 
     for (let i = 0; i < elevations.length; i++) {
