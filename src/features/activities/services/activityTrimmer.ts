@@ -45,6 +45,7 @@ export interface TrimmedStreamResult {
 export interface TrimPreviewStreams {
   keptStream: ActivityStream;
   cutStream?: ActivityStream;
+  cutTailStream?: ActivityStream;
   activeCoordinate: LatLng | null;
 }
 
@@ -563,11 +564,9 @@ export function previewTrimmedActivity(
   };
 }
 
-function buildCutSegmentCoordinates(
+function buildHeadCutCoordinates(
   rawLatLng: readonly [number, number][],
-  validStart: number,
-  validEnd: number,
-  totalPoints: number
+  validStart: number
 ): LatLng[] {
   const cutCoords: LatLng[] = [];
   if (validStart > 0) {
@@ -575,12 +574,45 @@ function buildCutSegmentCoordinates(
       cutCoords.push({ latitude: rawLatLng[i][0], longitude: rawLatLng[i][1] });
     }
   }
+  return cutCoords;
+}
+
+function buildTailCutCoordinates(
+  rawLatLng: readonly [number, number][],
+  validEnd: number,
+  totalPoints: number
+): LatLng[] {
+  const cutCoords: LatLng[] = [];
   if (validEnd < totalPoints - 1) {
     for (let i = validEnd; i < totalPoints; i++) {
       cutCoords.push({ latitude: rawLatLng[i][0], longitude: rawLatLng[i][1] });
     }
   }
   return cutCoords;
+}
+
+function buildCutStreamSegments(
+  rawLatLng: readonly [number, number][],
+  validStart: number,
+  validEnd: number,
+  totalPoints: number
+): { cutStream?: ActivityStream; cutTailStream?: ActivityStream } {
+  const headCoords = buildHeadCutCoordinates(rawLatLng, validStart);
+  const tailCoords = buildTailCutCoordinates(rawLatLng, validEnd, totalPoints);
+
+  if (headCoords.length > 0 && tailCoords.length > 0) {
+    return {
+      cutStream: { coordinates: headCoords, altitude: [], time: [] },
+      cutTailStream: { coordinates: tailCoords, altitude: [], time: [] }
+    };
+  }
+  if (headCoords.length > 0) {
+    return { cutStream: { coordinates: headCoords, altitude: [], time: [] } };
+  }
+  if (tailCoords.length > 0) {
+    return { cutStream: { coordinates: tailCoords, altitude: [], time: [] } };
+  }
+  return {};
 }
 
 function extractKeptSeries(
@@ -630,6 +662,7 @@ export function buildTrimPreviewStreams(
     return {
       keptStream: { coordinates: [], altitude: [], time: [] },
       cutStream: undefined,
+      cutTailStream: undefined,
       activeCoordinate: null
     };
   }
@@ -638,9 +671,12 @@ export function buildTrimPreviewStreams(
   const validEnd = Math.max(validStart, Math.min(endIndex, totalPoints - 1));
 
   const keptStream = extractKeptSeries(rawLatLng, rawTime, rawAlt, rawHr, validStart, validEnd);
-  const cutCoords = buildCutSegmentCoordinates(rawLatLng, validStart, validEnd, totalPoints);
-  const cutStream: ActivityStream | undefined =
-    cutCoords.length > 0 ? { coordinates: cutCoords, altitude: [], time: [] } : undefined;
+  const { cutStream, cutTailStream } = buildCutStreamSegments(
+    rawLatLng,
+    validStart,
+    validEnd,
+    totalPoints
+  );
 
   const activeIdx = activeHandle === 'start' ? validStart : validEnd;
   const activePt = rawLatLng[activeIdx];
@@ -648,5 +684,5 @@ export function buildTrimPreviewStreams(
     ? { latitude: activePt[0], longitude: activePt[1] }
     : null;
 
-  return { keptStream, cutStream, activeCoordinate };
+  return { keptStream, cutStream, cutTailStream, activeCoordinate };
 }

@@ -1034,3 +1034,17 @@ A comprehensive code review was performed, covering technical debt, architecture
 - **Formal Ontology & Testing**:
   - Documented `ONT-DOM-06` (§1), `ONT-KIN-09` (§5.4), and updated `ONT-STORE-04` (§6.3) in `docs/ontology.md`.
   - Comprehensive unit and integration test coverage: 18 tests in `__tests__/activities/activityTrimmer.spec.ts`, 4 tests in `__tests__/activities/ActivityEditModal.spec.tsx`, and 12 tests in `__tests__/backupPull.spec.ts`. Full test suite passes: 81 test suites, 769 tests.
+
+## Map Viewport Stabilization & Anti-Jitter During Activity Trimming - 2026-11-21
+
+- **Eliminated MapView Remounts & Flash/Redisplay (`src/features/maps/components/MiniMapComponent.android.tsx`)**:
+  - Removed unstable coordinate dependencies from `useFocusEffect`'s callback in `MiniMapComponent.android.tsx`. Previously, `useFocusEffect` depended on `[coordinates, fitToTrack]`, so every coordinate slice from moving the trim slider re-triggered the focus effect, incremented `mapKey`, and unmounted/remounted the native Google MapView on every tick.
+  - Stabilized `fitToTrack` via `useRef` updated inside `useEffect`, preventing navigation focus hooks from re-running when coordinates change while focused.
+- **Fixed Automatic Camera Re-Zooming & Jittering (`MiniMapComponent.android.tsx`, `ActivityEditModal.tsx`)**:
+  - Added `fitCoordinates?: LatLng[]` and `autoFitOnCoordinateChange?: boolean` props to `MiniMapComponent`.
+  - In `ActivityEditModal`, passed the full untrimmed track coordinates as `fitCoordinates` with `autoFitOnCoordinateChange={false}`. The map frames the entire activity once on open, and moving the slider updates the overlays smoothly without re-fitting or animating zoom levels.
+  - Preserved user zoom/pan: users can zoom in on intersections or trailheads to inspect cut points without the camera snapping back on slider/stepper adjustments.
+  - Added an optional "Fit Route" button (`showRecenterButton`) to manually re-fit the full route to the screen anytime.
+- **Independent Head and Tail Cut Segments (`activityTrimmer.ts`, `MiniMapComponent.android.tsx`)**:
+  - Updated `buildTrimPreviewStreams` to output separate `cutStream` (head) and `cutTailStream` (tail) segments, and added `overlaySecondaryStream` to `MiniMapComponent`. This eliminates phantom connecting chords between head and tail cut points when both start and end trimming are active.
+  - Suppressed direction arrow recalculations (`showDirectionArrows={false}`) during trimming, eliminating badge hopping and marker re-renders while scrubbing.

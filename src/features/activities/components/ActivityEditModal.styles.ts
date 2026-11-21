@@ -174,7 +174,8 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
       marginTop: 2
     },
     mapContainer: {
-      height: 200,
+      width: '100%',
+      aspectRatio: 4 / 3,
       borderRadius: 10,
       overflow: 'hidden',
       marginTop: 12,

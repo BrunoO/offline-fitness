@@ -304,7 +304,17 @@ describe('activityTrimmer', () => {
       expect(streams.keptStream.coordinates[0]).toEqual({ latitude: 45.181, longitude: 5.7205 });
       expect(streams.cutStream).toBeDefined();
       expect(streams.cutStream?.coordinates.length).toBeGreaterThan(0);
+      expect(streams.cutTailStream).toBeDefined();
+      expect(streams.cutTailStream?.coordinates.length).toBeGreaterThan(0);
       expect(streams.activeCoordinate).toEqual({ latitude: 45.183, longitude: 5.7215 });
+    });
+
+    it('constructs cutStream without cutTailStream when only tail is trimmed', () => {
+      const streams = buildTrimPreviewStreams(mockGpsStream, 0, 3, 'end');
+
+      expect(streams.keptStream.coordinates).toHaveLength(4);
+      expect(streams.cutStream).toBeDefined();
+      expect(streams.cutTailStream).toBeUndefined();
     });
 
     it('returns empty stream when rawStream has no coordinates', () => {

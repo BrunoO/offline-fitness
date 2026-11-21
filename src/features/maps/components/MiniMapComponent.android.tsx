@@ -18,12 +18,21 @@ import MapsUnavailablePlaceholder from './MapsUnavailablePlaceholder';
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
+  overlaySecondaryStream?: ActivityStream;
   title?: string;
   activityType?: string;
   allowFlyover?: boolean;
   highlightCoordinate?: LatLng | null;
   /** Optional custom color for the overlay stream (defaults to theme.info) */
   overlayColor?: string;
+  /** Optional explicit coordinates to fit the map camera to instead of stream.coordinates */
+  fitCoordinates?: LatLng[];
+  /** Whether to automatically re-fit camera when coordinates change (defaults to true) */
+  autoFitOnCoordinateChange?: boolean;
+  /** Whether to show direction arrow badges along the track (defaults to true) */
+  showDirectionArrows?: boolean;
+  /** Whether to show a recenter / fit-to-track button on the map (defaults to false) */
+  showRecenterButton?: boolean;
 };
 
 // Adjust this constant to control how many direction arrows are displayed along the track
@@ -95,33 +104,21 @@ const renderDirectionArrowMarkers = (
 type MiniMapLayersProps = {
   coordinates: LatLng[] | undefined;
   overlayCoordinates: LatLng[] | undefined;
+  overlaySecondaryCoordinates?: LatLng[];
   highlightCoordinate?: LatLng | null;
   region?: Region | null;
   primaryColor: string;
   overlayColor: string;
+  showDirectionArrows?: boolean;
 };
 
-function MiniMapLayers({
-  coordinates,
-  overlayCoordinates,
-  highlightCoordinate,
-  region,
-  primaryColor,
-  overlayColor
-}: Readonly<MiniMapLayersProps>) {
-  const scrubberOccupied = highlightCoordinate ? [highlightCoordinate] : [];
-  const primaryArrows = computeDirectionArrows(coordinates, {
-    baseArrowCount: NUM_DIRECTION_ARROWS,
-    region,
-    occupiedCoordinates: scrubberOccupied
-  });
-  const overlayArrows = computeDirectionArrows(overlayCoordinates, {
-    baseArrowCount: NUM_DIRECTION_ARROWS,
-    region,
-    isOverlay: true,
-    occupiedCoordinates: [...scrubberOccupied, ...primaryArrows.arrows.map(a => a.coordinate)]
-  });
-
+function renderTrackPolylines(
+  coordinates: LatLng[] | undefined,
+  primaryColor: string,
+  overlayCoordinates: LatLng[] | undefined,
+  overlaySecondaryCoordinates: LatLng[] | undefined,
+  overlayColor: string
+) {
   return (
     <>
       {coordinates?.length ? (
@@ -138,20 +135,72 @@ function MiniMapLayers({
       {overlayCoordinates?.length ? (
         <Polyline coordinates={overlayCoordinates} strokeWidth={4} strokeColor={overlayColor} />
       ) : null}
-      {renderDirectionArrowMarkers(
-        primaryArrows.arrows,
-        primaryArrows.visualSpec,
+      {overlaySecondaryCoordinates?.length ? (
+        <Polyline
+          coordinates={overlaySecondaryCoordinates}
+          strokeWidth={4}
+          strokeColor={overlayColor}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function MiniMapLayers({
+  coordinates,
+  overlayCoordinates,
+  overlaySecondaryCoordinates,
+  highlightCoordinate,
+  region,
+  primaryColor,
+  overlayColor,
+  showDirectionArrows = true
+}: Readonly<MiniMapLayersProps>) {
+  const scrubberOccupied = highlightCoordinate ? [highlightCoordinate] : [];
+  const primaryArrows = showDirectionArrows
+    ? computeDirectionArrows(coordinates, {
+        baseArrowCount: NUM_DIRECTION_ARROWS,
+        region,
+        occupiedCoordinates: scrubberOccupied
+      })
+    : null;
+  const overlayArrows =
+    showDirectionArrows && primaryArrows
+      ? computeDirectionArrows(overlayCoordinates, {
+          baseArrowCount: NUM_DIRECTION_ARROWS,
+          region,
+          isOverlay: true,
+          occupiedCoordinates: [...scrubberOccupied, ...primaryArrows.arrows.map(a => a.coordinate)]
+        })
+      : null;
+
+  return (
+    <>
+      {renderTrackPolylines(
+        coordinates,
         primaryColor,
-        'primary',
-        PRIMARY_ARROW_Z_INDEX
+        overlayCoordinates,
+        overlaySecondaryCoordinates,
+        overlayColor
       )}
-      {renderDirectionArrowMarkers(
-        overlayArrows.arrows,
-        overlayArrows.visualSpec,
-        overlayColor,
-        'overlay',
-        OVERLAY_ARROW_Z_INDEX
-      )}
+      {primaryArrows
+        ? renderDirectionArrowMarkers(
+            primaryArrows.arrows,
+            primaryArrows.visualSpec,
+            primaryColor,
+            'primary',
+            PRIMARY_ARROW_Z_INDEX
+          )
+        : null}
+      {overlayArrows
+        ? renderDirectionArrowMarkers(
+            overlayArrows.arrows,
+            overlayArrows.visualSpec,
+            overlayColor,
+            'overlay',
+            OVERLAY_ARROW_Z_INDEX
+          )
+        : null}
       {highlightCoordinate ? (
         <Marker coordinate={highlightCoordinate} anchor={{ x: 0.5, y: 0.5 }} zIndex={100}>
           <View
@@ -211,6 +260,32 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.textStrong,
       fontSize: 11,
       fontWeight: '700'
+    },
+    recenterPill: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor:
+        theme.scheme === 'dark' ? 'rgba(24, 24, 27, 0.88)' : 'rgba(255, 255, 255, 0.92)',
+      paddingVertical: 5,
+      paddingHorizontal: 9,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 4,
+      zIndex: 10
+    },
+    recenterPillText: {
+      color: theme.textStrong,
+      fontSize: 11,
+      fontWeight: '700'
     }
   });
 
@@ -257,103 +332,178 @@ function MiniMapFlyover({
   );
 }
 
-export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-  const mapRef = React.useRef<MapView>(null);
-  const coordinates: LatLng[] | undefined = props.stream?.coordinates;
-  const [isFlyoverOpen, setIsFlyoverOpen] = React.useState(false);
-  const hasGpsTrack = Boolean(coordinates && coordinates.length >= 2);
-  const allowFlyover = props.allowFlyover !== false;
+function MiniMapRecenterButton({
+  onPress,
+  theme,
+  styles
+}: Readonly<{
+  onPress: () => void;
+  theme: ReturnType<typeof useTheme>;
+  styles: ReturnType<typeof createStyles>;
+}>) {
+  return (
+    <TouchableOpacity
+      style={styles.recenterPill}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Fit track to screen"
+    >
+      <Ionicons name="scan-outline" size={13} color={theme.primary} />
+      <Text style={styles.recenterPillText}>Fit Route</Text>
+    </TouchableOpacity>
+  );
+}
 
-  const initialRegion = coordinates?.length
-    ? { ...coordinates[0], latitudeDelta: 0.1, longitudeDelta: 0.1 }
-    : undefined;
+interface MapCameraLifecycleOptions {
+  mapRef: React.RefObject<MapView | null>;
+  fitCoords: LatLng[] | undefined;
+  isMapReady: boolean;
+  setIsMapReady: (ready: boolean) => void;
+  setCurrentRegion: (region: Region | null) => void;
+  setMapKey: React.Dispatch<React.SetStateAction<number>>;
+  autoFitOnCoordinateChange: boolean;
+}
 
-  const [isMapReady, setIsMapReady] = React.useState(false);
-  const [currentRegion, setCurrentRegion] = React.useState<Region | null>(null);
-  const canShowFlyover = Boolean(hasGpsTrack && allowFlyover && isMapReady);
-  const [mapKey, setMapKey] = React.useState(0); // Force re-render when needed
+function useMapCameraLifecycle(options: Readonly<MapCameraLifecycleOptions>) {
+  const {
+    mapRef,
+    fitCoords,
+    isMapReady,
+    setIsMapReady,
+    setCurrentRegion,
+    setMapKey,
+    autoFitOnCoordinateChange
+  } = options;
 
   const fitToTrack = React.useCallback(() => {
-    if (!coordinates?.length) return;
-    if (!mapRef.current) return;
+    if (!fitCoords?.length || !mapRef.current) return;
     try {
-      mapRef.current.fitToCoordinates(coordinates, {
+      mapRef.current.fitToCoordinates(fitCoords, {
         edgePadding: { top: 16, right: 16, bottom: 16, left: 16 },
         animated: true
       });
     } catch {
       // Swallow occasional race conditions from native side
     }
-  }, [coordinates]);
+  }, [fitCoords, mapRef]);
 
-  // Wrap in useCallback so MapView (native) keeps a stable callback identity;
-  // an inline function would be recreated every render and could trigger
-  // unnecessary native re-initialisation. (Compiler can't preserve identity
-  // across the native boundary contract.)
   const onMapReady = React.useCallback(() => {
     setIsMapReady(true);
-    // Sometimes calling immediately is fine
     fitToTrack();
-  }, [fitToTrack]);
+  }, [fitToTrack, setIsMapReady]);
 
-  // Same rationale as onMapReady: stable identity for the native MapView prop.
   const onMapLoaded = React.useCallback(() => {
     setIsMapReady(true);
     fitToTrack();
-  }, [fitToTrack]);
+  }, [fitToTrack, setIsMapReady]);
 
-  // Fallback mechanism for map initialization issues
   React.useEffect(() => {
-    if (coordinates?.length && !isMapReady) {
+    if (fitCoords?.length && !isMapReady) {
       const fallbackTimer = setTimeout(() => {
         if (!isMapReady && mapRef.current) {
           setIsMapReady(true);
           fitToTrack();
         }
-      }, 1000); // 1 second fallback
+      }, 1000);
 
       return () => clearTimeout(fallbackTimer);
     }
-    return undefined; // Explicit return for all code paths
-  }, [coordinates, isMapReady, fitToTrack]);
+    return undefined;
+  }, [fitCoords, isMapReady, fitToTrack, mapRef, setIsMapReady]);
 
-  // Stable identity for the native onLayout prop (see onMapReady rationale).
-  // Fallback when layout completes (Fabric/new arch can delay readiness)
   const onLayout = React.useCallback(() => {
-    if (isMapReady) fitToTrack();
-  }, [isMapReady, fitToTrack]);
+    if (isMapReady && autoFitOnCoordinateChange) fitToTrack();
+  }, [isMapReady, autoFitOnCoordinateChange, fitToTrack]);
 
-  // Final guard: when coordinates change and map is ready, try again on next tick
   React.useEffect(() => {
-    if (!isMapReady) return;
+    if (!isMapReady || !autoFitOnCoordinateChange) return;
     const id = setTimeout(() => {
       fitToTrack();
     }, 0);
     return () => clearTimeout(id);
-  }, [isMapReady, fitToTrack]);
+  }, [isMapReady, fitToTrack, autoFitOnCoordinateChange]);
 
-  // Handle navigation focus to re-initialize map
+  const fitToTrackRef = React.useRef(fitToTrack);
+  React.useEffect(() => {
+    fitToTrackRef.current = fitToTrack;
+  });
+
   useFocusEffect(
     React.useCallback(() => {
-      // Reset map state when screen comes into focus
       setIsMapReady(false);
       setCurrentRegion(null);
-      setMapKey(prev => prev + 1); // Force map re-render
+      setMapKey(prev => prev + 1);
 
-      // Small delay to ensure proper initialization
       const timer = setTimeout(() => {
-        if (coordinates?.length) {
-          fitToTrack();
-        }
+        fitToTrackRef.current();
       }, 100);
 
       return () => {
         clearTimeout(timer);
       };
-    }, [coordinates, fitToTrack])
+    }, [setIsMapReady, setCurrentRegion, setMapKey])
   );
+
+  return { fitToTrack, onMapReady, onMapLoaded, onLayout };
+}
+
+interface ResolvedMiniMapProps {
+  coordinates: LatLng[] | undefined;
+  fitCoords: LatLng[] | undefined;
+  initialRegion:
+    | { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }
+    | undefined;
+  showDirectionArrows: boolean;
+  autoFitOnCoordinateChange: boolean;
+  canShowFlyover: boolean;
+  canShowRecenter: boolean;
+  overlayColor: string;
+}
+
+function resolveMiniMapProps(
+  props: Readonly<MiniMapComponentProps>,
+  isMapReady: boolean,
+  defaultOverlayColor: string
+): ResolvedMiniMapProps {
+  const coordinates = props.stream?.coordinates;
+  const fitCoords = props.fitCoordinates?.length ? props.fitCoordinates : coordinates;
+  const initialRegion = fitCoords?.length
+    ? { ...fitCoords[0], latitudeDelta: 0.1, longitudeDelta: 0.1 }
+    : undefined;
+  const hasGpsTrack = Boolean(coordinates && coordinates.length >= 2);
+  const allowFlyover = props.allowFlyover !== false;
+  return {
+    coordinates,
+    fitCoords,
+    initialRegion,
+    showDirectionArrows: props.showDirectionArrows !== false,
+    autoFitOnCoordinateChange: props.autoFitOnCoordinateChange !== false,
+    canShowFlyover: Boolean(hasGpsTrack && allowFlyover && isMapReady),
+    canShowRecenter: Boolean(props.showRecenterButton && isMapReady && fitCoords?.length),
+    overlayColor: props.overlayColor ?? defaultOverlayColor
+  };
+}
+
+export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const mapRef = React.useRef<MapView>(null);
+  const [isFlyoverOpen, setIsFlyoverOpen] = React.useState(false);
+  const [isMapReady, setIsMapReady] = React.useState(false);
+  const [currentRegion, setCurrentRegion] = React.useState<Region | null>(null);
+  const [mapKey, setMapKey] = React.useState(0);
+
+  const resolved = resolveMiniMapProps(props, isMapReady, theme.info);
+
+  const { fitToTrack, onMapReady, onMapLoaded, onLayout } = useMapCameraLifecycle({
+    mapRef,
+    fitCoords: resolved.fitCoords,
+    isMapReady,
+    setIsMapReady,
+    setCurrentRegion,
+    setMapKey,
+    autoFitOnCoordinateChange: resolved.autoFitOnCoordinateChange
+  });
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -388,20 +538,22 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
             onMapLoaded={onMapLoaded}
             onLayout={onLayout}
             onRegionChangeComplete={setCurrentRegion}
-            initialRegion={initialRegion}
+            initialRegion={resolved.initialRegion}
             userInterfaceStyle="light" // Force light theme regardless of system theme
           >
             <MiniMapLayers
-              coordinates={coordinates}
+              coordinates={resolved.coordinates}
               overlayCoordinates={props.overlayStream?.coordinates}
+              overlaySecondaryCoordinates={props.overlaySecondaryStream?.coordinates}
               highlightCoordinate={props.highlightCoordinate}
               region={currentRegion}
               primaryColor={theme.primary}
-              overlayColor={props.overlayColor ?? theme.info}
+              overlayColor={resolved.overlayColor}
+              showDirectionArrows={resolved.showDirectionArrows}
             />
           </MapView>
 
-          {canShowFlyover ? (
+          {resolved.canShowFlyover ? (
             <MiniMapFlyover
               visible={isFlyoverOpen}
               onOpen={() => setIsFlyoverOpen(true)}
@@ -412,6 +564,10 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
               theme={theme}
               styles={styles}
             />
+          ) : null}
+
+          {resolved.canShowRecenter ? (
+            <MiniMapRecenterButton onPress={fitToTrack} theme={theme} styles={styles} />
           ) : null}
         </>
       )}

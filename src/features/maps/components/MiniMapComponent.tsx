@@ -5,6 +5,7 @@ import { ActivityStream, LatLng } from '@/shared';
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
+  overlaySecondaryStream?: ActivityStream;
   /** Activity title displayed in flyover header on Android */
   title?: string;
   /** Activity sport type used by FlyoverHud to choose Pace vs Speed */
@@ -15,6 +16,14 @@ export type MiniMapComponentProps = {
   highlightCoordinate?: LatLng | null;
   /** Optional custom color for the overlay stream (defaults to theme.info) */
   overlayColor?: string;
+  /** Optional explicit coordinates to fit the map camera to instead of stream.coordinates */
+  fitCoordinates?: LatLng[];
+  /** Whether to automatically re-fit camera when coordinates change (defaults to true) */
+  autoFitOnCoordinateChange?: boolean;
+  /** Whether to show direction arrow badges along the track (defaults to true) */
+  showDirectionArrows?: boolean;
+  /** Whether to show a recenter / fit-to-track button on the map (defaults to false) */
+  showRecenterButton?: boolean;
 };
 
 /**

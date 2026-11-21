@@ -1,7 +1,7 @@
 import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { Activity, formatActivityRate, isNoGpsActivity, seconds_to_label } from '@/shared';
+import { Activity, formatActivityRate, isNoGpsActivity, LatLng, seconds_to_label } from '@/shared';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
 import { useTheme } from '@/theme';
 import MiniMapComponent from '@/features/maps/components/MiniMapComponent';
@@ -371,6 +371,7 @@ function SummaryComparisonCard({
 interface TrimTabProps {
   hasGps: boolean;
   previewStreams: TrimPreviewStreams;
+  fullCoordinates: LatLng[];
   selectedType: string;
   name: string;
   activeHandle: 'start' | 'end';
@@ -393,6 +394,7 @@ interface TrimTabProps {
 function TrimTabContent({
   hasGps,
   previewStreams,
+  fullCoordinates,
   selectedType,
   name,
   activeHandle,
@@ -418,8 +420,13 @@ function TrimTabContent({
           <MiniMapComponent
             stream={previewStreams.keptStream}
             overlayStream={previewStreams.cutStream}
+            overlaySecondaryStream={previewStreams.cutTailStream}
             overlayColor={theme.textMuted}
             highlightCoordinate={previewStreams.activeCoordinate}
+            fitCoordinates={fullCoordinates}
+            autoFitOnCoordinateChange={false}
+            showDirectionArrows={false}
+            showRecenterButton={true}
             allowFlyover={false}
             activityType={selectedType}
             title={name}
@@ -752,6 +759,14 @@ export function ActivityEditModal({
   const hasStream = totalPoints >= 2;
   const hasGps = Boolean(rawStream?.latlng?.data && rawStream.latlng.data.length >= 2);
 
+  const fullCoordinates = useMemo<LatLng[]>(() => {
+    if (!rawStream?.latlng?.data) return [];
+    return rawStream.latlng.data.map(([latitude, longitude]) => ({
+      latitude,
+      longitude
+    }));
+  }, [rawStream]);
+
   const form = useActivityEditForm(visible, activity, totalPoints, hasStream, initialTab);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -987,6 +1002,7 @@ export function ActivityEditModal({
               <TrimTabContent
                 hasGps={hasGps}
                 previewStreams={previewStreams}
+                fullCoordinates={fullCoordinates}
                 selectedType={form.selectedType}
                 name={form.name}
                 activeHandle={form.activeHandle}

@@ -149,4 +149,41 @@ describe('MiniMapComponent (Android)', () => {
     const zoomedOutPrimaryBadges = getAllByTestId('direction-arrow-badge-primary');
     expect(zoomedOutPrimaryBadges[0].props.style.width).toBeLessThan(18);
   });
+
+  it('suppresses direction arrows when showDirectionArrows is false', () => {
+    const { queryAllByTestId } = render(
+      wrap(
+        <MiniMapComponent
+          stream={sampleStream}
+          showDirectionArrows={false}
+          title="Trimmer Map"
+        />
+      )
+    );
+
+    expect(queryAllByTestId('direction-arrow-badge-primary')).toHaveLength(0);
+    expect(queryAllByTestId('direction-arrow-badge-overlay')).toHaveLength(0);
+  });
+
+  it('renders Fit Route recenter button when showRecenterButton is true and map is ready', () => {
+    const { getByText, queryByText } = render(
+      wrap(
+        <MiniMapComponent
+          stream={sampleStream}
+          showRecenterButton={true}
+          title="Recenter Test"
+        />
+      )
+    );
+
+    expect(queryByText('Fit Route')).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(1100);
+    });
+
+    const recenterButton = getByText('Fit Route');
+    expect(recenterButton).toBeTruthy();
+    fireEvent.press(recenterButton);
+  });
 });
