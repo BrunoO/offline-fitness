@@ -154,7 +154,6 @@
   "allowScripts": {
     "esbuild": false,
     "fsevents": false,
-    "unrs-resolver": false,
     "@parcel/watcher": false
   }
 }

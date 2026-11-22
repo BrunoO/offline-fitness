@@ -305,8 +305,8 @@ Behaviours of the app (or the OS around it) that can surprise you:
 
 ## Requirements
 
-- Node 20+, npm
-- Expo SDK 57 / React Native 0.86 / React 19.2 (see `package.json`)
+- Node 22.13+ (22.x), 24.3+ (24.x), or 26+; npm (odd-numbered Node releases are not supported)
+- Expo SDK 58 / React Native 0.88 / React 19.3 (see `package.json`)
 - **Android** (the primary platform: full GPS recording, BLE heart rate, maps, stats, backup)
   or **iOS** (partial: stats, calendar, manual/timer entry, backup, export; GPS recording and
   BLE HR are stubs, map is a placeholder)

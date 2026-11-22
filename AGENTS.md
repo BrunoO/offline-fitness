@@ -78,7 +78,7 @@ prebuilt optional dependencies rather than by their scripts:
 | --- | --- | --- |
 | `esbuild` | `postinstall: node install.js` | The native binary ships in the `@esbuild/<platform>` optional dependency; the postinstall only swaps the JS shim for it (startup speed) and checks the version. The JS API, `tsx` and `npm run tool:seed` all work without it. |
 | `fsevents` | `install: node-gyp rebuild` (per registry metadata) | The *published tarball* contains no `install` script at all and ships a prebuilt `fsevents.node`. Optional and darwin-only (it only powers `jest --watch` file watching). |
-| `unrs-resolver` | `postinstall: napi-postinstall ... check` | Verification only: the native binding ships in `@unrs/resolver-binding-<platform>`. Used by `eslint-import-resolver-typescript`. |
+| `@parcel/watcher` | `install: node scripts/build-from-source.js` | Prebuilt platform binaries ship in the `@parcel/watcher-<platform>` optional dependencies; source compilation is not required. |
 
 Rules for agents:
 
@@ -260,7 +260,7 @@ These areas are particularly sensitive - be extra careful when modifying:
 
 ### React Native / Expo
 
-- **Target Stack**: Expo SDK 57, React Native 0.86 (New Architecture), React 19.2 (always check `package.json` for exact versions; do not hardcode patch versions in docs)
+- **Target Stack**: Expo SDK 58, React Native 0.88 (New Architecture), React 19.3 (always check `package.json` for exact versions; do not hardcode patch versions in docs)
 - **React Compiler Enabled**: Configured in `app.json` (`experiments.reactCompiler`), `babel.config.cjs` (`babel-preset-expo` react-compiler), and enforced via `react-compiler/react-compiler` ESLint rule:
   - Keep components and hooks pure (no side effects or ref/prop/state mutations during render)
   - Avoid `try/finally` inside compiled components/hooks (React Compiler cannot lower `finally` clauses yet; use `try/catch` + explicit cleanup)
