@@ -33,7 +33,8 @@ export function readChunkedJsonl<T>(
       const toRead = Math.min(chunkSize, totalSize - offset);
       handle.offset = offset;
 
-      const bytes = handle.readBytes(toRead);
+      // SDK 58 made readBytes() async; this reader is synchronous by contract.
+      const bytes = handle.readBytesSync(toRead);
       offset += bytes.length;
 
       buffer += decoder.decode(bytes, { stream: true });

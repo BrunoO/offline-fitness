@@ -139,7 +139,9 @@ async function buildChunkFile(
     compression: 'DEFLATE',
     compressionOptions: { level: 6 }
   });
-  zipFile.write(content);
+  // Keep this synchronous: the ZIP file is shared immediately after, so an
+  // unawaited async write() (SDK 58+) would race the share sheet.
+  zipFile.writeSync(content);
 
   simpleLogger.log(`Created file: ${fileName} at ${zipFile.uri}`);
   return zipFile;

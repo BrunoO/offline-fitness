@@ -16,7 +16,9 @@ export function writeStreamFile(id: string, stream: EncodableStreamSet): void {
   const folder = new Directory(Paths.document, APP_CONFIG.STREAMS_FOLDER);
   folder.create({ idempotent: true });
   const jsonFile = new File(folder, `${id}.json`);
-  jsonFile.write(encoded);
+  // writeSync preserves the synchronous save contract: the stream file must be
+  // complete before the legacy-shadow cleanup below runs (SDK 58 made write() async).
+  jsonFile.writeSync(encoded);
 
   // If a legacy .bin file exists for this activity, delete it so it cannot shadow the updated stream.
   const legacyBinFile = new File(folder, `${id}.bin`);

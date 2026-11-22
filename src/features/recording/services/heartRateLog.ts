@@ -48,11 +48,13 @@ export function appendHeartRateSample(logUri: string, sample: HeartRateSample): 
     const handle = file.open();
     try {
       handle.offset = handle.size ?? 0;
-      handle.writeBytes(new TextEncoder().encode(line));
+      // SDK 58 made writeBytes() async; this append API is synchronous by contract.
+      handle.writeBytesSync(new TextEncoder().encode(line));
     } finally {
       handle.close();
     }
   } else {
-    file.write(new TextEncoder().encode(line));
+    // SDK 58 made write() async; keep this function synchronous for callers.
+    file.writeSync(new TextEncoder().encode(line));
   }
 }
