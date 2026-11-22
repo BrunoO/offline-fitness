@@ -195,7 +195,7 @@ describe('fetchAndStoreStreams', () => {
       } as StreamSet;
 
       const file1 = new FileSystem.File(streamsFolder, '1.json');
-      file1.write(JSON.stringify(mockStream), { encoding: 'utf8' });
+      file1.writeSync(JSON.stringify(mockStream), { encoding: 'utf8' });
 
       const result = await getActivityStreams(mockActivities);
 
@@ -216,7 +216,7 @@ describe('fetchAndStoreStreams', () => {
       } as StreamSet;
 
       const file = new FileSystem.File(streamsFolder, '7.json');
-      file.write(JSON.stringify(mockStream), { encoding: 'utf8' });
+      file.writeSync(JSON.stringify(mockStream), { encoding: 'utf8' });
 
       const result = await loadRawStreamForActivity({ id: '7' } as Activity);
 
@@ -244,7 +244,7 @@ describe('fetchAndStoreStreams', () => {
       };
 
       const file = new FileSystem.File(streamsFolder, '8.json');
-      file.write(encodeStreamSet(mockStream));
+      file.writeSync(encodeStreamSet(mockStream));
 
       const result = await loadRawStreamForActivity({ id: '8' } as Activity);
 
@@ -280,8 +280,8 @@ describe('fetchAndStoreStreams', () => {
     beforeEach(() => {
       // '4' has a cached stream despite the empty position fields (a legacy
       // record whose fields never got backfilled) — the file check covers it.
-      new FileSystem.File(streamsFolder, '1.json').write('x');
-      new FileSystem.File(streamsFolder, '4.json').write('x');
+      new FileSystem.File(streamsFolder, '1.json').writeSync('x');
+      new FileSystem.File(streamsFolder, '4.json').writeSync('x');
     });
 
     it('flags exactly the records with neither a GPS fix nor a cached stream', async () => {
@@ -290,7 +290,7 @@ describe('fetchAndStoreStreams', () => {
     });
 
     it('counts cached .json files only, and the derived missing set', async () => {
-      new FileSystem.File(streamsFolder, '3.nostreamflag').write(''); // legacy leftover
+      new FileSystem.File(streamsFolder, '3.nostreamflag').writeSync(''); // legacy leftover
       const status = await countStreamsStatus(activities);
       expect(status).toEqual({ downloadedStreams: 2, missingStreams: 1 });
     });

@@ -69,6 +69,7 @@
       "@react-native-community/datetimepicker",
       "expo-image",
       "expo-sharing",
+      "expo-secure-store",
       "expo-status-bar",
       [
         "expo-navigation-bar",

@@ -36,6 +36,7 @@ jest.mock('expo-crypto', () => {
 });
 jest.mock('expo-file-system', () => {
   const files = new Map<string, string>();
+  let shouldFailWrite = false;
   // Paths.document is a plain string ('doc'); Directory parents are objects
   // with .parent/.name — walk the chain to build the full path.
   const dirPathOf = (parent: unknown): string => {
@@ -61,7 +62,11 @@ jest.mock('expo-file-system', () => {
       this.exists = files.has(keyOf(parentArg, nameArg));
     }
     write(content: string) {
+      if (shouldFailWrite) {
+        return Promise.reject(new Error('disk full'));
+      }
       files.set(keyOf(this.parent, this.name), content);
+      return Promise.resolve();
     }
     delete() {
       files.delete(keyOf(this.parent, this.name));
@@ -88,14 +93,20 @@ jest.mock('expo-file-system', () => {
     Directory: MockDirectory,
     Paths: { document: 'doc' },
     CryptoDigestAlgorithm: { MD5: 'md5' },
-    __mockFiles: files
+    __mockFiles: files,
+    __setFailWrites: (fail: boolean) => {
+      shouldFailWrite = fail;
+    }
   };
 });
 
 const mockStorage = Storage as jest.Mocked<typeof Storage>;
 const mockTransport = webdavTransport as jest.Mocked<typeof webdavTransport>;
 const mockAuth = webdavAuth as jest.Mocked<typeof webdavAuth>;
-const mockFileSystem = FileSystem as unknown as { __mockFiles: Map<string, string> };
+const mockFileSystem = FileSystem as unknown as {
+  __mockFiles: Map<string, string>;
+  __setFailWrites: (fail: boolean) => void;
+};
 
 // jest.mock auto-mocks the class, so pullBackupNow's instanceof checks need
 // the real constructor; re-expose it under the mocked module's shape.
@@ -122,6 +133,7 @@ describe('pullBackupNow (restore)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFileSystem.__mockFiles.clear();
+    mockFileSystem.__setFailWrites(false);
     mockAuth.loadWebDavConfig.mockResolvedValue(CONFIG);
     mockTransport.getDavFile.mockResolvedValue('{}');
   });
@@ -238,6 +250,26 @@ describe('pullBackupNow (restore)', () => {
     expect(mockFiles.has('doc/streams/9.json')).toBe(false); // orphan cleaned up
     const streamGets = mockTransport.getDavFile.mock.calls.filter(call => call[1] === 'streams');
     expect(streamGets).toHaveLength(0); // never even fetched
+  });
+
+  it('records a failed stream write instead of leaving an unhandled rejection', async () => {
+    mockTransport.getDavFile.mockImplementation(async (_config, ...segments) => {
+      const name = segments[segments.length - 1];
+      if (name === 'sync-state.json') {
+        return JSON.stringify({ activityMd5: {}, streamMd5: { '2.json': 'unused' } });
+      }
+      if (segments[segments.length - 2] === 'streams') return 'stream-content';
+      return '{}';
+    });
+    mockStorage.getAllActivitiesKeys.mockResolvedValue([]);
+    mockFileSystem.__setFailWrites(true);
+
+    const summary = await pullBackupNow();
+
+    expect(summary.restoredStreams).toBe(0);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toContain('stream 2.json');
+    expect(summary.errors[0]).toContain('disk full');
   });
 
   it('never overwrites a locally modified activity (local wins)', async () => {

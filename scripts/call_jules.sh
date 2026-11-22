@@ -52,7 +52,7 @@ echo "Review documents will be stored in: $REVIEW_DIR"
 jules remote new --repo . --session "v${NEXT_VERSION} - React Native Build Verification and Comprehensive Review
 
 ## Context
-This is a React Native/Expo mobile application (Offline Fitness) for tracking and analyzing Strava activities. The project uses TypeScript, Expo SDK 57, and targets iOS and Android.
+This is a React Native/Expo mobile application (Offline Fitness) for tracking and analyzing Strava activities. The project uses TypeScript, Expo SDK 58, and targets iOS and Android.
 
 ## Task 1: Build and Test Verification (Priority: CRITICAL)
 

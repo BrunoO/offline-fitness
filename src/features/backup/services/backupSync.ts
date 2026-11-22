@@ -724,7 +724,10 @@ async function pullBackup(
       ) {
         summary.skippedStreams += 1;
       } else {
-        file.write(await fetchStreamContent(config, name));
+        const streamContent = await fetchStreamContent(config, name);
+        // Restore is async already; await the SDK 58 async write so errors are
+        // caught below instead of becoming an unhandled rejection.
+        await file.write(streamContent);
         summary.restoredStreams += 1;
         summary.restoredStreamNames.push(name);
         if (existed) summary.refreshedStreamNames.push(name);

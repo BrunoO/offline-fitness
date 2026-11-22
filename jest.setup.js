@@ -49,11 +49,25 @@ jest.mock('expo-file-system', () => {
       throw new Error(`File not found: ${this.uri}`);
     }
 
+    // SDK 58 returns Promises from write()/writeBytes() and adds void-returning
+    // *Sync variants. The mock storage itself is synchronous, but the async
+    // spellings must still return a promise so awaiting and rejection paths
+    // behave like the real API.
     write(content, options) {
+      mockFiles[this.uri] = content;
+      return Promise.resolve();
+    }
+
+    writeSync(content, options) {
       mockFiles[this.uri] = content;
     }
 
     writeBytes(content) {
+      mockFiles[this.uri] = content;
+      return Promise.resolve();
+    }
+
+    writeBytesSync(content) {
       mockFiles[this.uri] = content;
     }
 
@@ -83,6 +97,10 @@ jest.mock('expo-file-system', () => {
     }
 
     readBytes(length) {
+      return Promise.resolve(this.readBytesSync(length));
+    }
+
+    readBytesSync(length) {
       const bytes = this.bytes;
       const start = this.offset;
       const end = Math.min(start + length, bytes.length);
@@ -96,6 +114,10 @@ jest.mock('expo-file-system', () => {
     }
 
     writeBytes(bytes) {
+      return Promise.resolve(this.writeBytesSync(bytes));
+    }
+
+    writeBytesSync(bytes) {
       const prev = mockFiles[this.file.uri];
       const prevBytes =
         prev instanceof Uint8Array ? prev : new TextEncoder().encode(String(prev ?? ''));
