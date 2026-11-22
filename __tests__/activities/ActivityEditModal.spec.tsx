@@ -120,6 +120,27 @@ describe('ActivityEditModal', () => {
     expect(getByDisplayValue('Evening Jog')).toBeTruthy();
     expect(getByText('Run')).toBeTruthy();
     expect(getByText('Trim / Shorten')).toBeTruthy();
+    expect(getByDisplayValue('30')).toBeTruthy();
+  });
+
+  it('rounds fractional elevation gain to avoid excessive decimal digits', () => {
+    const fractionalElevationActivity = {
+      ...mockActivity,
+      total_elevation_gain: 21.1234567
+    };
+    const { getByDisplayValue, queryByDisplayValue } = render(
+      <ActivityEditModal
+        visible={true}
+        activity={fractionalElevationActivity}
+        globalActivities={[fractionalElevationActivity]}
+        rawStream={mockStream}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+
+    expect(getByDisplayValue('21')).toBeTruthy();
+    expect(queryByDisplayValue('21.1234567')).toBeNull();
   });
 
   it('allows editing the name and saving without trim alert', async () => {

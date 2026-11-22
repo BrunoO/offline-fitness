@@ -238,7 +238,7 @@ function TelemetryCard({
         {metrics.heartRateBpm !== null ? (
           <View style={styles.telemetryItem}>
             <Text style={styles.telemetryLabel}>Heart Rate</Text>
-            <Text style={styles.telemetryValue}>{metrics.heartRateBpm} bpm</Text>
+            <Text style={styles.telemetryValue}>{Math.round(metrics.heartRateBpm)} bpm</Text>
           </View>
         ) : null}
         {metrics.altitudeM !== null ? (
@@ -316,8 +316,9 @@ function SummaryComparisonCard({
   const oldElevation = `${Math.round(activity.total_elevation_gain)} m`;
   const newElevation = `${Math.round(preview.elevationGainM)} m`;
 
-  const oldHr = activity.average_heartrate ? `${activity.average_heartrate} bpm` : '-';
-  const newHr = `${preview.averageHeartRate} bpm`;
+  const oldHr = activity.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : '-';
+  const newHr =
+    preview.averageHeartRate !== undefined ? `${Math.round(preview.averageHeartRate)} bpm` : '-';
 
   return (
     <View style={styles.previewCard}>
@@ -596,12 +597,16 @@ function useActivityEditForm(
   const [durationMin, setDurationMin] = useState<string>(
     String(Math.floor(activity.elapsed_time / 60))
   );
-  const [durationSec, setDurationSec] = useState<string>(String(activity.elapsed_time % 60));
+  const [durationSec, setDurationSec] = useState<string>(
+    String(Math.round(activity.elapsed_time % 60))
+  );
   const [distanceKm, setDistanceKm] = useState<string>(
     activity.distance > 0 ? (activity.distance / 1000).toFixed(2) : ''
   );
   const [elevationGainM, setElevationGainM] = useState<string>(
-    activity.total_elevation_gain !== undefined ? String(activity.total_elevation_gain) : ''
+    activity.total_elevation_gain !== undefined
+      ? String(Math.round(activity.total_elevation_gain))
+      : ''
   );
 
   const [startIndex, setStartIndex] = useState<number>(0);
@@ -613,10 +618,12 @@ function useActivityEditForm(
     setName(activity.name);
     setSelectedType(activity.type);
     setDurationMin(String(Math.floor(activity.elapsed_time / 60)));
-    setDurationSec(String(activity.elapsed_time % 60));
+    setDurationSec(String(Math.round(activity.elapsed_time % 60)));
     setDistanceKm(activity.distance > 0 ? (activity.distance / 1000).toFixed(2) : '');
     setElevationGainM(
-      activity.total_elevation_gain !== undefined ? String(activity.total_elevation_gain) : ''
+      activity.total_elevation_gain !== undefined
+        ? String(Math.round(activity.total_elevation_gain))
+        : ''
     );
     setStartIndex(0);
     setEndIndex(Math.max(1, totalPoints - 1));
