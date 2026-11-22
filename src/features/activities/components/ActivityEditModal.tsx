@@ -235,12 +235,6 @@ function TelemetryCard({
           <Text style={styles.telemetryLabel}>Wall Clock</Text>
           <Text style={styles.telemetryValue}>{metrics.wallClockTime}</Text>
         </View>
-        {metrics.speedKmh !== null ? (
-          <View style={styles.telemetryItem}>
-            <Text style={styles.telemetryLabel}>Speed</Text>
-            <Text style={styles.telemetryValue}>{metrics.speedKmh.toFixed(1)} km/h</Text>
-          </View>
-        ) : null}
         {metrics.heartRateBpm !== null ? (
           <View style={styles.telemetryItem}>
             <Text style={styles.telemetryLabel}>Heart Rate</Text>

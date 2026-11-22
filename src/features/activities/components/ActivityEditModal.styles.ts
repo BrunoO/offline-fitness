@@ -154,10 +154,10 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
     },
     mapContainer: {
       width: '100%',
-      aspectRatio: 4 / 3,
+      aspectRatio: 1.15,
       borderRadius: 10,
       overflow: 'hidden',
-      marginTop: 12,
+      marginTop: 8,
       borderWidth: 1,
       borderColor: theme.border
     },
@@ -166,7 +166,7 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
       backgroundColor: theme.surfaceMuted,
       padding: 4,
       borderRadius: 8,
-      marginTop: 12
+      marginTop: 8
     },
     handleButton: {
       flex: 1,
@@ -187,8 +187,9 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
       fontWeight: '700'
     },
     telemetryCard: {
-      marginTop: 10,
-      padding: 10,
+      marginTop: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
       backgroundColor: theme.surfaceMuted,
       borderRadius: 8,
       borderWidth: 1,
@@ -198,27 +199,27 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
       fontSize: 12,
       fontWeight: '600',
       color: theme.textMuted,
-      marginBottom: 6
+      marginBottom: 4
     },
     telemetryGrid: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12
+      justifyContent: 'space-between',
+      alignItems: 'center'
     },
     telemetryItem: {
-      minWidth: 80
+      flex: 1
     },
     telemetryLabel: {
       fontSize: 11,
       color: theme.textMuted
     },
     telemetryValue: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '700',
       color: theme.text
     },
     sliderContainer: {
-      marginTop: 12
+      marginTop: 8
     },
     slider: {
       width: '100%',
