@@ -199,6 +199,32 @@ describe('ActivityEditModal', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('displays summary without strikethrough or arrow when untrimmed, and shows diff when trimmed', () => {
+    const { getByLabelText, getByText, queryAllByText } = render(
+      <ActivityEditModal
+        visible={true}
+        activity={mockActivity}
+        globalActivities={[mockActivity]}
+        rawStream={mockStream}
+        initialTab="trim"
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+
+    // Untrimmed: no "→" arrow present in summary
+    expect(queryAllByText('→')).toHaveLength(0);
+    // Shows current distance cleanly
+    expect(getByText('3.00 km')).toBeTruthy();
+
+    // Now step -10 seconds on end handle
+    const minus10Btn = getByLabelText('Minus 10 seconds');
+    fireEvent.press(minus10Btn);
+
+    // Trimmed: "→" arrows appear for comparing before and after
+    expect(queryAllByText('→').length).toBeGreaterThan(0);
+  });
+
   it('closes when Cancel is pressed', () => {
     const { getByLabelText } = render(
       <ActivityEditModal

@@ -44,7 +44,6 @@ interface DetailsTabProps {
   setCustomTypeInputValue: (v: string) => void;
   onAddCustomType: () => void;
   hasStream: boolean;
-  hasGps: boolean;
   isNoGps: boolean;
   isSwim: boolean;
   durationMin: string;
@@ -55,7 +54,6 @@ interface DetailsTabProps {
   setDistanceKm: (v: string) => void;
   elevationGainM: string;
   setElevationGainM: (v: string) => void;
-  onOpenTrimTab: () => void;
   theme: ReturnType<typeof useTheme>;
   styles: ReturnType<typeof createActivityEditModalStyles>;
 }
@@ -72,7 +70,6 @@ function DetailsTabContent({
   setCustomTypeInputValue,
   onAddCustomType,
   hasStream,
-  hasGps,
   isNoGps,
   isSwim,
   durationMin,
@@ -83,7 +80,6 @@ function DetailsTabContent({
   setDistanceKm,
   elevationGainM,
   setElevationGainM,
-  onOpenTrimTab,
   theme,
   styles
 }: Readonly<DetailsTabProps>): JSX.Element {
@@ -212,25 +208,6 @@ function DetailsTabContent({
           />
         </View>
       ) : null}
-
-      {hasStream ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open trim on map"
-          onPress={onOpenTrimTab}
-          style={styles.trimShortcutCard}
-        >
-          <View>
-            <Text style={styles.trimShortcutTitle}>
-              {hasGps ? 'Trim / Shorten on Map →' : 'Trim / Shorten Workout →'}
-            </Text>
-            <Text style={styles.trimShortcutSubtitle}>
-              Scrub start and end with live map & cut-point telemetry
-            </Text>
-          </View>
-          <Text style={{ fontSize: 18, color: theme.primary }}>›</Text>
-        </Pressable>
-      ) : null}
     </>
   );
 }
@@ -281,12 +258,44 @@ function TelemetryCard({
   );
 }
 
+interface ComparisonRowProps {
+  label: string;
+  oldValue: string;
+  newValue: string;
+  isTrimmed: boolean;
+  styles: ReturnType<typeof createActivityEditModalStyles>;
+}
+
+function ComparisonRow({
+  label,
+  oldValue,
+  newValue,
+  isTrimmed,
+  styles
+}: Readonly<ComparisonRowProps>): JSX.Element {
+  return (
+    <View style={styles.previewRow}>
+      <Text style={styles.previewLabel}>{label}</Text>
+      <View style={styles.previewValuesContainer}>
+        {isTrimmed ? (
+          <>
+            <Text style={styles.previewOldText}>{oldValue}</Text>
+            <Text style={styles.previewArrow}>→</Text>
+          </>
+        ) : null}
+        <Text style={styles.previewNewText}>{isTrimmed ? newValue : oldValue}</Text>
+      </View>
+    </View>
+  );
+}
+
 function SummaryComparisonCard({
   preview,
   activity,
   selectedType,
   hasGps,
   isSwim,
+  isTrimmed,
   styles
 }: Readonly<{
   preview: TrimPreviewResult;
@@ -294,75 +303,78 @@ function SummaryComparisonCard({
   selectedType: string;
   hasGps: boolean;
   isSwim: boolean;
+  isTrimmed: boolean;
   styles: ReturnType<typeof createActivityEditModalStyles>;
 }>): JSX.Element {
+  const oldDistance = `${(activity.distance / 1000).toFixed(2)} km`;
+  const newDistance = `${(preview.distanceMeters / 1000).toFixed(2)} km`;
+
+  const oldDuration = seconds_to_label(activity.elapsed_time);
+  const newDuration = seconds_to_label(preview.elapsedTimeSec);
+
+  const oldRate = formatActivityRate(
+    activity.distance,
+    activity.moving_time > 0 ? activity.moving_time : activity.elapsed_time,
+    selectedType
+  );
+  const newRate = formatActivityRate(preview.distanceMeters, preview.movingTimeSec, selectedType);
+
+  const oldElevation = `${Math.round(activity.total_elevation_gain)} m`;
+  const newElevation = `${Math.round(preview.elevationGainM)} m`;
+
+  const oldHr = activity.average_heartrate ? `${activity.average_heartrate} bpm` : '-';
+  const newHr = `${preview.averageHeartRate} bpm`;
+
   return (
     <View style={styles.previewCard}>
       <Text style={styles.previewTitle}>Summary Comparison</Text>
 
       {hasGps ? (
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Distance</Text>
-          <View style={styles.previewValuesContainer}>
-            <Text style={styles.previewOldText}>{(activity.distance / 1000).toFixed(2)} km</Text>
-            <Text style={styles.previewArrow}>→</Text>
-            <Text style={styles.previewNewText}>
-              {(preview.distanceMeters / 1000).toFixed(2)} km
-            </Text>
-          </View>
-        </View>
+        <ComparisonRow
+          label="Distance"
+          oldValue={oldDistance}
+          newValue={newDistance}
+          isTrimmed={isTrimmed}
+          styles={styles}
+        />
       ) : null}
 
-      <View style={styles.previewRow}>
-        <Text style={styles.previewLabel}>Duration</Text>
-        <View style={styles.previewValuesContainer}>
-          <Text style={styles.previewOldText}>{seconds_to_label(activity.elapsed_time)}</Text>
-          <Text style={styles.previewArrow}>→</Text>
-          <Text style={styles.previewNewText}>{seconds_to_label(preview.elapsedTimeSec)}</Text>
-        </View>
-      </View>
+      <ComparisonRow
+        label="Duration"
+        oldValue={oldDuration}
+        newValue={newDuration}
+        isTrimmed={isTrimmed}
+        styles={styles}
+      />
 
       {hasGps ? (
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Pace / Speed</Text>
-          <View style={styles.previewValuesContainer}>
-            <Text style={styles.previewOldText}>
-              {formatActivityRate(
-                activity.distance,
-                activity.moving_time > 0 ? activity.moving_time : activity.elapsed_time,
-                selectedType
-              )}
-            </Text>
-            <Text style={styles.previewArrow}>→</Text>
-            <Text style={styles.previewNewText}>
-              {formatActivityRate(preview.distanceMeters, preview.movingTimeSec, selectedType)}
-            </Text>
-          </View>
-        </View>
+        <ComparisonRow
+          label="Pace / Speed"
+          oldValue={oldRate}
+          newValue={newRate}
+          isTrimmed={isTrimmed}
+          styles={styles}
+        />
       ) : null}
 
       {!isSwim && (hasGps || activity.total_elevation_gain > 0) ? (
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Elevation Gain</Text>
-          <View style={styles.previewValuesContainer}>
-            <Text style={styles.previewOldText}>{Math.round(activity.total_elevation_gain)} m</Text>
-            <Text style={styles.previewArrow}>→</Text>
-            <Text style={styles.previewNewText}>{Math.round(preview.elevationGainM)} m</Text>
-          </View>
-        </View>
+        <ComparisonRow
+          label="Elevation Gain"
+          oldValue={oldElevation}
+          newValue={newElevation}
+          isTrimmed={isTrimmed}
+          styles={styles}
+        />
       ) : null}
 
       {preview.averageHeartRate !== undefined ? (
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Avg Heart Rate</Text>
-          <View style={styles.previewValuesContainer}>
-            <Text style={styles.previewOldText}>
-              {activity.average_heartrate ? `${activity.average_heartrate} bpm` : '-'}
-            </Text>
-            <Text style={styles.previewArrow}>→</Text>
-            <Text style={styles.previewNewText}>{preview.averageHeartRate} bpm</Text>
-          </View>
-        </View>
+        <ComparisonRow
+          label="Avg Heart Rate"
+          oldValue={oldHr}
+          newValue={newHr}
+          isTrimmed={isTrimmed}
+          styles={styles}
+        />
       ) : null}
     </View>
   );
@@ -543,6 +555,7 @@ function TrimTabContent({
           selectedType={selectedType}
           hasGps={hasGps}
           isSwim={isSwim}
+          isTrimmed={startIndex > 0 || endIndex < totalPoints - 1}
           styles={styles}
         />
       ) : null}
@@ -983,7 +996,6 @@ export function ActivityEditModal({
                   void handleAddCustomType();
                 }}
                 hasStream={hasStream}
-                hasGps={hasGps}
                 isNoGps={isNoGps}
                 isSwim={isSwim}
                 durationMin={form.durationMin}
@@ -994,7 +1006,6 @@ export function ActivityEditModal({
                 setDistanceKm={form.setDistanceKm}
                 elevationGainM={form.elevationGainM}
                 setElevationGainM={form.setElevationGainM}
-                onOpenTrimTab={() => form.setActiveTab('trim')}
                 theme={theme}
                 styles={styles}
               />

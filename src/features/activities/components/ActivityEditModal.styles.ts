@@ -152,27 +152,6 @@ export const createActivityEditModalStyles = (theme: ReturnType<typeof useTheme>
     inlineFieldItem: {
       flex: 1
     },
-    trimShortcutCard: {
-      marginTop: 16,
-      padding: 12,
-      backgroundColor: theme.surfaceMuted,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: theme.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between'
-    },
-    trimShortcutTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text
-    },
-    trimShortcutSubtitle: {
-      fontSize: 12,
-      color: theme.textMuted,
-      marginTop: 2
-    },
     mapContainer: {
       width: '100%',
       aspectRatio: 4 / 3,
