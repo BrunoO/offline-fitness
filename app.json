@@ -47,7 +47,8 @@
         {
           "android": {
             "usesCleartextTraffic": true,
-            "enablePngCrunchInReleaseBuilds": false
+            "enablePngCrunchInReleaseBuilds": false,
+            "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }"
           }
         }
       ],
