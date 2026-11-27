@@ -7,6 +7,7 @@ import { RecordingScreen } from '@/features/recording/screens/RecordingScreen';
 import { TimerRecordingScreen } from '@/features/recording/screens/TimerRecordingScreen';
 import { ProfileScreen } from '@/features/profile';
 import { LogScreen } from '@/shared';
+import { FlyoverScreen } from '../screens/FlyoverScreen';
 import { MainTabNavigator } from './MainTabNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,6 +60,13 @@ export function RootStackNavigator(): JSX.Element {
         component={LogScreen}
         options={{
           title: 'Diagnostic Logs'
+        }}
+      />
+      <Stack.Screen
+        name={STACK_ROUTES.Flyover3D}
+        component={FlyoverScreen}
+        options={{
+          headerShown: false
         }}
       />
     </Stack.Navigator>

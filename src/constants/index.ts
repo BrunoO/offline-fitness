@@ -72,7 +72,8 @@ export const STACK_ROUTES = {
   Record: 'Record',
   TimerRecord: 'TimerRecord',
   Profile: 'Profile',
-  Logs: 'Logs'
+  Logs: 'Logs',
+  Flyover3D: 'Flyover3D'
 } as const;
 
 // Segment identifiers for the Stats top segmented control.

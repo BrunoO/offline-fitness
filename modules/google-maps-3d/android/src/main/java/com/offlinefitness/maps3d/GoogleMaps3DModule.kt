@@ -1,0 +1,54 @@
+package com.offlinefitness.maps3d
+
+import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.modules.ModuleDefinition
+
+class GoogleMaps3DModule : Module() {
+  override fun definition() = ModuleDefinition {
+    Name("GoogleMaps3D")
+
+    View(GoogleMap3DContainer::class) {
+      Events(
+        "onMapReady",
+        "onFlyoverProgress",
+        "onFlyoverComplete"
+      )
+
+      Prop("coordinates") { view: GoogleMap3DContainer, coordinates: List<Map<String, Any?>>? ->
+        view.setCoordinates(coordinates.orEmpty())
+      }
+
+      Prop("strokeColor") { view: GoogleMap3DContainer, strokeColor: String? ->
+        view.setStrokeColor(strokeColor)
+      }
+
+      Prop("strokeWidth") { view: GoogleMap3DContainer, strokeWidth: Double? ->
+        view.setStrokeWidth(strokeWidth)
+      }
+
+      Prop("isPlaying") { view: GoogleMap3DContainer, isPlaying: Boolean? ->
+        view.setIsPlaying(isPlaying == true)
+      }
+
+      Prop("speedMultiplier") { view: GoogleMap3DContainer, speedMultiplier: Double? ->
+        view.setSpeedMultiplier(speedMultiplier)
+      }
+
+      Prop("cameraTilt") { view: GoogleMap3DContainer, cameraTilt: Double? ->
+        view.setCameraTilt(cameraTilt)
+      }
+
+      Prop("cameraRange") { view: GoogleMap3DContainer, cameraRange: Double? ->
+        view.setCameraRange(cameraRange)
+      }
+
+      AsyncFunction("restartFlyover") { view: GoogleMap3DContainer ->
+        view.restartFlyover()
+      }
+
+      OnViewDestroys { view: GoogleMap3DContainer ->
+        view.destroyMapInstance()
+      }
+    }
+  }
+}

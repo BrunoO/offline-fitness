@@ -77,6 +77,12 @@ export type RootStackParamList = {
   TimerRecord: undefined;
   Profile: undefined;
   Logs: undefined;
+  Flyover3D:
+    | {
+        coordinates?: { latitude: number; longitude: number; altitude?: number }[];
+        title?: string;
+      }
+    | undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

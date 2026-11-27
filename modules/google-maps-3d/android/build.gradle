@@ -1,0 +1,28 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.offlinefitness.maps3d'
+version = '0.1.0'
+
+android {
+  namespace "com.offlinefitness.maps3d"
+  defaultConfig {
+    minSdkVersion 24
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  compileOnly 'com.facebook.react:react-android'
+  implementation 'com.google.android.gms:play-services-maps3d:16.0.1'
+}
+
+// play-services-maps3d:16.0.1 ships Kotlin 2.4.0 metadata while Expo SDK 58 builds with Kotlin 2.2.0.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions {
+    freeCompilerArgs.add('-Xskip-metadata-version-check')
+  }
+}

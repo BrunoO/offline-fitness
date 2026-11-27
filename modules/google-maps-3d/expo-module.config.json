@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["GoogleMaps3DModule"]
+  },
+  "android": {
+    "modules": ["com.offlinefitness.maps3d.GoogleMaps3DModule"]
+  }
+}
