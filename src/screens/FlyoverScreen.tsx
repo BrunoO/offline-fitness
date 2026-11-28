@@ -8,40 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '@/shared/types/types';
 import { GoogleMap3DFlyover, Map3DCoordinate } from '../components/GoogleMap3DFlyover';
 import { computeTrackDistanceMeters } from '../utils/gpsSmoothing';
-import { useActivitiesContext } from '@/features/activities';
-import { loadRawStreamForActivity } from '@/features/activities/services/fetchAndStoreStreams';
+import { loadRawStreamForActivity, useActivitiesContext } from '@/features/activities';
 import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
-
-/**
- * Sample alpine GPS track: Col du Galibier (North approach from Plan Lachat to the 2,642 m summit).
- * Provides dramatic mountain relief and switchbacks to showcase photorealistic 3D flyover rendering.
- */
-export const SAMPLE_MOUNTAIN_TRACK: Map3DCoordinate[] = [
-  { latitude: 45.1098, longitude: 6.4256, altitude: 1962 },
-  { latitude: 45.1074, longitude: 6.4279, altitude: 1988 },
-  { latitude: 45.1051, longitude: 6.4304, altitude: 2018 },
-  { latitude: 45.1023, longitude: 6.4321, altitude: 2049 },
-  { latitude: 45.0994, longitude: 6.4312, altitude: 2080 },
-  { latitude: 45.0968, longitude: 6.4285, altitude: 2112 },
-  { latitude: 45.0942, longitude: 6.4259, altitude: 2146 },
-  { latitude: 45.0919, longitude: 6.4234, altitude: 2180 },
-  { latitude: 45.0894, longitude: 6.4216, altitude: 2215 },
-  { latitude: 45.0872, longitude: 6.4201, altitude: 2248 },
-  { latitude: 45.0853, longitude: 6.4178, altitude: 2285 },
-  { latitude: 45.0836, longitude: 6.4149, altitude: 2320 },
-  { latitude: 45.0819, longitude: 6.4126, altitude: 2356 },
-  { latitude: 45.0802, longitude: 6.4112, altitude: 2394 },
-  { latitude: 45.0785, longitude: 6.4105, altitude: 2432 },
-  { latitude: 45.0769, longitude: 6.4119, altitude: 2468 },
-  { latitude: 45.0752, longitude: 6.4131, altitude: 2505 },
-  { latitude: 45.0734, longitude: 6.4114, altitude: 2542 },
-  { latitude: 45.0716, longitude: 6.4098, altitude: 2578 },
-  { latitude: 45.0695, longitude: 6.4086, altitude: 2609 },
-  { latitude: 45.0672, longitude: 6.4079, altitude: 2628 },
-  { latitude: 45.0641, longitude: 6.4077, altitude: 2642 }
-];
 
 const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bottomInset: number) =>
   StyleSheet.create({
@@ -229,11 +199,17 @@ export function FlyoverScreen() {
     }
     let active = true;
     setIsLoadingTrack(true);
-    void loadRawStreamForActivity(activity).then(stream => {
-      if (!active) return;
-      setLoadedTrack(activityToFlyoverCoordinates(stream));
-      setIsLoadingTrack(false);
-    });
+    void loadRawStreamForActivity(activity)
+      .then(stream => {
+        if (!active) return;
+        setLoadedTrack(activityToFlyoverCoordinates(stream));
+        setIsLoadingTrack(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadedTrack([]);
+        setIsLoadingTrack(false);
+      });
     return () => {
       active = false;
     };
@@ -375,51 +351,53 @@ export function FlyoverScreen() {
         </View>
       </View>
 
-      <View style={styles.controlsCard}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.statusLabel}>{statusText}</Text>
-          <Text style={styles.progressText}>{Math.round(progress)}%</Text>
-        </View>
+      {!isLoadingTrack && track.length >= 2 ? (
+        <View style={styles.controlsCard}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.statusLabel}>{statusText}</Text>
+            <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+          </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(progress)}%` }]} />
-        </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round(progress)}%` }]} />
+          </View>
 
-        <View style={styles.controlsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={playLabel}
-            disabled={!isMapReady}
-            onPress={handleTogglePlay}
-            style={[styles.playButton, !isMapReady ? styles.playButtonDisabled : null]}
-          >
-            <Ionicons name={playIconName} size={18} color={theme.onPrimary} />
-            <Text style={styles.playButtonText}>{playLabel}</Text>
-          </Pressable>
+          <View style={styles.controlsRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={playLabel}
+              disabled={!isMapReady}
+              onPress={handleTogglePlay}
+              style={[styles.playButton, !isMapReady ? styles.playButtonDisabled : null]}
+            >
+              <Ionicons name={playIconName} size={18} color={theme.onPrimary} />
+              <Text style={styles.playButtonText}>{playLabel}</Text>
+            </Pressable>
 
-          <View style={styles.speedGroup}>
-            {SPEED_OPTIONS.map(speed => {
-              const isSelected = speedMultiplier === speed;
-              return (
-                <Pressable
-                  key={speed}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Set flyover speed to ${speed}x`}
-                  accessibilityState={{ selected: isSelected }}
-                  onPress={() => setSpeedMultiplier(speed)}
-                  style={[styles.speedChip, isSelected ? styles.speedChipActive : null]}
-                >
-                  <Text
-                    style={[styles.speedChipText, isSelected ? styles.speedChipTextActive : null]}
+            <View style={styles.speedGroup}>
+              {SPEED_OPTIONS.map(speed => {
+                const isSelected = speedMultiplier === speed;
+                return (
+                  <Pressable
+                    key={speed}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set flyover speed to ${speed}x`}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setSpeedMultiplier(speed)}
+                    style={[styles.speedChip, isSelected ? styles.speedChipActive : null]}
                   >
-                    {speed}x
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[styles.speedChipText, isSelected ? styles.speedChipTextActive : null]}
+                    >
+                      {speed}x
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }

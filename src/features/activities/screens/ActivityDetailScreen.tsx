@@ -9,7 +9,7 @@ import { useActivitiesContext } from '../ActivitiesContext';
 import { loadRawStreamForActivity } from '../services/fetchAndStoreStreams';
 import { writeStreamFile } from '@/features/recording';
 import { STACK_ROUTES } from '@/constants';
-import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
+import { hasFlyoverTrack } from '@/utils/activityTrack';
 import { HAS_GOOGLE_MAPS_KEY } from '@/features/maps';
 import type { StreamSet } from '../types/stravaActivityStream.model';
 import type { Activity, RootStackScreenProps } from '@/shared';
@@ -142,9 +142,7 @@ export function ActivityDetailScreen({
   }, [activity, navigation]);
 
   const show3DFlyover =
-    Platform.OS === 'android' &&
-    HAS_GOOGLE_MAPS_KEY &&
-    activityToFlyoverCoordinates(rawStream).length >= 2;
+    Platform.OS === 'android' && HAS_GOOGLE_MAPS_KEY && hasFlyoverTrack(rawStream);
 
   const renderHeaderRight = useCallback(
     () => (

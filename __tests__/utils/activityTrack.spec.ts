@@ -1,4 +1,4 @@
-import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
+import { activityToFlyoverCoordinates, hasFlyoverTrack } from '@/utils/activityTrack';
 import type { StreamSet } from '@/features/activities/types/stravaActivityStream.model';
 
 describe('activityToFlyoverCoordinates', () => {
@@ -12,13 +12,23 @@ describe('activityToFlyoverCoordinates', () => {
   });
 
   it('returns an empty array when latlng data is empty', () => {
-    const stream = { latlng: { data: [], series_type: 'latlng', original_size: 0, resolution: 'high' } } as unknown as StreamSet;
+    const stream = {
+      latlng: { data: [], series_type: 'latlng', original_size: 0, resolution: 'high' }
+    } as unknown as StreamSet;
     expect(activityToFlyoverCoordinates(stream)).toEqual([]);
   });
 
   it('converts latlng points with missing altitude to 0', () => {
     const stream = {
-      latlng: { data: [[45.0, 6.0], [45.1, 6.1]], series_type: 'latlng', original_size: 2, resolution: 'high' },
+      latlng: {
+        data: [
+          [45.0, 6.0],
+          [45.1, 6.1]
+        ],
+        series_type: 'latlng',
+        original_size: 2,
+        resolution: 'high'
+      },
       altitude: undefined
     } as unknown as StreamSet;
     expect(activityToFlyoverCoordinates(stream)).toEqual([
@@ -29,7 +39,16 @@ describe('activityToFlyoverCoordinates', () => {
 
   it('pads trailing points with 0 when altitude is shorter than latlng', () => {
     const stream = {
-      latlng: { data: [[45.0, 6.0], [45.1, 6.1], [45.2, 6.2]], series_type: 'latlng', original_size: 3, resolution: 'high' },
+      latlng: {
+        data: [
+          [45.0, 6.0],
+          [45.1, 6.1],
+          [45.2, 6.2]
+        ],
+        series_type: 'latlng',
+        original_size: 3,
+        resolution: 'high'
+      },
       altitude: { data: [1000], series_type: 'altitude', original_size: 1, resolution: 'high' }
     } as unknown as StreamSet;
     expect(activityToFlyoverCoordinates(stream)).toEqual([
@@ -42,7 +61,12 @@ describe('activityToFlyoverCoordinates', () => {
   it('truncates altitude when it is longer than latlng', () => {
     const stream = {
       latlng: { data: [[45.0, 6.0]], series_type: 'latlng', original_size: 1, resolution: 'high' },
-      altitude: { data: [1000, 1100, 1200], series_type: 'altitude', original_size: 3, resolution: 'high' }
+      altitude: {
+        data: [1000, 1100, 1200],
+        series_type: 'altitude',
+        original_size: 3,
+        resolution: 'high'
+      }
     } as unknown as StreamSet;
     expect(activityToFlyoverCoordinates(stream)).toEqual([
       { latitude: 45.0, longitude: 6.0, altitude: 1000 }
@@ -51,8 +75,22 @@ describe('activityToFlyoverCoordinates', () => {
 
   it('drops points with non-finite lat/lon', () => {
     const stream = {
-      latlng: { data: [[45.0, 6.0], [NaN, 6.1], [45.2, Infinity]], series_type: 'latlng', original_size: 3, resolution: 'high' },
-      altitude: { data: [1000, 1100, 1200], series_type: 'altitude', original_size: 3, resolution: 'high' }
+      latlng: {
+        data: [
+          [45.0, 6.0],
+          [NaN, 6.1],
+          [45.2, Infinity]
+        ],
+        series_type: 'latlng',
+        original_size: 3,
+        resolution: 'high'
+      },
+      altitude: {
+        data: [1000, 1100, 1200],
+        series_type: 'altitude',
+        original_size: 3,
+        resolution: 'high'
+      }
     } as unknown as StreamSet;
     expect(activityToFlyoverCoordinates(stream)).toEqual([
       { latitude: 45.0, longitude: 6.0, altitude: 1000 }
@@ -67,5 +105,46 @@ describe('activityToFlyoverCoordinates', () => {
     expect(activityToFlyoverCoordinates(stream)).toEqual([
       { latitude: 45.0, longitude: 6.0, altitude: 0 }
     ]);
+  });
+});
+
+describe('hasFlyoverTrack', () => {
+  it('returns false when stream is null or has fewer than 2 valid points', () => {
+    expect(hasFlyoverTrack(null)).toBe(false);
+    expect(
+      hasFlyoverTrack({
+        latlng: { data: [[45.0, 6.0]], series_type: 'latlng', original_size: 1, resolution: 'high' }
+      } as unknown as StreamSet)
+    ).toBe(false);
+    expect(
+      hasFlyoverTrack({
+        latlng: {
+          data: [
+            [45.0, 6.0],
+            [NaN, 6.1]
+          ],
+          series_type: 'latlng',
+          original_size: 2,
+          resolution: 'high'
+        }
+      } as unknown as StreamSet)
+    ).toBe(false);
+  });
+
+  it('returns true when stream has at least 2 finite lat/lon points', () => {
+    expect(
+      hasFlyoverTrack({
+        latlng: {
+          data: [
+            [NaN, 6.0],
+            [45.0, 6.0],
+            [45.1, 6.1]
+          ],
+          series_type: 'latlng',
+          original_size: 3,
+          resolution: 'high'
+        }
+      } as unknown as StreamSet)
+    ).toBe(true);
   });
 });

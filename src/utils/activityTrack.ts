@@ -36,3 +36,30 @@ export function activityToFlyoverCoordinates(stream: StreamSet | null): Map3DCoo
 
   return result;
 }
+
+/**
+ * Lightweight check for whether a stream contains at least two finite GPS
+ * points, avoiding allocating the full coordinate array on render.
+ */
+export function hasFlyoverTrack(stream: StreamSet | null): boolean {
+  const latlng = stream?.latlng?.data;
+  if (!latlng || latlng.length < 2) {
+    return false;
+  }
+
+  let validCount = 0;
+  for (const point of latlng) {
+    if (!Array.isArray(point) || point.length < 2) {
+      continue;
+    }
+    const [lat, lon] = point;
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      validCount += 1;
+      if (validCount >= 2) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
