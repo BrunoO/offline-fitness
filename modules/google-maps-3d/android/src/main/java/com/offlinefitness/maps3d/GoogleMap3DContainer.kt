@@ -12,9 +12,13 @@ import com.google.android.gms.maps3d.Map3DView
 import com.google.android.gms.maps3d.OnMap3DViewReadyCallback
 import com.google.android.gms.maps3d.model.AltitudeMode
 import com.google.android.gms.maps3d.model.Camera
+import com.google.android.gms.maps3d.model.CollisionBehavior
+import com.google.android.gms.maps3d.model.FlyAroundOptions
 import com.google.android.gms.maps3d.model.FlyToOptions
 import com.google.android.gms.maps3d.model.LatLngAltitude
 import com.google.android.gms.maps3d.model.Map3DMode
+import com.google.android.gms.maps3d.model.Marker
+import com.google.android.gms.maps3d.model.MarkerOptions
 import com.google.android.gms.maps3d.model.Polyline
 import com.google.android.gms.maps3d.model.PolylineOptions
 import expo.modules.kotlin.AppContext
@@ -55,6 +59,10 @@ class GoogleMap3DContainer(
   private var map3DView: Map3DView? = null
   private var googleMap3D: GoogleMap3D? = null
   private var activePolyline: Polyline? = null
+  private var startMarker: Marker? = null
+  private var summitMarker: Marker? = null
+  private var finishMarker: Marker? = null
+  private var summitSourceIndex: Int = -1
 
   private var isLifecycleRegistered = false
   private var isStarted = false
@@ -200,6 +208,7 @@ class GoogleMap3DContainer(
       Log.w(TAG, "Error removing polyline during destroy", e)
     }
     activePolyline = null
+    clearMilestoneMarkers()
     googleMap3D = null
 
     val view = map3DView
@@ -403,6 +412,7 @@ class GoogleMap3DContainer(
     pauseAnimationInternal()
     activePolyline?.remove()
     activePolyline = null
+    clearMilestoneMarkers()
 
     if (points.size < 2) {
       fullTrackLatLng = emptyList()
@@ -410,12 +420,14 @@ class GoogleMap3DContainer(
       keyframeSourceIndices = IntArray(0)
       keyframeDistances = DoubleArray(0)
       totalKeyframeDistance = 0.0
+      summitSourceIndex = -1
       currentKeyframeIndex = 0
       isCompleted = false
       return
     }
 
     fullTrackLatLng = points.map { LatLngAltitude(it.latitude, it.longitude, it.altitude) }
+    summitSourceIndex = findSummitSourceIndex(points)
     val (builtKeyframes, sourceIndices) = buildFlyoverKeyframes(points)
     keyframes = builtKeyframes
     keyframeSourceIndices = sourceIndices
@@ -447,6 +459,7 @@ class GoogleMap3DContainer(
     }
     val clampedKf = keyframeIndex.coerceIn(0, keyframeSourceIndices.lastIndex)
     val endSourceIndex = keyframeSourceIndices[clampedKf].coerceIn(0, fullTrackLatLng.lastIndex)
+    syncMilestoneMarkers(endSourceIndex)
     if (endSourceIndex < 1) {
       activePolyline?.remove()
       activePolyline = null
@@ -496,6 +509,131 @@ class GoogleMap3DContainer(
     val point = keyframes[clampedIndex]
     val heading = computeLookAheadBearing(keyframes, clampedIndex)
     map.flyCameraTo(FlyToOptions(buildCamera(point, heading), INITIAL_FLY_TO_DURATION_MS))
+  }
+
+  private fun startFinishOrbit() {
+    val map = googleMap3D ?: return
+    if (isDestroyed || keyframes.isEmpty()) return
+    val finishPoint = keyframes.last()
+    val approachHeading = computeLookAheadBearing(keyframes, keyframes.lastIndex)
+    val orbitCamera = Camera(
+      LatLngAltitude(finishPoint.latitude, finishPoint.longitude, CAMERA_GROUND_OFFSET_METERS),
+      normalizeBearing(approachHeading),
+      FINISH_ORBIT_TILT_DEGREES,
+      0.0,
+      max(cameraRange, FINISH_ORBIT_MIN_RANGE_METERS),
+      AltitudeMode.RELATIVE_TO_GROUND
+    )
+    try {
+      map.flyCameraAround(
+        FlyAroundOptions(orbitCamera, FINISH_ORBIT_DURATION_MS, FINISH_ORBIT_ROUNDS)
+      )
+    } catch (e: Exception) {
+      Log.w(TAG, "Finish orbit warning", e)
+    }
+  }
+
+  private fun clearMilestoneMarkers() {
+    try {
+      startMarker?.remove()
+      summitMarker?.remove()
+      finishMarker?.remove()
+    } catch (e: Exception) {
+      Log.w(TAG, "Error removing milestone markers", e)
+    }
+    startMarker = null
+    summitMarker = null
+    finishMarker = null
+  }
+
+  private fun syncMilestoneMarkers(endSourceIndex: Int) {
+    val map = googleMap3D ?: return
+    if (currentTrack.size < 2) return
+
+    if (startMarker == null) {
+      startMarker = addExtrudedMarker(
+        map = map,
+        point = currentTrack.first(),
+        label = "Start",
+        stemHeightMeters = START_MARKER_HEIGHT_METERS
+      )
+    }
+
+    val summitIdx = summitSourceIndex
+    if (summitIdx in currentTrack.indices && endSourceIndex >= summitIdx) {
+      if (summitMarker == null) {
+        val summit = currentTrack[summitIdx]
+        val elevLabel = "Summit · ${summit.altitude.roundToLong()} m"
+        summitMarker = addExtrudedMarker(
+          map = map,
+          point = summit,
+          label = elevLabel,
+          stemHeightMeters = SUMMIT_MARKER_HEIGHT_METERS
+        )
+      }
+    } else if (summitMarker != null) {
+      summitMarker?.remove()
+      summitMarker = null
+    }
+
+    if (endSourceIndex >= currentTrack.lastIndex) {
+      if (finishMarker == null) {
+        finishMarker = addExtrudedMarker(
+          map = map,
+          point = currentTrack.last(),
+          label = "Finish",
+          stemHeightMeters = FINISH_MARKER_HEIGHT_METERS
+        )
+      }
+    } else if (finishMarker != null) {
+      finishMarker?.remove()
+      finishMarker = null
+    }
+  }
+
+  private fun addExtrudedMarker(
+    map: GoogleMap3D,
+    point: TrackPoint,
+    label: String,
+    stemHeightMeters: Double
+  ): Marker? {
+    return try {
+      val options = MarkerOptions().apply {
+        setPosition(LatLngAltitude(point.latitude, point.longitude, stemHeightMeters))
+        setLabel(label)
+        setAltitudeMode(AltitudeMode.RELATIVE_TO_GROUND)
+        setExtruded(true)
+        setDrawnWhenOccluded(true)
+        setCollisionBehavior(CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL)
+      }
+      map.addMarker(options)
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to add 3D marker '$label'", e)
+      null
+    }
+  }
+
+  private fun findSummitSourceIndex(points: List<TrackPoint>): Int {
+    if (points.size < 3) return -1
+    var maxIndex = -1
+    var maxAlt = Double.NEGATIVE_INFINITY
+    for (i in 1 until points.lastIndex) {
+      val alt = points[i].altitude
+      if (alt.isFinite() && alt > maxAlt) {
+        maxAlt = alt
+        maxIndex = i
+      }
+    }
+    if (maxIndex == -1) return -1
+    val startAlt = points.first().altitude
+    val gainAboveStart = maxAlt - startAlt
+    if (gainAboveStart < MIN_SUMMIT_PROMINENCE_METERS) return -1
+    val distFromStart = haversineMeters(points.first(), points[maxIndex])
+    val distFromFinish = haversineMeters(points.last(), points[maxIndex])
+    if (distFromStart < MIN_SUMMIT_SEPARATION_METERS || distFromFinish < MIN_SUMMIT_SEPARATION_METERS) {
+      return -1
+    }
+    return maxIndex
   }
 
   private fun resumeFlyoverFromCurrentIndex() {
@@ -568,6 +706,7 @@ class GoogleMap3DContainer(
       isAnimating = false
       isCompleted = true
       onFlyoverComplete(emptyMap())
+      startFinishOrbit()
       return
     }
 
@@ -742,6 +881,15 @@ class GoogleMap3DContainer(
     private const val MIN_BASE_SPEED_MPS = 20.0
     private const val MAX_BASE_SPEED_MPS = 400.0
     private const val INITIAL_FLY_TO_DURATION_MS = 6_000L
+    private const val FINISH_ORBIT_DURATION_MS = 10_000L
+    private const val FINISH_ORBIT_ROUNDS = 1.0
+    private const val FINISH_ORBIT_TILT_DEGREES = 55.0
+    private const val FINISH_ORBIT_MIN_RANGE_METERS = 900.0
+    private const val START_MARKER_HEIGHT_METERS = 45.0
+    private const val SUMMIT_MARKER_HEIGHT_METERS = 70.0
+    private const val FINISH_MARKER_HEIGHT_METERS = 55.0
+    private const val MIN_SUMMIT_PROMINENCE_METERS = 30.0
+    private const val MIN_SUMMIT_SEPARATION_METERS = 100.0
     private const val MIN_SEGMENT_DURATION_MS = 700.0
     private const val MAX_SEGMENT_DURATION_MS = 4_000.0
 
