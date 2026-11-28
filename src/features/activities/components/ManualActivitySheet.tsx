@@ -2,7 +2,17 @@ import { ResolvedTheme, useTheme } from '@/theme';
 import { isNoGpsActivity, simpleLogger, SheetFooter, createSheetFrameStyles } from '@/shared';
 import { deviceTodayLocalDateString } from '@/shared/utils/activityDates';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { useActivitiesContext } from '../ActivitiesContext';
 import {
   buildManualActivity,
@@ -213,13 +223,20 @@ export function ManualActivitySheet({
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>Add activity</Text>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+          >
             <Text style={styles.sectionLabel}>Type</Text>
             <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
               <View style={styles.chipRow}>
@@ -418,7 +435,7 @@ export function ManualActivitySheet({
             ]}
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

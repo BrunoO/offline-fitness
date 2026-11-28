@@ -11,7 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -258,129 +260,139 @@ export function ProfileScreen(): JSX.Element {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <ScrollView
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.note}>
-          Optional. Used for heart-rate stats (zones, calories, predicted max HR). Leave blank to
-          keep private.
-        </Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          showsVerticalScrollIndicator
+        >
+          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.note}>
+            Optional. Used for heart-rate stats (zones, calories, predicted max HR). Leave blank to
+            keep private.
+          </Text>
 
-        {/* Biometrics: Age & Max HR */}
-        <View style={styles.biometricsRow}>
-          <View style={styles.biometricField}>
-            <Text style={styles.sectionTitle}>Age</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={ageInput}
-              onChangeText={handleAgeChange}
-              onBlur={handleAgeBlur}
-              placeholder="e.g. 30"
-              placeholderTextColor={theme.textMuted}
-              accessibilityLabel="Age in years"
-            />
-            <Text style={styles.hint}>Years (1–120). Optional.</Text>
+          {/* Biometrics: Age & Max HR */}
+          <View style={styles.biometricsRow}>
+            <View style={styles.biometricField}>
+              <Text style={styles.sectionTitle}>Age</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={ageInput}
+                onChangeText={handleAgeChange}
+                onBlur={handleAgeBlur}
+                placeholder="e.g. 30"
+                placeholderTextColor={theme.textMuted}
+                accessibilityLabel="Age in years"
+              />
+              <Text style={styles.hint}>Years (1–120). Optional.</Text>
+            </View>
+            <View style={styles.biometricField}>
+              <Text style={styles.sectionTitle}>Max Heart Rate</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={maxHrInput}
+                onChangeText={handleMaxHrChange}
+                onBlur={handleMaxHrBlur}
+                placeholder={`e.g. ${maxHrResolution.maxHr}`}
+                placeholderTextColor={theme.textMuted}
+                accessibilityLabel="Maximum heart rate in bpm"
+              />
+              <Text style={styles.hint}>BPM (100–240). Overrides 220 − age.</Text>
+            </View>
           </View>
-          <View style={styles.biometricField}>
-            <Text style={styles.sectionTitle}>Max Heart Rate</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={maxHrInput}
-              onChangeText={handleMaxHrChange}
-              onBlur={handleMaxHrBlur}
-              placeholder={`e.g. ${maxHrResolution.maxHr}`}
-              placeholderTextColor={theme.textMuted}
-              accessibilityLabel="Maximum heart rate in bpm"
-            />
-            <Text style={styles.hint}>BPM (100–240). Overrides 220 − age.</Text>
-          </View>
-        </View>
 
-        {/* 5-Zone HR Preview Card */}
-        <View style={styles.zonesPreviewCard}>
-          <View style={styles.zonesPreviewHeader}>
-            <Text style={styles.zonesPreviewTitle}>Heart-Rate Zones</Text>
-            <Text style={styles.zonesPreviewSubtitle}>
-              Max HR {maxHrResolution.maxHr} bpm ({formatMaxHrSourceLabel(maxHrResolution.source)})
-            </Text>
-          </View>
-          <View style={styles.zonesPreviewList}>
-            {previewZones.map((zone, idx) => {
-              const color = theme.heartRateZones[idx] ?? theme.primary;
-              const rangeLabel =
-                zone.zone === 5 ? `≥ ${zone.minBpm} bpm` : `${zone.minBpm}–${zone.maxBpm} bpm`;
-              const pctLabel =
-                zone.zone === 5
-                  ? '90–100%+'
-                  : `${Math.round(zone.minPct * 100)}–${Math.round(zone.maxPct * 100)}%`;
-              return (
-                <View key={zone.code} style={styles.zonePreviewRow}>
-                  <View style={styles.zonePreviewLeft}>
-                    <View style={[styles.zonePreviewDot, { backgroundColor: color }]} />
-                    <Text style={styles.zonePreviewCode}>{zone.code}</Text>
-                    <Text style={styles.zonePreviewName}>{zone.name}</Text>
+          {/* 5-Zone HR Preview Card */}
+          <View style={styles.zonesPreviewCard}>
+            <View style={styles.zonesPreviewHeader}>
+              <Text style={styles.zonesPreviewTitle}>Heart-Rate Zones</Text>
+              <Text style={styles.zonesPreviewSubtitle}>
+                Max HR {maxHrResolution.maxHr} bpm ({formatMaxHrSourceLabel(maxHrResolution.source)}
+                )
+              </Text>
+            </View>
+            <View style={styles.zonesPreviewList}>
+              {previewZones.map((zone, idx) => {
+                const color = theme.heartRateZones[idx] ?? theme.primary;
+                const rangeLabel =
+                  zone.zone === 5 ? `≥ ${zone.minBpm} bpm` : `${zone.minBpm}–${zone.maxBpm} bpm`;
+                const pctLabel =
+                  zone.zone === 5
+                    ? '90–100%+'
+                    : `${Math.round(zone.minPct * 100)}–${Math.round(zone.maxPct * 100)}%`;
+                return (
+                  <View key={zone.code} style={styles.zonePreviewRow}>
+                    <View style={styles.zonePreviewLeft}>
+                      <View style={[styles.zonePreviewDot, { backgroundColor: color }]} />
+                      <Text style={styles.zonePreviewCode}>{zone.code}</Text>
+                      <Text style={styles.zonePreviewName}>{zone.name}</Text>
+                    </View>
+                    <View style={styles.zonePreviewRight}>
+                      <Text style={styles.zonePreviewPct}>{pctLabel}</Text>
+                      <Text style={styles.zonePreviewBpm}>{rangeLabel}</Text>
+                    </View>
                   </View>
-                  <View style={styles.zonePreviewRight}>
-                    <Text style={styles.zonePreviewPct}>{pctLabel}</Text>
-                    <Text style={styles.zonePreviewBpm}>{rangeLabel}</Text>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
 
-        {/* Weight history */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Body weight (kg)</Text>
-          <Pressable
-            onPress={showAddForm ? handleCloseForm : handleOpenAddForm}
-            style={styles.smallButton}
-            accessibilityRole="button"
-            accessibilityLabel={showAddForm ? 'Cancel form' : 'Add weight entry'}
-          >
-            <Ionicons name={showAddForm ? 'close' : 'add'} size={18} color={theme.primary} />
-            <Text style={styles.smallButtonLabel}>{showAddForm ? 'Cancel' : 'Add entry'}</Text>
+          {/* Weight history */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Body weight (kg)</Text>
+            <Pressable
+              onPress={showAddForm ? handleCloseForm : handleOpenAddForm}
+              style={styles.smallButton}
+              accessibilityRole="button"
+              accessibilityLabel={showAddForm ? 'Cancel form' : 'Add weight entry'}
+            >
+              <Ionicons name={showAddForm ? 'close' : 'add'} size={18} color={theme.primary} />
+              <Text style={styles.smallButtonLabel}>{showAddForm ? 'Cancel' : 'Add entry'}</Text>
+            </Pressable>
+          </View>
+
+          {showAddForm ? (
+            <WeightEntryForm
+              theme={theme}
+              editingDateOriginal={editingDateOriginal}
+              newDate={newDate}
+              newWeight={newWeight}
+              latestLoggedWeight={profile.weightEntries[0]?.weightKg}
+              initialEditWeight={initialEditWeight}
+              onDateChange={setNewDate}
+              onWeightChange={setNewWeight}
+              onSubmit={handleAddEntry}
+            />
+          ) : null}
+
+          {profile.weightEntries.length >= 2 ? (
+            <WeightChart entries={profile.weightEntries} />
+          ) : null}
+
+          {profile.weightEntries.length === 0 ? (
+            <Text style={styles.muted}>No weight entries yet.</Text>
+          ) : (
+            <WeightHistoryList
+              entries={profile.weightEntries}
+              theme={theme}
+              onEdit={handleEditEntry}
+              onDelete={handleDeleteEntry}
+            />
+          )}
+
+          <Pressable onPress={() => setShowImport(true)} style={styles.secondaryButton}>
+            <Ionicons name="document-text-outline" size={18} color={theme.text} />
+            <Text style={styles.secondaryButtonLabel}>Import CSV</Text>
           </Pressable>
-        </View>
-
-        {showAddForm ? (
-          <WeightEntryForm
-            theme={theme}
-            editingDateOriginal={editingDateOriginal}
-            newDate={newDate}
-            newWeight={newWeight}
-            latestLoggedWeight={profile.weightEntries[0]?.weightKg}
-            initialEditWeight={initialEditWeight}
-            onDateChange={setNewDate}
-            onWeightChange={setNewWeight}
-            onSubmit={handleAddEntry}
-          />
-        ) : null}
-
-        {profile.weightEntries.length >= 2 ? <WeightChart entries={profile.weightEntries} /> : null}
-
-        {profile.weightEntries.length === 0 ? (
-          <Text style={styles.muted}>No weight entries yet.</Text>
-        ) : (
-          <WeightHistoryList
-            entries={profile.weightEntries}
-            theme={theme}
-            onEdit={handleEditEntry}
-            onDelete={handleDeleteEntry}
-          />
-        )}
-
-        <Pressable onPress={() => setShowImport(true)} style={styles.secondaryButton}>
-          <Ionicons name="document-text-outline" size={18} color={theme.text} />
-          <Text style={styles.secondaryButtonLabel}>Import CSV</Text>
-        </Pressable>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Import modal */}
       <Modal
@@ -389,9 +401,17 @@ export function ProfileScreen(): JSX.Element {
         visible={showImport}
         onRequestClose={() => setShowImport(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalCard}>
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+            <ScrollView
+              style={styles.modalScroll}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={true}
+              showsVerticalScrollIndicator
+            >
               <Text style={styles.modalTitle}>Import weight CSV</Text>
               <Text style={styles.modalNote}>
                 Paste rows with date and weight. One entry per line: &quot;YYYY-MM-DD,kg&quot;. A
@@ -434,7 +454,7 @@ export function ProfileScreen(): JSX.Element {
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

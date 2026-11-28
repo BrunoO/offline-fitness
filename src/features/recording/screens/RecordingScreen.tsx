@@ -5,7 +5,9 @@ import {
   Alert,
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -156,6 +158,8 @@ const formatSlope = (slopePercent: number | null | undefined): string => {
   return `${sign}${slopePercent.toFixed(1)}%`;
 };
 
+const KEYBOARD_AVOIDING_BEHAVIOR = Platform.OS === 'ios' ? 'padding' : 'height';
+
 const PHASE_LABEL: Record<string, string> = {
   idle: 'Ready to record',
   recording: 'Recording',
@@ -201,6 +205,7 @@ export function RecordingScreen({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const navContext = useContext(NavigationContext);
   const navigation =
     navigationProp ??
@@ -308,115 +313,123 @@ export function RecordingScreen({
       : defaultRateModeForProfile(displayedProfile);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
-      showsVerticalScrollIndicator={false}
-    >
-      {unfinished.length > 0 ? (
-        <UnfinishedRecoveryCard
-          unfinished={unfinished}
-          isSaving={isSaving}
-          onSave={handleSaveUnfinished}
-          onDiscard={discardUnfinished}
+    <KeyboardAvoidingView style={styles.container} behavior={KEYBOARD_AVOIDING_BEHAVIOR}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        showsVerticalScrollIndicator={false}
+      >
+        {unfinished.length > 0 ? (
+          <UnfinishedRecoveryCard
+            unfinished={unfinished}
+            isSaving={isSaving}
+            onSave={handleSaveUnfinished}
+            onDiscard={discardUnfinished}
+            styles={styles}
+            theme={theme}
+          />
+        ) : null}
+
+        <SessionCard
+          phase={state.phase}
+          liveStats={liveStats}
+          isLocked={isScreenLocked}
+          canRecord={capabilities?.canRecord !== false}
           styles={styles}
           theme={theme}
         />
-      ) : null}
+        <HeartRateCard />
 
-      <SessionCard
-        phase={state.phase}
-        liveStats={liveStats}
-        isLocked={isScreenLocked}
-        canRecord={capabilities?.canRecord !== false}
-        styles={styles}
-        theme={theme}
-      />
-      <HeartRateCard />
-
-      <LiveStatsCard
-        liveStats={liveStats}
-        profile={displayedProfile}
-        rateMode={rateMode}
-        onToggleRateMode={() => {
-          setRateOverride({
-            profile: displayedProfile,
-            mode: rateMode === 'pace' ? 'speed' : 'pace'
-          });
-        }}
-        heroStat={heroStat}
-        onPromote={setHeroStat}
-        isLocked={isScreenLocked}
-        styles={styles}
-      />
-
-      {lastSplit ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Last split</Text>
-          <Text style={styles.cardHint}>
-            #{lastSplit.splitNumber} · {formatSplitDistance(lastSplit.splitDistanceMeters)} ·{' '}
-            {formatSplitRate(lastSplit, displayedProfile, rateMode)}
-          </Text>
-        </View>
-      ) : null}
-
-      {state.phase === 'idle' ? (
-        <ProfileCard profile={profile} onSelect={handleSelectProfile} styles={styles} />
-      ) : null}
-      {isLive ? (
-        <View style={styles.profileBadge}>
-          <Ionicons
-            name={PROFILE_ICONS[displayedProfile] as never}
-            size={16}
-            color={theme.primary}
-          />
-          <Text style={styles.profileBadgeLabel}>{PROFILE_LABELS[displayedProfile]}</Text>
-        </View>
-      ) : null}
-
-      <RecordingActions
-        phase={state.phase}
-        isBusy={isBusy}
-        isLocked={isScreenLocked}
-        onStart={() => {
-          void handleStart();
-        }}
-        onPause={() => {
-          void pause();
-        }}
-        onResume={() => {
-          void resume();
-        }}
-        onStop={() => {
-          void stop();
-        }}
-        onLock={() => {
-          setIsScreenLocked(true);
-        }}
-        onUnlock={() => {
-          setIsScreenLocked(false);
-        }}
-        styles={styles}
-        theme={theme}
-      />
-
-      {state.phase === 'stopped-unsaved' ? (
-        <LastSessionCard
-          summary={summary}
-          splits={splits}
+        <LiveStatsCard
+          liveStats={liveStats}
           profile={displayedProfile}
           rateMode={rateMode}
-          heartRateSummary={heartRateSummary}
-          onSave={handleSave}
-          onDiscard={discard}
-          isSaving={isSaving}
+          onToggleRateMode={() => {
+            setRateOverride({
+              profile: displayedProfile,
+              mode: rateMode === 'pace' ? 'speed' : 'pace'
+            });
+          }}
+          heroStat={heroStat}
+          onPromote={setHeroStat}
+          isLocked={isScreenLocked}
+          styles={styles}
+        />
+
+        {lastSplit ? (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Last split</Text>
+            <Text style={styles.cardHint}>
+              #{lastSplit.splitNumber} · {formatSplitDistance(lastSplit.splitDistanceMeters)} ·{' '}
+              {formatSplitRate(lastSplit, displayedProfile, rateMode)}
+            </Text>
+          </View>
+        ) : null}
+
+        {state.phase === 'idle' ? (
+          <ProfileCard profile={profile} onSelect={handleSelectProfile} styles={styles} />
+        ) : null}
+        {isLive ? (
+          <View style={styles.profileBadge}>
+            <Ionicons
+              name={PROFILE_ICONS[displayedProfile] as never}
+              size={16}
+              color={theme.primary}
+            />
+            <Text style={styles.profileBadgeLabel}>{PROFILE_LABELS[displayedProfile]}</Text>
+          </View>
+        ) : null}
+
+        <RecordingActions
+          phase={state.phase}
+          isBusy={isBusy}
+          isLocked={isScreenLocked}
+          onStart={() => {
+            void handleStart();
+          }}
+          onPause={() => {
+            void pause();
+          }}
+          onResume={() => {
+            void resume();
+          }}
+          onStop={() => {
+            void stop();
+          }}
+          onLock={() => {
+            setIsScreenLocked(true);
+          }}
+          onUnlock={() => {
+            setIsScreenLocked(false);
+          }}
           styles={styles}
           theme={theme}
         />
-      ) : null}
 
-      {error ? <ErrorCard error={error} styles={styles} theme={theme} /> : null}
-    </ScrollView>
+        {state.phase === 'stopped-unsaved' ? (
+          <LastSessionCard
+            summary={summary}
+            splits={splits}
+            profile={displayedProfile}
+            rateMode={rateMode}
+            heartRateSummary={heartRateSummary}
+            onSave={handleSave}
+            onDiscard={discard}
+            onInputFocus={() => {
+              setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
+            }}
+            isSaving={isSaving}
+            styles={styles}
+            theme={theme}
+          />
+        ) : null}
+
+        {error ? <ErrorCard error={error} styles={styles} theme={theme} /> : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -982,6 +995,7 @@ interface LastSessionCardProps {
   readonly heartRateSummary: { average: number; max: number } | null;
   readonly onSave: (name: string, distanceOverrideMeters?: number) => Promise<void>;
   readonly onDiscard: () => Promise<void>;
+  readonly onInputFocus?: () => void;
   readonly isSaving: boolean;
   readonly styles: Styles;
   readonly theme: ResolvedTheme;
@@ -1063,6 +1077,7 @@ function LastSessionCard({
   heartRateSummary,
   onSave,
   onDiscard,
+  onInputFocus,
   isSaving,
   styles,
   theme
@@ -1134,6 +1149,7 @@ function LastSessionCard({
           accessibilityLabel="Swim distance in meters"
           value={distanceOverrideText}
           onChangeText={setDistanceOverrideText}
+          onFocus={onInputFocus}
           keyboardType="numeric"
           placeholder="Distance in meters (optional override)"
           placeholderTextColor={theme.textMuted}
@@ -1143,6 +1159,7 @@ function LastSessionCard({
       <TextInput
         value={name}
         onChangeText={setName}
+        onFocus={onInputFocus}
         placeholder="Name this activity (optional)"
         placeholderTextColor={theme.textMuted}
         style={styles.input}

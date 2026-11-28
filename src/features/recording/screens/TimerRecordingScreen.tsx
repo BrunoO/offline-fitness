@@ -1,7 +1,16 @@
 import { useTheme } from '@/theme';
 import type { ResolvedTheme } from '@/theme';
-import React, { JSX, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { JSX, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContext } from '@react-navigation/native';
@@ -172,6 +181,7 @@ function StoppedSummaryCard({
   heartRateSummary,
   name,
   onChangeName,
+  onNameFocus,
   isSaving,
   onSave,
   onDiscard,
@@ -183,6 +193,7 @@ function StoppedSummaryCard({
   readonly heartRateSummary: TimerHeartRateSummary | null;
   readonly name: string;
   readonly onChangeName: (value: string) => void;
+  readonly onNameFocus?: () => void;
   readonly isSaving: boolean;
   readonly onSave: () => void;
   readonly onDiscard: () => void;
@@ -216,6 +227,7 @@ function StoppedSummaryCard({
       <TextInput
         value={name}
         onChangeText={onChangeName}
+        onFocus={onNameFocus}
         placeholder="Name this activity (optional)"
         placeholderTextColor={theme.textMuted}
         style={styles.input}
@@ -253,6 +265,7 @@ export function TimerRecordingScreen({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const navContext = useContext(NavigationContext);
   const navigation =
     navigationProp ??
@@ -348,143 +361,154 @@ export function TimerRecordingScreen({
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.surface }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {phase === 'idle' ? <HeartRateCard /> : null}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        showsVerticalScrollIndicator={false}
+      >
+        {phase === 'idle' ? <HeartRateCard /> : null}
 
-      {phase === 'idle' ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Activity type</Text>
-          <View style={styles.chips}>
-            {Array.from(NO_GPS_ACTIVITY_TYPES).map(candidate => {
-              const isSelected = candidate === activityType;
-              return (
-                <Pressable
-                  key={candidate}
-                  accessibilityRole="button"
-                  accessibilityLabel={candidate}
-                  accessibilityState={{ selected: isSelected }}
-                  onPress={() => setActivityType(candidate)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    isSelected ? styles.chipSelected : null,
-                    pressed ? styles.buttonPressedLight : null
-                  ]}
-                >
-                  <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : null]}>
-                    {candidate}
-                  </Text>
-                </Pressable>
-              );
-            })}
+        {phase === 'idle' ? (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Activity type</Text>
+            <View style={styles.chips}>
+              {Array.from(NO_GPS_ACTIVITY_TYPES).map(candidate => {
+                const isSelected = candidate === activityType;
+                return (
+                  <Pressable
+                    key={candidate}
+                    accessibilityRole="button"
+                    accessibilityLabel={candidate}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setActivityType(candidate)}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      isSelected ? styles.chipSelected : null,
+                      pressed ? styles.buttonPressedLight : null
+                    ]}
+                  >
+                    <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : null]}>
+                      {candidate}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
+        ) : null}
+
+        {phase === 'idle' ? (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Vocal announcement interval (minutes)</Text>
+            <View style={styles.chips}>
+              {INTERVAL_PRESETS.map(value => {
+                const isSelected = value === intervalMinutes;
+                return (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${value} minutes`}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setIntervalMinutes(value)}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      isSelected ? styles.chipSelected : null,
+                      pressed ? styles.buttonPressedLight : null
+                    ]}
+                  >
+                    <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : null]}>
+                      {value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.intervalInputRow}>
+              <TextInput
+                accessibilityLabel="Custom interval in minutes"
+                value={customIntervalText}
+                onChangeText={setCustomIntervalText}
+                keyboardType="numeric"
+                placeholder="Custom minutes"
+                placeholderTextColor={theme.textMuted}
+                style={styles.intervalInput}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Set custom interval"
+                onPress={handleCustomInterval}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed ? styles.buttonPressedLight : null
+                ]}
+              >
+                <Text style={styles.secondaryButtonLabel}>Set</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.heroLabel}>Current: {intervalMinutes} min</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.card}>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor(phase, theme) }]} />
+            <Text style={styles.phase}>{phaseLabel(phase)}</Text>
+          </View>
+          <Text style={styles.heroTimer}>
+            {formatElapsed(phase === 'stopped' ? finalDurationSec : elapsedSec)}
+          </Text>
+          <Text style={styles.heroLabel}>
+            {phase === 'idle' ? 'Press start to begin' : activityType}
+          </Text>
         </View>
-      ) : null}
 
-      {phase === 'idle' ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Vocal announcement interval (minutes)</Text>
-          <View style={styles.chips}>
-            {INTERVAL_PRESETS.map(value => {
-              const isSelected = value === intervalMinutes;
-              return (
-                <Pressable
-                  key={value}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${value} minutes`}
-                  accessibilityState={{ selected: isSelected }}
-                  onPress={() => setIntervalMinutes(value)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    isSelected ? styles.chipSelected : null,
-                    pressed ? styles.buttonPressedLight : null
-                  ]}
-                >
-                  <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : null]}>
-                    {value}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.intervalInputRow}>
-            <TextInput
-              accessibilityLabel="Custom interval in minutes"
-              value={customIntervalText}
-              onChangeText={setCustomIntervalText}
-              keyboardType="numeric"
-              placeholder="Custom minutes"
-              placeholderTextColor={theme.textMuted}
-              style={styles.intervalInput}
-            />
+        {phase === 'idle' ? (
+          <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Set custom interval"
-              onPress={handleCustomInterval}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                pressed ? styles.buttonPressedLight : null
-              ]}
+              accessibilityLabel="Start timer recording"
+              onPress={start}
+              style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
             >
-              <Text style={styles.secondaryButtonLabel}>Set</Text>
+              <Ionicons name="play" size={20} color={theme.onPrimary} />
+              <Text style={styles.primaryButtonLabel}>Start</Text>
             </Pressable>
           </View>
-          <Text style={styles.heroLabel}>Current: {intervalMinutes} min</Text>
-        </View>
-      ) : null}
+        ) : null}
 
-      <View style={styles.card}>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor(phase, theme) }]} />
-          <Text style={styles.phase}>{phaseLabel(phase)}</Text>
-        </View>
-        <Text style={styles.heroTimer}>
-          {formatElapsed(phase === 'stopped' ? finalDurationSec : elapsedSec)}
-        </Text>
-        <Text style={styles.heroLabel}>
-          {phase === 'idle' ? 'Press start to begin' : activityType}
-        </Text>
-      </View>
+        {phase === 'stopped' ? (
+          <StoppedSummaryCard
+            finalDurationSec={finalDurationSec}
+            activityType={activityType}
+            heartRateSummary={heartRateSummary}
+            name={name}
+            onChangeName={setName}
+            onNameFocus={() => {
+              setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150);
+            }}
+            isSaving={isSaving}
+            onSave={() => {
+              void handleSave();
+            }}
+            onDiscard={handleDiscard}
+            theme={theme}
+            styles={styles}
+          />
+        ) : null}
 
-      {phase === 'idle' ? (
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Start timer recording"
-            onPress={start}
-            style={({ pressed }) => [styles.primaryButton, pressed ? styles.buttonPressed : null]}
-          >
-            <Ionicons name="play" size={20} color={theme.onPrimary} />
-            <Text style={styles.primaryButtonLabel}>Start</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {phase === 'stopped' ? (
-        <StoppedSummaryCard
-          finalDurationSec={finalDurationSec}
-          activityType={activityType}
-          heartRateSummary={heartRateSummary}
-          name={name}
-          onChangeName={setName}
-          isSaving={isSaving}
-          onSave={() => {
-            void handleSave();
-          }}
-          onDiscard={handleDiscard}
-          theme={theme}
-          styles={styles}
-        />
-      ) : null}
-
-      {error ? (
-        <View style={styles.errorCard}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
-      ) : null}
-    </ScrollView>
+        {error ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

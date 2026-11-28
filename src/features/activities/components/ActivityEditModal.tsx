@@ -1,5 +1,15 @@
 import React, { JSX, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Activity, formatActivityRate, isNoGpsActivity, LatLng, seconds_to_label } from '@/shared';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
@@ -922,7 +932,10 @@ export function ActivityEditModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Edit Activity</Text>
@@ -980,6 +993,7 @@ export function ActivityEditModal({
           <ScrollView
             style={styles.contentScroll}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
             showsVerticalScrollIndicator={false}
           >
             {form.activeTab === 'details' ? (
@@ -1062,7 +1076,7 @@ export function ActivityEditModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

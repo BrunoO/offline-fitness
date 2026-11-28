@@ -13,7 +13,9 @@ import React, { useMemo } from 'react';
 import {
   Alert,
   AppState,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -249,18 +251,23 @@ export function SettingsModal({
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
-      <View
+      <KeyboardAvoidingView
         style={[
           styles.backdrop,
           { paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(20, insets.bottom) }
         ]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.card}>
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+          >
             <Text style={styles.sectionTitle}>Appearance</Text>
             <Text style={styles.sectionNote}>
               Pick the colour palette. It applies straight away and is remembered, so there is
@@ -418,7 +425,7 @@ export function SettingsModal({
 
           <SheetFooter buttons={[{ label: 'Close', onPress: onClose, primary: true }]} />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

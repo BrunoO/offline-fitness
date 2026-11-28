@@ -25,7 +25,9 @@ import { useTheme } from '@/theme';
 import React, { JSX, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -404,7 +406,8 @@ function EditActivityModal({
 
   return (
     <Modal visible={activity !== null} transparent animationType="fade" onRequestClose={onClose}>
-      <View
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{
           flex: 1,
           backgroundColor: 'rgba(0,0,0,0.4)',
@@ -452,7 +455,11 @@ function EditActivityModal({
             </Pressable>
           ) : null}
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+          >
             <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Name</Text>
             <TextInput
               value={editingName}
@@ -633,7 +640,7 @@ function EditActivityModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
