@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { MapType } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -27,6 +27,12 @@ import {
   Map3DCoordinate,
   Map3DModeType
 } from '../components/GoogleMap3DFlyover';
+import {
+  Flyover3DCameraPreset,
+  NEXT_3D_CAMERA_PRESET,
+  resolve3DCameraParams,
+  resolveSport3DProfile
+} from '../utils/flyover3DConfig';
 
 const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
   hybrid: 'satellite',
@@ -78,6 +84,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
       zIndex: 11
     },
     fallbackBannerText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textStrong
+    },
+    theaterExitButton: {
+      position: 'absolute',
+      top: Math.max(topInset, 16) + 8,
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor:
+        theme.scheme === 'dark' ? 'rgba(24, 24, 27, 0.78)' : 'rgba(255, 255, 255, 0.85)',
+      borderWidth: 1,
+      borderColor: theme.border,
+      zIndex: 12
+    },
+    theaterExitText: {
       fontSize: 12,
       fontWeight: '600',
       color: theme.textStrong
@@ -194,6 +221,9 @@ interface FlyoverMapBodyProps {
   strokeColor: string;
   isPlaying3D: boolean;
   speedMultiplier: number;
+  baseSpeedMps: number;
+  cameraTilt: number;
+  cameraRange: number;
   mapMode3D: Map3DModeType;
   mapType25D: MapType;
   cameraMode: FlyoverCameraMode;
@@ -218,6 +248,9 @@ function FlyoverMapBody({
   strokeColor,
   isPlaying3D,
   speedMultiplier,
+  baseSpeedMps,
+  cameraTilt,
+  cameraRange,
   mapMode3D,
   mapType25D,
   cameraMode,
@@ -260,8 +293,9 @@ function FlyoverMapBody({
         strokeWidth={12}
         isPlaying={isPlaying3D}
         speedMultiplier={speedMultiplier}
-        cameraTilt={65}
-        cameraRange={800}
+        baseSpeedMps={baseSpeedMps}
+        cameraTilt={cameraTilt}
+        cameraRange={cameraRange}
         mapMode={mapMode3D}
         onMapReady={on3DMapReady}
         onMapError={on3DMapError}
@@ -536,6 +570,139 @@ function useFlyoverPlaybackActions({
   };
 }
 
+interface FlyoverChromeProps {
+  showChrome: boolean;
+  isLoading: boolean;
+  hasValidTrack: boolean;
+  canUse3D: boolean;
+  renderMode: FlyoverRenderMode;
+  title: string;
+  mapType25D: MapType;
+  mapTypeLabel: string;
+  cameraMode: FlyoverCameraMode;
+  cameraModeLabel?: string;
+  topInset: number;
+  fallbackNotice: string | null;
+  activityType?: string;
+  isPlaying: boolean;
+  playback: ReturnType<typeof useFlyoverPlayback>;
+  elevationSparkline: number[];
+  onClose: () => void;
+  onCycleMapType: () => void;
+  onCycleCamera: () => void;
+  onToggleRenderMode: () => void;
+  onToggleTheaterMode: () => void;
+  onTogglePlay: () => void;
+  onRestart: () => void;
+  onSeek: (progress: number) => void;
+  onSlidingStart: () => void;
+  onSlidingComplete: (progress: number) => void;
+  styles: ReturnType<typeof createStyles>;
+  textStrongColor: string;
+}
+
+function FlyoverChrome({
+  showChrome,
+  isLoading,
+  hasValidTrack,
+  canUse3D,
+  renderMode,
+  title,
+  mapType25D,
+  mapTypeLabel,
+  cameraMode,
+  cameraModeLabel,
+  topInset,
+  fallbackNotice,
+  activityType,
+  isPlaying,
+  playback,
+  elevationSparkline,
+  onClose,
+  onCycleMapType,
+  onCycleCamera,
+  onToggleRenderMode,
+  onToggleTheaterMode,
+  onTogglePlay,
+  onRestart,
+  onSeek,
+  onSlidingStart,
+  onSlidingComplete,
+  styles,
+  textStrongColor
+}: Readonly<FlyoverChromeProps>) {
+  const currentPoint = playback.currentPoint;
+  return (
+    <>
+      {showChrome ? (
+        <FlyoverHeader
+          title={title}
+          mapType={mapType25D}
+          mapTypeLabel={mapTypeLabel}
+          cameraMode={cameraMode}
+          cameraModeLabel={cameraModeLabel}
+          renderMode={canUse3D ? renderMode : undefined}
+          onClose={onClose}
+          onCycleMapType={onCycleMapType}
+          onCycleCameraMode={onCycleCamera}
+          onToggleRenderMode={canUse3D ? onToggleRenderMode : undefined}
+          onToggleTheaterMode={hasValidTrack ? onToggleTheaterMode : undefined}
+          topInset={topInset}
+        />
+      ) : (
+        <TouchableOpacity
+          style={styles.theaterExitButton}
+          onPress={onToggleTheaterMode}
+          accessibilityRole="button"
+          accessibilityLabel="Show flyover controls"
+        >
+          <Ionicons name="eye-outline" size={16} color={textStrongColor} />
+          <Text style={styles.theaterExitText}>Controls</Text>
+        </TouchableOpacity>
+      )}
+
+      {fallbackNotice ? (
+        <View style={styles.fallbackBanner} accessibilityRole="alert">
+          <Text style={styles.fallbackBannerText}>{fallbackNotice}</Text>
+        </View>
+      ) : null}
+
+      {showChrome && !isLoading && hasValidTrack ? (
+        <>
+          <View style={styles.hudContainer}>
+            <FlyoverHud
+              speedMps={currentPoint?.speed ?? 0}
+              completedDistanceMeters={playback.completedDistanceMeters}
+              totalDistanceMeters={playback.totalDistanceMeters}
+              altitudeMeters={currentPoint?.altitude ?? 0}
+              elapsedSeconds={playback.elapsedSeconds}
+              totalDurationSeconds={playback.totalDurationSeconds}
+              activityType={activityType}
+              gradePercent={currentPoint?.grade}
+              heartrateBpm={currentPoint?.heartrate}
+            />
+          </View>
+
+          <View style={styles.controlsContainer}>
+            <FlyoverControls
+              isPlaying={isPlaying}
+              progress={playback.progress}
+              speedMultiplier={playback.speedMultiplier}
+              elevationProfile={elevationSparkline}
+              onTogglePlay={onTogglePlay}
+              onRestart={onRestart}
+              onSeek={onSeek}
+              onSetSpeed={playback.setSpeed}
+              onSlidingStart={onSlidingStart}
+              onSlidingComplete={onSlidingComplete}
+            />
+          </View>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function FlyoverScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -560,6 +727,8 @@ export function FlyoverScreen() {
   const [mapType25D, setMapType25D] = useState<MapType>('hybrid');
   const [mapMode3D, setMapMode3D] = useState<Map3DModeType>('HYBRID');
   const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
+  const [cameraPreset3D, setCameraPreset3D] = useState<Flyover3DCameraPreset>('drone');
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [forceCameraTick, setForceCameraTick] = useState(0);
   const [isPlaying3D, setIsPlaying3D] = useState(false);
 
@@ -670,11 +839,25 @@ export function FlyoverScreen() {
     }
   }, [navigation, playback, stop3DSegmentTicker]);
 
+  const handleCycleCamera = useCallback(() => {
+    if (renderMode === '3d') {
+      setCameraPreset3D(current => NEXT_3D_CAMERA_PRESET[current]);
+      return;
+    }
+    handleCycleCameraMode();
+  }, [renderMode, handleCycleCameraMode]);
+
+  const handleToggleTheaterMode = useCallback(() => {
+    setIsTheaterMode(prev => !prev);
+  }, []);
+
   const title = route.params?.title ?? 'Route Flyover';
   const activityType = route.params?.activityType ?? loadedActivityType;
   const hasValidTrack = Boolean(stream && stream.coordinates.length >= 2);
-  const currentPoint = playback.currentPoint;
   const mapTypeLabel = renderMode === '3d' ? mapMode3D.toLowerCase() : mapType25D;
+  const sport3DProfile = resolveSport3DProfile(activityType, playback.totalDistanceMeters);
+  const camera3D = resolve3DCameraParams(sport3DProfile, cameraPreset3D);
+  const showChrome = !isTheaterMode;
 
   return (
     <View style={styles.container}>
@@ -687,6 +870,9 @@ export function FlyoverScreen() {
         strokeColor={theme.primary}
         isPlaying3D={isPlaying3D}
         speedMultiplier={playback.speedMultiplier}
+        baseSpeedMps={sport3DProfile.baseSpeedMps}
+        cameraTilt={camera3D.tilt}
+        cameraRange={camera3D.range}
         mapMode3D={mapMode3D}
         mapType25D={mapType25D}
         cameraMode={cameraMode}
@@ -702,57 +888,36 @@ export function FlyoverScreen() {
         textMutedColor={theme.textMuted}
       />
 
-      <FlyoverHeader
+      <FlyoverChrome
+        showChrome={showChrome}
+        isLoading={isLoading}
+        hasValidTrack={hasValidTrack}
+        canUse3D={canUse3D}
+        renderMode={renderMode}
         title={title}
-        mapType={mapType25D}
+        mapType25D={mapType25D}
         mapTypeLabel={mapTypeLabel}
         cameraMode={cameraMode}
-        renderMode={canUse3D ? renderMode : undefined}
+        cameraModeLabel={renderMode === '3d' ? camera3D.label : undefined}
+        topInset={insets.top}
+        fallbackNotice={fallbackNotice}
+        activityType={activityType}
+        isPlaying={isPlaying}
+        playback={playback}
+        elevationSparkline={elevationSparkline}
         onClose={handleClose}
         onCycleMapType={handleCycleMapType}
-        onCycleCameraMode={renderMode === '2.5d' ? handleCycleCameraMode : undefined}
-        onToggleRenderMode={canUse3D ? handleToggleRenderMode : undefined}
-        topInset={insets.top}
+        onCycleCamera={handleCycleCamera}
+        onToggleRenderMode={handleToggleRenderMode}
+        onToggleTheaterMode={handleToggleTheaterMode}
+        onTogglePlay={handleTogglePlay}
+        onRestart={handleRestart}
+        onSeek={handleSeek}
+        onSlidingStart={handleSlidingStart}
+        onSlidingComplete={handleSlidingComplete}
+        styles={styles}
+        textStrongColor={theme.textStrong}
       />
-
-      {fallbackNotice ? (
-        <View style={styles.fallbackBanner} accessibilityRole="alert">
-          <Text style={styles.fallbackBannerText}>{fallbackNotice}</Text>
-        </View>
-      ) : null}
-
-      {!isLoading && hasValidTrack ? (
-        <>
-          <View style={styles.hudContainer}>
-            <FlyoverHud
-              speedMps={currentPoint?.speed ?? 0}
-              completedDistanceMeters={playback.completedDistanceMeters}
-              totalDistanceMeters={playback.totalDistanceMeters}
-              altitudeMeters={currentPoint?.altitude ?? 0}
-              elapsedSeconds={playback.elapsedSeconds}
-              totalDurationSeconds={playback.totalDurationSeconds}
-              activityType={activityType}
-              gradePercent={currentPoint?.grade}
-              heartrateBpm={currentPoint?.heartrate}
-            />
-          </View>
-
-          <View style={styles.controlsContainer}>
-            <FlyoverControls
-              isPlaying={isPlaying}
-              progress={playback.progress}
-              speedMultiplier={playback.speedMultiplier}
-              elevationProfile={elevationSparkline}
-              onTogglePlay={handleTogglePlay}
-              onRestart={handleRestart}
-              onSeek={handleSeek}
-              onSetSpeed={playback.setSpeed}
-              onSlidingStart={handleSlidingStart}
-              onSlidingComplete={handleSlidingComplete}
-            />
-          </View>
-        </>
-      ) : null}
     </View>
   );
 }

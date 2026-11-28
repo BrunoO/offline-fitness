@@ -12,11 +12,13 @@ export interface FlyoverHeaderProps {
   mapType: MapType;
   mapTypeLabel?: string;
   cameraMode?: FlyoverCameraMode;
+  cameraModeLabel?: string;
   renderMode?: FlyoverRenderMode;
   onClose: () => void;
   onCycleMapType: () => void;
   onCycleCameraMode?: () => void;
   onToggleRenderMode?: () => void;
+  onToggleTheaterMode?: () => void;
   topInset: number;
 }
 
@@ -112,16 +114,18 @@ export default function FlyoverHeader({
   mapType,
   mapTypeLabel,
   cameraMode = 'follow',
+  cameraModeLabel,
   renderMode,
   onClose,
   onCycleMapType,
   onCycleCameraMode,
   onToggleRenderMode,
+  onToggleTheaterMode,
   topInset
 }: Readonly<FlyoverHeaderProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, topInset), [theme, topInset]);
-  const modeLabel = CAMERA_MODE_LABEL[cameraMode];
+  const modeLabel = cameraModeLabel ?? CAMERA_MODE_LABEL[cameraMode];
   const modeIcon = CAMERA_MODE_ICON[cameraMode];
   const activeMapLabel = mapTypeLabel ?? mapType;
   const is3D = renderMode === '3d';
@@ -183,6 +187,17 @@ export default function FlyoverHeader({
           <Ionicons name="layers-outline" size={16} color={theme.text} />
           <Text style={styles.mapTypeText}>{activeMapLabel}</Text>
         </TouchableOpacity>
+
+        {onToggleTheaterMode ? (
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={onToggleTheaterMode}
+            accessibilityRole="button"
+            accessibilityLabel="Hide controls for theater mode"
+          >
+            <Ionicons name="eye-off-outline" size={18} color={theme.text} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );

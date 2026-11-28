@@ -27,6 +27,7 @@ export interface GoogleMap3DFlyoverProps {
   strokeWidth?: number;
   isPlaying?: boolean;
   speedMultiplier?: number;
+  baseSpeedMps?: number;
   cameraTilt?: number;
   cameraRange?: number;
   mapMode?: Map3DModeType;
@@ -87,6 +88,7 @@ export function GoogleMap3DFlyover({
   strokeWidth = DEFAULT_STROKE_WIDTH,
   isPlaying = false,
   speedMultiplier = DEFAULT_SPEED_MULTIPLIER,
+  baseSpeedMps,
   cameraTilt = DEFAULT_CAMERA_TILT,
   cameraRange = DEFAULT_CAMERA_RANGE,
   mapMode = 'HYBRID',
@@ -167,6 +169,7 @@ export function GoogleMap3DFlyover({
         strokeWidth={strokeWidth}
         isPlaying={isPlaying}
         speedMultiplier={speedMultiplier}
+        baseSpeedMps={baseSpeedMps}
         cameraTilt={cameraTilt}
         cameraRange={cameraRange}
         mapMode={mapMode}

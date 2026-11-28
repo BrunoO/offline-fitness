@@ -39,6 +39,7 @@ export interface GoogleMaps3DNativeViewProps {
   strokeWidth?: number;
   isPlaying?: boolean;
   speedMultiplier?: number;
+  baseSpeedMps?: number;
   cameraTilt?: number;
   cameraRange?: number;
   mapMode?: Map3DModeType;

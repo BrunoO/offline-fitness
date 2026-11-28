@@ -81,6 +81,7 @@ class GoogleMap3DContainer(
   private var pendingSeekProgress: Double? = null
   private var animationGeneration: Int = 0
   private var speedMultiplier: Double = DEFAULT_SPEED_MULTIPLIER
+  private var baseSpeedMps: Double = BASE_FLYOVER_SPEED_MPS
   private var cameraTilt: Double = DEFAULT_CAMERA_TILT
   private var cameraRange: Double = DEFAULT_CAMERA_RANGE
 
@@ -321,6 +322,11 @@ class GoogleMap3DContainer(
   fun setSpeedMultiplier(multiplier: Double?) {
     val next = (multiplier ?: DEFAULT_SPEED_MULTIPLIER).coerceIn(MIN_SPEED_MULTIPLIER, MAX_SPEED_MULTIPLIER)
     speedMultiplier = next
+  }
+
+  fun setBaseSpeedMps(speedMps: Double?) {
+    val next = (speedMps ?: BASE_FLYOVER_SPEED_MPS).coerceIn(MIN_BASE_SPEED_MPS, MAX_BASE_SPEED_MPS)
+    baseSpeedMps = next
   }
 
   fun setCameraTilt(tilt: Double?) {
@@ -698,7 +704,7 @@ class GoogleMap3DContainer(
 
   private fun computeSegmentDurationMillis(distanceMeters: Double, speed: Double): Long {
     val safeSpeed = speed.coerceIn(MIN_SPEED_MULTIPLIER, MAX_SPEED_MULTIPLIER)
-    val rawMs = (distanceMeters / BASE_FLYOVER_SPEED_MPS) * 1000.0
+    val rawMs = (distanceMeters / baseSpeedMps) * 1000.0
     val scaledMs = rawMs / safeSpeed
     val minMs = (MIN_SEGMENT_DURATION_MS / safeSpeed).coerceAtLeast(250.0)
     val maxMs = (MAX_SEGMENT_DURATION_MS / safeSpeed).coerceAtLeast(500.0)
@@ -729,6 +735,8 @@ class GoogleMap3DContainer(
     private const val LOOK_AHEAD_STEPS = 2
 
     private const val BASE_FLYOVER_SPEED_MPS = 90.0
+    private const val MIN_BASE_SPEED_MPS = 20.0
+    private const val MAX_BASE_SPEED_MPS = 400.0
     private const val INITIAL_FLY_TO_DURATION_MS = 6_000L
     private const val MIN_SEGMENT_DURATION_MS = 700.0
     private const val MAX_SEGMENT_DURATION_MS = 4_000.0

@@ -36,6 +36,10 @@ class GoogleMaps3DModule : Module() {
         view.setSpeedMultiplier(speedMultiplier)
       }
 
+      Prop("baseSpeedMps") { view: GoogleMap3DContainer, baseSpeedMps: Double? ->
+        view.setBaseSpeedMps(baseSpeedMps)
+      }
+
       Prop("cameraTilt") { view: GoogleMap3DContainer, cameraTilt: Double? ->
         view.setCameraTilt(cameraTilt)
       }
