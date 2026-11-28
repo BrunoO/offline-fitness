@@ -64,7 +64,9 @@ class GoogleMap3DContainer(
   // Track & polyline state
   private var pendingCoordinates: List<TrackPoint>? = null
   private var currentTrack: List<TrackPoint> = emptyList()
+  private var fullTrackLatLng: List<LatLngAltitude> = emptyList()
   private var keyframes: List<TrackPoint> = emptyList()
+  private var keyframeSourceIndices: IntArray = IntArray(0)
   private var keyframeDistances: DoubleArray = DoubleArray(0)
   private var totalKeyframeDistance: Double = 0.0
   private var strokeColorInt: Int = DEFAULT_STROKE_COLOR
@@ -304,6 +306,7 @@ class GoogleMap3DContainer(
       if (isCompleted) {
         currentKeyframeIndex = 0
         isCompleted = false
+        updateTraveledPolyline(0)
         positionCameraAtStart()
         emitProgress(0.0)
       }
@@ -355,6 +358,7 @@ class GoogleMap3DContainer(
       pendingSeekProgress = null
       currentKeyframeIndex = 0
       isCompleted = false
+      updateTraveledPolyline(0)
       positionCameraAtStart()
       emitProgress(0.0)
       if (desiredPlaying && keyframes.size >= 2) {
@@ -375,6 +379,7 @@ class GoogleMap3DContainer(
       pendingSeekProgress = null
       currentKeyframeIndex = keyframeIndexForProgress(clamped)
       isCompleted = currentKeyframeIndex >= keyframes.lastIndex
+      updateTraveledPolyline(currentKeyframeIndex)
       snapCameraToKeyframe(currentKeyframeIndex)
       emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
       if (desiredPlaying && !isCompleted && keyframes.size >= 2) {
@@ -388,13 +393,15 @@ class GoogleMap3DContainer(
   // ---------------------------------------------------------------------------
 
   private fun applyTrackToMap(points: List<TrackPoint>) {
-    val map = googleMap3D ?: return
+    if (googleMap3D == null) return
     pauseAnimationInternal()
     activePolyline?.remove()
     activePolyline = null
 
     if (points.size < 2) {
+      fullTrackLatLng = emptyList()
       keyframes = emptyList()
+      keyframeSourceIndices = IntArray(0)
       keyframeDistances = DoubleArray(0)
       totalKeyframeDistance = 0.0
       currentKeyframeIndex = 0
@@ -402,16 +409,10 @@ class GoogleMap3DContainer(
       return
     }
 
-    val path = points.map { LatLngAltitude(it.latitude, it.longitude, it.altitude) }
-    val options = PolylineOptions().apply {
-      setPath(path)
-      setAltitudeMode(AltitudeMode.CLAMP_TO_GROUND)
-      setStrokeColor(strokeColorInt)
-      setStrokeWidth(strokeWidthPx)
-    }
-    activePolyline = map.addPolyline(options)
-
-    keyframes = buildFlyoverKeyframes(points)
+    fullTrackLatLng = points.map { LatLngAltitude(it.latitude, it.longitude, it.altitude) }
+    val (builtKeyframes, sourceIndices) = buildFlyoverKeyframes(points)
+    keyframes = builtKeyframes
+    keyframeSourceIndices = sourceIndices
     keyframeDistances = computeKeyframeDistances(keyframes)
     totalKeyframeDistance = keyframeDistances.lastOrNull() ?: 0.0
 
@@ -420,6 +421,7 @@ class GoogleMap3DContainer(
     currentKeyframeIndex = if (initialSeek != null) keyframeIndexForProgress(initialSeek) else 0
     isCompleted = currentKeyframeIndex >= keyframes.lastIndex
 
+    updateTraveledPolyline(currentKeyframeIndex)
     emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
 
     if (desiredPlaying && !isCompleted && keyframes.size >= 2) {
@@ -427,6 +429,36 @@ class GoogleMap3DContainer(
       resumeFlyoverFromCurrentIndex()
     } else {
       flyCameraToInitialKeyframe(currentKeyframeIndex)
+    }
+  }
+
+  private fun updateTraveledPolyline(keyframeIndex: Int) {
+    val map = googleMap3D ?: return
+    if (fullTrackLatLng.size < 2 || keyframeSourceIndices.isEmpty()) {
+      activePolyline?.remove()
+      activePolyline = null
+      return
+    }
+    val clampedKf = keyframeIndex.coerceIn(0, keyframeSourceIndices.lastIndex)
+    val endSourceIndex = keyframeSourceIndices[clampedKf].coerceIn(0, fullTrackLatLng.lastIndex)
+    if (endSourceIndex < 1) {
+      activePolyline?.remove()
+      activePolyline = null
+      return
+    }
+
+    val traveledPath = fullTrackLatLng.subList(0, endSourceIndex + 1)
+    val existing = activePolyline
+    if (existing != null) {
+      existing.setPath(traveledPath)
+    } else {
+      val options = PolylineOptions().apply {
+        setPath(traveledPath)
+        setAltitudeMode(AltitudeMode.CLAMP_TO_GROUND)
+        setStrokeColor(strokeColorInt)
+        setStrokeWidth(strokeWidthPx)
+      }
+      activePolyline = map.addPolyline(options)
     }
   }
 
@@ -520,6 +552,7 @@ class GoogleMap3DContainer(
     }
 
     currentKeyframeIndex = min(currentKeyframeIndex + 1, keyframes.lastIndex)
+    updateTraveledPolyline(currentKeyframeIndex)
     emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
 
     if (currentKeyframeIndex >= keyframes.lastIndex) {
@@ -592,10 +625,13 @@ class GoogleMap3DContainer(
   // Sub-sampling, Smoothing & Bearing Math
   // ---------------------------------------------------------------------------
 
-  private fun buildFlyoverKeyframes(points: List<TrackPoint>): List<TrackPoint> {
-    if (points.size <= 2) return points
+  private fun buildFlyoverKeyframes(points: List<TrackPoint>): Pair<List<TrackPoint>, IntArray> {
+    if (points.size <= 2) {
+      return points to IntArray(points.size) { it }
+    }
 
     val sampled = mutableListOf(points.first())
+    val sampledIndices = mutableListOf(0)
     var lastKept = points.first()
     var lastHeading = computeBearing(points[0], points[1])
 
@@ -610,6 +646,7 @@ class GoogleMap3DContainer(
 
       if (shouldKeep) {
         sampled.add(candidate)
+        sampledIndices.add(i)
         lastKept = candidate
         lastHeading = nextHeading
       }
@@ -618,22 +655,30 @@ class GoogleMap3DContainer(
     val lastPoint = points.last()
     if (haversineMeters(sampled.last(), lastPoint) > 1.0) {
       sampled.add(lastPoint)
+      sampledIndices.add(points.lastIndex)
     } else if (sampled.size == 1) {
       sampled.add(lastPoint)
+      sampledIndices.add(points.lastIndex)
+    } else {
+      sampledIndices[sampledIndices.lastIndex] = points.lastIndex
     }
 
     if (sampled.size <= MAX_KEYFRAMES) {
-      return sampled
+      return sampled to sampledIndices.toIntArray()
     }
 
     // Uniformly thin if the route is very long to keep segment chaining responsive.
     val step = (sampled.size - 1).toDouble() / (MAX_KEYFRAMES - 1).toDouble()
     val thinned = mutableListOf<TrackPoint>()
+    val thinnedIndices = IntArray(MAX_KEYFRAMES)
     for (k in 0 until MAX_KEYFRAMES - 1) {
-      thinned.add(sampled[(k * step).toInt()])
+      val idx = (k * step).toInt()
+      thinned.add(sampled[idx])
+      thinnedIndices[k] = sampledIndices[idx]
     }
     thinned.add(sampled.last())
-    return thinned
+    thinnedIndices[MAX_KEYFRAMES - 1] = sampledIndices.last()
+    return thinned to thinnedIndices
   }
 
   private fun computeLookAheadBearing(points: List<TrackPoint>, index: Int): Double {
@@ -684,7 +729,7 @@ class GoogleMap3DContainer(
     private const val LOOK_AHEAD_STEPS = 2
 
     private const val BASE_FLYOVER_SPEED_MPS = 90.0
-    private const val INITIAL_FLY_TO_DURATION_MS = 3_000L
+    private const val INITIAL_FLY_TO_DURATION_MS = 6_000L
     private const val MIN_SEGMENT_DURATION_MS = 700.0
     private const val MAX_SEGMENT_DURATION_MS = 4_000.0
 
