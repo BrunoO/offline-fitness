@@ -292,6 +292,9 @@ function use3DPlaybackBridge(
     if (!isPlaying3D || renderMode !== '3d') {
       stop3DSegmentTicker();
     }
+    return () => {
+      stop3DSegmentTicker();
+    };
   }, [isPlaying3D, renderMode, stop3DSegmentTicker]);
 
   const handle3DMapReady = useCallback(() => {
@@ -451,7 +454,7 @@ function useFlyoverPlaybackActions({
     [playback, renderMode, map3DRef, setIsPlaying3D, setForceCameraTick]
   );
 
-  const handleToggleRenderMode = useCallback(() => {
+  const handleToggleRenderMode = useCallback(async () => {
     if (!canUse3D) return;
     if (renderMode === '3d') {
       const resumeIn25D = isPlaying3D;
@@ -468,9 +471,14 @@ function useFlyoverPlaybackActions({
     playback.pause();
     schedulePendingSeek3D(playback.progress);
     setRenderMode('3d');
+    // Sync the native 3D cursor to the (possibly scrubbed) 2.5D progress before
+    // resuming, so playback doesn't jump back to a stale keyframe. The pending
+    // seek above only fires on (re)mount; handle the already-mounted case here.
+    await map3DRef.current?.seekTo(playback.progress * 100);
     setIsPlaying3D(resumeIn3D);
   }, [
     canUse3D,
+    map3DRef,
     renderMode,
     isPlaying3D,
     playback,
