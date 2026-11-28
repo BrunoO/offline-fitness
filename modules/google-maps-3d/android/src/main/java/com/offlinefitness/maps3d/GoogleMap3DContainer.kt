@@ -44,6 +44,7 @@ class GoogleMap3DContainer(
 
   private val onMapReady by EventDispatcher()
   private val onFlyoverProgress by EventDispatcher()
+  private val onFlyoverSegmentStart by EventDispatcher()
   private val onFlyoverComplete by EventDispatcher()
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -63,14 +64,18 @@ class GoogleMap3DContainer(
   private var pendingCoordinates: List<TrackPoint>? = null
   private var currentTrack: List<TrackPoint> = emptyList()
   private var keyframes: List<TrackPoint> = emptyList()
+  private var keyframeDistances: DoubleArray = DoubleArray(0)
+  private var totalKeyframeDistance: Double = 0.0
   private var strokeColorInt: Int = DEFAULT_STROKE_COLOR
   private var strokeWidthPx: Double = DEFAULT_STROKE_WIDTH
+  private var currentMapMode: Int = Map3DMode.HYBRID
 
   // Flyover animation state
   private var desiredPlaying: Boolean = false
   private var isAnimating: Boolean = false
   private var isCompleted: Boolean = false
   private var currentKeyframeIndex: Int = 0
+  private var pendingSeekProgress: Double? = null
   private var animationGeneration: Int = 0
   private var speedMultiplier: Double = DEFAULT_SPEED_MULTIPLIER
   private var cameraTilt: Double = DEFAULT_CAMERA_TILT
@@ -224,7 +229,7 @@ class GoogleMap3DContainer(
     mainHandler.post {
       if (isDestroyed) return@post
       this.googleMap3D = googleMap3D
-      googleMap3D.setMapMode(Map3DMode.HYBRID)
+      googleMap3D.setMapMode(currentMapMode)
 
       googleMap3D.setCameraAnimationEndListener {
         val gen = animationGeneration
@@ -323,15 +328,46 @@ class GoogleMap3DContainer(
     }
   }
 
+  fun setMapMode(mode: String?) {
+    val next = when (mode?.uppercase()) {
+      "SATELLITE" -> Map3DMode.SATELLITE
+      else -> Map3DMode.HYBRID
+    }
+    if (next == currentMapMode) return
+    currentMapMode = next
+    googleMap3D?.setMapMode(next)
+  }
+
   fun restartFlyover() {
     mainHandler.post {
       if (isDestroyed || googleMap3D == null || keyframes.isEmpty()) return@post
       pauseAnimationInternal()
+      pendingSeekProgress = null
       currentKeyframeIndex = 0
       isCompleted = false
       positionCameraAtStart()
       emitProgress(0.0)
       if (desiredPlaying && keyframes.size >= 2) {
+        resumeFlyoverFromCurrentIndex()
+      }
+    }
+  }
+
+  fun seekTo(progressPercent: Double) {
+    val clamped = progressPercent.coerceIn(0.0, 100.0)
+    mainHandler.post {
+      if (isDestroyed) return@post
+      if (googleMap3D == null || keyframes.isEmpty()) {
+        pendingSeekProgress = clamped
+        return@post
+      }
+      pauseAnimationInternal()
+      pendingSeekProgress = null
+      currentKeyframeIndex = keyframeIndexForProgress(clamped)
+      isCompleted = currentKeyframeIndex >= keyframes.lastIndex
+      snapCameraToKeyframe(currentKeyframeIndex)
+      emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
+      if (desiredPlaying && !isCompleted && keyframes.size >= 2) {
         resumeFlyoverFromCurrentIndex()
       }
     }
@@ -349,6 +385,8 @@ class GoogleMap3DContainer(
 
     if (points.size < 2) {
       keyframes = emptyList()
+      keyframeDistances = DoubleArray(0)
+      totalKeyframeDistance = 0.0
       currentKeyframeIndex = 0
       isCompleted = false
       return
@@ -364,13 +402,18 @@ class GoogleMap3DContainer(
     activePolyline = map.addPolyline(options)
 
     keyframes = buildFlyoverKeyframes(points)
-    currentKeyframeIndex = 0
-    isCompleted = false
+    keyframeDistances = computeKeyframeDistances(keyframes)
+    totalKeyframeDistance = keyframeDistances.lastOrNull() ?: 0.0
 
-    positionCameraAtStart()
-    emitProgress(0.0)
+    val initialSeek = pendingSeekProgress
+    pendingSeekProgress = null
+    currentKeyframeIndex = if (initialSeek != null) keyframeIndexForProgress(initialSeek) else 0
+    isCompleted = currentKeyframeIndex >= keyframes.lastIndex
 
-    if (desiredPlaying && keyframes.size >= 2) {
+    snapCameraToKeyframe(currentKeyframeIndex)
+    emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
+
+    if (desiredPlaying && !isCompleted && keyframes.size >= 2) {
       resumeFlyoverFromCurrentIndex()
     }
   }
@@ -440,6 +483,13 @@ class GoogleMap3DContainer(
 
     val endCamera = buildCamera(toPoint, targetHeading)
     val options = FlyToOptions(endCamera, durationMs)
+    onFlyoverSegmentStart(
+      mapOf(
+        "fromProgress" to progressForKeyframeIndex(currentKeyframeIndex),
+        "toProgress" to progressForKeyframeIndex(nextIndex),
+        "durationMs" to durationMs
+      )
+    )
     map.flyCameraTo(options)
   }
 
@@ -449,12 +499,7 @@ class GoogleMap3DContainer(
     }
 
     currentKeyframeIndex = min(currentKeyframeIndex + 1, keyframes.lastIndex)
-    val progressPercent = if (keyframes.size > 1) {
-      (currentKeyframeIndex.toDouble() / (keyframes.size - 1).toDouble()) * 100.0
-    } else {
-      100.0
-    }
-    emitProgress(progressPercent)
+    emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
 
     if (currentKeyframeIndex >= keyframes.lastIndex) {
       isAnimating = false
@@ -468,6 +513,42 @@ class GoogleMap3DContainer(
     } else {
       isAnimating = false
     }
+  }
+
+  private fun computeKeyframeDistances(points: List<TrackPoint>): DoubleArray {
+    val distances = DoubleArray(points.size)
+    for (i in 1 until points.size) {
+      distances[i] = distances[i - 1] + haversineMeters(points[i - 1], points[i])
+    }
+    return distances
+  }
+
+  private fun progressForKeyframeIndex(index: Int): Double {
+    if (keyframes.size <= 1) return 100.0
+    val clamped = index.coerceIn(0, keyframes.lastIndex)
+    if (totalKeyframeDistance > 0.0 && clamped < keyframeDistances.size) {
+      return ((keyframeDistances[clamped] / totalKeyframeDistance) * 100.0).coerceIn(0.0, 100.0)
+    }
+    return (clamped.toDouble() / (keyframes.size - 1).toDouble()) * 100.0
+  }
+
+  private fun keyframeIndexForProgress(progressPercent: Double): Int {
+    if (keyframes.size <= 1) return 0
+    val clamped = progressPercent.coerceIn(0.0, 100.0)
+    if (totalKeyframeDistance <= 0.0 || keyframeDistances.size != keyframes.size) {
+      return ((clamped / 100.0) * keyframes.lastIndex).toInt().coerceIn(0, keyframes.lastIndex)
+    }
+    val targetDistance = (clamped / 100.0) * totalKeyframeDistance
+    var bestIndex = 0
+    var bestDiff = kotlin.math.abs(keyframeDistances[0] - targetDistance)
+    for (i in 1 until keyframeDistances.size) {
+      val diff = kotlin.math.abs(keyframeDistances[i] - targetDistance)
+      if (diff < bestDiff) {
+        bestDiff = diff
+        bestIndex = i
+      }
+    }
+    return bestIndex
   }
 
   private fun buildCamera(point: TrackPoint, headingDegrees: Double): Camera {

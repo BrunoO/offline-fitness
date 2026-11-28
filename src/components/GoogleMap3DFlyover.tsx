@@ -1,17 +1,26 @@
 import { useTheme } from '@/theme';
-import React, { useCallback, useMemo } from 'react';
+import React, { Ref, useCallback, useMemo } from 'react';
 import { Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import {
   FlyoverProgressEventPayload,
+  FlyoverSegmentStartEventPayload,
   GoogleMaps3DNativeView,
+  GoogleMaps3DViewRef,
   Map3DCoordinate,
+  Map3DModeType,
   NativeSyntheticEvent
 } from '../../modules/google-maps-3d/src';
 import { simplifyGpsTrack } from '../utils/gpsSmoothing';
 
-export type { Map3DCoordinate };
+export type {
+  FlyoverSegmentStartEventPayload,
+  GoogleMaps3DViewRef,
+  Map3DCoordinate,
+  Map3DModeType
+};
 
 export interface GoogleMap3DFlyoverProps {
+  ref?: Ref<GoogleMaps3DViewRef>;
   coordinates: Map3DCoordinate[];
   strokeColor?: string;
   strokeWidth?: number;
@@ -19,6 +28,7 @@ export interface GoogleMap3DFlyoverProps {
   speedMultiplier?: number;
   cameraTilt?: number;
   cameraRange?: number;
+  mapMode?: Map3DModeType;
   /**
    * Optional Douglas-Peucker simplification tolerance in meters before sending
    * coordinates over the native bridge. Defaults to 8m. Pass 0 to disable.
@@ -26,6 +36,7 @@ export interface GoogleMap3DFlyoverProps {
   smoothingToleranceMeters?: number;
   onMapReady?: () => void;
   onFlyoverProgress?: (progress: number) => void;
+  onFlyoverSegmentStart?: (segment: FlyoverSegmentStartEventPayload) => void;
   onFlyoverComplete?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -68,6 +79,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
   });
 
 export function GoogleMap3DFlyover({
+  ref,
   coordinates,
   strokeColor = DEFAULT_STROKE_COLOR,
   strokeWidth = DEFAULT_STROKE_WIDTH,
@@ -75,9 +87,11 @@ export function GoogleMap3DFlyover({
   speedMultiplier = DEFAULT_SPEED_MULTIPLIER,
   cameraTilt = DEFAULT_CAMERA_TILT,
   cameraRange = DEFAULT_CAMERA_RANGE,
+  mapMode = 'HYBRID',
   smoothingToleranceMeters = DEFAULT_SMOOTHING_TOLERANCE_METERS,
   onMapReady,
   onFlyoverProgress,
+  onFlyoverSegmentStart,
   onFlyoverComplete,
   style
 }: Readonly<GoogleMap3DFlyoverProps>) {
@@ -102,6 +116,25 @@ export function GoogleMap3DFlyover({
     [onFlyoverProgress]
   );
 
+  const handleSegmentStart = useCallback(
+    (event: NativeSyntheticEvent<FlyoverSegmentStartEventPayload>) => {
+      const payload = event?.nativeEvent;
+      if (
+        payload &&
+        Number.isFinite(payload.fromProgress) &&
+        Number.isFinite(payload.toProgress) &&
+        Number.isFinite(payload.durationMs)
+      ) {
+        onFlyoverSegmentStart?.({
+          fromProgress: Math.max(0, Math.min(100, payload.fromProgress)),
+          toProgress: Math.max(0, Math.min(100, payload.toProgress)),
+          durationMs: Math.max(0, payload.durationMs)
+        });
+      }
+    },
+    [onFlyoverSegmentStart]
+  );
+
   if (Platform.OS !== 'android') {
     return (
       <View style={[styles.fallbackContainer, style]}>
@@ -116,6 +149,7 @@ export function GoogleMap3DFlyover({
   return (
     <View style={[styles.container, style]}>
       <GoogleMaps3DNativeView
+        ref={ref}
         style={styles.nativeMap}
         coordinates={preparedCoordinates}
         strokeColor={strokeColor}
@@ -124,8 +158,10 @@ export function GoogleMap3DFlyover({
         speedMultiplier={speedMultiplier}
         cameraTilt={cameraTilt}
         cameraRange={cameraRange}
+        mapMode={mapMode}
         onMapReady={onMapReady}
         onFlyoverProgress={handleProgress}
+        onFlyoverSegmentStart={handleSegmentStart}
         onFlyoverComplete={onFlyoverComplete}
       />
     </View>

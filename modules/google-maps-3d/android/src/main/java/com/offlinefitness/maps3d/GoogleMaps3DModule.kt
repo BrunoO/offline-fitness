@@ -11,6 +11,7 @@ class GoogleMaps3DModule : Module() {
       Events(
         "onMapReady",
         "onFlyoverProgress",
+        "onFlyoverSegmentStart",
         "onFlyoverComplete"
       )
 
@@ -42,8 +43,16 @@ class GoogleMaps3DModule : Module() {
         view.setCameraRange(cameraRange)
       }
 
+      Prop("mapMode") { view: GoogleMap3DContainer, mapMode: String? ->
+        view.setMapMode(mapMode)
+      }
+
       AsyncFunction("restartFlyover") { view: GoogleMap3DContainer ->
         view.restartFlyover()
+      }
+
+      AsyncFunction("seekTo") { view: GoogleMap3DContainer, progress: Double ->
+        view.seekTo(progress)
       }
 
       OnViewDestroys { view: GoogleMap3DContainer ->
