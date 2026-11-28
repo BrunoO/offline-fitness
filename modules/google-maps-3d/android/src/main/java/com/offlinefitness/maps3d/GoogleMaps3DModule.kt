@@ -12,8 +12,8 @@ class GoogleMaps3DModule : Module() {
         "onMapReady",
         "onMapError",
         "onFlyoverProgress",
-        "onFlyoverSegmentStart",
-        "onFlyoverComplete"
+        "onFlyoverComplete",
+        "onUserInteraction"
       )
 
       Prop("coordinates") { view: GoogleMap3DContainer, coordinates: List<Map<String, Any?>>? ->

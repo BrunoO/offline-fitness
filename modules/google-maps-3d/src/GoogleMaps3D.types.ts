@@ -13,12 +13,6 @@ export interface FlyoverProgressEventPayload {
   progress: number;
 }
 
-export interface FlyoverSegmentStartEventPayload {
-  fromProgress: number;
-  toProgress: number;
-  durationMs: number;
-}
-
 export interface Map3DErrorEventPayload {
   message: string;
 }
@@ -46,7 +40,7 @@ export interface GoogleMaps3DNativeViewProps {
   onMapReady?: () => void;
   onMapError?: (event: NativeSyntheticEvent<Map3DErrorEventPayload>) => void;
   onFlyoverProgress?: (event: NativeSyntheticEvent<FlyoverProgressEventPayload>) => void;
-  onFlyoverSegmentStart?: (event: NativeSyntheticEvent<FlyoverSegmentStartEventPayload>) => void;
   onFlyoverComplete?: () => void;
+  onUserInteraction?: () => void;
   style?: StyleProp<ViewStyle>;
 }

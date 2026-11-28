@@ -21,7 +21,6 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import type { MapType } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  FlyoverSegmentStartEventPayload,
   GoogleMap3DFlyover,
   GoogleMaps3DViewRef,
   Map3DCoordinate,
@@ -205,13 +204,6 @@ function useLoadedFlyoverStream(
   };
 }
 
-interface Active3DSegment {
-  from: number;
-  to: number;
-  durationMs: number;
-  startedAt: number;
-}
-
 interface FlyoverMapBodyProps {
   isLoading: boolean;
   stream: ActivityStream | null;
@@ -233,8 +225,8 @@ interface FlyoverMapBodyProps {
   on3DMapReady: () => void;
   on3DMapError: (message: string) => void;
   on3DProgress: (progress: number) => void;
-  on3DSegmentStart: (segment: FlyoverSegmentStartEventPayload) => void;
   on3DComplete: () => void;
+  on3DUserInteraction: () => void;
   styles: ReturnType<typeof createStyles>;
   textMutedColor: string;
 }
@@ -260,8 +252,8 @@ function FlyoverMapBody({
   on3DMapReady,
   on3DMapError,
   on3DProgress,
-  on3DSegmentStart,
   on3DComplete,
+  on3DUserInteraction,
   styles,
   textMutedColor
 }: Readonly<FlyoverMapBodyProps>) {
@@ -290,7 +282,7 @@ function FlyoverMapBody({
         style={styles.map}
         coordinates={coordinates3D}
         strokeColor={strokeColor}
-        strokeWidth={12}
+        strokeWidth={9}
         isPlaying={isPlaying3D}
         speedMultiplier={speedMultiplier}
         baseSpeedMps={baseSpeedMps}
@@ -300,8 +292,8 @@ function FlyoverMapBody({
         onMapReady={on3DMapReady}
         onMapError={on3DMapError}
         onFlyoverProgress={on3DProgress}
-        onFlyoverSegmentStart={on3DSegmentStart}
         onFlyoverComplete={on3DComplete}
+        onUserInteraction={on3DUserInteraction}
       />
     ) : null;
   }
@@ -321,37 +313,16 @@ function FlyoverMapBody({
 
 function use3DPlaybackBridge(
   playback: ReturnType<typeof useFlyoverPlayback>,
-  renderMode: FlyoverRenderMode,
-  isPlaying3D: boolean,
   setIsPlaying3D: React.Dispatch<React.SetStateAction<boolean>>,
   map3DRef: React.RefObject<GoogleMaps3DViewRef | null>
 ) {
   const pendingSeek3DRef = useRef<number | null>(null);
   const resumeAfterReadyRef = useRef(false);
-  const segmentRafRef = useRef<number | null>(null);
-  const activeSegmentRef = useRef<Active3DSegment | null>(null);
 
   const schedulePendingSeek3D = useCallback((progressRatio: number, resumeAfterReady = false) => {
     pendingSeek3DRef.current = progressRatio;
     resumeAfterReadyRef.current = resumeAfterReady;
   }, []);
-
-  const stop3DSegmentTicker = useCallback(() => {
-    if (segmentRafRef.current !== null) {
-      cancelAnimationFrame(segmentRafRef.current);
-      segmentRafRef.current = null;
-    }
-    activeSegmentRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (!isPlaying3D || renderMode !== '3d') {
-      stop3DSegmentTicker();
-    }
-    return () => {
-      stop3DSegmentTicker();
-    };
-  }, [isPlaying3D, renderMode, stop3DSegmentTicker]);
 
   const handle3DMapReady = useCallback(() => {
     const pending = pendingSeek3DRef.current;
@@ -366,54 +337,28 @@ function use3DPlaybackBridge(
     }
   }, [map3DRef, setIsPlaying3D]);
 
-  const handle3DSegmentStart = useCallback(
-    (segment: FlyoverSegmentStartEventPayload) => {
-      stop3DSegmentTicker();
-      if (segment.durationMs <= 0) return;
-      activeSegmentRef.current = {
-        from: segment.fromProgress / 100,
-        to: segment.toProgress / 100,
-        durationMs: segment.durationMs,
-        startedAt: Date.now()
-      };
-      const tick = () => {
-        const current = activeSegmentRef.current;
-        if (!current) return;
-        const elapsed = Date.now() - current.startedAt;
-        const ratio = Math.min(1, Math.max(0, elapsed / current.durationMs));
-        playback.seekTo(current.from + (current.to - current.from) * ratio);
-        if (ratio < 1) {
-          segmentRafRef.current = requestAnimationFrame(tick);
-        } else {
-          segmentRafRef.current = null;
-        }
-      };
-      segmentRafRef.current = requestAnimationFrame(tick);
-    },
-    [playback, stop3DSegmentTicker]
-  );
-
   const handle3DProgress = useCallback(
     (nextProgressPercent: number) => {
-      stop3DSegmentTicker();
       playback.seekTo(nextProgressPercent / 100);
     },
-    [playback, stop3DSegmentTicker]
+    [playback]
   );
 
   const handle3DComplete = useCallback(() => {
-    stop3DSegmentTicker();
     setIsPlaying3D(false);
     playback.seekTo(1);
-  }, [playback, setIsPlaying3D, stop3DSegmentTicker]);
+  }, [playback, setIsPlaying3D]);
+
+  const handle3DUserInteraction = useCallback(() => {
+    setIsPlaying3D(false);
+  }, [setIsPlaying3D]);
 
   return {
     schedulePendingSeek3D,
-    stop3DSegmentTicker,
     handle3DMapReady,
-    handle3DSegmentStart,
     handle3DProgress,
-    handle3DComplete
+    handle3DComplete,
+    handle3DUserInteraction
   };
 }
 
@@ -431,7 +376,6 @@ interface FlyoverPlaybackActionsParams {
   playback: ReturnType<typeof useFlyoverPlayback>;
   map3DRef: React.RefObject<GoogleMaps3DViewRef | null>;
   schedulePendingSeek3D: (progressRatio: number, resumeAfterReady?: boolean) => void;
-  stop3DSegmentTicker: () => void;
 }
 
 function useFlyoverPlaybackActions({
@@ -447,8 +391,7 @@ function useFlyoverPlaybackActions({
   setForceCameraTick,
   playback,
   map3DRef,
-  schedulePendingSeek3D,
-  stop3DSegmentTicker
+  schedulePendingSeek3D
 }: FlyoverPlaybackActionsParams) {
   const wasPlayingBeforeScrubRef = useRef(false);
 
@@ -468,24 +411,22 @@ function useFlyoverPlaybackActions({
 
   const handleRestart = useCallback(() => {
     if (renderMode === '3d') {
-      stop3DSegmentTicker();
       playback.seekTo(0);
       void map3DRef.current?.restartFlyover();
       return;
     }
     playback.restart();
     setForceCameraTick(t => t + 1);
-  }, [renderMode, playback, map3DRef, setForceCameraTick, stop3DSegmentTicker]);
+  }, [renderMode, playback, map3DRef, setForceCameraTick]);
 
   const handleSlidingStart = useCallback(() => {
     wasPlayingBeforeScrubRef.current = isPlaying;
     if (renderMode === '3d') {
-      stop3DSegmentTicker();
       setIsPlaying3D(false);
     } else {
       playback.pause();
     }
-  }, [isPlaying, renderMode, playback, setIsPlaying3D, stop3DSegmentTicker]);
+  }, [isPlaying, renderMode, playback, setIsPlaying3D]);
 
   const handleSeek = useCallback(
     (targetProgress: number) => {
@@ -519,7 +460,6 @@ function useFlyoverPlaybackActions({
     if (!canUse3D) return;
     if (renderMode === '3d') {
       const resumeIn25D = isPlaying3D;
-      stop3DSegmentTicker();
       setIsPlaying3D(false);
       setRenderMode('2.5d');
       setForceCameraTick(t => t + 1);
@@ -541,8 +481,7 @@ function useFlyoverPlaybackActions({
     schedulePendingSeek3D,
     setForceCameraTick,
     setIsPlaying3D,
-    setRenderMode,
-    stop3DSegmentTicker
+    setRenderMode
   ]);
 
   const handleCycleMapType = useCallback(() => {
@@ -703,6 +642,14 @@ function FlyoverChrome({
   );
 }
 
+function useAutoClearNotice(notice: string | null, clear: () => void) {
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(clear, 4000);
+    return () => clearTimeout(timer);
+  }, [notice, clear]);
+}
+
 export function FlyoverScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -732,11 +679,8 @@ export function FlyoverScreen() {
   const [forceCameraTick, setForceCameraTick] = useState(0);
   const [isPlaying3D, setIsPlaying3D] = useState(false);
 
-  useEffect(() => {
-    if (!fallbackNotice) return;
-    const timer = setTimeout(() => setFallbackNotice(null), 4000);
-    return () => clearTimeout(timer);
-  }, [fallbackNotice]);
+  const clearFallbackNotice = useCallback(() => setFallbackNotice(null), []);
+  useAutoClearNotice(fallbackNotice, clearFallbackNotice);
 
   const map3DRef = useRef<GoogleMaps3DViewRef | null>(null);
 
@@ -755,12 +699,11 @@ export function FlyoverScreen() {
 
   const {
     schedulePendingSeek3D,
-    stop3DSegmentTicker,
     handle3DMapReady,
-    handle3DSegmentStart,
     handle3DProgress,
-    handle3DComplete
-  } = use3DPlaybackBridge(playback, renderMode, isPlaying3D, setIsPlaying3D, map3DRef);
+    handle3DComplete,
+    handle3DUserInteraction
+  } = use3DPlaybackBridge(playback, setIsPlaying3D, map3DRef);
 
   const latestBlurStateRef = useRef({
     renderMode,
@@ -784,9 +727,8 @@ export function FlyoverScreen() {
         }
         setIsPlaying3D(false);
         pause();
-        stop3DSegmentTicker();
       };
-    }, [schedulePendingSeek3D, stop3DSegmentTicker])
+    }, [schedulePendingSeek3D])
   );
 
   const isPlaying = renderMode === '3d' ? isPlaying3D : playback.isPlaying;
@@ -813,31 +755,25 @@ export function FlyoverScreen() {
     setForceCameraTick,
     playback,
     map3DRef,
-    schedulePendingSeek3D,
-    stop3DSegmentTicker
+    schedulePendingSeek3D
   });
 
-  const handle3DMapError = useCallback(
-    (message: string) => {
-      simpleLogger.warn('3D map unavailable, falling back to 2.5D:', message);
-      stop3DSegmentTicker();
-      setIsPlaying3D(false);
-      setIs3DUnavailable(true);
-      setRenderMode('2.5d');
-      setForceCameraTick(t => t + 1);
-      setFallbackNotice('3D map unavailable — switched to 2.5D');
-    },
-    [stop3DSegmentTicker]
-  );
+  const handle3DMapError = useCallback((message: string) => {
+    simpleLogger.warn('3D map unavailable, falling back to 2.5D:', message);
+    setIsPlaying3D(false);
+    setIs3DUnavailable(true);
+    setRenderMode('2.5d');
+    setForceCameraTick(t => t + 1);
+    setFallbackNotice('3D map unavailable — switched to 2.5D');
+  }, []);
 
   const handleClose = useCallback(() => {
     setIsPlaying3D(false);
     playback.pause();
-    stop3DSegmentTicker();
     if (navigation.canGoBack()) {
       navigation.goBack();
     }
-  }, [navigation, playback, stop3DSegmentTicker]);
+  }, [navigation, playback]);
 
   const handleCycleCamera = useCallback(() => {
     if (renderMode === '3d') {
@@ -882,8 +818,8 @@ export function FlyoverScreen() {
         on3DMapReady={handle3DMapReady}
         on3DMapError={handle3DMapError}
         on3DProgress={handle3DProgress}
-        on3DSegmentStart={handle3DSegmentStart}
         on3DComplete={handle3DComplete}
+        on3DUserInteraction={handle3DUserInteraction}
         styles={styles}
         textMutedColor={theme.textMuted}
       />

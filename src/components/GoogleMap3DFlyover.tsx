@@ -3,7 +3,6 @@ import React, { Ref, useCallback, useMemo } from 'react';
 import { Platform, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import {
   FlyoverProgressEventPayload,
-  FlyoverSegmentStartEventPayload,
   GoogleMaps3DNativeView,
   GoogleMaps3DViewRef,
   Map3DCoordinate,
@@ -13,12 +12,7 @@ import {
 } from '../../modules/google-maps-3d/src';
 import { simplifyGpsTrack } from '../utils/gpsSmoothing';
 
-export type {
-  FlyoverSegmentStartEventPayload,
-  GoogleMaps3DViewRef,
-  Map3DCoordinate,
-  Map3DModeType
-};
+export type { GoogleMaps3DViewRef, Map3DCoordinate, Map3DModeType };
 
 export interface GoogleMap3DFlyoverProps {
   ref?: Ref<GoogleMaps3DViewRef>;
@@ -39,13 +33,13 @@ export interface GoogleMap3DFlyoverProps {
   onMapReady?: () => void;
   onMapError?: (message: string) => void;
   onFlyoverProgress?: (progress: number) => void;
-  onFlyoverSegmentStart?: (segment: FlyoverSegmentStartEventPayload) => void;
   onFlyoverComplete?: () => void;
+  onUserInteraction?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
 const DEFAULT_STROKE_COLOR = '#FC4C02';
-const DEFAULT_STROKE_WIDTH = 12;
+const DEFAULT_STROKE_WIDTH = 9;
 const DEFAULT_SPEED_MULTIPLIER = 1.0;
 const DEFAULT_CAMERA_TILT = 65.0;
 const DEFAULT_CAMERA_RANGE = 800.0;
@@ -96,8 +90,8 @@ export function GoogleMap3DFlyover({
   onMapReady,
   onMapError,
   onFlyoverProgress,
-  onFlyoverSegmentStart,
   onFlyoverComplete,
+  onUserInteraction,
   style
 }: Readonly<GoogleMap3DFlyoverProps>) {
   const theme = useTheme();
@@ -119,25 +113,6 @@ export function GoogleMap3DFlyover({
       }
     },
     [onFlyoverProgress]
-  );
-
-  const handleSegmentStart = useCallback(
-    (event: NativeSyntheticEvent<FlyoverSegmentStartEventPayload>) => {
-      const payload = event?.nativeEvent;
-      if (
-        payload &&
-        Number.isFinite(payload.fromProgress) &&
-        Number.isFinite(payload.toProgress) &&
-        Number.isFinite(payload.durationMs)
-      ) {
-        onFlyoverSegmentStart?.({
-          fromProgress: Math.max(0, Math.min(100, payload.fromProgress)),
-          toProgress: Math.max(0, Math.min(100, payload.toProgress)),
-          durationMs: Math.max(0, payload.durationMs)
-        });
-      }
-    },
-    [onFlyoverSegmentStart]
   );
 
   const handleMapError = useCallback(
@@ -176,8 +151,8 @@ export function GoogleMap3DFlyover({
         onMapReady={onMapReady}
         onMapError={handleMapError}
         onFlyoverProgress={handleProgress}
-        onFlyoverSegmentStart={handleSegmentStart}
         onFlyoverComplete={onFlyoverComplete}
+        onUserInteraction={onUserInteraction}
       />
     </View>
   );
