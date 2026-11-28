@@ -43,6 +43,7 @@ class GoogleMap3DContainer(
   override val shouldUseAndroidLayout: Boolean = true
 
   private val onMapReady by EventDispatcher()
+  private val onMapError by EventDispatcher()
   private val onFlyoverProgress by EventDispatcher()
   private val onFlyoverSegmentStart by EventDispatcher()
   private val onFlyoverComplete by EventDispatcher()
@@ -96,6 +97,7 @@ class GoogleMap3DContainer(
       view.getMap3DViewAsync(this)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to initialize Map3DView", e)
+      emitMapError(e.message ?: "Failed to initialize Map3DView")
     }
 
     reactContext?.let { rc ->
@@ -252,6 +254,14 @@ class GoogleMap3DContainer(
 
   override fun onError(error: Exception) {
     Log.e(TAG, "Map3DView initialization error", error)
+    emitMapError(error.message ?: "Map3DView initialization error")
+  }
+
+  private fun emitMapError(message: String) {
+    mainHandler.post {
+      if (isDestroyed) return@post
+      onMapError(mapOf("message" to message))
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -410,11 +420,13 @@ class GoogleMap3DContainer(
     currentKeyframeIndex = if (initialSeek != null) keyframeIndexForProgress(initialSeek) else 0
     isCompleted = currentKeyframeIndex >= keyframes.lastIndex
 
-    snapCameraToKeyframe(currentKeyframeIndex)
     emitProgress(progressForKeyframeIndex(currentKeyframeIndex))
 
     if (desiredPlaying && !isCompleted && keyframes.size >= 2) {
+      snapCameraToKeyframe(currentKeyframeIndex)
       resumeFlyoverFromCurrentIndex()
+    } else {
+      flyCameraToInitialKeyframe(currentKeyframeIndex)
     }
   }
 
@@ -434,6 +446,15 @@ class GoogleMap3DContainer(
     val point = keyframes[clampedIndex]
     val heading = computeLookAheadBearing(keyframes, clampedIndex)
     map.setCamera(buildCamera(point, heading))
+  }
+
+  private fun flyCameraToInitialKeyframe(index: Int) {
+    val map = googleMap3D ?: return
+    if (keyframes.isEmpty()) return
+    val clampedIndex = index.coerceIn(0, keyframes.lastIndex)
+    val point = keyframes[clampedIndex]
+    val heading = computeLookAheadBearing(keyframes, clampedIndex)
+    map.flyCameraTo(FlyToOptions(buildCamera(point, heading), INITIAL_FLY_TO_DURATION_MS))
   }
 
   private fun resumeFlyoverFromCurrentIndex() {
@@ -663,6 +684,7 @@ class GoogleMap3DContainer(
     private const val LOOK_AHEAD_STEPS = 2
 
     private const val BASE_FLYOVER_SPEED_MPS = 90.0
+    private const val INITIAL_FLY_TO_DURATION_MS = 3_000L
     private const val MIN_SEGMENT_DURATION_MS = 700.0
     private const val MAX_SEGMENT_DURATION_MS = 4_000.0
 

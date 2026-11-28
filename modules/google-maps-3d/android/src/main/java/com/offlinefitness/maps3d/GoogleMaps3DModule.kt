@@ -10,6 +10,7 @@ class GoogleMaps3DModule : Module() {
     View(GoogleMap3DContainer::class) {
       Events(
         "onMapReady",
+        "onMapError",
         "onFlyoverProgress",
         "onFlyoverSegmentStart",
         "onFlyoverComplete"

@@ -19,6 +19,10 @@ export interface FlyoverSegmentStartEventPayload {
   durationMs: number;
 }
 
+export interface Map3DErrorEventPayload {
+  message: string;
+}
+
 export interface NativeSyntheticEvent<T> {
   nativeEvent: T;
 }
@@ -39,6 +43,7 @@ export interface GoogleMaps3DNativeViewProps {
   cameraRange?: number;
   mapMode?: Map3DModeType;
   onMapReady?: () => void;
+  onMapError?: (event: NativeSyntheticEvent<Map3DErrorEventPayload>) => void;
   onFlyoverProgress?: (event: NativeSyntheticEvent<FlyoverProgressEventPayload>) => void;
   onFlyoverSegmentStart?: (event: NativeSyntheticEvent<FlyoverSegmentStartEventPayload>) => void;
   onFlyoverComplete?: () => void;

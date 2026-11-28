@@ -11,7 +11,7 @@ import {
   useKeepFlyoverAwake
 } from '@/features/maps';
 import { loadStreamForActivity, useActivitiesContext } from '@/features/activities';
-import type { ActivityStream, RootStackParamList } from '@/shared';
+import { ActivityStream, RootStackParamList, simpleLogger } from '@/shared';
 import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
@@ -64,6 +64,23 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
       left: 16,
       right: 16,
       zIndex: 10
+    },
+    fallbackBanner: {
+      position: 'absolute',
+      top: Math.max(topInset, 16) + 132,
+      alignSelf: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 16,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      zIndex: 11
+    },
+    fallbackBannerText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textStrong
     },
     emptyContainer: {
       flex: 1,
@@ -184,6 +201,7 @@ interface FlyoverMapBodyProps {
   playback: ReturnType<typeof useFlyoverPlayback>;
   map3DRef: React.RefObject<GoogleMaps3DViewRef | null>;
   on3DMapReady: () => void;
+  on3DMapError: (message: string) => void;
   on3DProgress: (progress: number) => void;
   on3DSegmentStart: (segment: FlyoverSegmentStartEventPayload) => void;
   on3DComplete: () => void;
@@ -207,6 +225,7 @@ function FlyoverMapBody({
   playback,
   map3DRef,
   on3DMapReady,
+  on3DMapError,
   on3DProgress,
   on3DSegmentStart,
   on3DComplete,
@@ -245,6 +264,7 @@ function FlyoverMapBody({
         cameraRange={800}
         mapMode={mapMode3D}
         onMapReady={on3DMapReady}
+        onMapError={on3DMapError}
         onFlyoverProgress={on3DProgress}
         onFlyoverSegmentStart={on3DSegmentStart}
         onFlyoverComplete={on3DComplete}
@@ -273,11 +293,13 @@ function use3DPlaybackBridge(
   map3DRef: React.RefObject<GoogleMaps3DViewRef | null>
 ) {
   const pendingSeek3DRef = useRef<number | null>(null);
+  const resumeAfterReadyRef = useRef(false);
   const segmentRafRef = useRef<number | null>(null);
   const activeSegmentRef = useRef<Active3DSegment | null>(null);
 
-  const schedulePendingSeek3D = useCallback((progressRatio: number) => {
+  const schedulePendingSeek3D = useCallback((progressRatio: number, resumeAfterReady = false) => {
     pendingSeek3DRef.current = progressRatio;
+    resumeAfterReadyRef.current = resumeAfterReady;
   }, []);
 
   const stop3DSegmentTicker = useCallback(() => {
@@ -299,11 +321,16 @@ function use3DPlaybackBridge(
 
   const handle3DMapReady = useCallback(() => {
     const pending = pendingSeek3DRef.current;
+    const shouldResume = resumeAfterReadyRef.current;
+    pendingSeek3DRef.current = null;
+    resumeAfterReadyRef.current = false;
     if (pending !== null) {
-      pendingSeek3DRef.current = null;
       void map3DRef.current?.seekTo(pending * 100);
     }
-  }, [map3DRef]);
+    if (shouldResume) {
+      setIsPlaying3D(true);
+    }
+  }, [map3DRef, setIsPlaying3D]);
 
   const handle3DSegmentStart = useCallback(
     (segment: FlyoverSegmentStartEventPayload) => {
@@ -369,7 +396,7 @@ interface FlyoverPlaybackActionsParams {
   setForceCameraTick: React.Dispatch<React.SetStateAction<number>>;
   playback: ReturnType<typeof useFlyoverPlayback>;
   map3DRef: React.RefObject<GoogleMaps3DViewRef | null>;
-  schedulePendingSeek3D: (progressRatio: number) => void;
+  schedulePendingSeek3D: (progressRatio: number, resumeAfterReady?: boolean) => void;
   stop3DSegmentTicker: () => void;
 }
 
@@ -454,7 +481,7 @@ function useFlyoverPlaybackActions({
     [playback, renderMode, map3DRef, setIsPlaying3D, setForceCameraTick]
   );
 
-  const handleToggleRenderMode = useCallback(async () => {
+  const handleToggleRenderMode = useCallback(() => {
     if (!canUse3D) return;
     if (renderMode === '3d') {
       const resumeIn25D = isPlaying3D;
@@ -469,16 +496,11 @@ function useFlyoverPlaybackActions({
     }
     const resumeIn3D = playback.isPlaying;
     playback.pause();
-    schedulePendingSeek3D(playback.progress);
+    schedulePendingSeek3D(playback.progress, resumeIn3D);
+    setIsPlaying3D(false);
     setRenderMode('3d');
-    // Sync the native 3D cursor to the (possibly scrubbed) 2.5D progress before
-    // resuming, so playback doesn't jump back to a stale keyframe. The pending
-    // seek above only fires on (re)mount; handle the already-mounted case here.
-    await map3DRef.current?.seekTo(playback.progress * 100);
-    setIsPlaying3D(resumeIn3D);
   }, [
     canUse3D,
-    map3DRef,
     renderMode,
     isPlaying3D,
     playback,
@@ -528,7 +550,9 @@ export function FlyoverScreen() {
 
   useKeepFlyoverAwake(isFocused);
 
-  const canUse3D = Platform.OS === 'android' && HAS_GOOGLE_MAPS_KEY;
+  const [is3DUnavailable, setIs3DUnavailable] = useState(false);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+  const canUse3D = Platform.OS === 'android' && HAS_GOOGLE_MAPS_KEY && !is3DUnavailable;
   const initialMode: FlyoverRenderMode =
     route.params?.initialMode === '2.5d' || !canUse3D ? '2.5d' : '3d';
 
@@ -538,6 +562,12 @@ export function FlyoverScreen() {
   const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
   const [forceCameraTick, setForceCameraTick] = useState(0);
   const [isPlaying3D, setIsPlaying3D] = useState(false);
+
+  useEffect(() => {
+    if (!fallbackNotice) return;
+    const timer = setTimeout(() => setFallbackNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [fallbackNotice]);
 
   const map3DRef = useRef<GoogleMaps3DViewRef | null>(null);
 
@@ -563,14 +593,31 @@ export function FlyoverScreen() {
     handle3DComplete
   } = use3DPlaybackBridge(playback, renderMode, isPlaying3D, setIsPlaying3D, map3DRef);
 
+  const latestBlurStateRef = useRef({
+    renderMode,
+    progress: playback.progress,
+    pause: playback.pause
+  });
+  useEffect(() => {
+    latestBlurStateRef.current = {
+      renderMode,
+      progress: playback.progress,
+      pause: playback.pause
+    };
+  }, [renderMode, playback.progress, playback.pause]);
+
   useFocusEffect(
     useCallback(() => {
       return () => {
+        const { renderMode: mode, progress: currentProgress, pause } = latestBlurStateRef.current;
+        if (mode === '3d' && currentProgress > 0) {
+          schedulePendingSeek3D(currentProgress, false);
+        }
         setIsPlaying3D(false);
-        playback.pause();
+        pause();
         stop3DSegmentTicker();
       };
-    }, [playback, stop3DSegmentTicker])
+    }, [schedulePendingSeek3D, stop3DSegmentTicker])
   );
 
   const isPlaying = renderMode === '3d' ? isPlaying3D : playback.isPlaying;
@@ -600,6 +647,19 @@ export function FlyoverScreen() {
     schedulePendingSeek3D,
     stop3DSegmentTicker
   });
+
+  const handle3DMapError = useCallback(
+    (message: string) => {
+      simpleLogger.warn('3D map unavailable, falling back to 2.5D:', message);
+      stop3DSegmentTicker();
+      setIsPlaying3D(false);
+      setIs3DUnavailable(true);
+      setRenderMode('2.5d');
+      setForceCameraTick(t => t + 1);
+      setFallbackNotice('3D map unavailable — switched to 2.5D');
+    },
+    [stop3DSegmentTicker]
+  );
 
   const handleClose = useCallback(() => {
     setIsPlaying3D(false);
@@ -634,6 +694,7 @@ export function FlyoverScreen() {
         playback={playback}
         map3DRef={map3DRef}
         on3DMapReady={handle3DMapReady}
+        on3DMapError={handle3DMapError}
         on3DProgress={handle3DProgress}
         on3DSegmentStart={handle3DSegmentStart}
         on3DComplete={handle3DComplete}
@@ -653,6 +714,12 @@ export function FlyoverScreen() {
         onToggleRenderMode={canUse3D ? handleToggleRenderMode : undefined}
         topInset={insets.top}
       />
+
+      {fallbackNotice ? (
+        <View style={styles.fallbackBanner} accessibilityRole="alert">
+          <Text style={styles.fallbackBannerText}>{fallbackNotice}</Text>
+        </View>
+      ) : null}
 
       {!isLoading && hasValidTrack ? (
         <>

@@ -7,6 +7,7 @@ import {
   GoogleMaps3DNativeView,
   GoogleMaps3DViewRef,
   Map3DCoordinate,
+  Map3DErrorEventPayload,
   Map3DModeType,
   NativeSyntheticEvent
 } from '../../modules/google-maps-3d/src';
@@ -35,6 +36,7 @@ export interface GoogleMap3DFlyoverProps {
    */
   smoothingToleranceMeters?: number;
   onMapReady?: () => void;
+  onMapError?: (message: string) => void;
   onFlyoverProgress?: (progress: number) => void;
   onFlyoverSegmentStart?: (segment: FlyoverSegmentStartEventPayload) => void;
   onFlyoverComplete?: () => void;
@@ -90,6 +92,7 @@ export function GoogleMap3DFlyover({
   mapMode = 'HYBRID',
   smoothingToleranceMeters = DEFAULT_SMOOTHING_TOLERANCE_METERS,
   onMapReady,
+  onMapError,
   onFlyoverProgress,
   onFlyoverSegmentStart,
   onFlyoverComplete,
@@ -135,6 +138,14 @@ export function GoogleMap3DFlyover({
     [onFlyoverSegmentStart]
   );
 
+  const handleMapError = useCallback(
+    (event: NativeSyntheticEvent<Map3DErrorEventPayload>) => {
+      const message = event?.nativeEvent?.message ?? '3D map failed to load';
+      onMapError?.(message);
+    },
+    [onMapError]
+  );
+
   if (Platform.OS !== 'android') {
     return (
       <View style={[styles.fallbackContainer, style]}>
@@ -160,6 +171,7 @@ export function GoogleMap3DFlyover({
         cameraRange={cameraRange}
         mapMode={mapMode}
         onMapReady={onMapReady}
+        onMapError={handleMapError}
         onFlyoverProgress={handleProgress}
         onFlyoverSegmentStart={handleSegmentStart}
         onFlyoverComplete={onFlyoverComplete}
