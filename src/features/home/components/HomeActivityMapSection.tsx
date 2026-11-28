@@ -8,6 +8,7 @@ export type HomeActivityMapProps = {
   stream: ActivityStream | undefined;
   isLoading: boolean;
   mapRefreshKey: number;
+  activityId?: string;
   activityTitle: string;
   activityType?: string;
   styles: ReturnType<typeof createStyles>;
@@ -17,6 +18,7 @@ export function HomeActivityMapSection({
   stream,
   isLoading,
   mapRefreshKey,
+  activityId,
   activityTitle,
   activityType,
   styles
@@ -36,6 +38,7 @@ export function HomeActivityMapSection({
           <MiniMapComponent
             key={mapRefreshKey}
             stream={stream}
+            activityId={activityId}
             title={activityTitle}
             activityType={activityType}
           />

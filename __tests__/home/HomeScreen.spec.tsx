@@ -53,7 +53,6 @@ jest.mock('@react-navigation/native', () => ({
   }
 }));
 
-jest.mock('@/features/maps/components/FlyoverModal', () => () => null);
 jest.mock('@/features/home/components/HomeActivityMapSection', () => ({
   HomeActivityMapSection: () => null
 }));

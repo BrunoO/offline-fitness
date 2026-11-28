@@ -10,6 +10,8 @@ jest.mock('@expo/vector-icons', () => ({
   MaterialCommunityIcons: 'MaterialCommunityIcons'
 }));
 
+const mockNavigate = jest.fn();
+
 jest.mock('@react-navigation/native', () => {
   const React = require('react');
   return {
@@ -17,7 +19,10 @@ jest.mock('@react-navigation/native', () => {
       React.useEffect(() => {
         cb();
       }, [cb]);
-    }
+    },
+    useNavigation: () => ({
+      navigate: mockNavigate
+    })
   };
 });
 
@@ -45,6 +50,7 @@ const sampleStream: ActivityStream = {
 describe('MiniMapComponent (Android)', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    mockNavigate.mockClear();
   });
 
   afterEach(() => {
@@ -88,9 +94,16 @@ describe('MiniMapComponent (Android)', () => {
     expect(queryByText('Flyover')).toBeNull();
   });
 
-  it('opens FlyoverModal when Flyover pill is pressed', () => {
+  it('navigates to Flyover3D screen when Flyover pill is pressed', () => {
     const { getByText } = render(
-      wrap(<MiniMapComponent stream={sampleStream} title="Alpe d'Huez" />)
+      wrap(
+        <MiniMapComponent
+          stream={sampleStream}
+          activityId="act-42"
+          title="Alpe d'Huez"
+          activityType="Ride"
+        />
+      )
     );
 
     act(() => {
@@ -100,7 +113,11 @@ describe('MiniMapComponent (Android)', () => {
     const pill = getByText('Flyover');
     fireEvent.press(pill);
 
-    expect(getByText("Alpe d'Huez")).toBeTruthy();
+    expect(mockNavigate).toHaveBeenCalledWith('Flyover3D', {
+      activityId: 'act-42',
+      title: "Alpe d'Huez",
+      activityType: 'Ride'
+    });
   });
 
   it('renders Option A circular chevron badges for primary and overlay streams and adapts to zoom', () => {
@@ -153,11 +170,7 @@ describe('MiniMapComponent (Android)', () => {
   it('suppresses direction arrows when showDirectionArrows is false', () => {
     const { queryAllByTestId } = render(
       wrap(
-        <MiniMapComponent
-          stream={sampleStream}
-          showDirectionArrows={false}
-          title="Trimmer Map"
-        />
+        <MiniMapComponent stream={sampleStream} showDirectionArrows={false} title="Trimmer Map" />
       )
     );
 
@@ -168,11 +181,7 @@ describe('MiniMapComponent (Android)', () => {
   it('renders Fit Route recenter button when showRecenterButton is true and map is ready', () => {
     const { getByText, queryByText } = render(
       wrap(
-        <MiniMapComponent
-          stream={sampleStream}
-          showRecenterButton={true}
-          title="Recenter Test"
-        />
+        <MiniMapComponent stream={sampleStream} showRecenterButton={true} title="Recenter Test" />
       )
     );
 

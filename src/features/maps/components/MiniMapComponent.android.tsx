@@ -1,8 +1,8 @@
-import { APP_CONFIG } from '@/constants';
-import { ActivityStream, LatLng } from '@/shared';
+import { APP_CONFIG, STACK_ROUTES } from '@/constants';
+import { ActivityStream, LatLng, RootStackNavigationProp } from '@/shared';
 import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -12,13 +12,13 @@ import {
   DirectionArrowVisualSpec
 } from '../services/directionArrows';
 import { HAS_GOOGLE_MAPS_KEY } from '../services/googleMapsKey';
-import FlyoverModal from './FlyoverModal';
 import MapsUnavailablePlaceholder from './MapsUnavailablePlaceholder';
 
 export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
   overlaySecondaryStream?: ActivityStream;
+  activityId?: string;
   title?: string;
   activityType?: string;
   allowFlyover?: boolean;
@@ -290,45 +290,22 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
   });
 
 type MiniMapFlyoverProps = {
-  visible: boolean;
   onOpen: () => void;
-  onClose: () => void;
-  stream: ActivityStream | undefined;
-  title?: string;
-  activityType?: string;
   theme: ReturnType<typeof useTheme>;
   styles: ReturnType<typeof createStyles>;
 };
 
-function MiniMapFlyover({
-  visible,
-  onOpen,
-  onClose,
-  stream,
-  title,
-  activityType,
-  theme,
-  styles
-}: Readonly<MiniMapFlyoverProps>) {
+function MiniMapFlyover({ onOpen, theme, styles }: Readonly<MiniMapFlyoverProps>) {
   return (
-    <>
-      <TouchableOpacity
-        style={styles.flyoverPill}
-        onPress={onOpen}
-        accessibilityRole="button"
-        accessibilityLabel="Open route flyover"
-      >
-        <Ionicons name="airplane" size={13} color={theme.primary} />
-        <Text style={styles.flyoverPillText}>Flyover</Text>
-      </TouchableOpacity>
-      <FlyoverModal
-        visible={visible}
-        onClose={onClose}
-        stream={stream}
-        title={title}
-        activityType={activityType}
-      />
-    </>
+    <TouchableOpacity
+      style={styles.flyoverPill}
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel="Open route flyover"
+    >
+      <Ionicons name="airplane" size={13} color={theme.primary} />
+      <Text style={styles.flyoverPillText}>Flyover</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -486,12 +463,33 @@ function resolveMiniMapProps(
 
 export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>) {
   const theme = useTheme();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const mapRef = React.useRef<MapView>(null);
-  const [isFlyoverOpen, setIsFlyoverOpen] = React.useState(false);
   const [isMapReady, setIsMapReady] = React.useState(false);
   const [currentRegion, setCurrentRegion] = React.useState<Region | null>(null);
   const [mapKey, setMapKey] = React.useState(0);
+
+  const handleOpenFlyover = React.useCallback(() => {
+    if (props.activityId) {
+      navigation.navigate(STACK_ROUTES.Flyover3D, {
+        activityId: props.activityId,
+        title: props.title,
+        activityType: props.activityType
+      });
+      return;
+    }
+    const coordinates = props.stream?.coordinates.map((coord, index) => ({
+      latitude: coord.latitude,
+      longitude: coord.longitude,
+      altitude: props.stream?.altitude[index] ?? 0
+    }));
+    navigation.navigate(STACK_ROUTES.Flyover3D, {
+      coordinates,
+      title: props.title,
+      activityType: props.activityType
+    });
+  }, [navigation, props.activityId, props.title, props.activityType, props.stream]);
 
   const resolved = resolveMiniMapProps(props, isMapReady, theme.info);
 
@@ -554,16 +552,7 @@ export default function MiniMapComponent(props: Readonly<MiniMapComponentProps>)
           </MapView>
 
           {resolved.canShowFlyover ? (
-            <MiniMapFlyover
-              visible={isFlyoverOpen}
-              onOpen={() => setIsFlyoverOpen(true)}
-              onClose={() => setIsFlyoverOpen(false)}
-              stream={props.stream}
-              title={props.title}
-              activityType={props.activityType}
-              theme={theme}
-              styles={styles}
-            />
+            <MiniMapFlyover onOpen={handleOpenFlyover} theme={theme} styles={styles} />
           ) : null}
 
           {resolved.canShowRecenter ? (

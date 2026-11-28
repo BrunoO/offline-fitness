@@ -1890,6 +1890,7 @@ export function ActivityAnalysisView({
             stream={loadedStream?.streamSet}
             overlayStream={overlayStream}
             overlayColor={comparisonColor}
+            activityId={item.id}
             title={item.name}
             activityType={item.type}
             highlightCoordinate={scrubDetails?.coordinate}

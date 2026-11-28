@@ -6,6 +6,8 @@ export type MiniMapComponentProps = {
   stream: ActivityStream | undefined;
   overlayStream?: ActivityStream;
   overlaySecondaryStream?: ActivityStream;
+  /** Activity ID used to open the unified Flyover screen */
+  activityId?: string;
   /** Activity title displayed in flyover header on Android */
   title?: string;
   /** Activity sport type used by FlyoverHud to choose Pace vs Speed */
