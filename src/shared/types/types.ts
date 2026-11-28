@@ -79,6 +79,7 @@ export type RootStackParamList = {
   Logs: undefined;
   Flyover3D:
     | {
+        activityId?: string;
         coordinates?: { latitude: number; longitude: number; altitude?: number }[];
         title?: string;
       }

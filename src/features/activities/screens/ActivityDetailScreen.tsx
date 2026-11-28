@@ -1,5 +1,5 @@
 import React, { JSX, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
@@ -8,6 +8,9 @@ import { ActivityEditModal } from '../components/ActivityEditModal';
 import { useActivitiesContext } from '../ActivitiesContext';
 import { loadRawStreamForActivity } from '../services/fetchAndStoreStreams';
 import { writeStreamFile } from '@/features/recording';
+import { STACK_ROUTES } from '@/constants';
+import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
+import { HAS_GOOGLE_MAPS_KEY } from '@/features/maps';
 import type { StreamSet } from '../types/stravaActivityStream.model';
 import type { Activity, RootStackScreenProps } from '@/shared';
 import type { EncodableStreamSet } from '@/shared/services/streamCodec';
@@ -36,6 +39,48 @@ function HeaderEditButton({ onPress, color }: Readonly<HeaderEditButtonProps>): 
     >
       <Ionicons name="create-outline" size={22} color={color} />
     </Pressable>
+  );
+}
+
+interface Header3DFlyoverButtonProps {
+  readonly onPress: () => void;
+  readonly color: string;
+}
+
+function Header3DFlyoverButton({
+  onPress,
+  color
+}: Readonly<Header3DFlyoverButtonProps>): JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open 3D flyover"
+      onPress={onPress}
+      style={{ paddingHorizontal: 12, paddingVertical: 4 }}
+    >
+      <Ionicons name="cube-outline" size={22} color={color} />
+    </Pressable>
+  );
+}
+
+interface HeaderActionsProps {
+  readonly color: string;
+  readonly show3DFlyover: boolean;
+  readonly onOpenEdit: () => void;
+  readonly onOpen3DFlyover: () => void;
+}
+
+function HeaderActions({
+  color,
+  show3DFlyover,
+  onOpenEdit,
+  onOpen3DFlyover
+}: Readonly<HeaderActionsProps>): JSX.Element {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {show3DFlyover ? <Header3DFlyoverButton onPress={onOpen3DFlyover} color={color} /> : null}
+      <HeaderEditButton onPress={onOpenEdit} color={color} />
+    </View>
   );
 }
 
@@ -88,9 +133,29 @@ export function ActivityDetailScreen({
     setEditModalVisible(true);
   }, []);
 
+  const handleOpen3DFlyover = useCallback(() => {
+    if (!activity) return;
+    navigation?.navigate?.(STACK_ROUTES.Flyover3D, {
+      activityId: activity.id,
+      title: activity.name
+    });
+  }, [activity, navigation]);
+
+  const show3DFlyover =
+    Platform.OS === 'android' &&
+    HAS_GOOGLE_MAPS_KEY &&
+    activityToFlyoverCoordinates(rawStream).length >= 2;
+
   const renderHeaderRight = useCallback(
-    () => <HeaderEditButton onPress={handleOpenEdit} color={theme.text} />,
-    [handleOpenEdit, theme.text]
+    () => (
+      <HeaderActions
+        color={theme.text}
+        show3DFlyover={show3DFlyover}
+        onOpenEdit={handleOpenEdit}
+        onOpen3DFlyover={handleOpen3DFlyover}
+      />
+    ),
+    [theme.text, show3DFlyover, handleOpenEdit, handleOpen3DFlyover]
   );
 
   useLayoutEffect(() => {

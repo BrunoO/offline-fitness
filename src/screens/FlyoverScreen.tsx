@@ -2,12 +2,15 @@ import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '@/shared/types/types';
 import { GoogleMap3DFlyover, Map3DCoordinate } from '../components/GoogleMap3DFlyover';
 import { computeTrackDistanceMeters } from '../utils/gpsSmoothing';
+import { useActivitiesContext } from '@/features/activities';
+import { loadRawStreamForActivity } from '@/features/activities/services/fetchAndStoreStreams';
+import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
 
@@ -45,6 +48,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
     container: {
       flex: 1,
       backgroundColor: theme.surface
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24
+    },
+    emptyText: {
+      fontSize: 15,
+      color: theme.textMuted,
+      textAlign: 'center'
     },
     map: {
       ...StyleSheet.absoluteFill
@@ -194,11 +208,44 @@ export function FlyoverScreen() {
     [theme, insets.top, insets.bottom]
   );
 
+  const { globalActivities } = useActivitiesContext();
+  const activityId = route.params?.activityId;
   const routeCoordinates = route.params?.coordinates;
-  const track =
-    routeCoordinates && routeCoordinates.length >= 2 ? routeCoordinates : SAMPLE_MOUNTAIN_TRACK;
 
-  const title = route.params?.title ?? 'Col du Galibier — 3D Flyover';
+  const [loadedTrack, setLoadedTrack] = useState<Map3DCoordinate[] | null>(null);
+  const [isLoadingTrack, setIsLoadingTrack] = useState<boolean>(Boolean(activityId));
+
+  useEffect(() => {
+    if (!activityId) {
+      setLoadedTrack(null);
+      setIsLoadingTrack(false);
+      return;
+    }
+    const activity = globalActivities.find(a => a.id === activityId);
+    if (!activity) {
+      setLoadedTrack([]);
+      setIsLoadingTrack(false);
+      return;
+    }
+    let active = true;
+    setIsLoadingTrack(true);
+    void loadRawStreamForActivity(activity).then(stream => {
+      if (!active) return;
+      setLoadedTrack(activityToFlyoverCoordinates(stream));
+      setIsLoadingTrack(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activityId, globalActivities]);
+
+  const track: Map3DCoordinate[] = useMemo(() => {
+    if (loadedTrack) return loadedTrack;
+    if (routeCoordinates && routeCoordinates.length >= 2) return routeCoordinates;
+    return [];
+  }, [loadedTrack, routeCoordinates]);
+
+  const title = route.params?.title ?? 'Activity — 3D Flyover';
   const distanceKm = useMemo(() => (computeTrackDistanceMeters(track) / 1000).toFixed(1), [track]);
 
   const [isMapReady, setIsMapReady] = useState(false);
@@ -273,23 +320,40 @@ export function FlyoverScreen() {
     return isPlaying ? ('pause' as const) : ('play' as const);
   }, [isCompleted, isPlaying]);
 
+  let mapContent: React.ReactNode = null;
+  if (isLoadingTrack) {
+    mapContent = (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>Loading track…</Text>
+      </View>
+    );
+  } else if (track.length < 2) {
+    mapContent = (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>This activity has no GPS track.</Text>
+      </View>
+    );
+  } else if (isFocused) {
+    mapContent = (
+      <GoogleMap3DFlyover
+        style={styles.map}
+        coordinates={track}
+        strokeColor="#FC4C02"
+        strokeWidth={12}
+        isPlaying={isPlaying}
+        speedMultiplier={speedMultiplier}
+        cameraTilt={65}
+        cameraRange={800}
+        onMapReady={handleMapReady}
+        onFlyoverProgress={handleFlyoverProgress}
+        onFlyoverComplete={handleFlyoverComplete}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {isFocused ? (
-        <GoogleMap3DFlyover
-          style={styles.map}
-          coordinates={track}
-          strokeColor="#FC4C02"
-          strokeWidth={12}
-          isPlaying={isPlaying}
-          speedMultiplier={speedMultiplier}
-          cameraTilt={65}
-          cameraRange={800}
-          onMapReady={handleMapReady}
-          onFlyoverProgress={handleFlyoverProgress}
-          onFlyoverComplete={handleFlyoverComplete}
-        />
-      ) : null}
+      {mapContent}
 
       <View style={styles.headerOverlay}>
         <Pressable
