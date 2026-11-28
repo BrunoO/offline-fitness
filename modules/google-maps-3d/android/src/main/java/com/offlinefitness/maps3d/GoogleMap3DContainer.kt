@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.widget.FrameLayout
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactContext
 import com.google.android.gms.maps3d.GoogleMap3D
@@ -20,6 +19,7 @@ import com.google.android.gms.maps3d.model.Polyline
 import com.google.android.gms.maps3d.model.PolylineOptions
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
+import expo.modules.kotlin.views.ExpoView
 import java.lang.ref.WeakReference
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -37,8 +37,10 @@ data class TrackPoint(
 
 class GoogleMap3DContainer(
   context: Context,
-  private val appContext: AppContext
-) : FrameLayout(context), OnMap3DViewReadyCallback, LifecycleEventListener {
+  appContext: AppContext
+) : ExpoView(context, appContext), OnMap3DViewReadyCallback, LifecycleEventListener {
+
+  override val shouldUseAndroidLayout: Boolean = true
 
   private val onMapReady by EventDispatcher()
   private val onFlyoverProgress by EventDispatcher()
@@ -97,19 +99,6 @@ class GoogleMap3DContainer(
       if (rc.hasCurrentActivity()) {
         // Host Activity is already resumed when mounting dynamically.
         startAndResumeMap()
-      }
-    }
-  }
-
-  override fun requestLayout() {
-    super.requestLayout()
-    post {
-      if (width > 0 && height > 0) {
-        measure(
-          MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
-          MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
-        )
-        layout(left, top, right, bottom)
       }
     }
   }

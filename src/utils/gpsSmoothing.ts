@@ -61,6 +61,41 @@ function perpendicularDistanceMeters(p: GpsPoint, a: GpsPoint, b: GpsPoint): num
   return Math.hypot(px - projX, py - projY);
 }
 
+function findFarthestPoint(
+  points: readonly GpsPoint[],
+  startIndex: number,
+  endIndex: number
+): { maxDist: number; maxIndex: number } {
+  let maxDist = -1;
+  let maxIndex = -1;
+  const startPoint = points[startIndex];
+  const endPoint = points[endIndex];
+
+  for (let i = startIndex + 1; i < endIndex; i += 1) {
+    const dist = perpendicularDistanceMeters(points[i], startPoint, endPoint);
+    if (dist > maxDist) {
+      maxDist = dist;
+      maxIndex = i;
+    }
+  }
+
+  return { maxDist, maxIndex };
+}
+
+function pushSubRanges(
+  stack: [number, number][],
+  startIndex: number,
+  splitIndex: number,
+  endIndex: number
+): void {
+  if (splitIndex - startIndex > 1) {
+    stack.push([startIndex, splitIndex]);
+  }
+  if (endIndex - splitIndex > 1) {
+    stack.push([splitIndex, endIndex]);
+  }
+}
+
 /**
  * Iterative Douglas-Peucker GPS track simplification.
  *
@@ -93,36 +128,13 @@ export function simplifyGpsTrack<T extends GpsPoint>(
       break;
     }
     const [startIndex, endIndex] = range;
-    let maxDist = -1;
-    let maxIndex = -1;
-
-    const startPoint = points[startIndex];
-    const endPoint = points[endIndex];
-
-    for (let i = startIndex + 1; i < endIndex; i += 1) {
-      const dist = perpendicularDistanceMeters(points[i], startPoint, endPoint);
-      if (dist > maxDist) {
-        maxDist = dist;
-        maxIndex = i;
-      }
-    }
+    const { maxDist, maxIndex } = findFarthestPoint(points, startIndex, endIndex);
 
     if (maxDist > toleranceMeters && maxIndex !== -1) {
       keep[maxIndex] = 1;
-      if (maxIndex - startIndex > 1) {
-        stack.push([startIndex, maxIndex]);
-      }
-      if (endIndex - maxIndex > 1) {
-        stack.push([maxIndex, endIndex]);
-      }
+      pushSubRanges(stack, startIndex, maxIndex, endIndex);
     }
   }
 
-  const result: T[] = [];
-  for (let i = 0; i < points.length; i += 1) {
-    if (keep[i] === 1) {
-      result.push(points[i]);
-    }
-  }
-  return result;
+  return points.filter((_, index) => keep[index] === 1);
 }

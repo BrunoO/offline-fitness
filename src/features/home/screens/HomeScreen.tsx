@@ -712,6 +712,23 @@ export function HomeScreen({ navigation }: Readonly<HomeScreenProps>): React.JSX
           styles={styles}
         />
 
+        {/* Temporary demo entry point for the Google Maps 3D flyover (remove before release). */}
+        <View style={{ marginTop: 16, alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate(STACK_ROUTES.Flyover3D)}
+            accessibilityRole="button"
+            accessibilityLabel="Open 3D flyover demo"
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderRadius: 8,
+              backgroundColor: theme.primary
+            }}
+          >
+            <Text style={{ color: theme.onPrimary, fontWeight: '600' }}>3D Flyover Demo</Text>
+          </TouchableOpacity>
+        </View>
+
         <HomeFooter styles={styles} />
       </ScrollView>
       <DayActivitiesSheet
