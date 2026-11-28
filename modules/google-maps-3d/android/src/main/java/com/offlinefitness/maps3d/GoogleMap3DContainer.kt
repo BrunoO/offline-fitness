@@ -453,7 +453,7 @@ class GoogleMap3DContainer(
       return
     }
 
-    val traveledPath = fullTrackLatLng.subList(0, endSourceIndex + 1)
+    val traveledPath = ArrayList(fullTrackLatLng.subList(0, endSourceIndex + 1))
     val existing = activePolyline
     if (existing != null) {
       existing.setPath(traveledPath)
@@ -463,6 +463,9 @@ class GoogleMap3DContainer(
         setAltitudeMode(AltitudeMode.CLAMP_TO_GROUND)
         setStrokeColor(strokeColorInt)
         setStrokeWidth(strokeWidthPx)
+        setOuterColor(Color.WHITE)
+        setOuterWidth(DEFAULT_OUTER_WIDTH_RATIO)
+        setDrawsOccludedSegments(true)
       }
       activePolyline = map.addPolyline(options)
     }
@@ -717,6 +720,7 @@ class GoogleMap3DContainer(
 
     private val DEFAULT_STROKE_COLOR: Int = Color.parseColor("#FC4C02")
     private const val DEFAULT_STROKE_WIDTH = 12.0
+    private const val DEFAULT_OUTER_WIDTH_RATIO = 0.35
     private const val DEFAULT_SPEED_MULTIPLIER = 1.0
     private const val MIN_SPEED_MULTIPLIER = 0.25
     private const val MAX_SPEED_MULTIPLIER = 16.0
