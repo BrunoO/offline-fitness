@@ -5,13 +5,18 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MapType } from 'react-native-maps';
 import { FlyoverCameraMode } from '../types/flyover.types';
 
+export type FlyoverRenderMode = '2.5d' | '3d';
+
 export interface FlyoverHeaderProps {
   title: string;
   mapType: MapType;
+  mapTypeLabel?: string;
   cameraMode?: FlyoverCameraMode;
+  renderMode?: FlyoverRenderMode;
   onClose: () => void;
   onCycleMapType: () => void;
   onCycleCameraMode?: () => void;
+  onToggleRenderMode?: () => void;
   topInset: number;
 }
 
@@ -55,12 +60,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number) =>
     headerTitle: {
       fontSize: 16,
       fontWeight: '700',
-      color: theme.textStrong
+      color: theme.textStrong,
+      flexShrink: 1
     },
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8
+      gap: 8,
+      marginLeft: 8
     },
     iconButton: {
       width: 40,
@@ -79,27 +86,46 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number) =>
       borderRadius: 14,
       backgroundColor: theme.surfaceMuted
     },
+    renderModeButtonActive: {
+      backgroundColor: theme.primarySoft,
+      borderWidth: 1,
+      borderColor: theme.primary
+    },
     mapTypeText: {
       fontSize: 12,
       fontWeight: '600',
       textTransform: 'capitalize',
       color: theme.text
+    },
+    renderModeText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.text
+    },
+    renderModeTextActive: {
+      color: theme.primary
     }
   });
 
 export default function FlyoverHeader({
   title,
   mapType,
+  mapTypeLabel,
   cameraMode = 'follow',
+  renderMode,
   onClose,
   onCycleMapType,
   onCycleCameraMode,
+  onToggleRenderMode,
   topInset
 }: Readonly<FlyoverHeaderProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, topInset), [theme, topInset]);
   const modeLabel = CAMERA_MODE_LABEL[cameraMode];
   const modeIcon = CAMERA_MODE_ICON[cameraMode];
+  const activeMapLabel = mapTypeLabel ?? mapType;
+  const is3D = renderMode === '3d';
+  const renderModeLabel = is3D ? '3D' : '2.5D';
 
   return (
     <View style={styles.headerBar}>
@@ -118,6 +144,24 @@ export default function FlyoverHeader({
       </View>
 
       <View style={styles.headerActions}>
+        {onToggleRenderMode && renderMode ? (
+          <TouchableOpacity
+            style={[styles.mapTypeButton, is3D ? styles.renderModeButtonActive : null]}
+            onPress={onToggleRenderMode}
+            accessibilityRole="button"
+            accessibilityLabel={`Flyover mode: ${renderModeLabel}. Tap to switch to ${is3D ? '2.5D' : '3D'}.`}
+          >
+            <Ionicons
+              name={is3D ? 'cube-outline' : 'map-outline'}
+              size={15}
+              color={is3D ? theme.primary : theme.text}
+            />
+            <Text style={[styles.renderModeText, is3D ? styles.renderModeTextActive : null]}>
+              {renderModeLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
         {onCycleCameraMode ? (
           <TouchableOpacity
             style={styles.mapTypeButton}
@@ -134,10 +178,10 @@ export default function FlyoverHeader({
           style={styles.mapTypeButton}
           onPress={onCycleMapType}
           accessibilityRole="button"
-          accessibilityLabel={`Map type: ${mapType}. Tap to change.`}
+          accessibilityLabel={`Map type: ${activeMapLabel}. Tap to change.`}
         >
           <Ionicons name="layers-outline" size={16} color={theme.text} />
-          <Text style={styles.mapTypeText}>{mapType}</Text>
+          <Text style={styles.mapTypeText}>{activeMapLabel}</Text>
         </TouchableOpacity>
       </View>
     </View>

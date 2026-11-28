@@ -1,17 +1,46 @@
+import {
+  buildElevationSparkline,
+  Flyover25DRenderer,
+  FlyoverCameraMode,
+  FlyoverControls,
+  FlyoverHeader,
+  FlyoverHud,
+  FlyoverRenderMode,
+  HAS_GOOGLE_MAPS_KEY,
+  useFlyoverPlayback,
+  useKeepFlyoverAwake
+} from '@/features/maps';
+import { loadStreamForActivity, useActivitiesContext } from '@/features/activities';
+import type { ActivityStream, RootStackParamList } from '@/shared';
 import { useTheme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import type { MapType } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { RootStackParamList } from '@/shared/types/types';
-import { GoogleMap3DFlyover, Map3DCoordinate } from '../components/GoogleMap3DFlyover';
-import { computeTrackDistanceMeters } from '../utils/gpsSmoothing';
-import { loadRawStreamForActivity, useActivitiesContext } from '@/features/activities';
-import { activityToFlyoverCoordinates } from '@/utils/activityTrack';
+import {
+  FlyoverSegmentStartEventPayload,
+  GoogleMap3DFlyover,
+  GoogleMaps3DViewRef,
+  Map3DCoordinate,
+  Map3DModeType
+} from '../components/GoogleMap3DFlyover';
 
-const SPEED_OPTIONS = [1, 2, 4] as const;
+const NEXT_MAP_TYPE: Partial<Record<MapType, MapType>> = {
+  hybrid: 'satellite',
+  satellite: 'terrain',
+  terrain: 'standard',
+  standard: 'hybrid',
+  mutedStandard: 'hybrid'
+};
+
+const NEXT_CAMERA_MODE: Record<FlyoverCameraMode, FlyoverCameraMode> = {
+  follow: 'north-up',
+  'north-up': 'overview',
+  overview: 'follow'
+};
 
 const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bottomInset: number) =>
   StyleSheet.create({
@@ -19,152 +48,463 @@ const createStyles = (theme: ReturnType<typeof useTheme>, topInset: number, bott
       flex: 1,
       backgroundColor: theme.surface
     },
-    emptyContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24
-    },
-    emptyText: {
-      fontSize: 15,
-      color: theme.textMuted,
-      textAlign: 'center'
-    },
     map: {
       ...StyleSheet.absoluteFill
     },
-    headerOverlay: {
+    hudContainer: {
       position: 'absolute',
-      top: Math.max(topInset, 16) + 8,
+      top: Math.max(topInset, 16) + 64,
       left: 16,
       right: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      zIndex: 10
+      zIndex: 9
     },
-    backButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    titleBadge: {
-      flex: 1,
-      marginLeft: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 14,
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border
-    },
-    titleText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: theme.textStrong
-    },
-    subtitleText: {
-      fontSize: 12,
-      color: theme.textMuted,
-      marginTop: 2
-    },
-    controlsCard: {
+    controlsContainer: {
       position: 'absolute',
       bottom: Math.max(bottomInset, 16) + 8,
       left: 16,
       right: 16,
-      borderRadius: 18,
-      padding: 16,
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
       zIndex: 10
     },
-    progressHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8
-    },
-    statusLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: theme.text
-    },
-    progressText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: theme.textStrong
-    },
-    progressTrack: {
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.surfaceMuted,
-      overflow: 'hidden',
-      marginBottom: 14
-    },
-    progressFill: {
-      height: '100%',
-      borderRadius: 4,
-      backgroundColor: theme.primary
-    },
-    controlsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between'
-    },
-    playButton: {
-      flexDirection: 'row',
+    emptyContainer: {
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 18,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: theme.primary
+      paddingHorizontal: 32,
+      backgroundColor: theme.surface
     },
-    playButtonDisabled: {
-      opacity: 0.55
-    },
-    playButtonText: {
-      fontSize: 15,
+    emptyTitle: {
+      fontSize: 18,
       fontWeight: '700',
-      color: theme.onPrimary,
-      marginLeft: 8
+      color: theme.textStrong,
+      marginTop: 16,
+      marginBottom: 8,
+      textAlign: 'center'
     },
-    speedGroup: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8
-    },
-    speedChip: {
-      minWidth: 44,
-      height: 36,
-      paddingHorizontal: 10,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.surfaceMuted,
-      borderWidth: 1,
-      borderColor: theme.border
-    },
-    speedChipActive: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary
-    },
-    speedChipText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: theme.text
-    },
-    speedChipTextActive: {
-      color: theme.onPrimary
+    emptySubtitle: {
+      fontSize: 14,
+      color: theme.textMuted,
+      textAlign: 'center',
+      lineHeight: 20
     }
   });
+
+function coordinatesToStream(coords: Map3DCoordinate[]): ActivityStream {
+  return {
+    coordinates: coords.map(c => ({ latitude: c.latitude, longitude: c.longitude })),
+    altitude: coords.map(c =>
+      typeof c.altitude === 'number' && Number.isFinite(c.altitude) ? c.altitude : 0
+    ),
+    time: coords.map((_, index) => index)
+  };
+}
+
+function streamTo3DCoordinates(stream: ActivityStream | null): Map3DCoordinate[] {
+  if (!stream || stream.coordinates.length === 0) return [];
+  return stream.coordinates.map((coord, index) => ({
+    latitude: coord.latitude,
+    longitude: coord.longitude,
+    altitude: Number.isFinite(stream.altitude[index]) ? stream.altitude[index] : 0
+  }));
+}
+
+function useLoadedFlyoverStream(
+  activityId: string | undefined,
+  routeCoordinates: Map3DCoordinate[] | undefined
+): { stream: ActivityStream | null; isLoading: boolean; activityType: string | undefined } {
+  const { globalActivities } = useActivitiesContext();
+  const [loadedStream, setLoadedStream] = useState<ActivityStream | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(Boolean(activityId));
+
+  const activity = activityId ? globalActivities.find(a => a.id === activityId) : undefined;
+
+  useEffect(() => {
+    if (!activityId) {
+      setLoadedStream(null);
+      setIsLoading(false);
+      return;
+    }
+    if (!activity) {
+      setLoadedStream(null);
+      setIsLoading(false);
+      return;
+    }
+    let active = true;
+    setIsLoading(true);
+    void loadStreamForActivity(activity)
+      .then(result => {
+        if (!active) return;
+        setLoadedStream(result ?? null);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadedStream(null);
+        setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activityId, activity]);
+
+  const fallbackStream = useMemo(
+    () =>
+      !activityId && routeCoordinates && routeCoordinates.length >= 2
+        ? coordinatesToStream(routeCoordinates)
+        : null,
+    [activityId, routeCoordinates]
+  );
+
+  return {
+    stream: loadedStream ?? fallbackStream,
+    isLoading,
+    activityType: activity?.type
+  };
+}
+
+interface Active3DSegment {
+  from: number;
+  to: number;
+  durationMs: number;
+  startedAt: number;
+}
+
+interface FlyoverMapBodyProps {
+  isLoading: boolean;
+  stream: ActivityStream | null;
+  renderMode: FlyoverRenderMode;
+  isFocused: boolean;
+  coordinates3D: Map3DCoordinate[];
+  strokeColor: string;
+  isPlaying3D: boolean;
+  speedMultiplier: number;
+  mapMode3D: Map3DModeType;
+  mapType25D: MapType;
+  cameraMode: FlyoverCameraMode;
+  forceCameraTick: number;
+  playback: ReturnType<typeof useFlyoverPlayback>;
+  map3DRef: React.RefObject<GoogleMaps3DViewRef | null>;
+  on3DMapReady: () => void;
+  on3DProgress: (progress: number) => void;
+  on3DSegmentStart: (segment: FlyoverSegmentStartEventPayload) => void;
+  on3DComplete: () => void;
+  styles: ReturnType<typeof createStyles>;
+  textMutedColor: string;
+}
+
+function FlyoverMapBody({
+  isLoading,
+  stream,
+  renderMode,
+  isFocused,
+  coordinates3D,
+  strokeColor,
+  isPlaying3D,
+  speedMultiplier,
+  mapMode3D,
+  mapType25D,
+  cameraMode,
+  forceCameraTick,
+  playback,
+  map3DRef,
+  on3DMapReady,
+  on3DProgress,
+  on3DSegmentStart,
+  on3DComplete,
+  styles,
+  textMutedColor
+}: Readonly<FlyoverMapBodyProps>) {
+  if (isLoading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptySubtitle}>Loading track…</Text>
+      </View>
+    );
+  }
+  if (!stream || stream.coordinates.length < 2) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="location-outline" size={48} color={textMutedColor} />
+        <Text style={styles.emptyTitle}>No GPS Track Data</Text>
+        <Text style={styles.emptySubtitle}>
+          This activity does not contain recorded GPS coordinates for flyover playback.
+        </Text>
+      </View>
+    );
+  }
+  if (renderMode === '3d') {
+    return isFocused ? (
+      <GoogleMap3DFlyover
+        ref={map3DRef}
+        style={styles.map}
+        coordinates={coordinates3D}
+        strokeColor={strokeColor}
+        strokeWidth={12}
+        isPlaying={isPlaying3D}
+        speedMultiplier={speedMultiplier}
+        cameraTilt={65}
+        cameraRange={800}
+        mapMode={mapMode3D}
+        onMapReady={on3DMapReady}
+        onFlyoverProgress={on3DProgress}
+        onFlyoverSegmentStart={on3DSegmentStart}
+        onFlyoverComplete={on3DComplete}
+      />
+    ) : null;
+  }
+  return (
+    <Flyover25DRenderer
+      stream={stream}
+      track={playback.track}
+      currentPoint={playback.currentPoint}
+      traveledCoordinates={playback.traveledCoordinates}
+      mapType={mapType25D}
+      cameraMode={cameraMode}
+      active={isFocused}
+      forceCameraTick={forceCameraTick}
+    />
+  );
+}
+
+function use3DPlaybackBridge(
+  playback: ReturnType<typeof useFlyoverPlayback>,
+  renderMode: FlyoverRenderMode,
+  isPlaying3D: boolean,
+  setIsPlaying3D: React.Dispatch<React.SetStateAction<boolean>>,
+  map3DRef: React.RefObject<GoogleMaps3DViewRef | null>
+) {
+  const pendingSeek3DRef = useRef<number | null>(null);
+  const segmentRafRef = useRef<number | null>(null);
+  const activeSegmentRef = useRef<Active3DSegment | null>(null);
+
+  const schedulePendingSeek3D = useCallback((progressRatio: number) => {
+    pendingSeek3DRef.current = progressRatio;
+  }, []);
+
+  const stop3DSegmentTicker = useCallback(() => {
+    if (segmentRafRef.current !== null) {
+      cancelAnimationFrame(segmentRafRef.current);
+      segmentRafRef.current = null;
+    }
+    activeSegmentRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!isPlaying3D || renderMode !== '3d') {
+      stop3DSegmentTicker();
+    }
+  }, [isPlaying3D, renderMode, stop3DSegmentTicker]);
+
+  const handle3DMapReady = useCallback(() => {
+    const pending = pendingSeek3DRef.current;
+    if (pending !== null) {
+      pendingSeek3DRef.current = null;
+      void map3DRef.current?.seekTo(pending * 100);
+    }
+  }, [map3DRef]);
+
+  const handle3DSegmentStart = useCallback(
+    (segment: FlyoverSegmentStartEventPayload) => {
+      stop3DSegmentTicker();
+      if (segment.durationMs <= 0) return;
+      activeSegmentRef.current = {
+        from: segment.fromProgress / 100,
+        to: segment.toProgress / 100,
+        durationMs: segment.durationMs,
+        startedAt: Date.now()
+      };
+      const tick = () => {
+        const current = activeSegmentRef.current;
+        if (!current) return;
+        const elapsed = Date.now() - current.startedAt;
+        const ratio = Math.min(1, Math.max(0, elapsed / current.durationMs));
+        playback.seekTo(current.from + (current.to - current.from) * ratio);
+        if (ratio < 1) {
+          segmentRafRef.current = requestAnimationFrame(tick);
+        } else {
+          segmentRafRef.current = null;
+        }
+      };
+      segmentRafRef.current = requestAnimationFrame(tick);
+    },
+    [playback, stop3DSegmentTicker]
+  );
+
+  const handle3DProgress = useCallback(
+    (nextProgressPercent: number) => {
+      stop3DSegmentTicker();
+      playback.seekTo(nextProgressPercent / 100);
+    },
+    [playback, stop3DSegmentTicker]
+  );
+
+  const handle3DComplete = useCallback(() => {
+    stop3DSegmentTicker();
+    setIsPlaying3D(false);
+    playback.seekTo(1);
+  }, [playback, setIsPlaying3D, stop3DSegmentTicker]);
+
+  return {
+    schedulePendingSeek3D,
+    stop3DSegmentTicker,
+    handle3DMapReady,
+    handle3DSegmentStart,
+    handle3DProgress,
+    handle3DComplete
+  };
+}
+
+interface FlyoverPlaybackActionsParams {
+  canUse3D: boolean;
+  renderMode: FlyoverRenderMode;
+  setRenderMode: React.Dispatch<React.SetStateAction<FlyoverRenderMode>>;
+  isPlaying: boolean;
+  isPlaying3D: boolean;
+  setIsPlaying3D: React.Dispatch<React.SetStateAction<boolean>>;
+  setMapMode3D: React.Dispatch<React.SetStateAction<Map3DModeType>>;
+  setMapType25D: React.Dispatch<React.SetStateAction<MapType>>;
+  setCameraMode: React.Dispatch<React.SetStateAction<FlyoverCameraMode>>;
+  setForceCameraTick: React.Dispatch<React.SetStateAction<number>>;
+  playback: ReturnType<typeof useFlyoverPlayback>;
+  map3DRef: React.RefObject<GoogleMaps3DViewRef | null>;
+  schedulePendingSeek3D: (progressRatio: number) => void;
+  stop3DSegmentTicker: () => void;
+}
+
+function useFlyoverPlaybackActions({
+  canUse3D,
+  renderMode,
+  setRenderMode,
+  isPlaying,
+  isPlaying3D,
+  setIsPlaying3D,
+  setMapMode3D,
+  setMapType25D,
+  setCameraMode,
+  setForceCameraTick,
+  playback,
+  map3DRef,
+  schedulePendingSeek3D,
+  stop3DSegmentTicker
+}: FlyoverPlaybackActionsParams) {
+  const wasPlayingBeforeScrubRef = useRef(false);
+
+  const handleTogglePlay = useCallback(() => {
+    if (renderMode === '3d') {
+      if (playback.progress >= 0.999) {
+        playback.seekTo(0);
+        void map3DRef.current?.restartFlyover();
+        setIsPlaying3D(true);
+        return;
+      }
+      setIsPlaying3D(prev => !prev);
+      return;
+    }
+    playback.togglePlay();
+  }, [renderMode, playback, map3DRef, setIsPlaying3D]);
+
+  const handleRestart = useCallback(() => {
+    if (renderMode === '3d') {
+      stop3DSegmentTicker();
+      playback.seekTo(0);
+      void map3DRef.current?.restartFlyover();
+      return;
+    }
+    playback.restart();
+    setForceCameraTick(t => t + 1);
+  }, [renderMode, playback, map3DRef, setForceCameraTick, stop3DSegmentTicker]);
+
+  const handleSlidingStart = useCallback(() => {
+    wasPlayingBeforeScrubRef.current = isPlaying;
+    if (renderMode === '3d') {
+      stop3DSegmentTicker();
+      setIsPlaying3D(false);
+    } else {
+      playback.pause();
+    }
+  }, [isPlaying, renderMode, playback, setIsPlaying3D, stop3DSegmentTicker]);
+
+  const handleSeek = useCallback(
+    (targetProgress: number) => {
+      playback.seekTo(targetProgress);
+      if (renderMode === '3d') {
+        void map3DRef.current?.seekTo(targetProgress * 100);
+      }
+    },
+    [playback, renderMode, map3DRef]
+  );
+
+  const handleSlidingComplete = useCallback(
+    (targetProgress: number) => {
+      playback.seekTo(targetProgress);
+      if (renderMode === '3d') {
+        void map3DRef.current?.seekTo(targetProgress * 100);
+        if (wasPlayingBeforeScrubRef.current) {
+          setIsPlaying3D(true);
+        }
+        return;
+      }
+      setForceCameraTick(t => t + 1);
+      if (wasPlayingBeforeScrubRef.current) {
+        playback.play();
+      }
+    },
+    [playback, renderMode, map3DRef, setIsPlaying3D, setForceCameraTick]
+  );
+
+  const handleToggleRenderMode = useCallback(() => {
+    if (!canUse3D) return;
+    if (renderMode === '3d') {
+      const resumeIn25D = isPlaying3D;
+      stop3DSegmentTicker();
+      setIsPlaying3D(false);
+      setRenderMode('2.5d');
+      setForceCameraTick(t => t + 1);
+      if (resumeIn25D) {
+        playback.play();
+      }
+      return;
+    }
+    const resumeIn3D = playback.isPlaying;
+    playback.pause();
+    schedulePendingSeek3D(playback.progress);
+    setRenderMode('3d');
+    setIsPlaying3D(resumeIn3D);
+  }, [
+    canUse3D,
+    renderMode,
+    isPlaying3D,
+    playback,
+    schedulePendingSeek3D,
+    setForceCameraTick,
+    setIsPlaying3D,
+    setRenderMode,
+    stop3DSegmentTicker
+  ]);
+
+  const handleCycleMapType = useCallback(() => {
+    if (renderMode === '3d') {
+      setMapMode3D(current => (current === 'HYBRID' ? 'SATELLITE' : 'HYBRID'));
+      return;
+    }
+    setMapType25D(current => NEXT_MAP_TYPE[current] ?? 'hybrid');
+  }, [renderMode, setMapMode3D, setMapType25D]);
+
+  const handleCycleCameraMode = useCallback(() => {
+    setCameraMode(current => NEXT_CAMERA_MODE[current]);
+    setForceCameraTick(t => t + 1);
+  }, [setCameraMode, setForceCameraTick]);
+
+  return {
+    handleTogglePlay,
+    handleRestart,
+    handleSlidingStart,
+    handleSeek,
+    handleSlidingComplete,
+    handleToggleRenderMode,
+    handleCycleMapType,
+    handleCycleCameraMode
+  };
+}
 
 export function FlyoverScreen() {
   const theme = useTheme();
@@ -178,225 +518,165 @@ export function FlyoverScreen() {
     [theme, insets.top, insets.bottom]
   );
 
-  const { globalActivities } = useActivitiesContext();
-  const activityId = route.params?.activityId;
-  const routeCoordinates = route.params?.coordinates;
+  useKeepFlyoverAwake(isFocused);
 
-  const [loadedTrack, setLoadedTrack] = useState<Map3DCoordinate[] | null>(null);
-  const [isLoadingTrack, setIsLoadingTrack] = useState<boolean>(Boolean(activityId));
+  const canUse3D = Platform.OS === 'android' && HAS_GOOGLE_MAPS_KEY;
+  const initialMode: FlyoverRenderMode =
+    route.params?.initialMode === '2.5d' || !canUse3D ? '2.5d' : '3d';
 
-  useEffect(() => {
-    if (!activityId) {
-      setLoadedTrack(null);
-      setIsLoadingTrack(false);
-      return;
-    }
-    const activity = globalActivities.find(a => a.id === activityId);
-    if (!activity) {
-      setLoadedTrack([]);
-      setIsLoadingTrack(false);
-      return;
-    }
-    let active = true;
-    setIsLoadingTrack(true);
-    void loadRawStreamForActivity(activity)
-      .then(stream => {
-        if (!active) return;
-        setLoadedTrack(activityToFlyoverCoordinates(stream));
-        setIsLoadingTrack(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoadedTrack([]);
-        setIsLoadingTrack(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [activityId, globalActivities]);
+  const [renderMode, setRenderMode] = useState<FlyoverRenderMode>(initialMode);
+  const [mapType25D, setMapType25D] = useState<MapType>('hybrid');
+  const [mapMode3D, setMapMode3D] = useState<Map3DModeType>('HYBRID');
+  const [cameraMode, setCameraMode] = useState<FlyoverCameraMode>('follow');
+  const [forceCameraTick, setForceCameraTick] = useState(0);
+  const [isPlaying3D, setIsPlaying3D] = useState(false);
 
-  const track: Map3DCoordinate[] = useMemo(() => {
-    if (loadedTrack) return loadedTrack;
-    if (routeCoordinates && routeCoordinates.length >= 2) return routeCoordinates;
-    return [];
-  }, [loadedTrack, routeCoordinates]);
+  const map3DRef = useRef<GoogleMaps3DViewRef | null>(null);
 
-  const title = route.params?.title ?? 'Activity — 3D Flyover';
-  const distanceKm = useMemo(() => (computeTrackDistanceMeters(track) / 1000).toFixed(1), [track]);
+  const {
+    stream,
+    isLoading,
+    activityType: loadedActivityType
+  } = useLoadedFlyoverStream(route.params?.activityId, route.params?.coordinates);
 
-  const [isMapReady, setIsMapReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speedMultiplier, setSpeedMultiplier] = useState<number>(1);
-  const [progress, setProgress] = useState(0);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const playback = useFlyoverPlayback(stream, { autoPlay: false, loop: false });
+  const coordinates3D = useMemo(() => streamTo3DCoordinates(stream), [stream]);
+  const elevationSparkline = useMemo(
+    () => buildElevationSparkline(playback.track),
+    [playback.track]
+  );
 
-  // Stop playback and reset readiness whenever the screen loses focus so the
-  // single-instance Map3DView is cleanly unmounted and destroyed.
+  const {
+    schedulePendingSeek3D,
+    stop3DSegmentTicker,
+    handle3DMapReady,
+    handle3DSegmentStart,
+    handle3DProgress,
+    handle3DComplete
+  } = use3DPlaybackBridge(playback, renderMode, isPlaying3D, setIsPlaying3D, map3DRef);
+
   useFocusEffect(
     useCallback(() => {
       return () => {
-        setIsPlaying(false);
-        setIsMapReady(false);
+        setIsPlaying3D(false);
+        playback.pause();
+        stop3DSegmentTicker();
       };
-    }, [])
+    }, [playback, stop3DSegmentTicker])
   );
 
-  const handleMapReady = useCallback(() => {
-    setIsMapReady(true);
-  }, []);
+  const isPlaying = renderMode === '3d' ? isPlaying3D : playback.isPlaying;
 
-  const handleFlyoverProgress = useCallback((nextProgress: number) => {
-    setProgress(nextProgress);
-  }, []);
+  const {
+    handleTogglePlay,
+    handleRestart,
+    handleSlidingStart,
+    handleSeek,
+    handleSlidingComplete,
+    handleToggleRenderMode,
+    handleCycleMapType,
+    handleCycleCameraMode
+  } = useFlyoverPlaybackActions({
+    canUse3D,
+    renderMode,
+    setRenderMode,
+    isPlaying,
+    isPlaying3D,
+    setIsPlaying3D,
+    setMapMode3D,
+    setMapType25D,
+    setCameraMode,
+    setForceCameraTick,
+    playback,
+    map3DRef,
+    schedulePendingSeek3D,
+    stop3DSegmentTicker
+  });
 
-  const handleFlyoverComplete = useCallback(() => {
-    setIsPlaying(false);
-    setIsCompleted(true);
-    setProgress(100);
-  }, []);
-
-  const handleTogglePlay = useCallback(() => {
-    if (isCompleted) {
-      setIsCompleted(false);
-      setProgress(0);
-      setIsPlaying(true);
-      return;
-    }
-    setIsPlaying(prev => !prev);
-  }, [isCompleted]);
-
-  const handleGoBack = useCallback(() => {
-    setIsPlaying(false);
+  const handleClose = useCallback(() => {
+    setIsPlaying3D(false);
+    playback.pause();
+    stop3DSegmentTicker();
     if (navigation.canGoBack()) {
       navigation.goBack();
     }
-  }, [navigation]);
+  }, [navigation, playback, stop3DSegmentTicker]);
 
-  const statusText = useMemo(() => {
-    if (!isMapReady) {
-      return 'Loading 3D terrain…';
-    }
-    if (isCompleted) {
-      return 'Flyover complete';
-    }
-    return isPlaying ? `Flying (${speedMultiplier}x)` : 'Paused';
-  }, [isMapReady, isCompleted, isPlaying, speedMultiplier]);
-
-  const playLabel = useMemo(() => {
-    if (isCompleted) {
-      return 'Replay';
-    }
-    return isPlaying ? 'Pause' : 'Play';
-  }, [isCompleted, isPlaying]);
-
-  const playIconName = useMemo(() => {
-    if (isCompleted) {
-      return 'refresh' as const;
-    }
-    return isPlaying ? ('pause' as const) : ('play' as const);
-  }, [isCompleted, isPlaying]);
-
-  let mapContent: React.ReactNode = null;
-  if (isLoadingTrack) {
-    mapContent = (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Loading track…</Text>
-      </View>
-    );
-  } else if (track.length < 2) {
-    mapContent = (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>This activity has no GPS track.</Text>
-      </View>
-    );
-  } else if (isFocused) {
-    mapContent = (
-      <GoogleMap3DFlyover
-        style={styles.map}
-        coordinates={track}
-        strokeColor="#FC4C02"
-        strokeWidth={12}
-        isPlaying={isPlaying}
-        speedMultiplier={speedMultiplier}
-        cameraTilt={65}
-        cameraRange={800}
-        onMapReady={handleMapReady}
-        onFlyoverProgress={handleFlyoverProgress}
-        onFlyoverComplete={handleFlyoverComplete}
-      />
-    );
-  }
+  const title = route.params?.title ?? 'Route Flyover';
+  const activityType = route.params?.activityType ?? loadedActivityType;
+  const hasValidTrack = Boolean(stream && stream.coordinates.length >= 2);
+  const currentPoint = playback.currentPoint;
+  const mapTypeLabel = renderMode === '3d' ? mapMode3D.toLowerCase() : mapType25D;
 
   return (
     <View style={styles.container}>
-      {mapContent}
+      <FlyoverMapBody
+        isLoading={isLoading}
+        stream={stream}
+        renderMode={renderMode}
+        isFocused={isFocused}
+        coordinates3D={coordinates3D}
+        strokeColor={theme.primary}
+        isPlaying3D={isPlaying3D}
+        speedMultiplier={playback.speedMultiplier}
+        mapMode3D={mapMode3D}
+        mapType25D={mapType25D}
+        cameraMode={cameraMode}
+        forceCameraTick={forceCameraTick}
+        playback={playback}
+        map3DRef={map3DRef}
+        on3DMapReady={handle3DMapReady}
+        on3DProgress={handle3DProgress}
+        on3DSegmentStart={handle3DSegmentStart}
+        on3DComplete={handle3DComplete}
+        styles={styles}
+        textMutedColor={theme.textMuted}
+      />
 
-      <View style={styles.headerOverlay}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close 3D flyover"
-          onPress={handleGoBack}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={22} color={theme.textStrong} />
-        </Pressable>
+      <FlyoverHeader
+        title={title}
+        mapType={mapType25D}
+        mapTypeLabel={mapTypeLabel}
+        cameraMode={cameraMode}
+        renderMode={canUse3D ? renderMode : undefined}
+        onClose={handleClose}
+        onCycleMapType={handleCycleMapType}
+        onCycleCameraMode={renderMode === '2.5d' ? handleCycleCameraMode : undefined}
+        onToggleRenderMode={canUse3D ? handleToggleRenderMode : undefined}
+        topInset={insets.top}
+      />
 
-        <View style={styles.titleBadge}>
-          <Text style={styles.titleText} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.subtitleText}>
-            {distanceKm} km · {track.length} GPS points
-          </Text>
-        </View>
-      </View>
-
-      {!isLoadingTrack && track.length >= 2 ? (
-        <View style={styles.controlsCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.statusLabel}>{statusText}</Text>
-            <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+      {!isLoading && hasValidTrack ? (
+        <>
+          <View style={styles.hudContainer}>
+            <FlyoverHud
+              speedMps={currentPoint?.speed ?? 0}
+              completedDistanceMeters={playback.completedDistanceMeters}
+              totalDistanceMeters={playback.totalDistanceMeters}
+              altitudeMeters={currentPoint?.altitude ?? 0}
+              elapsedSeconds={playback.elapsedSeconds}
+              totalDurationSeconds={playback.totalDurationSeconds}
+              activityType={activityType}
+              gradePercent={currentPoint?.grade}
+              heartrateBpm={currentPoint?.heartrate}
+            />
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.round(progress)}%` }]} />
+          <View style={styles.controlsContainer}>
+            <FlyoverControls
+              isPlaying={isPlaying}
+              progress={playback.progress}
+              speedMultiplier={playback.speedMultiplier}
+              elevationProfile={elevationSparkline}
+              onTogglePlay={handleTogglePlay}
+              onRestart={handleRestart}
+              onSeek={handleSeek}
+              onSetSpeed={playback.setSpeed}
+              onSlidingStart={handleSlidingStart}
+              onSlidingComplete={handleSlidingComplete}
+            />
           </View>
-
-          <View style={styles.controlsRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={playLabel}
-              disabled={!isMapReady}
-              onPress={handleTogglePlay}
-              style={[styles.playButton, !isMapReady ? styles.playButtonDisabled : null]}
-            >
-              <Ionicons name={playIconName} size={18} color={theme.onPrimary} />
-              <Text style={styles.playButtonText}>{playLabel}</Text>
-            </Pressable>
-
-            <View style={styles.speedGroup}>
-              {SPEED_OPTIONS.map(speed => {
-                const isSelected = speedMultiplier === speed;
-                return (
-                  <Pressable
-                    key={speed}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Set flyover speed to ${speed}x`}
-                    accessibilityState={{ selected: isSelected }}
-                    onPress={() => setSpeedMultiplier(speed)}
-                    style={[styles.speedChip, isSelected ? styles.speedChipActive : null]}
-                  >
-                    <Text
-                      style={[styles.speedChipText, isSelected ? styles.speedChipTextActive : null]}
-                    >
-                      {speed}x
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
+        </>
       ) : null}
     </View>
   );

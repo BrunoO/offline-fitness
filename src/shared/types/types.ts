@@ -82,6 +82,8 @@ export type RootStackParamList = {
         activityId?: string;
         coordinates?: { latitude: number; longitude: number; altitude?: number }[];
         title?: string;
+        activityType?: string;
+        initialMode?: '2.5d' | '3d';
       }
     | undefined;
 };

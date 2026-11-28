@@ -137,7 +137,8 @@ export function ActivityDetailScreen({
     if (!activity) return;
     navigation?.navigate?.(STACK_ROUTES.Flyover3D, {
       activityId: activity.id,
-      title: activity.name
+      title: activity.name,
+      activityType: activity.type
     });
   }, [activity, navigation]);
 

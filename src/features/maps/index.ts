@@ -6,6 +6,10 @@ export { default as MiniMapComponent } from './components/MiniMapComponent';
 export type { MiniMapComponentProps } from './components/MiniMapComponent';
 export { default as FlyoverModal } from './components/FlyoverModal';
 export type { FlyoverModalProps } from './components/FlyoverModal';
+export { default as Flyover25DRenderer } from './components/Flyover25DRenderer';
+export type { Flyover25DRendererProps } from './components/Flyover25DRenderer';
+export { default as FlyoverHeader } from './components/FlyoverHeader';
+export type { FlyoverHeaderProps, FlyoverRenderMode } from './components/FlyoverHeader';
 export { default as FlyoverHud } from './components/FlyoverHud';
 export type { FlyoverHudProps } from './components/FlyoverHud';
 export { default as FlyoverControls } from './components/FlyoverControls';
@@ -27,6 +31,7 @@ export { HAS_GOOGLE_MAPS_KEY } from './services/googleMapsKey';
 
 // Hooks
 export { useFlyoverPlayback } from './hooks/useFlyoverPlayback';
+export { useKeepFlyoverAwake } from './hooks/useKeepFlyoverAwake';
 
 // Flyover Mathematics & Data Pipeline
 export type {
